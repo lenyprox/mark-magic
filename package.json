@@ -12,7 +12,20 @@
     "build": "tsc -p tsconfig.json",
     "test": "node --test --import tsx test/*.test.ts",
     "play": "tsx src/cli/play.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "web:index": "node scripts/build-web-index.mjs",
+    "data:mana": "node scripts/build-mana-sprite.mjs",
+    "dev": "npm run dev -w apps/web -- --webpack",
+    "web:build": "npm run build -w apps/web -- --webpack",
+    "web:start": "npm run start -w apps/web",
+    "web:typecheck": "npm run typecheck -w apps/web",
+    "images:prefetch": "tsx scripts/prefetch-images.ts",
+    "meta:sync": "node --env-file-if-exists=.env.local --import tsx scripts/meta-sync.ts",
+    "coverage:pool": "tsx scripts/parser-coverage.ts",
+    "coverage:meta": "tsx scripts/meta-coverage.ts",
+    "analysis:selftest": "tsx scripts/analysis-selftest.ts",
+    "test:e2e": "npm run test:e2e -w apps/web",
+    "typecheck:all": "npm run typecheck && npm run web:typecheck"
   },
   "engines": {
     "node": ">=20"
@@ -25,5 +38,8 @@
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3"
-  }
+  },
+  "workspaces": [
+    "apps/web"
+  ]
 }

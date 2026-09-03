@@ -1,0 +1,26 @@
+'use client';
+import { Dialog } from '@/components/ui/Dialog';
+import { Kbd } from '@/components/ui/Display';
+import styles from './table.module.css';
+
+const ROWS: [string, string][] = [
+  ['Space', 'Pass priority / resolve the top of the stack'],
+  ['1 – 9', 'Pick the nth legal action (or target, when targeting)'],
+  ['Enter', 'Confirm the current declaration or armed play'],
+  ['Esc', 'Cancel targeting / clear the declaration'],
+  ['L', 'Toggle the log rail'],
+  ['P', 'Toggle the analysis panel'],
+  ['F', 'Flip a focused double-faced card'],
+  ['Arrows', 'Tilt a focused card'],
+  ['?', 'This sheet'],
+];
+
+export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Dialog open={open} onClose={onClose} title="Keyboard shortcuts" width={420}>
+      <dl className={styles.shortcuts}>
+        {ROWS.map(([k, d]) => <div key={k} className={styles.shortcutRow}><dt><Kbd>{k}</Kbd></dt><dd>{d}</dd></div>)}
+      </dl>
+    </Dialog>
+  );
+}

@@ -8,3 +8,11 @@ data/master/*.db
 !data/master/audit.json
 !data/master/summary.json
 !data/master/parser-coverage.json
+!data/master/meta-coverage.json
+data/user.db*
+data/images/
+apps/web/.next/
+apps/web/next-env.d.ts
+apps/web/test-results/
+apps/web/playwright-report/
+.env.local

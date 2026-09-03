@@ -1,0 +1,85 @@
+/* Vault design tokens. Dark archival layers, warm ink, brass as the only metal; colour only where it means something. */
+:root {
+  color-scheme: dark;
+
+  /* surfaces: each step is a lighter layer, never a shadow */
+  --bg-0: #0A0A0D;
+  --bg-1: #111116;
+  --bg-2: #17171E;
+  --bg-3: #1F1F28;
+  --bg-4: #282833;
+
+  /* ink */
+  --ink-1: #F1EDE4;
+  --ink-2: #B7B1A5;
+  --ink-3: #7A7469;
+  --ink-on-brass: #1A1408;
+
+  /* brass */
+  --brass-1: #E8D39A;
+  --brass-2: #C9A961;
+  --brass-3: #8C7238;
+  --brass-glow: rgba(232, 211, 154, 0.18);
+  --brass-line: rgba(201, 169, 97, 0.45);
+
+  /* lines and catchlights (elevation is light, not shadow) */
+  --line: rgba(241, 237, 228, 0.08);
+  --line-strong: rgba(241, 237, 228, 0.16);
+  --line-light: rgba(255, 255, 255, 0.10);
+  --catch: inset 0 1px 0 var(--line-light);
+  --lamp: radial-gradient(120% 80% at 50% -20%, rgba(255, 255, 255, 0.05), transparent 60%);
+  --shadow-pop: 0 18px 40px -18px rgba(0, 0, 0, 0.7);
+  --scrim: rgba(10, 10, 13, 0.62);
+
+  /* mana */
+  --mana-W: #F4EEDA; --mana-W-ink: #2B2718; --mana-W-glow: rgba(244, 238, 218, 0.28);
+  --mana-U: #3B8BE0; --mana-U-ink: #EAF3FF; --mana-U-glow: rgba(59, 139, 224, 0.32);
+  --mana-B: #A392B7; --mana-B-ink: #161120; --mana-B-glow: rgba(163, 146, 183, 0.30);
+  --mana-R: #E0523F; --mana-R-ink: #FFF0EC; --mana-R-glow: rgba(224, 82, 63, 0.32);
+  --mana-G: #3FA86C; --mana-G-ink: #EAFBF0; --mana-G-glow: rgba(63, 168, 108, 0.32);
+  --mana-C: #B9B5AC; --mana-C-ink: #1C1B18; --mana-C-glow: rgba(185, 181, 172, 0.26);
+  --mana-M: #D9B34A; --mana-M-ink: #221A05; --mana-M-glow: rgba(217, 179, 74, 0.32);
+
+  /* semantic */
+  --ok: #6FBF8A; --ok-ink: #0E2417; --ok-dim: rgba(111, 191, 138, 0.14);
+  --warn: #E0B54F; --warn-ink: #241B05; --warn-dim: rgba(224, 181, 79, 0.14);
+  --danger: #E0523F; --danger-ink: #FFF0EC; --danger-dim: rgba(224, 82, 63, 0.14);
+  --info: #5C9BE0; --info-ink: #EAF3FF; --info-dim: rgba(92, 155, 224, 0.14);
+  --engine: #A392B7; --engine-dim: rgba(163, 146, 183, 0.14);
+
+  /* rarity: thin dots and underlines only */
+  --rarity-common: #B9B5AC;
+  --rarity-uncommon: #9CB6C9;
+  --rarity-rare: #D9B34A;
+  --rarity-mythic: #E8773F;
+  --rarity-special: #C58BD9;
+  --rarity-bonus: #C58BD9;
+
+  /* odds */
+  --odds-0: #3A3F4B; --odds-1: #8C7238; --odds-2: #E8D39A;
+  --odds-gradient: linear-gradient(90deg, var(--odds-0), var(--odds-1) 55%, var(--odds-2));
+
+  /* spacing (4px base) */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px; --s-9: 96px;
+
+  /* radius */
+  --r-1: 4px; --r-2: 8px; --r-3: 12px; --r-4: 18px; --r-pill: 999px;
+  --r-card: 4.6% / 3.3%;
+
+  /* type */
+  --font-display: var(--font-fraunces), 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-ui: var(--font-instrument), 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --t-xs: 0.75rem; --t-sm: 0.8125rem; --t-base: 0.9375rem; --t-md: 1.0625rem; --t-lg: 1.25rem; --t-xl: 1.625rem; --t-2xl: 2.25rem; --t-3xl: 3.25rem; --t-4xl: 4.5rem;
+
+  /* motion */
+  --d-1: 120ms; --d-2: 200ms; --d-3: 320ms; --d-4: 600ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.44, 1);
+
+  /* layout */
+  --rail-w: 280px;
+  --topbar-h: 56px;
+  --content-max: 1560px;
+  --z-rail: 20; --z-topbar: 40; --z-popover: 60; --z-dialog: 80; --z-preview: 90; --z-toast: 100;
+}

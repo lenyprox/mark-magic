@@ -1,0 +1,29 @@
+.page { padding-block: var(--s-6) var(--s-8); max-width: 1080px; }
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-4); margin-bottom: var(--s-5); flex-wrap: wrap; }
+.head h1 { font-size: var(--t-2xl); margin: 0; }
+.lede { color: var(--ink-2); max-width: 60ch; margin-top: var(--s-2); }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-4); }
+@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+.card { background: var(--bg-2); box-shadow: var(--catch), 0 0 0 1px var(--line); border-radius: var(--r-3); padding: var(--s-4) var(--s-5); display: flex; flex-direction: column; gap: var(--s-3); background-image: var(--lamp); }
+.card h2 { font-size: var(--t-lg); margin: 0; display: flex; align-items: center; gap: var(--s-2); }
+.card h2 svg { width: 16px; height: 16px; color: var(--brass-2); }
+.wide { grid-column: 1 / -1; }
+
+.row { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
+.rowBetween { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.row > .field { flex: 1 1 200px; }
+.fieldLabel { font-size: var(--t-xs); color: var(--ink-3); letter-spacing: 0.01em; }
+.seed { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: var(--t-sm); color: var(--ink-2); }
+.toggle input { accent-color: var(--brass-2); width: 16px; height: 16px; }
+.toggle b { color: var(--ink-1); font-weight: 500; }
+.toggleHint { color: var(--ink-3); font-size: var(--t-xs); }
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-4) var(--s-5); }
+.deal { display: flex; align-items: center; justify-content: flex-end; gap: var(--s-3); margin-top: var(--s-4); }
+.dealBtn { min-width: 160px; font-size: var(--t-md); }
+.deckMeta { font-size: var(--t-xs); color: var(--ink-3); display: flex; gap: var(--s-2); align-items: center; }
+.lastGame { font-size: var(--t-sm); color: var(--ink-2); }
+select.native { width: 100%; }

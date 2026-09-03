@@ -68,3 +68,8 @@ export function splitTypeLine(tl) {
     subtypes: right ? splitSubtypes(right) : [],
   };
 }
+
+// Layouts / type lines that are not playable cards (shared by CardDB.all() and the web index).
+export const NON_PLAYABLE_LAYOUTS = ['art_series', 'token', 'double_faced_token', 'emblem', 'vanguard', 'planar', 'scheme', 'front_card'];
+export const NON_PLAYABLE_TYPE_PREFIXES = ['Card', 'Stickers', 'Dungeon', 'Phenomenon', 'Conspiracy'];
+export const PLAYABLE_SQL = `layout NOT IN (${NON_PLAYABLE_LAYOUTS.map(l => `'${l}'`).join(',')}) AND ${NON_PLAYABLE_TYPE_PREFIXES.map(p => `type_line NOT LIKE '${p}%'`).join(' AND ')}`;

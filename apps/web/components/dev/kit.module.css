@@ -1,0 +1,7 @@
+.kit { padding-block: 40px 96px; display: flex; flex-direction: column; gap: 8px; }
+.section { margin-top: 36px; display: flex; flex-direction: column; gap: 14px; }
+.section h2 { font-size: var(--t-lg); color: var(--ink-2); padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; align-items: start; }
+.typeRow { display: flex; flex-direction: column; gap: 10px; }

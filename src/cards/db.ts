@@ -1,16 +1,26 @@
 // Card database access: loads oracle cards from data/master/master.db and parses them into CardDefs.
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
-import path from 'node:path';
+import { MASTER_DB } from '../config/paths.js';
 import { parseCard, type OracleRow } from './parse.js';
 import type { CardDef } from './types.js';
 
+const NON_PLAYABLE = "layout NOT IN ('art_series','token','double_faced_token','emblem','vanguard','planar','scheme','front_card') AND type_line NOT LIKE 'Card%' AND type_line NOT LIKE 'Stickers%' AND type_line NOT LIKE 'Dungeon%' AND type_line NOT LIKE 'Phenomenon%' AND type_line NOT LIKE 'Conspiracy%'";
+
 export class CardDB {
-  private db: Database.Database;
+  readonly db: Database.Database;
   private cache = new Map<string, CardDef | null>();
-  constructor(dbPath = path.resolve('data/master/master.db')) {
+  private static instance: CardDB | null = null;
+
+  constructor(dbPath = MASTER_DB()) {
     if (!fs.existsSync(dbPath)) throw new Error(`Master database not found at ${dbPath}. Run: npm run data:all`);
     this.db = new Database(dbPath, { readonly: true, fileMustExist: true });
+  }
+
+  /** Process-wide shared instance (the DB is read-only, so sharing is safe). */
+  static shared(dbPath?: string): CardDB {
+    if (!CardDB.instance) CardDB.instance = new CardDB(dbPath);
+    return CardDB.instance;
   }
 
   private rowToOracle(json: string): OracleRow {
@@ -18,8 +28,8 @@ export class CardDB {
     return {
       name: o.name, oracle_id: o.oracle_id, mana_cost: o.mana_cost, mana_value: o.mana_value, colors: o.colors, color_identity: o.color_identity,
       types: o.types, supertypes: o.supertypes, subtypes: o.subtypes, type_line: o.type_line, oracle_text: o.oracle_text, power: o.power, toughness: o.toughness,
-      loyalty: o.loyalty, keywords: o.keywords, layout: o.layout, produced_mana: o.produced_mana, image: o.image,
-      faces: o.faces?.map((f: OracleRow['faces'] extends (infer T)[] | undefined ? T : never) => ({ name: f.name, type_line: f.type_line, oracle_text: f.oracle_text, power: f.power, toughness: f.toughness, mana_cost: f.mana_cost })),
+      loyalty: o.loyalty, keywords: o.keywords, layout: o.layout, produced_mana: o.produced_mana, image: o.image, representative_id: o.representative_id ?? o.id ?? null,
+      faces: o.faces?.map((f: NonNullable<OracleRow['faces']>[number]) => ({ name: f.name, type_line: f.type_line, oracle_text: f.oracle_text, power: f.power, toughness: f.toughness, mana_cost: f.mana_cost, image: f.image ?? null })),
     };
   }
 
@@ -27,8 +37,18 @@ export class CardDB {
   get(name: string): CardDef | null {
     const key = name.trim().toLowerCase();
     if (this.cache.has(key)) return this.cache.get(key)!;
-    let row = this.db.prepare('SELECT json FROM oracle_cards WHERE name = ? COLLATE NOCASE AND layout NOT IN (\'art_series\',\'token\',\'double_faced_token\',\'emblem\') ORDER BY first_printed LIMIT 1').get(name.trim()) as { json: string } | undefined;
-    if (!row) row = this.db.prepare("SELECT json FROM oracle_cards WHERE name LIKE ? COLLATE NOCASE AND layout NOT IN ('art_series','token','double_faced_token','emblem') ORDER BY first_printed LIMIT 1").get(name.trim() + ' // %') as { json: string } | undefined;
+    let row = this.db.prepare(`SELECT json FROM oracle_cards WHERE name = ? COLLATE NOCASE AND layout NOT IN ('art_series','token','double_faced_token','emblem') ORDER BY first_printed LIMIT 1`).get(name.trim()) as { json: string } | undefined;
+    if (!row) row = this.db.prepare(`SELECT json FROM oracle_cards WHERE name LIKE ? COLLATE NOCASE AND layout NOT IN ('art_series','token','double_faced_token','emblem') ORDER BY first_printed LIMIT 1`).get(name.trim() + ' // %') as { json: string } | undefined;
+    const def = row ? parseCard(this.rowToOracle(row.json)) : null;
+    this.cache.set(key, def);
+    return def;
+  }
+
+  /** Lookup by oracle id. */
+  getByOracleId(oracleId: string): CardDef | null {
+    const key = 'oid:' + oracleId;
+    if (this.cache.has(key)) return this.cache.get(key)!;
+    const row = this.db.prepare('SELECT json FROM oracle_cards WHERE oracle_id = ?').get(oracleId) as { json: string } | undefined;
     const def = row ? parseCard(this.rowToOracle(row.json)) : null;
     this.cache.set(key, def);
     return def;
@@ -40,7 +60,7 @@ export class CardDB {
 
   /** Iterate every playable oracle card (used by the coverage report). */
   *all(): Generator<CardDef> {
-    const stmt = this.db.prepare("SELECT json FROM oracle_cards WHERE layout NOT IN ('art_series','token','double_faced_token','emblem','vanguard','planar','scheme','front_card') AND type_line NOT LIKE 'Card%' AND type_line NOT LIKE 'Stickers%' AND type_line NOT LIKE 'Dungeon%' AND type_line NOT LIKE 'Phenomenon%' AND type_line NOT LIKE 'Conspiracy%'");
+    const stmt = this.db.prepare(`SELECT json FROM oracle_cards WHERE ${NON_PLAYABLE}`);
     for (const r of stmt.iterate() as Iterable<{ json: string }>) yield parseCard(this.rowToOracle(r.json));
   }
 
@@ -48,27 +68,60 @@ export class CardDB {
     return this.db.prepare('SELECT published_at, comment FROM rulings WHERE oracle_id = ? ORDER BY published_at').all(oracleId) as { published_at: string; comment: string }[];
   }
 
-  close() { this.db.close(); }
+  close() { this.db.close(); if (CardDB.instance === this) CardDB.instance = null; }
 }
 
-export interface DeckList { name: string; cards: { name: string; count: number }[] }
+export type DeckBoard = 'main' | 'side' | 'commander' | 'companion' | 'maybe';
+export interface DeckListEntry { name: string; count: number; board: DeckBoard; set?: string; number?: string }
+export interface DeckList { name: string; cards: DeckListEntry[] }
 
-/** Parse a text deck list: lines of "4 Lightning Bolt" or "4x Lightning Bolt"; "//" comments; blank lines ignored. */
+const BOARD_HEADERS: Record<string, DeckBoard> = { deck: 'main', main: 'main', mainboard: 'main', maindeck: 'main', sideboard: 'side', side: 'side', commander: 'commander', commanders: 'commander', companion: 'companion', maybeboard: 'maybe', maybe: 'maybe', considering: 'maybe' };
+
+/**
+ * Parse a text deck list. Accepts plain ("4 Lightning Bolt"), Arena ("4 Lightning Bolt (M10) 146" with Deck/Sideboard/Commander headers)
+ * and Moxfield/MTGO exports ("SIDEBOARD:"). Lines starting with "//" or "#" are comments; "Fire // Ice" style names are preserved.
+ */
 export function parseDeckList(text: string, name = 'deck'): DeckList {
-  const cards: { name: string; count: number }[] = [];
+  const cards: DeckListEntry[] = [];
+  let board: DeckBoard = 'main';
+  let blankRun = 0;
   for (const raw of text.split(/\r?\n/)) {
-    const line = raw.replace(/\/\/.*$/, '').trim();
-    if (!line || /^(sideboard|deck|main)/i.test(line)) continue;
-    const m = line.match(/^(\d+)x?\s+(.+?)(?:\s+\([A-Za-z0-9]+\)\s*\d*)?$/);
-    if (m) cards.push({ name: m[2].trim(), count: Number(m[1]) });
-    else cards.push({ name: line, count: 1 });
+    const line = raw.replace(/^\s*(\/\/|#).*$/, '').trim();
+    if (!line) { blankRun++; continue; }
+    const header = line.replace(/[:\s]+$/, '').replace(/\s*\(\d+\)$/, '').toLowerCase();
+    if (header in BOARD_HEADERS) { board = BOARD_HEADERS[header]; blankRun = 0; continue; }
+    // MTGO/plain exports separate the sideboard with a blank line after the main deck; we only honour explicit headers.
+    blankRun = 0;
+    const m = line.match(/^(\d+)x?\s+(.+?)(?:\s+\(([A-Za-z0-9]{2,6})\)\s*([A-Za-z0-9★†-]*))?\s*$/);
+    if (m) {
+      const entry: DeckListEntry = { name: m[2].trim(), count: Number(m[1]), board };
+      if (m[3]) { entry.set = m[3].toLowerCase(); if (m[4]) entry.number = m[4]; }
+      cards.push(entry);
+    } else cards.push({ name: line, count: 1, board });
   }
   return { name, cards };
 }
 
-export function loadDeck(db: CardDB, list: DeckList): { cards: CardDef[]; missing: string[]; partial: CardDef[] } {
+/** Serialise a deck list back to the plain text format used by decks/*.txt. */
+export function formatDeckList(list: DeckList): string {
+  const out: string[] = [];
+  const boards: DeckBoard[] = ['commander', 'main', 'side'];
+  for (const b of boards) {
+    const rows = list.cards.filter(c => c.board === b);
+    if (!rows.length) continue;
+    if (b !== 'main' || out.length) out.push(b === 'main' ? 'Deck' : b === 'side' ? 'Sideboard' : 'Commander');
+    for (const c of rows) out.push(`${c.count} ${c.name}${c.set ? ` (${c.set.toUpperCase()})${c.number ? ' ' + c.number : ''}` : ''}`);
+    out.push('');
+  }
+  return out.join('\n').trim() + '\n';
+}
+
+/** Resolve a deck list to CardDefs (main deck + commander only; sideboard is not part of the played 60). */
+export function loadDeck(db: CardDB, list: DeckList, opts: { boards?: DeckBoard[] } = {}): { cards: CardDef[]; missing: string[]; partial: CardDef[] } {
+  const boards = new Set(opts.boards ?? ['main', 'commander']);
   const cards: CardDef[] = []; const missing: string[] = []; const partial: CardDef[] = [];
-  for (const { name, count } of list.cards) {
+  for (const { name, count, board } of list.cards) {
+    if (!boards.has(board ?? 'main')) continue;
     const def = db.get(name);
     if (!def) { missing.push(name); continue; }
     if (!def.fullyParsed && !partial.includes(def)) partial.push(def);

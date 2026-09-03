@@ -1,0 +1,215 @@
+'use client';
+// /play setup: pick decks, seed and settings, then deal. The game is started here (payloads fetched, store started)
+// and the setup is persisted so a hard reload of /play/<gameId> can re-create it.
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { Dices, Cpu, FlaskConical, Layers, Swords } from 'lucide-react';
+import { DEFAULT_START_OPTIONS, type StartOptions } from '@play/protocol';
+import { META_FORMATS, type ArchetypeSummary } from '@meta/types';
+import type { ArchetypeProfile } from '@analysis/types';
+import { Button, Callout, Input, Segmented, Select, type SelectOption } from '@/components/ui';
+import { toast } from '@/lib/stores/ui';
+import { fetchBundledDecks, fetchDecks, makeGameId, payloadFor, type DeckRef } from '@/lib/game/api';
+import { useGameStore } from '@/lib/game/store';
+import { loadLastSetup, randomSeed, saveSetup } from '@/lib/game/ui';
+import styles from './setup.module.css';
+
+type Strength = '100' | '300' | '600';
+type Trials = '100' | '200' | '400';
+
+const refKey = (r: DeckRef) => r.kind === 'saved' ? `s.${r.id}` : r.kind === 'bundled' ? `b.${r.file}` : `a.${r.id}`;
+
+async function fetchArchetypes(): Promise<{ format: string; archetypes: ArchetypeSummary[] }[]> {
+  const out: { format: string; archetypes: ArchetypeSummary[] }[] = [];
+  await Promise.all(META_FORMATS.map(async f => {
+    try {
+      const r = await fetch(`/api/meta/${f}?limit=1`); if (!r.ok) return;
+      const j = (await r.json()) as { archetypes: ArchetypeSummary[] };
+      if (j.archetypes?.length) out.push({ format: f, archetypes: j.archetypes });
+    } catch { /* meta not configured */ }
+  }));
+  return out.sort((a, b) => META_FORMATS.indexOf(a.format as typeof META_FORMATS[number]) - META_FORMATS.indexOf(b.format as typeof META_FORMATS[number]));
+}
+
+export function PlaySetup() {
+  const router = useRouter();
+  const start = useGameStore(s => s.start);
+  const last = useMemo(() => (typeof window === 'undefined' ? null : loadLastSetup()), []);
+
+  const bundled = useQuery({ queryKey: ['bundled-decks'], queryFn: fetchBundledDecks });
+  const mine = useQuery({ queryKey: ['decks', 'mine'], queryFn: () => fetchDecks('mine') });
+  const opps = useQuery({ queryKey: ['decks', 'opponent'], queryFn: () => fetchDecks('opponent') });
+  const meta = useQuery({ queryKey: ['meta-archetypes'], queryFn: fetchArchetypes, staleTime: 60_000 });
+
+  const myRefs = useMemo<DeckRef[]>(() => [
+    ...(mine.data ?? []).map(d => ({ kind: 'saved', id: d.id, name: d.name } as DeckRef)),
+    ...(bundled.data ?? []).map(d => ({ kind: 'bundled', file: d.file, name: d.name } as DeckRef)),
+  ], [mine.data, bundled.data]);
+  const oppRefs = useMemo<DeckRef[]>(() => [
+    ...(opps.data ?? []).map(d => ({ kind: 'saved', id: d.id, name: d.name } as DeckRef)),
+    ...(bundled.data ?? []).map(d => ({ kind: 'bundled', file: d.file, name: d.name } as DeckRef)),
+    ...(meta.data ?? []).flatMap(g => g.archetypes.map(a => ({ kind: 'archetype', id: a.id, name: a.name, format: g.format } as DeckRef))),
+  ], [opps.data, bundled.data, meta.data]);
+
+  const [myKey, setMyKey] = useState('');
+  const [oppKey, setOppKey] = useState('');
+  useEffect(() => { if (!myKey && myRefs.length) setMyKey(last?.a ? refKey(last.a) : refKey(myRefs[0])); }, [myRefs, myKey, last]);
+  useEffect(() => { if (!oppKey && oppRefs.length) setOppKey(last?.b ? refKey(last.b) : refKey(oppRefs[Math.min(1, oppRefs.length - 1)])); }, [oppRefs, oppKey, last]);
+
+  const [seed, setSeed] = useState<string>(() => String(last?.options.seed ?? randomSeed()));
+  const [life, setLife] = useState<number>(last?.options.startingLife ?? DEFAULT_START_OPTIONS.startingLife);
+  const [mulligans, setMulligans] = useState<boolean>(last?.options.mulligans ?? DEFAULT_START_OPTIONS.mulligans);
+  const [strength, setStrength] = useState<Strength>(String(last?.options.ai.maxSims ?? 300) as Strength);
+  const [knowsList, setKnowsList] = useState<boolean>(last?.options.ai.knowsOpponentList ?? false);
+  const [cheat, setCheat] = useState<boolean>(last?.options.ai.cheat ?? false);
+  const [anEnabled, setAnEnabled] = useState<boolean>(last?.options.analysis.enabled ?? true);
+  const [trials, setTrials] = useState<Trials>(String(last?.options.analysis.trials ?? 200) as Trials);
+  const [policy, setPolicy] = useState<'rollout' | 'ai30'>(last?.options.analysis.policy ?? 'rollout');
+  const [oppModel, setOppModel] = useState<'exact' | 'archetype' | 'none'>(last?.options.analysis.opponentModel ?? 'exact');
+  const [name, setName] = useState<string>(last?.playerName ?? 'You');
+  const [dealing, setDealing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const myRef = myRefs.find(r => refKey(r) === myKey) ?? null;
+  const oppRef = oppRefs.find(r => refKey(r) === oppKey) ?? null;
+  const seedNum = Number(seed);
+  const seedOk = Number.isInteger(seedNum) && seedNum >= 0;
+
+  const myOptions: SelectOption[] = myRefs.map(r => ({ value: refKey(r), label: r.kind === 'saved' ? `${r.name} · saved` : `${r.name} · bundled` }));
+  const oppOptions: SelectOption[] = oppRefs.map(r => ({ value: refKey(r), label: r.kind === 'saved' ? `${r.name} · opponent deck` : r.kind === 'bundled' ? `${r.name} · bundled` : `${r.name} · ${r.format} archetype` }));
+
+  const deal = async () => {
+    if (!myRef || !oppRef || !seedOk || dealing) return;
+    setDealing(true); setError(null);
+    try {
+      const [a, b] = await Promise.all([payloadFor(myRef, seedNum), payloadFor(oppRef, seedNum)]);
+      let profile: ArchetypeProfile | null = null;
+      const wantArchetype = oppModel === 'archetype' && oppRef.kind === 'archetype';
+      if (wantArchetype) {
+        try { const r = await fetch(`/api/meta/archetypes/${oppRef.id}`); if (r.ok) profile = ((await r.json()) as { profile: ArchetypeProfile | null }).profile ?? null; } catch { profile = null; }
+      }
+      const options: StartOptions = {
+        ...DEFAULT_START_OPTIONS, seed: seedNum, startingLife: life, mulligans,
+        ai: { ...DEFAULT_START_OPTIONS.ai, maxSims: Number(strength), knowsOpponentList: knowsList, cheat },
+        analysis: { ...DEFAULT_START_OPTIONS.analysis, enabled: anEnabled, trials: Number(trials), policy, opponentModel: wantArchetype && profile ? 'archetype' : oppModel === 'archetype' ? 'exact' : oppModel, opponentProfile: profile },
+        playerName: name.trim() || 'You', aiName: b.archetype?.name ?? oppRef.name,
+      };
+      const gameId = makeGameId(seedNum, myRef, oppRef);
+      saveSetup(gameId, { a: myRef, b: oppRef, options, playerName: options.playerName });
+      void start(gameId, [a, b], options);
+      router.push(`/play/${encodeURIComponent(gameId)}`);
+    } catch (e) {
+      setError((e as Error).message);
+      toast({ title: 'Could not deal', body: (e as Error).message, kind: 'danger' });
+      setDealing(false);
+    }
+  };
+
+  const loading = bundled.isLoading || mine.isLoading;
+
+  return (
+    <div className={`container ${styles.page}`}>
+      <div className={styles.head}>
+        <div>
+          <h1>Play</h1>
+          <p className={styles.lede}>Sit down against the reactive AI. Every game is reproducible from its seed; the analysis panel shows the odds behind each play and how they were derived.</p>
+        </div>
+        {last && <div className={styles.lastGame}>Last table: {last.a.name} vs {last.b.name} · seed <span className="mono">{last.options.seed}</span></div>}
+      </div>
+
+      <div className={styles.grid}>
+        <section className={styles.card} aria-labelledby="setup-decks">
+          <h2 id="setup-decks"><Layers aria-hidden /> Decks</h2>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>My deck</span>
+            <Select data-testid="play-my-deck" aria-label="My deck" value={myKey} onChange={e => setMyKey(e.target.value)} options={myOptions} disabled={loading || !myOptions.length} placeholder={loading ? 'Loading decks…' : myOptions.length ? undefined : 'No decks yet'} />
+            <span className={styles.deckMeta}>{mine.data?.length ? `${mine.data.length} saved` : 'No saved decks'} · {bundled.data?.length ?? 0} bundled</span>
+          </div>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Opponent</span>
+            <Select data-testid="play-opp-deck" aria-label="Opponent deck" value={oppKey} onChange={e => setOppKey(e.target.value)} options={oppOptions} disabled={loading || !oppOptions.length} placeholder={loading ? 'Loading decks…' : undefined} />
+            <span className={styles.deckMeta}>
+              {opps.data?.length ? `${opps.data.length} opponent decks` : 'No opponent decks'}
+              {meta.data?.length ? ` · ${meta.data.reduce((n, g) => n + g.archetypes.length, 0)} metagame archetypes` : ' · metagame not synced'}
+            </span>
+          </div>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Your name</span>
+            <Input aria-label="Your name" value={name} onChange={e => setName(e.target.value)} maxLength={24} />
+          </div>
+        </section>
+
+        <section className={styles.card} aria-labelledby="setup-table">
+          <h2 id="setup-table"><Dices aria-hidden /> Table</h2>
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>Seed</span>
+              <div className={styles.row}>
+                <Input data-testid="play-seed" aria-label="Seed" className={styles.seed} inputMode="numeric" value={seed} onChange={e => setSeed(e.target.value.replace(/[^\d]/g, ''))} wrapClassName="grow" aria-invalid={!seedOk} />
+                <Button variant="quiet" icon={<Dices size={14} />} onClick={() => setSeed(String(randomSeed()))}>Random</Button>
+              </div>
+            </div>
+          </div>
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>Starting life</span>
+              <Segmented label="Starting life" value={String(life)} onChange={v => setLife(Number(v))} options={[{ value: '20', label: '20' }, { value: '25', label: '25' }, { value: '30', label: '30' }, { value: '40', label: '40' }]} size="sm" />
+            </div>
+            <label className={styles.toggle}>
+              <input type="checkbox" checked={mulligans} onChange={e => setMulligans(e.target.checked)} />
+              <span><b>Mulligans</b><br /><span className={styles.toggleHint}>London mulligan for both seats</span></span>
+            </label>
+          </div>
+          <Callout variant="info" title="Who plays first">The engine flips a coin from the seed, so the same seed always yields the same opening. The log's first line tells you who won the toss.</Callout>
+        </section>
+
+        <section className={styles.card} aria-labelledby="setup-ai">
+          <h2 id="setup-ai"><Cpu aria-hidden /> Opponent AI</h2>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Strength (simulations per decision)</span>
+            <Segmented label="AI strength" value={strength} onChange={setStrength} options={[{ value: '100', label: 'Quick · 100' }, { value: '300', label: 'Standard · 300' }, { value: '600', label: 'Strong · 600' }]} size="sm" />
+          </div>
+          <label className={styles.toggle}>
+            <input type="checkbox" checked={knowsList} onChange={e => setKnowsList(e.target.checked)} />
+            <span><b>AI knows my decklist</b><br /><span className={styles.toggleHint}>It still never sees your hand or library order</span></span>
+          </label>
+          <label className={styles.toggle}>
+            <input type="checkbox" checked={cheat} onChange={e => setCheat(e.target.checked)} />
+            <span><b>AI may peek (cheat)</b><br /><span className={styles.toggleHint}>Off: the AI plays from sampled worlds of hidden information</span></span>
+          </label>
+        </section>
+
+        <section className={styles.card} aria-labelledby="setup-analysis">
+          <h2 id="setup-analysis"><FlaskConical aria-hidden /> Analysis</h2>
+          <label className={styles.toggle}>
+            <input type="checkbox" checked={anEnabled} onChange={e => setAnEnabled(e.target.checked)} />
+            <span><b>Show play analysis</b><br /><span className={styles.toggleHint}>Win odds per candidate play with verifiable derivations</span></span>
+          </label>
+          <div className={styles.settings}>
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>Monte Carlo trials</span>
+              <Segmented label="Trials" value={trials} onChange={setTrials} options={[{ value: '100', label: '100' }, { value: '200', label: '200' }, { value: '400', label: '400' }]} size="sm" />
+            </div>
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>Rollout policy</span>
+              <Segmented label="Policy" value={policy} onChange={setPolicy} options={[{ value: 'rollout', label: 'Rollout', title: 'Fast heuristic rollouts' }, { value: 'ai30', label: 'AI · 30', title: 'Slower: the AI plays each trial with 30 sims' }]} size="sm" />
+            </div>
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>Opponent model</span>
+              <Segmented label="Opponent model" value={oppModel} onChange={setOppModel} options={[{ value: 'exact', label: 'Exact list' }, { value: 'archetype', label: 'Archetype', title: 'Card inclusion statistics from the metagame (needs an archetype opponent)' }, { value: 'none', label: 'None' }]} size="sm" />
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {error && <Callout variant="danger" title="Could not deal" className={styles.wide}>{error}</Callout>}
+      <div className={styles.deal}>
+        <span className="faint small">Game id is derived from the seed and both decks.</span>
+        <Button name="Deal" variant="primary" className={styles.dealBtn} icon={<Swords size={16} />} disabled={!myRef || !oppRef || !seedOk || dealing} onClick={deal} aria-busy={dealing}>
+          {dealing ? 'Dealing…' : 'Deal'}
+        </Button>
+      </div>
+    </div>
+  );
+}

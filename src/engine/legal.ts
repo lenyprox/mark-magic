@@ -1,10 +1,11 @@
 // Enumerates legal actions for a player with priority, and legal targets for a target spec.
-import type { Effect, TargetSpec } from '../cards/types.js';
+import type { AltCost, Effect, ManaCost, TargetSpec } from '../cards/types.js';
 import { manaValue } from '../cards/parse.js';
-import { allPermanents, isCreature, isLand, isType, matchesFilter, name, protectedFrom, hasKeyword } from './characteristics.js';
-import { findPayment } from './mana.js';
+import { abilitiesOf, allPermanents, conditionHolds, defOf, isCreature, isLand, isType, matchesFilter, name, protectedFrom, hasKeyword } from './characteristics.js';
+import { findPayment as findPaymentFull, manaSources, type ManaSourceOptions } from './mana.js';
+import { costAdjust, exileWindowOpen, extraManaSources, hasModifier, nonManaCostPayable, pickDelve, spellManaCost, ZERO_COST } from './cost.js';
 import type { Game } from './game.js';
-import { opponentOf, type GameObject, type LegalAction, type PlayerId, type TargetRef } from './state.js';
+import { opponentOf, type CastZone, type GameObject, type LegalAction, type PlayerAction, type PlayerId, type TargetRef } from './state.js';
 
 /** Which effects of a spell/ability take targets, with their spec. */
 export function targetingEffects(effects: Effect[]): { index: number; spec: TargetSpec }[] {
@@ -13,7 +14,8 @@ export function targetingEffects(effects: Effect[]): { index: number; spec: Targ
     const t = (e as { target?: unknown }).target;
     if (t && typeof t === 'object' && !(t as TargetSpec).self) out.push({ index, spec: t as TargetSpec });
     if (e.op === 'draw' && e.who === 'target-player') out.push({ index, spec: { kind: 'player' } });
-    if ((e.op === 'discard' || e.op === 'lose-life' || e.op === 'gain-life' || e.op === 'mill' || e.op === 'sacrifice') && e.who === 'target-player') out.push({ index, spec: { kind: 'player' } });
+    if ((e.op === 'discard' || e.op === 'lose-life' || e.op === 'gain-life' || e.op === 'mill' || e.op === 'sacrifice' || e.op === 'look-top' || e.op === 'exile-graveyard') && e.who === 'target-player') out.push({ index, spec: { kind: 'player' } });
+    if (e.op === 'reveal-hand-discard') out.push({ index, spec: { kind: e.who === 'target-opponent' ? 'opponent' : 'player' } });
     if (e.op === 'fight' && !e.self) { /* two targets: first is own creature */ out.unshift({ index, spec: { kind: 'creature', controller: 'you' } }); }
   });
   return out;
@@ -47,11 +49,15 @@ export function targetOptionsFor(g: Game, controller: PlayerId, spec: TargetSpec
     case 'permanent': addObjs(() => true); break;
     case 'nonland-permanent': addObjs(o => !isLand(o)); break;
     case 'artifact-or-enchantment': addObjs(o => isType(o, 'Artifact') || isType(o, 'Enchantment')); break;
+    case 'artifact-enchantment-or-nonbasic-land': addObjs(o => isType(o, 'Artifact') || isType(o, 'Enchantment') || (isLand(o) && !defOf(o).supertypes.includes('Basic'))); break;
+    case 'spell-or-nonland-permanent': addObjs(o => !isLand(o)); for (const it of s.stack) if (it.kind === 'spell' && (!spec.controller || (spec.controller === 'you') === (it.controller === controller))) out.push({ kind: 'stack', id: it.id }); break;
+    case 'graveyard-card': for (const pl of s.players) for (const o of pl.graveyard) if (!spec.filter || matchesFilter(s, o, spec.filter, source)) out.push({ kind: 'object', id: o.id }); break;
     case 'player': addPlayers([0, 1]); break;
     case 'opponent': addPlayers([opp]); break;
     case 'any': addObjs(o => isCreature(o) || isType(o, 'Planeswalker')); addPlayers([0, 1]); break;
     case 'creature-or-player': addObjs(isCreature); addPlayers([0, 1]); break;
     case 'creature-or-planeswalker': addObjs(o => isCreature(o) || isType(o, 'Planeswalker')); break;
+    case 'ability': for (const it of s.stack) if (it.kind !== 'spell') out.push({ kind: 'stack', id: it.id }); break;
     case 'spell': case 'creature-spell': case 'noncreature-spell':
       for (const it of s.stack) {
         if (it.kind !== 'spell') continue;
@@ -74,54 +80,48 @@ function describeSpec(spec: TargetSpec): string {
 /** All legal actions for player p right now (CR 117 timing, CR 302.6 summoning sickness, CR 305 land drops). */
 export function legalActions(g: Game, p: PlayerId): LegalAction[] {
   const s = g.state; const pl = s.players[p];
+  const findPayment = (cost: ManaCost, x = 0, reduction = 0, opts?: ManaSourceOptions) => findPaymentFull(s, pl, cost, x, reduction, g.manaLimit, opts);
   const out: LegalAction[] = [{ action: { type: 'pass' }, label: 'pass' }];
   const sorceryTiming = s.activePlayer === p && (s.step === 'main1' || s.step === 'main2') && s.stack.length === 0;
+  const extraLands = pl.battlefield.reduce((a, o) => a + abilitiesOf(o).reduce((b, ab) => b + (ab.kind === 'static' && ab.effect.kind === 'extra-land' ? ab.effect.amount : 0), 0), 0);
+  const landDrop = sorceryTiming && pl.landsPlayedThisTurn < 1 + extraLands;
   for (const c of pl.hand) {
     const d = c.def;
-    if (d.types.includes('Land')) { if (sorceryTiming && pl.landsPlayedThisTurn < 1) out.push({ action: { type: 'play-land', cardId: c.id }, label: `play land ${d.name}` }); continue; }
-    const instantSpeed = d.types.includes('Instant') || d.keywords.includes('flash');
-    if (!instantSpeed && !sorceryTiming) continue;
-    if (!d.manaCost) continue;
-    const reduction = costReduction(g, p, c);
-    let maxX = 0;
-    if (d.manaCost.x) { while (maxX < 20 && findPayment(s, pl, d.manaCost, maxX + 1, reduction)) maxX++; if (!findPayment(s, pl, d.manaCost, 0, reduction)) continue; }
-    else if (!findPayment(s, pl, d.manaCost, 0, reduction)) continue;
-    const spell = d.abilities.find(a => a.kind === 'spell');
-    const effects = spell ? spell.effects : [];
-    // Auras target on cast
-    const auraSpec: TargetSpec | null = d.subtypes.includes('Aura') ? (d.abilities.find(a => a.kind === 'static' && a.effect.kind === 'aura') as { effect: { enchant: TargetSpec } } | undefined)?.effect.enchant ?? { kind: 'creature' } : null;
-    const modal = effects.find(e => e.op === 'choose-mode');
-    const modeSets: (number[] | undefined)[] = modal && modal.op === 'choose-mode' ? modeCombos(modal.modes.length, modal.count) : [undefined];
-    for (const modes of modeSets) {
-      const eff = expandModes(effects, modes);
-      const reqs = targetingEffects(eff);
+    if (d.types.includes('Land')) { if (landDrop) out.push({ action: { type: 'play-land', cardId: c.id }, label: `play land ${d.name}` }); }
+    else castActionsFor(g, p, c, 'hand', sorceryTiming, out);
+    if (landDrop && d.layout === 'modal_dfc' && d.backFace?.types.includes('Land')) out.push({ action: { type: 'play-land', cardId: c.id, face: 1 }, label: `play land ${d.backFace.name}` });
+    if (d.cycling && findPayment(d.cycling)) out.push({ action: { type: 'activate', objectId: c.id, abilityIndex: -2 }, label: `cycle ${d.name}` });
+    // abilities activated from hand ("Channel — {1}{G}, Discard this card: ...")
+    d.abilities.forEach((ab, i) => {
+      if (ab.kind !== 'activated' || !ab.cost.discardSelf) return;
+      if (ab.sorcerySpeed && !sorceryTiming) return;
+      if (ab.cost.mana && !findPayment(ab.cost.mana)) return;
+      if (!nonManaCostPayable(s, pl, ab.cost, c)) return;
+      if (ab.effects.every(e => e.op === 'unknown')) return;
+      const reqs = targetingEffects(ab.effects);
       const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, c), optional: !!r.spec.optional, count: r.spec.count ?? 1 }));
-      if (auraSpec) targetOptions.unshift({ spec: describeSpec(auraSpec), options: targetOptionsFor(g, p, auraSpec, c), optional: false, count: 1 });
-      if (targetOptions.some(t => !t.optional && t.options.length === 0)) continue;
-      const modeLabel = modes ? ` [mode ${modes.map(m => m + 1).join('+')}]` : '';
-      out.push({ action: { type: 'cast', cardId: c.id, modes, x: d.manaCost.x ? maxX : undefined }, label: `cast ${d.name}${modeLabel}`, targetOptions, manaValue: manaValue(d.manaCost, maxX) });
-      if (d.kicker && findPayment(s, pl, { ...d.manaCost, generic: d.manaCost.generic + d.kicker.generic, pips: [...d.manaCost.pips, ...d.kicker.pips] }, 0, reduction)) out.push({ action: { type: 'cast', cardId: c.id, modes, kicked: true }, label: `cast ${d.name} (kicked)${modeLabel}`, targetOptions, manaValue: manaValue(d.manaCost) + manaValue(d.kicker) });
-    }
-    if (d.cycling && findPayment(s, pl, d.cycling)) out.push({ action: { type: 'activate', objectId: c.id, abilityIndex: -2 }, label: `cycle ${d.name}` });
+      if (targetOptions.some(t => !t.optional && t.options.length === 0)) return;
+      out.push({ action: { type: 'activate', objectId: c.id, abilityIndex: i }, label: `${d.name}: ${ab.text}`, targetOptions, manaValue: ab.cost.mana ? manaValue(ab.cost.mana) : 0 });
+    });
   }
+  for (const c of pl.graveyard) if (c.def.altCosts?.some(a => a.from === 'graveyard')) castActionsFor(g, p, c, 'graveyard', sorceryTiming, out);
+  for (const c of pl.exile) if (c.castableFromExile && exileWindowOpen(s, p, c.castableFromExile)) castActionsFor(g, p, c, 'exile', sorceryTiming, out);
   // activated abilities of permanents
   for (const o of pl.battlefield) {
     if (o.token?.treasure && !o.tapped) { out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -1 }, label: `sacrifice Treasure for mana` }); continue; }
-    o.def.abilities.forEach((ab, i) => {
+    if (o.token?.clue) { if (findPayment({ generic: 2, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{2}' })) out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -6 }, label: `sacrifice Clue: draw a card`, manaValue: 2 }); continue; }
+    abilitiesOf(o).forEach((ab, i) => {
       if (ab.kind !== 'activated') return;
-      if (ab.manaAbility) return; // mana abilities are used implicitly by auto-payment
+      // tap-only mana abilities are used implicitly by auto-payment; ones with other costs (Lotus Petal, Lion's Eye Diamond) are explicit actions
+      if (ab.manaAbility && !ab.cost.sacrificeSelf && !ab.cost.discardHand && !ab.cost.mana) return;
       if (ab.sorcerySpeed && !sorceryTiming) return;
       if (ab.oncePerTurn && o.activatedThisTurn.has(i)) return;
       if (ab.loyalty !== undefined && ([...o.activatedThisTurn].length > 0 || (o.counters.loyalty ?? 0) + ab.loyalty < 0)) return;
       if (ab.cost.tap && (o.tapped || (isCreature(o) && o.enteredTurn === s.turn && !hasKeyword(s, o, 'haste')))) return;
       if (ab.cost.untap && !o.tapped) return;
-      if (ab.cost.mana && !findPayment(s, pl, ab.cost.mana)) return;
-      if (ab.cost.sacrifice && !pl.battlefield.some(x => x !== o && matchesFilter(s, x, ab.cost.sacrifice, o))) return;
-      if (ab.cost.discard && pl.hand.length < ab.cost.discard) return;
-      if (ab.cost.payLife && pl.life <= ab.cost.payLife) return;
-      if (ab.cost.removeCounters && (o.counters[ab.cost.removeCounters.counter] ?? 0) < ab.cost.removeCounters.amount) return;
-      if (ab.cost.exileFromGraveyard && pl.graveyard.length < ab.cost.exileFromGraveyard) return;
-      if (ab.cost.tapUntappedCreature && !pl.battlefield.some(x => !x.tapped && matchesFilter(s, x, ab.cost.tapUntappedCreature, o))) return;
+      if (ab.cost.mana && !findPayment(ab.cost.mana)) return;
+      if (ab.activateOnlyIf && !conditionHolds(s, o, ab.activateOnlyIf)) return;
+      if (!nonManaCostPayable(s, pl, ab.cost, o)) return;
       if (ab.effects.every(e => e.op === 'unknown')) return;
       const modal = ab.effects.find(e => e.op === 'choose-mode');
       const modeSets: (number[] | undefined)[] = modal && modal.op === 'choose-mode' ? modeCombos(modal.modes.length, modal.count) : [undefined];
@@ -134,8 +134,8 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
       }
     });
     // equipment: equip ability (sorcery speed)
-    const eq = o.def.abilities.find(a => a.kind === 'static' && a.effect.kind === 'equipment');
-    if (eq && eq.kind === 'static' && eq.effect.kind === 'equipment' && sorceryTiming && findPayment(s, pl, eq.effect.equipCost)) {
+    const eq = abilitiesOf(o).find(a => a.kind === 'static' && a.effect.kind === 'equipment');
+    if (eq && eq.kind === 'static' && eq.effect.kind === 'equipment' && sorceryTiming && findPayment(eq.effect.equipCost)) {
       const options = pl.battlefield.filter(x => isCreature(x) && x.id !== o.attachedTo).map(x => ({ kind: 'object', id: x.id } as TargetRef));
       if (options.length) out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -3 }, label: `equip ${name(o)}#${o.id}`, targetOptions: [{ spec: 'target creature you control', options, optional: false, count: 1 }], manaValue: manaValue(eq.effect.equipCost) });
     }
@@ -143,10 +143,72 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
   return out;
 }
 
-function costReduction(g: Game, p: PlayerId, card: GameObject): number {
-  let r = 0;
-  for (const o of g.state.players[p].battlefield) for (const ab of o.def.abilities) if (ab.kind === 'static' && ab.effect.kind === 'cost-reduction' && matchesFilter(g.state, card, ab.effect.filter)) r += ab.effect.amount;
-  return r;
+/**
+ * Cast actions for one card from a zone: the plain cast, the kicked cast, each affordable alternative cost, and delve /
+ * convoke variants only when they change what is affordable (or grow a Murktide). One action per variant keeps the
+ * AI's branching small; the engine picks the concrete cards to exile/tap.
+ */
+function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZone, sorceryTiming: boolean, out: LegalAction[]) {
+  const s = g.state; const pl = s.players[p]; const d = c.def;
+  if (d.types.includes('Land')) return;
+  const instantSpeed = d.types.includes('Instant') || d.keywords.includes('flash');
+  const free = from === 'exile' && !!c.castableFromExile?.free; // rebound: cast during the upkeep, timing permissions aside (CR 702.88a)
+  if (!instantSpeed && !sorceryTiming && !free) return;
+  const spell = d.abilities.find(a => a.kind === 'spell');
+  const effects = spell ? spell.effects : [];
+  const auraSpec: TargetSpec | null = d.subtypes.includes('Aura') ? (d.abilities.find(a => a.kind === 'static' && a.effect.kind === 'aura') as { effect: { enchant: TargetSpec } } | undefined)?.effect.enchant ?? { kind: 'creature' } : null;
+  const modal = effects.find(e => e.op === 'choose-mode');
+  const modeSets: (number[] | undefined)[] = modal && modal.op === 'choose-mode' ? modeCombos(modal.modes.length, modal.count) : [undefined];
+  const adjust = costAdjust(s, p, c, from);
+  const regular = manaSources(s, pl, { forSpell: c });
+  const extras = extraManaSources(s, pl, d, regular);
+  const gy = pl.graveyard.filter(o => o.id !== c.id).length;
+  const delve = hasModifier(d, 'delve');
+  const countsExiled = !!d.asEnters?.some(a => a.kind === 'counters' && typeof a.amount === 'object' && a.amount.count === 'exiled-with');
+  const wantsXRange = !!d.asEnters?.some(a => a.kind === 'counters' && a.amount === 'X');
+  const tryPay = (cost: ManaCost, x: number, delveN: number, useExtras: boolean) => findPaymentFull(s, pl, cost, x, adjust + delveN, g.manaLimit, { forSpell: c, extraSources: useExtras ? extras : [], extrasFirst: useExtras });
+
+  interface Variant { alt?: AltCost; kicked?: boolean; x?: number; pay?: { delve?: number[]; useExtras?: boolean }; how: string[]; mv: number }
+  const variants: Variant[] = [];
+  const consider = (alt: AltCost | undefined, kicked: boolean) => {
+    if (alt && alt.from !== from) return;
+    if (!alt && from === 'graveyard') return;
+    if (alt?.condition && !conditionHolds(s, { ...c, controller: p }, alt.condition)) return;
+    if (alt && !nonManaCostPayable(s, pl, alt.cost, c)) return;
+    if (!free && !alt && !d.manaCost) return;
+    const cost = free ? ZERO_COST : spellManaCost(d, alt, kicked);
+    let maxX = 0;
+    if (cost.x) { while (maxX < 20 && (tryPay(cost, maxX + 1, 0, false) || (delve && gy > 0 && tryPay(cost, maxX + 1, Math.min(gy, cost.generic + cost.x * (maxX + 1)), false)))) maxX++; }
+    const xs: (number | undefined)[] = cost.x ? (wantsXRange ? Array.from({ length: Math.min(maxX, 4) + 1 }, (_, i) => i) : [maxX]) : [undefined];
+    for (const x of xs) {
+      const xn = x ?? 0;
+      const genericNeeded = Math.max(0, cost.generic + cost.x * xn - adjust);
+      const how: string[] = [alt ? alt.label : '', from === 'graveyard' && !alt ? 'from graveyard' : from === 'exile' ? 'from exile' : '', kicked ? 'kicked' : ''].filter(Boolean);
+      const mv = alt && !alt.cost.mana ? 0 : manaValue(cost, xn);
+      if (tryPay(cost, xn, 0, false)) {
+        variants.push({ alt, kicked, x, how, mv });
+        if (delve && countsExiled && gy > 0 && genericNeeded > 0) { const n = Math.min(gy, genericNeeded); variants.push({ alt, kicked, x, pay: { delve: pickDelve(s, pl, c, n) }, how: [...how, `delve ${n}`], mv }); }
+        continue;
+      }
+      if (delve && gy > 0 && genericNeeded > 0) { const n = Math.min(gy, genericNeeded); if (tryPay(cost, xn, n, false)) { variants.push({ alt, kicked, x, pay: { delve: pickDelve(s, pl, c, n) }, how: [...how, `delve ${n}`], mv }); continue; } }
+      if (extras.length && tryPay(cost, xn, 0, true)) variants.push({ alt, kicked, x, pay: { useExtras: true }, how: [...how, hasModifier(d, 'convoke') ? 'convoke' : 'improvise'], mv });
+    }
+  };
+  consider(undefined, false);
+  if (d.kicker && from === 'hand') consider(undefined, true);
+  for (const alt of d.altCosts ?? []) consider(alt, false);
+
+  for (const v of variants) for (const modes of modeSets) {
+    const eff = expandModes(effects, modes);
+    const reqs = targetingEffects(eff);
+    const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, c), optional: !!r.spec.optional, count: r.spec.count ?? 1 }));
+    if (auraSpec) targetOptions.unshift({ spec: describeSpec(auraSpec), options: targetOptionsFor(g, p, auraSpec, c), optional: false, count: 1 });
+    if (targetOptions.some(t => !t.optional && t.options.length === 0)) continue;
+    const modeLabel = modes ? ` [mode ${modes.map(m => m + 1).join('+')}]` : '';
+    const label = `cast ${d.name}${v.how.length ? ` (${v.how.join(', ')})` : ''}${modeLabel}`;
+    const action: PlayerAction = { type: 'cast', cardId: c.id, modes, x: v.x, kicked: v.kicked || undefined, alt: v.alt?.id, from: from !== 'hand' ? from : undefined, pay: v.pay };
+    out.push({ action, label, targetOptions, manaValue: v.mv });
+  }
 }
 
 export function expandModes(effects: Effect[], modes: number[] | undefined): Effect[] {
@@ -154,8 +216,8 @@ export function expandModes(effects: Effect[], modes: number[] | undefined): Eff
   for (const e of effects) { if (e.op === 'choose-mode') { for (const mi of modes ?? [0]) out.push(...(e.modes[mi] ?? [])); } else out.push(e); }
   return out;
 }
-function modeCombos(n: number, k: number): number[][] {
-  if (k <= 1) return Array.from({ length: n }, (_, i) => [i]);
+export function modeCombos(n: number, k: number): number[][] {
+  if (k === 1) return Array.from({ length: n }, (_, i) => [i]);
   const out: number[][] = [];
   for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) out.push([i, j]);
   return out;

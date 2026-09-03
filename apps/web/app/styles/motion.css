@@ -1,0 +1,14 @@
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes settle-in { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes light-sweep { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+@keyframes pulse-brass { 0%, 100% { box-shadow: 0 0 0 0 var(--brass-glow); } 50% { box-shadow: 0 0 0 6px transparent; } }
+
+/* View transitions: the focused grid card and the detail hero share a name. */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--d-3); animation-timing-function: var(--ease); }
+::view-transition-group(*) { animation-duration: var(--d-3); animation-timing-function: var(--ease); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+  ::view-transition-group(*), ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
+}

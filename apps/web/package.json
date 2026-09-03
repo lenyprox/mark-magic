@@ -1,0 +1,35 @@
+{
+  "name": "@mtg/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@floating-ui/react": "^0.27.0",
+    "@tanstack/react-query": "^5.90.0",
+    "@tanstack/react-virtual": "^3.14.10",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "idb-keyval": "^6.2.2",
+    "lucide-react": "^0.545.0",
+    "next": "^16.3.4",
+    "nuqs": "^2.8.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "server-only": "^0.0.1",
+    "zundo": "^2.3.0",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^5.9.0"
+  }
+}

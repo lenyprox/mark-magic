@@ -1,11 +1,11 @@
 // Game state types shared by the engine, the AI and the CLI.
-import type { CardDef, Color, Effect, Keyword, ManaSymbol, Ability, ActivatedAbility, TriggeredAbility } from '../cards/types.js';
+import type { Amount, CardDef, Color, Effect, Keyword, ManaSymbol, Ability, ActivatedAbility, TriggeredAbility } from '../cards/types.js';
 
 export type PlayerId = 0 | 1;
 export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'stack';
 export type Step = 'untap' | 'upkeep' | 'draw' | 'main1' | 'combat-begin' | 'declare-attackers' | 'declare-blockers' | 'first-strike-damage' | 'combat-damage' | 'combat-end' | 'main2' | 'end' | 'cleanup';
 
-export interface TokenSpec { name: string; power: number; toughness: number; colors: Color[]; types: string[]; subtypes: string[]; keywords: Keyword[]; treasure?: boolean }
+export interface TokenSpec { name: string; power: number; toughness: number; colors: Color[]; types: string[]; subtypes: string[]; keywords: Keyword[]; treasure?: boolean; clue?: boolean; spawn?: boolean; dynamicPT?: Amount }
 
 export interface GameObject {
   id: number;
@@ -20,7 +20,7 @@ export interface GameObject {
   attachedTo: number | null;       // aura/equipment -> host id
   token: TokenSpec | null;
   // until-end-of-turn modifications
-  eotPower: number; eotToughness: number; eotKeywords: Keyword[]; eotFlags: { cantAttackOrBlock?: boolean; preventDamage?: number | 'all'; regenerationShield?: number };
+  eotPower: number; eotToughness: number; eotKeywords: Keyword[]; eotFlags: { cantAttackOrBlock?: boolean; preventDamage?: number | 'all'; regenerationShield?: number; crewed?: boolean; saddled?: boolean };
   noUntapNext: boolean;
   attacking: PlayerId | null;      // player being attacked (this engine has no planeswalker attacks)
   blocking: number[];              // attacker ids this creature blocks
@@ -28,7 +28,23 @@ export interface GameObject {
   activatedThisTurn: Set<number>;  // ability indexes used this turn (once-per-turn / loyalty)
   transformed: boolean;
   lastKnown?: { power: number; toughness: number; controller: PlayerId };
+  /** How the spell was cast (kept on the permanent it became): alternative cost, zone, kicker, X, delve count. */
+  castWith?: { alt?: AltCostId; from?: CastZone; kicked?: boolean; x?: number; delved?: number; colorsSpent?: number };
+  /** Ids of cards exiled as a cost of casting this (delve) or imprinted on it. */
+  exiledWith?: number[];
+  chosen?: { creatureType?: string; color?: Color };
+  /** Warp / rebound: this exiled card may be cast again from exile after `afterTurn`; `free` = without paying its mana cost, only in `upkeepOnly`'s upkeep. */
+  castableFromExile?: { afterTurn: number; free: boolean; upkeepOnly?: PlayerId };
+  warpExileTurn?: number;
+  /** 0 = front face, 1 = back face of a double-faced card. */
+  activeFace?: 0 | 1;
+  /** Abilities granted by effects (Saga chapters); indexed after def.abilities. */
+  grantedAbilities?: Ability[];
 }
+export type CastZone = 'hand' | 'graveyard' | 'exile';
+export type AltCostId = 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start';
+
+export interface DelayedTrigger { id: number; at: 'next-upkeep' | 'next-end-step' | 'your-next-end-step'; controller: PlayerId; sourceId: number; sourceName: string; effects: Effect[]; affected?: StackItem['affected']; createdTurn: number }
 
 export interface Player {
   id: PlayerId;
@@ -48,6 +64,10 @@ export interface Player {
   lifeLostThisTurn: number;
   creaturesDiedThisTurn: number;
   spellsCastThisTurn: number;
+  turnsTaken?: number;
+  permanentsLeftThisTurn?: number;
+  cardsDrawnThisTurn?: number;
+  lifeGainedThisTurn?: number;
 }
 
 export interface StackItem {
@@ -66,8 +86,23 @@ export interface StackItem {
   kicked?: boolean;
   countered?: boolean;
   text: string;
+  castFrom?: CastZone;
+  alt?: AltCostId;
+  /** For triggers: the id of the object that triggered them (the spell cast, the card drawn, ...). */
+  triggeringId?: number;
+  /** Objects this item moved/affected while resolving, with their last known values ("that creature's controller gains life equal to its power"). */
+  affected?: { id: number; lastKnown: { power: number; toughness: number; controller: PlayerId; manaValue: number } }[];
 }
 export type TargetRef = { kind: 'object'; id: number } | { kind: 'player'; id: PlayerId } | { kind: 'stack'; id: number };
+
+/**
+ * What is publicly known about hidden zones. `knownTop[p]` lists the ids on top of player p's library in order,
+ * as known to p (scry/surveil keep) or to everyone (bounced to the top, also listed in `revealed`). `knownInHand`
+ * lists hand cards whose identity is public (returned from a public zone, fetched by a search). `revealed` lists
+ * ids whose identity is public regardless of zone.
+ */
+export interface PublicKnowledge { knownTop: [number[], number[]]; knownInHand: number[]; revealed: number[] }
+export function makeKnowledge(): PublicKnowledge { return { knownTop: [[], []], knownInHand: [], revealed: [] }; }
 
 export interface GameState {
   turn: number;
@@ -82,13 +117,21 @@ export interface GameState {
   attackers: number[];
   extraTurns: PlayerId[];
   passesInRow: number;
+  knowledge: PublicKnowledge;
+  delayed?: DelayedTrigger[];
 }
+
+export const STEPS: Step[] = ['untap', 'upkeep', 'draw', 'main1', 'combat-begin', 'declare-attackers', 'declare-blockers', 'first-strike-damage', 'combat-damage', 'combat-end', 'main2', 'end', 'cleanup'];
 
 // ---- Actions a player can take when they have priority --------------------------------------
 export type PlayerAction =
   | { type: 'pass' }
-  | { type: 'play-land'; cardId: number }
-  | { type: 'cast'; cardId: number; targets?: TargetRef[][]; x?: number; modes?: number[]; kicked?: boolean }
+  | { type: 'play-land'; cardId: number; face?: 0 | 1 }
+  | { type: 'cast'; cardId: number; targets?: TargetRef[][]; x?: number; modes?: number[]; kicked?: boolean;
+      /** Alternative cost id and the zone the card is cast from (default hand). */
+      alt?: AltCostId; from?: CastZone;
+      /** Optional explicit cost choices; when absent the engine picks (delve greedily, convoke via the mana solver, hand costs via choose-cards). */
+      pay?: { delve?: number[]; convoke?: boolean; useExtras?: boolean } }
   | { type: 'activate'; objectId: number; abilityIndex: number; targets?: TargetRef[][]; x?: number; modes?: number[] }
   | { type: 'concede' };
 
@@ -101,9 +144,10 @@ export type Decision =
   | { kind: 'attackers'; candidates: number[]; mustAttack: number[] }
   | { kind: 'blockers'; attackers: number[]; candidates: number[] }
   | { kind: 'choose-cards'; from: number[]; count: number; reason: string; exact: boolean }
-  | { kind: 'yes-no'; prompt: string }
+  | { kind: 'yes-no'; prompt: string; tag?: 'mulligan' | 'shock' | 'unless-pay' | 'dredge' | 'optional' }
   | { kind: 'choose-mode'; modes: string[]; count: number }
   | { kind: 'choose-color'; reason: string }
+  | { kind: 'choose-option'; options: string[]; reason: string }
   | { kind: 'order-blockers'; attacker: number; blockers: number[] };
 
 export interface LegalAction {
@@ -119,6 +163,8 @@ export interface Agent {
   decide(state: GameState, me: PlayerId, decision: Decision): Promise<unknown>;
   /** Called whenever the log gains a line; UI hook */
   onLog?(line: string): void;
+  /** When true the engine hands this agent a redacted state (opponent's hand and both libraries hidden). */
+  hidden?: boolean;
 }
 
 export function makePlayer(id: PlayerId, name: string): Player {

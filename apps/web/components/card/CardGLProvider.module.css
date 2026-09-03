@@ -1,0 +1,11 @@
+.base,
+.overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  display: block;
+}
+.base { z-index: var(--z-card-gl, 5); }
+.overlay { z-index: var(--z-card-gl-overlay, 1000); }

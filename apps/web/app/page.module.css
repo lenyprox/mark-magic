@@ -1,0 +1,53 @@
+.notFound { padding-block: 96px; }
+.tileLink { display: inline-flex; align-items: center; height: 34px; padding: 0 14px; border-radius: var(--r-2); background: var(--bg-3); box-shadow: var(--catch); font-size: var(--t-sm); font-weight: 500; color: var(--ink-1); }
+.tileLink:hover { background: var(--bg-4); }
+
+/* ---------- landing ---------- */
+.home { display: flex; flex-direction: column; gap: 72px; padding-block: 48px 120px; }
+.hero { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 48px; align-items: center; min-height: 480px; }
+.heroText { display: flex; flex-direction: column; gap: 22px; max-width: 34ch; }
+.heroText h1 { font-size: clamp(2.6rem, 5.4vw, 4.6rem); line-height: 0.98; letter-spacing: -0.02em; font-variation-settings: 'opsz' 144, 'SOFT' 80, 'WONK' 1; }
+.heroSub { font-size: var(--t-md); color: var(--ink-2); line-height: 1.55; max-width: 44ch; }
+.heroCount { font-family: var(--font-mono); font-size: var(--t-xs); color: var(--ink-3); }
+
+.fan { position: relative; height: 460px; perspective: 1400px; }
+.fanCard { position: absolute; top: 50%; left: 50%; width: 260px; transform-origin: 50% 110%; transition: transform var(--d-4) var(--ease); filter: drop-shadow(0 30px 40px rgba(0, 0, 0, 0.65)); }
+.fanCard[data-i='0'] { transform: translate(-50%, -50%) translateX(-190px) rotate(-11deg) translateY(28px); z-index: 1; }
+.fanCard[data-i='1'] { transform: translate(-50%, -50%) translateY(-6px); z-index: 3; }
+.fanCard[data-i='2'] { transform: translate(-50%, -50%) translateX(190px) rotate(11deg) translateY(28px); z-index: 2; }
+.fan:hover .fanCard[data-i='0'] { transform: translate(-50%, -50%) translateX(-215px) rotate(-14deg) translateY(30px); }
+.fan:hover .fanCard[data-i='2'] { transform: translate(-50%, -50%) translateX(215px) rotate(14deg) translateY(30px); }
+.fanCard a { display: block; border-radius: var(--r-card); }
+.fanGlow { position: absolute; inset: 10% 5%; background: radial-gradient(60% 55% at 50% 60%, rgba(201, 169, 97, 0.16), transparent 70%); filter: blur(20px); pointer-events: none; }
+
+.section { display: flex; flex-direction: column; gap: 20px; }
+.sectionHead { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.sectionHead h2 { font-size: var(--t-xl); }
+.sectionHead p { color: var(--ink-3); font-size: var(--t-sm); }
+
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 20px 20px 18px; min-height: 148px; border-radius: var(--r-3); background: var(--bg-2); background-image: var(--lamp); box-shadow: var(--catch); transition: background var(--d-2) var(--ease), transform var(--d-2) var(--ease); overflow: hidden; }
+.tile:hover { background-color: var(--bg-3); }
+.tile:hover .tileArrow { transform: translateX(3px); color: var(--brass-1); }
+.tileName { font-family: var(--font-display); font-size: var(--t-xl); font-variation-settings: 'opsz' 48, 'SOFT' 60; }
+.tileBody { color: var(--ink-2); font-size: var(--t-sm); flex: 1; }
+.tileFoot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.tileCount { font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.tileArrow { color: var(--ink-3); transition: transform var(--d-2) var(--ease), color var(--d-2) var(--ease); }
+.tileSoon .tileName { color: var(--ink-2); }
+
+.vault { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.vaultCard { display: block; border-radius: var(--r-card); transition: transform var(--d-2) var(--ease); }
+.vaultCard:hover { transform: translateY(-4px); }
+.vaultCard:focus-visible { outline-offset: 4px; border-radius: 10px; }
+
+@media (max-width: 1100px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; min-height: 0; gap: 24px; }
+  .fan { height: 340px; }
+  .fanCard { width: 190px; }
+  .fanCard[data-i='0'] { transform: translate(-50%, -50%) translateX(-130px) rotate(-11deg) translateY(20px); }
+  .fanCard[data-i='2'] { transform: translate(-50%, -50%) translateX(130px) rotate(11deg) translateY(20px); }
+  .home { gap: 48px; padding-block: 24px 80px; }
+}
+@media (max-width: 560px) { .tiles { grid-template-columns: 1fr; } .vault { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); } }

@@ -1,0 +1,6 @@
+[
+ {"seen_count": 120345, "avg_seen": 3.41, "pick_count": 45011, "avg_pick": 2.12, "game_count": 88210, "win_rate": 0.612, "opening_hand_game_count": 12000, "opening_hand_win_rate": 0.641, "drawn_game_count": 30000, "drawn_win_rate": 0.628, "ever_drawn_game_count": 42000, "ever_drawn_win_rate": 0.633, "never_drawn_game_count": 46210, "never_drawn_win_rate": 0.571, "drawn_improvement_win_rate": 0.062, "name": "Lightning Bolt", "color": "R", "rarity": "uncommon", "url": "https://cards.scryfall.io/x.jpg", "url_back": "", "types": ["Instant"], "mtga_id": 1},
+ {"seen_count": 98000, "avg_seen": 5.2, "pick_count": 22000, "avg_pick": 6.4, "game_count": 40100, "win_rate": 0.541, "opening_hand_game_count": 5000, "opening_hand_win_rate": 0.55, "drawn_game_count": 12000, "drawn_win_rate": 0.548, "ever_drawn_game_count": 17000, "ever_drawn_win_rate": 0.549, "never_drawn_game_count": 23100, "never_drawn_win_rate": 0.538, "drawn_improvement_win_rate": 0.011, "name": "Grizzly Bears", "color": "G", "rarity": "common", "url": "", "url_back": "", "types": ["Creature"], "mtga_id": 2},
+ {"seen_count": 0, "avg_seen": null, "pick_count": 0, "avg_pick": null, "game_count": 0, "win_rate": null, "ever_drawn_win_rate": null, "name": "Island", "color": "", "rarity": "basic"},
+ {"seen_count": 5, "name": "", "color": "U"}
+]

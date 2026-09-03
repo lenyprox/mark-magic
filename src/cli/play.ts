@@ -7,8 +7,9 @@ import { stdin as input, stdout as output } from 'node:process';
 import { CardDB, loadDeck, parseDeckList } from '../cards/db.js';
 import { Game } from '../engine/game.js';
 import { AiAgent } from '../ai/ai.js';
+import { DeferredAgent, type AskRequest } from '../engine/agents/deferred.js';
 import { findObject, hasKeyword, isCreature, isLand, keywords, name, power, toughness } from '../engine/characteristics.js';
-import type { Agent, AttackDeclaration, BlockDeclaration, Decision, GameState, LegalAction, PlayerAction, PlayerId, TargetRef } from '../engine/state.js';
+import type { Agent, AttackDeclaration, BlockDeclaration, GameState, LegalAction, PlayerAction, PlayerId, TargetRef } from '../engine/state.js';
 
 const args = process.argv.slice(2);
 const opt = (k: string, d?: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
@@ -31,129 +32,113 @@ function load(p: string) {
 const human = load(deckPath), ai = load(aiDeckPath);
 
 // ---------------------------------------------------------------------------
-// Human agent (readline)
+// Readline front-end for the DeferredAgent
 // ---------------------------------------------------------------------------
 const rl = readline.createInterface({ input, output });
-class HumanAgent implements Agent {
-  name = 'Player';
-  game!: Game;
-  onLog(line: string) { console.log(line); }
-  private async prompt(q: string): Promise<string> { return (await rl.question(q)).trim(); }
+let game: Game;
+const prompt = async (q: string) => (await rl.question(q)).trim();
 
-  async decide(s: GameState, me: PlayerId, d: Decision): Promise<unknown> {
-    switch (d.kind) {
-      case 'priority': return this.priority(s, me, d.legal);
-      case 'attackers': return this.attackers(s, me, d.candidates, d.mustAttack);
-      case 'blockers': return this.blockers(s, me, d.attackers, d.candidates);
-      case 'choose-cards': return this.chooseCards(s, d.from, d.count, d.reason, d.exact);
-      case 'yes-no': { const a = await this.prompt(`${d.prompt} (y/n) `); return /^y/i.test(a); }
-      case 'choose-mode': { const a = await this.prompt(`Choose mode ${d.modes.map((m, i) => `[${i + 1}] ${m}`).join('  ')}: `); return [Math.max(0, Number(a) - 1)]; }
-      case 'choose-color': { const a = (await this.prompt(`Choose a colour for ${d.reason} (W/U/B/R/G): `)).toUpperCase(); return 'WUBRG'.includes(a) && a ? a : 'G'; }
-      case 'order-blockers': return d.blockers;
-    }
+async function ask({ decision: d, state: s, me }: AskRequest): Promise<unknown> {
+  switch (d.kind) {
+    case 'priority': return priority(s, me, d.legal);
+    case 'attackers': return attackers(s, d.candidates, d.mustAttack);
+    case 'blockers': return blockers(s, d.attackers, d.candidates);
+    case 'choose-cards': return chooseCards(s, d.from, d.count, d.reason, d.exact);
+    case 'yes-no': { const a = await prompt(`${d.prompt} (y/n) `); return /^y/i.test(a); }
+    case 'choose-mode': { const a = await prompt(`Choose mode ${d.modes.map((m, i) => `[${i + 1}] ${m}`).join('  ')}: `); return [Math.max(0, Number(a) - 1)]; }
+    case 'choose-color': { const a = (await prompt(`Choose a colour for ${d.reason} (W/U/B/R/G): `)).toUpperCase(); return 'WUBRG'.includes(a) && a ? a : 'G'; }
+    case 'choose-option': { const a = await prompt(`${d.reason}: ${d.options.map((o, i) => `[${i + 1}] ${o}`).join('  ')}: `); return d.options[Math.max(0, Math.min(d.options.length - 1, Number(a) - 1))] ?? d.options[0]; }
+    case 'order-blockers': return d.blockers;
   }
+}
 
-  private async priority(s: GameState, me: PlayerId, legal: LegalAction[]): Promise<PlayerAction> {
-    const opp = me === 0 ? 1 : 0;
-    const actionable = legal.filter(l => l.action.type !== 'pass');
-    const top = s.stack[s.stack.length - 1];
-    const ctx = `[T${s.turn} ${s.activePlayer === me ? 'your' : "AI's"} turn, ${s.step}${top ? `, stack top: ${top.name}${this.game.describeTargets(top)}` : ''}]`;
-    // Auto-pass when nothing is possible, or outside the default stops (own main phases, blocker declaration on either turn,
-    // the opponent's attack declaration and end step), unless something is on the stack.
-    if (!actionable.length && !top) return { type: 'pass' };
-    const myTurn = s.activePlayer === me;
-    const stop = !!top || (myTurn && (s.step === 'main1' || s.step === 'main2' || s.step === 'declare-blockers')) || (!myTurn && (s.step === 'declare-attackers' || s.step === 'declare-blockers' || s.step === 'end'));
-    if (!stop) return { type: 'pass' };
-    for (;;) {
-      const line = await this.prompt(`${ctx} > `);
-      const [cmd, ...rest] = line.split(/\s+/);
-      const arg = rest.join(' ');
-      if (!cmd || cmd === 'pass' || cmd === 'p' || cmd === 'ok' || cmd === '') return { type: 'pass' };
-      if (cmd === 'help' || cmd === '?') { printHelp(); continue; }
-      if (cmd === 'board' || cmd === 'b') { printBoard(s, me); continue; }
-      if (cmd === 'hand' || cmd === 'h') { printHand(s, me); continue; }
-      if (cmd === 'stack') { for (const it of [...s.stack].reverse()) console.log(`  ${it.name}${this.game.describeTargets(it)} (${s.players[it.controller].name})`); if (!s.stack.length) console.log('  (empty)'); continue; }
-      if (cmd === 'actions' || cmd === 'a') { actionable.forEach((l, i) => console.log(`  ${i + 1}. ${l.label}${l.targetOptions?.length ? '  [targets: ' + l.targetOptions.map(t => t.spec).join('; ') + ']' : ''}`)); if (!actionable.length) console.log('  (nothing castable right now)'); continue; }
-      if (cmd === 'card' || cmd === 'c') { showCard(s, arg); continue; }
-      if (cmd === 'log') { console.log(s.log.slice(-25).join('\n')); continue; }
-      if (cmd === 'gy') { for (const p of s.players) console.log(`${p.name} graveyard: ${p.graveyard.map(o => o.def.name).join(', ') || '-'}`); continue; }
-      if (cmd === 'concede') return { type: 'concede' };
-      // number => action index; or "cast <name>", "play <name>", "act <perm#> <n>"
-      let chosen: LegalAction | undefined;
-      if (/^\d+$/.test(cmd)) chosen = actionable[Number(cmd) - 1];
-      else if (cmd === 'play' || cmd === 'cast' || cmd === 'x') {
-        const q = arg.toLowerCase();
-        const matches = actionable.filter(l => (l.action.type === 'play-land' || l.action.type === 'cast') && l.label.toLowerCase().includes(q));
-        if (matches.length === 1) chosen = matches[0];
-        else if (matches.length > 1) { console.log('Ambiguous:'); matches.forEach(m => console.log('  ' + m.label + '  (#' + (actionable.indexOf(m) + 1) + ')')); continue; }
+async function priority(s: GameState, me: PlayerId, legal: LegalAction[]): Promise<PlayerAction> {
+  const actionable = legal.filter(l => l.action.type !== 'pass');
+  const top = s.stack[s.stack.length - 1];
+  const ctx = `[T${s.turn} ${s.activePlayer === me ? 'your' : "AI's"} turn, ${s.step}${top ? `, stack top: ${top.name}${game.describeTargets(top)}` : ''}]`;
+  for (;;) {
+    const line = await prompt(`${ctx} > `);
+    const [cmd, ...rest] = line.split(/\s+/);
+    const arg = rest.join(' ');
+    if (!cmd || cmd === 'pass' || cmd === 'p' || cmd === 'ok' || cmd === '') return { type: 'pass' };
+    if (cmd === 'help' || cmd === '?') { printHelp(); continue; }
+    if (cmd === 'board' || cmd === 'b') { printBoard(s, me); continue; }
+    if (cmd === 'hand' || cmd === 'h') { printHand(s, me); continue; }
+    if (cmd === 'stack') { for (const it of [...s.stack].reverse()) console.log(`  ${it.name}${game.describeTargets(it)} (${s.players[it.controller].name})`); if (!s.stack.length) console.log('  (empty)'); continue; }
+    if (cmd === 'actions' || cmd === 'a') { actionable.forEach((l, i) => console.log(`  ${i + 1}. ${l.label}${l.targetOptions?.length ? '  [targets: ' + l.targetOptions.map(t => t.spec).join('; ') + ']' : ''}`)); if (!actionable.length) console.log('  (nothing castable right now)'); continue; }
+    if (cmd === 'card' || cmd === 'c') { showCard(s, arg); continue; }
+    if (cmd === 'log') { console.log(s.log.slice(-25).join('\n')); continue; }
+    if (cmd === 'gy') { for (const p of s.players) console.log(`${p.name} graveyard: ${p.graveyard.map(o => o.def.name).join(', ') || '-'}`); continue; }
+    if (cmd === 'concede') return { type: 'concede' };
+    let chosen: LegalAction | undefined;
+    if (/^\d+$/.test(cmd)) chosen = actionable[Number(cmd) - 1];
+    else if (cmd === 'play' || cmd === 'cast' || cmd === 'x') {
+      const q = arg.toLowerCase();
+      const matches = actionable.filter(l => (l.action.type === 'play-land' || l.action.type === 'cast') && l.label.toLowerCase().includes(q));
+      if (matches.length === 1) chosen = matches[0];
+      else if (matches.length > 1) { console.log('Ambiguous:'); matches.forEach(m => console.log('  ' + m.label + '  (#' + (actionable.indexOf(m) + 1) + ')')); continue; }
+    } else if (cmd === 'act' || cmd === 'use') {
+      const q = arg.toLowerCase();
+      const matches = actionable.filter(l => l.action.type === 'activate' && l.label.toLowerCase().includes(q));
+      if (matches.length === 1) chosen = matches[0];
+      else if (matches.length > 1) { console.log('Ambiguous:'); matches.forEach(m => console.log('  ' + m.label + '  (#' + (actionable.indexOf(m) + 1) + ')')); continue; }
+    }
+    if (!chosen) { console.log("Unknown command or no such action. Type 'a' to list actions, '?' for help."); continue; }
+    const targets: TargetRef[][] = [];
+    let aborted = false;
+    for (const req of chosen.targetOptions ?? []) {
+      if (!req.options.length) { targets.push([]); continue; }
+      console.log(`  Choose ${req.spec}${req.optional ? ' (optional, enter to skip)' : ''}:`);
+      req.options.forEach((o, i) => console.log(`    ${i + 1}. ${game.refName(o)}${o.kind === 'object' ? '  ' + shortDesc(s, o.id) : ''}`));
+      const picks: TargetRef[] = [];
+      for (let k = 0; k < req.count; k++) {
+        const a = await prompt(`    target ${k + 1}/${req.count}${k > 0 || req.optional ? ' (enter to stop)' : ''}: `);
+        if (!a) { if (k === 0 && !req.optional) aborted = true; break; }
+        const idx = Number(a) - 1; if (!req.options[idx]) { console.log('    invalid'); k--; continue; }
+        picks.push(req.options[idx]);
       }
-      else if (cmd === 'act' || cmd === 'use') {
-        const q = arg.toLowerCase();
-        const matches = actionable.filter(l => l.action.type === 'activate' && l.label.toLowerCase().includes(q));
-        if (matches.length === 1) chosen = matches[0];
-        else if (matches.length > 1) { console.log('Ambiguous:'); matches.forEach(m => console.log('  ' + m.label + '  (#' + (actionable.indexOf(m) + 1) + ')')); continue; }
-      }
-      if (!chosen) { console.log("Unknown command or no such action. Type 'a' to list actions, '?' for help."); continue; }
-      // gather targets
-      const targets: TargetRef[][] = [];
-      let aborted = false;
-      for (const req of chosen.targetOptions ?? []) {
-        if (!req.options.length) { targets.push([]); continue; }
-        console.log(`  Choose ${req.spec}${req.optional ? ' (optional, enter to skip)' : ''}:`);
-        req.options.forEach((o, i) => console.log(`    ${i + 1}. ${this.game.refName(o)}${o.kind === 'object' ? '  ' + shortDesc(s, o.id) : ''}`));
-        const picks: TargetRef[] = [];
-        for (let k = 0; k < req.count; k++) {
-          const a = await this.prompt(`    target ${k + 1}/${req.count}${k > 0 || req.optional ? ' (enter to stop)' : ''}: `);
-          if (!a) { if (k === 0 && !req.optional) { aborted = true; } break; }
-          const idx = Number(a) - 1; if (!req.options[idx]) { console.log('    invalid'); k--; continue; }
-          picks.push(req.options[idx]);
-        }
-        if (aborted) break;
-        targets.push(picks);
-      }
-      if (aborted) { console.log('  cancelled'); continue; }
-      let x: number | undefined = chosen.action.type === 'cast' ? chosen.action.x : undefined;
-      if (x !== undefined) { const a = await this.prompt(`  X = (max ${x}): `); x = Math.min(x, Math.max(0, Number(a) || 0)); }
-      const action = { ...chosen.action, targets, ...(x !== undefined ? { x } : {}) } as PlayerAction;
-      void opp;
-      return action;
+      if (aborted) break;
+      targets.push(picks);
     }
+    if (aborted) { console.log('  cancelled'); continue; }
+    let x: number | undefined = chosen.action.type === 'cast' ? chosen.action.x : undefined;
+    if (x !== undefined) { const a = await prompt(`  X = (max ${x}): `); x = Math.min(x, Math.max(0, Number(a) || 0)); }
+    return { ...chosen.action, targets, ...(x !== undefined ? { x } : {}) } as PlayerAction;
   }
+}
 
-  private async attackers(s: GameState, me: PlayerId, candidates: number[], mustAttack: number[]): Promise<AttackDeclaration> {
-    console.log('Declare attackers. Candidates:');
-    candidates.forEach((id, i) => console.log(`  ${i + 1}. ${shortDesc(s, id)}${mustAttack.includes(id) ? ' (must attack)' : ''}`));
-    const a = await this.prompt('Attack with (numbers separated by spaces, "all", or enter for none): ');
-    if (a === 'all') return { attackers: candidates };
-    const ids = a.split(/\s+/).filter(Boolean).map(n => candidates[Number(n) - 1]).filter(Boolean);
-    return { attackers: ids };
+async function attackers(s: GameState, candidates: number[], mustAttack: number[]): Promise<AttackDeclaration> {
+  console.log('Declare attackers. Candidates:');
+  candidates.forEach((id, i) => console.log(`  ${i + 1}. ${shortDesc(s, id)}${mustAttack.includes(id) ? ' (must attack)' : ''}`));
+  const a = await prompt('Attack with (numbers separated by spaces, "all", or enter for none): ');
+  if (a === 'all') return { attackers: candidates };
+  return { attackers: a.split(/\s+/).filter(Boolean).map(n => candidates[Number(n) - 1]).filter(Boolean) };
+}
+
+async function blockers(s: GameState, attackerIds: number[], candidates: number[]): Promise<BlockDeclaration> {
+  console.log('Declare blockers. Attackers:');
+  attackerIds.forEach((id, i) => console.log(`  A${i + 1}. ${shortDesc(s, id)}`));
+  console.log('Your untapped creatures:');
+  candidates.forEach((id, i) => console.log(`  B${i + 1}. ${shortDesc(s, id)}`));
+  const a = await prompt('Blocks as "B1=A2 B3=A2" (enter for no blocks): ');
+  const blocks: { blocker: number; attacker: number }[] = [];
+  for (const tok of a.split(/\s+/).filter(Boolean)) {
+    const m = tok.match(/^b?(\d+)=a?(\d+)$/i); if (!m) continue;
+    const blocker = candidates[Number(m[1]) - 1], attacker = attackerIds[Number(m[2]) - 1];
+    if (blocker && attacker) blocks.push({ blocker, attacker });
   }
+  return { blocks };
+}
 
-  private async blockers(s: GameState, me: PlayerId, attackers: number[], candidates: number[]): Promise<BlockDeclaration> {
-    console.log('Declare blockers. Attackers:');
-    attackers.forEach((id, i) => console.log(`  A${i + 1}. ${shortDesc(s, id)}`));
-    console.log('Your untapped creatures:');
-    candidates.forEach((id, i) => console.log(`  B${i + 1}. ${shortDesc(s, id)}`));
-    const a = await this.prompt('Blocks as "B1=A2 B3=A2" (enter for no blocks): ');
-    const blocks: { blocker: number; attacker: number }[] = [];
-    for (const tok of a.split(/\s+/).filter(Boolean)) {
-      const m = tok.match(/^b?(\d+)=a?(\d+)$/i); if (!m) continue;
-      const blocker = candidates[Number(m[1]) - 1], attacker = attackers[Number(m[2]) - 1];
-      if (blocker && attacker) blocks.push({ blocker, attacker });
-    }
-    return { blocks };
-  }
-
-  private async chooseCards(s: GameState, from: number[], count: number, reason: string, exact: boolean): Promise<number[]> {
-    console.log(`${reason}:`);
-    from.forEach((id, i) => console.log(`  ${i + 1}. ${shortDesc(s, id)}`));
-    for (;;) {
-      const a = await this.prompt(`Choose ${exact ? 'exactly' : 'up to'} ${count} (numbers): `);
-      const ids = [...new Set(a.split(/\s+/).filter(Boolean).map(n => from[Number(n) - 1]).filter(Boolean))];
-      if (exact && ids.length !== Math.min(count, from.length)) { console.log(`need ${Math.min(count, from.length)}`); continue; }
-      if (ids.length > count) { console.log('too many'); continue; }
-      return ids;
-    }
+async function chooseCards(s: GameState, from: number[], count: number, reason: string, exact: boolean): Promise<number[]> {
+  console.log(`${reason}:`);
+  from.forEach((id, i) => console.log(`  ${i + 1}. ${shortDesc(s, id)}`));
+  for (;;) {
+    const a = await prompt(`Choose ${exact ? 'exactly' : 'up to'} ${count} (numbers): `);
+    const ids = [...new Set(a.split(/\s+/).filter(Boolean).map(n => from[Number(n) - 1]).filter(Boolean))];
+    if (exact && ids.length !== Math.min(count, from.length)) { console.log(`need ${Math.min(count, from.length)}`); continue; }
+    if (ids.length > count) { console.log('too many'); continue; }
+    return ids;
   }
 }
 
@@ -203,11 +188,11 @@ function printHelp() {
 }
 
 // ---------------------------------------------------------------------------
-const humanAgent = new HumanAgent();
+const humanAgent = new DeferredAgent({ name: 'Player', ask, onLog: (l) => console.log(l) });
 const aiAgent = new AiAgent({ name: 'AI', verbose: true });
 const p0: Agent = aiVsAi ? new AiAgent({ name: 'AI-1', verbose: true }) : humanAgent;
-const game = new Game([human.cards, ai.cards], [p0, aiAgent], { seed, startingLife: life });
-if (p0 instanceof AiAgent) p0.attach(game); else (p0 as HumanAgent).game = game;
+game = new Game([human.cards, ai.cards], [p0, aiAgent], { seed, startingLife: life });
+if (p0 instanceof AiAgent) p0.attach(game);
 aiAgent.attach(game);
 if (aiVsAi) (p0 as AiAgent).onLog = (l) => console.log(l);
 console.log(`You: ${human.name} (${human.cards.length} cards) vs AI: ${ai.name} (${ai.cards.length} cards). Seed ${seed}. Type ? for help.\n`);

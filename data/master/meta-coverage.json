@@ -1,0 +1,3867 @@
+{
+  "generated_at": "2026-09-03T19:54:48.984Z",
+  "source": "user.db",
+  "window_days": 90,
+  "formats": {
+    "Modern": {
+      "format": "Modern",
+      "decks": 75,
+      "distinctCards": 397,
+      "unresolvedNames": [
+        "Kavaero, Mind-Bitten"
+      ],
+      "distinct": {
+        "all": {
+          "n": 397,
+          "full": 163,
+          "pct": 41.1
+        },
+        "nonland": {
+          "n": 304,
+          "full": 95,
+          "pct": 31.3
+        }
+      },
+      "copies": {
+        "all": {
+          "n": 4541,
+          "full": 2796,
+          "pct": 61.6
+        },
+        "nonland": {
+          "n": 3074,
+          "full": 1469,
+          "pct": 47.8
+        }
+      },
+      "decksFullySimulated": {
+        "n": 75,
+        "full": 0,
+        "pct": 0
+      },
+      "decksAtMost2Partial": {
+        "n": 75,
+        "full": 0,
+        "pct": 0
+      },
+      "archetypes": [
+        {
+          "id": "modern:other",
+          "name": "Other",
+          "decks": 26,
+          "copiesNonland": {
+            "n": 1079,
+            "full": 463,
+            "pct": 42.9
+          },
+          "decksFullySimulated": {
+            "n": 26,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Quantum Riddler",
+              "decks": 7
+            },
+            {
+              "name": "Otawara, Soaring City",
+              "decks": 6
+            },
+            {
+              "name": "Consign to Memory",
+              "decks": 5
+            },
+            {
+              "name": "Wrath of the Skies",
+              "decks": 5
+            },
+            {
+              "name": "Teferi, Time Raveler",
+              "decks": 5
+            },
+            {
+              "name": "Arena of Glory",
+              "decks": 4
+            },
+            {
+              "name": "Stern Scolding",
+              "decks": 4
+            },
+            {
+              "name": "Gemstone Caverns",
+              "decks": 4
+            }
+          ]
+        },
+        {
+          "id": "modern:atraxa-grand-unifier-goryo-s-vengeance-psychic-frog",
+          "name": "Atraxa, Grand Unifier / Goryo's Vengeance / Psychic Frog",
+          "decks": 9,
+          "copiesNonland": {
+            "n": 346,
+            "full": 222,
+            "pct": 64.2
+          },
+          "decksFullySimulated": {
+            "n": 9,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Atraxa, Grand Unifier",
+              "decks": 9
+            },
+            {
+              "name": "Goryo's Vengeance",
+              "decks": 9
+            },
+            {
+              "name": "Quantum Riddler",
+              "decks": 9
+            },
+            {
+              "name": "March of Otherworldly Light",
+              "decks": 7
+            },
+            {
+              "name": "Teferi, Time Raveler",
+              "decks": 5
+            },
+            {
+              "name": "Fallaji Archaeologist",
+              "decks": 3
+            },
+            {
+              "name": "Pest Control",
+              "decks": 3
+            },
+            {
+              "name": "Jace, Vryn's Prodigy // Jace, Telepath Unbound",
+              "decks": 2
+            }
+          ]
+        },
+        {
+          "id": "modern:ancient-stirrings-basking-broodscale-kozilek-s-command",
+          "name": "Ancient Stirrings / Basking Broodscale / Kozilek's Command",
+          "decks": 7,
+          "copiesNonland": {
+            "n": 272,
+            "full": 109,
+            "pct": 40.1
+          },
+          "decksFullySimulated": {
+            "n": 7,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Basking Broodscale",
+              "decks": 7
+            },
+            {
+              "name": "Blade of the Bloodchief",
+              "decks": 7
+            },
+            {
+              "name": "Boseiju, Who Endures",
+              "decks": 7
+            },
+            {
+              "name": "Emrakul, the Promised End",
+              "decks": 7
+            },
+            {
+              "name": "Kozilek's Command",
+              "decks": 7
+            },
+            {
+              "name": "Vexing Bauble",
+              "decks": 7
+            },
+            {
+              "name": "Gemstone Caverns",
+              "decks": 6
+            },
+            {
+              "name": "Grove of the Burnwillows",
+              "decks": 5
+            }
+          ]
+        },
+        {
+          "id": "modern:overlord-of-the-balemurk-witch-enchanter-witch-blessed-meadow-phelia-exuberant-shepherd",
+          "name": "Overlord of the Balemurk / Witch Enchanter // Witch-Blessed Meadow / Phelia, Exuberant Shepherd",
+          "decks": 7,
+          "copiesNonland": {
+            "n": 288,
+            "full": 226,
+            "pct": 78.5
+          },
+          "decksFullySimulated": {
+            "n": 7,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Emperor of Bones",
+              "decks": 7
+            },
+            {
+              "name": "Quantum Riddler",
+              "decks": 6
+            },
+            {
+              "name": "Teferi, Time Raveler",
+              "decks": 6
+            },
+            {
+              "name": "March of Otherworldly Light",
+              "decks": 2
+            },
+            {
+              "name": "Aven Interrupter",
+              "decks": 1
+            },
+            {
+              "name": "Cling to Dust",
+              "decks": 1
+            },
+            {
+              "name": "Recruiter of the Guard",
+              "decks": 1
+            }
+          ]
+        },
+        {
+          "id": "modern:badgermole-cub-delighted-halfling-devoted-druid",
+          "name": "Badgermole Cub / Delighted Halfling / Devoted Druid",
+          "decks": 7,
+          "copiesNonland": {
+            "n": 292,
+            "full": 62,
+            "pct": 21.2
+          },
+          "decksFullySimulated": {
+            "n": 7,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Badgermole Cub",
+              "decks": 7
+            },
+            {
+              "name": "Boseiju, Who Endures",
+              "decks": 7
+            },
+            {
+              "name": "Delighted Halfling",
+              "decks": 7
+            },
+            {
+              "name": "Devoted Druid",
+              "decks": 7
+            },
+            {
+              "name": "Fiend Artisan",
+              "decks": 7
+            },
+            {
+              "name": "Leyline of Abundance",
+              "decks": 7
+            },
+            {
+              "name": "Nature's Rhythm",
+              "decks": 7
+            },
+            {
+              "name": "Shang-Chi, Master of Kung Fu",
+              "decks": 7
+            }
+          ]
+        },
+        {
+          "id": "modern:slickshot-show-off-lava-dart-monastery-swiftspear",
+          "name": "Slickshot Show-Off / Lava Dart / Monastery Swiftspear",
+          "decks": 7,
+          "copiesNonland": {
+            "n": 294,
+            "full": 225,
+            "pct": 76.5
+          },
+          "decksFullySimulated": {
+            "n": 7,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Expressive Iteration",
+              "decks": 7
+            },
+            {
+              "name": "Slickshot Show-Off",
+              "decks": 7
+            },
+            {
+              "name": "Violent Urge",
+              "decks": 5
+            },
+            {
+              "name": "Unholy Heat",
+              "decks": 2
+            },
+            {
+              "name": "Monstrous Rage",
+              "decks": 2
+            }
+          ]
+        },
+        {
+          "id": "modern:ajani-nacatl-pariah-ajani-nacatl-avenger-guide-of-souls-ocelot-pride",
+          "name": "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger / Guide of Souls / Ocelot Pride",
+          "decks": 5,
+          "copiesNonland": {
+            "n": 189,
+            "full": 32,
+            "pct": 16.9
+          },
+          "decksFullySimulated": {
+            "n": 5,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger",
+              "decks": 5
+            },
+            {
+              "name": "Dalkovan Encampment",
+              "decks": 5
+            },
+            {
+              "name": "Galvanic Discharge",
+              "decks": 5
+            },
+            {
+              "name": "Guide of Souls",
+              "decks": 5
+            },
+            {
+              "name": "Ocelot Pride",
+              "decks": 5
+            },
+            {
+              "name": "Ragavan, Nimble Pilferer",
+              "decks": 5
+            },
+            {
+              "name": "Voice of Victory",
+              "decks": 5
+            },
+            {
+              "name": "Seasoned Pyromancer",
+              "decks": 4
+            }
+          ]
+        },
+        {
+          "id": "modern:endurance-wistfulness-shardless-agent",
+          "name": "Endurance / Wistfulness / Shardless Agent",
+          "decks": 4,
+          "copiesNonland": {
+            "n": 178,
+            "full": 45,
+            "pct": 25.3
+          },
+          "decksFullySimulated": {
+            "n": 4,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Endurance",
+              "decks": 4
+            },
+            {
+              "name": "Generous Ent",
+              "decks": 4
+            },
+            {
+              "name": "Living End",
+              "decks": 4
+            },
+            {
+              "name": "Shardless Agent",
+              "decks": 4
+            },
+            {
+              "name": "Subtlety",
+              "decks": 4
+            },
+            {
+              "name": "Wistfulness",
+              "decks": 4
+            },
+            {
+              "name": "Boseiju, Who Endures",
+              "decks": 3
+            },
+            {
+              "name": "Violent Outburst",
+              "decks": 3
+            }
+          ]
+        },
+        {
+          "id": "modern:psychic-frog-fatal-push-subtlety",
+          "name": "Psychic Frog / Fatal Push / Subtlety",
+          "decks": 3,
+          "copiesNonland": {
+            "n": 136,
+            "full": 85,
+            "pct": 62.5
+          },
+          "decksFullySimulated": {
+            "n": 3,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Cling to Dust",
+              "decks": 3
+            },
+            {
+              "name": "Kaito, Bane of Nightmares",
+              "decks": 3
+            },
+            {
+              "name": "Otawara, Soaring City",
+              "decks": 3
+            },
+            {
+              "name": "Quantum Riddler",
+              "decks": 3
+            },
+            {
+              "name": "Subtlety",
+              "decks": 3
+            },
+            {
+              "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+              "decks": 3
+            },
+            {
+              "name": "Consign to Memory",
+              "decks": 2
+            },
+            {
+              "name": "Damping Sphere",
+              "decks": 1
+            }
+          ]
+        }
+      ]
+    },
+    "Standard": {
+      "format": "Standard",
+      "decks": 7,
+      "distinctCards": 124,
+      "unresolvedNames": [
+        "Wild Idea"
+      ],
+      "distinct": {
+        "all": {
+          "n": 124,
+          "full": 48,
+          "pct": 38.7
+        },
+        "nonland": {
+          "n": 92,
+          "full": 25,
+          "pct": 27.2
+        }
+      },
+      "copies": {
+        "all": {
+          "n": 433,
+          "full": 202,
+          "pct": 46.7
+        },
+        "nonland": {
+          "n": 275,
+          "full": 70,
+          "pct": 25.5
+        }
+      },
+      "decksFullySimulated": {
+        "n": 7,
+        "full": 0,
+        "pct": 0
+      },
+      "decksAtMost2Partial": {
+        "n": 7,
+        "full": 0,
+        "pct": 0
+      },
+      "archetypes": [
+        {
+          "id": "standard:other",
+          "name": "Other",
+          "decks": 7,
+          "copiesNonland": {
+            "n": 275,
+            "full": 70,
+            "pct": 25.5
+          },
+          "decksFullySimulated": {
+            "n": 7,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Multiversal Passage",
+              "decks": 3
+            },
+            {
+              "name": "Practiced Offense",
+              "decks": 2
+            },
+            {
+              "name": "Requiting Hex",
+              "decks": 2
+            },
+            {
+              "name": "Ghost Vacuum",
+              "decks": 2
+            },
+            {
+              "name": "Prismari Charm",
+              "decks": 2
+            },
+            {
+              "name": "Tablet of Discovery",
+              "decks": 2
+            },
+            {
+              "name": "Three Steps Ahead",
+              "decks": 2
+            },
+            {
+              "name": "Daydream",
+              "decks": 1
+            }
+          ]
+        }
+      ]
+    },
+    "Pioneer": {
+      "format": "Pioneer",
+      "decks": 0,
+      "distinctCards": 0,
+      "unresolvedNames": [],
+      "distinct": {
+        "all": {
+          "n": 0,
+          "full": 0,
+          "pct": 0
+        },
+        "nonland": {
+          "n": 0,
+          "full": 0,
+          "pct": 0
+        }
+      },
+      "copies": {
+        "all": {
+          "n": 0,
+          "full": 0,
+          "pct": 0
+        },
+        "nonland": {
+          "n": 0,
+          "full": 0,
+          "pct": 0
+        }
+      },
+      "decksFullySimulated": {
+        "n": 0,
+        "full": 0,
+        "pct": 0
+      },
+      "decksAtMost2Partial": {
+        "n": 0,
+        "full": 0,
+        "pct": 0
+      },
+      "archetypes": [],
+      "note": "no decklists synced; run npm run meta:sync -- --format Pioneer --days 90"
+    },
+    "Legacy": {
+      "format": "Legacy",
+      "decks": 400,
+      "distinctCards": 705,
+      "unresolvedNames": [],
+      "distinct": {
+        "all": {
+          "n": 705,
+          "full": 224,
+          "pct": 31.8
+        },
+        "nonland": {
+          "n": 573,
+          "full": 146,
+          "pct": 25.5
+        }
+      },
+      "copies": {
+        "all": {
+          "n": 24571,
+          "full": 17017,
+          "pct": 69.3
+        },
+        "nonland": {
+          "n": 16516,
+          "full": 9836,
+          "pct": 59.6
+        }
+      },
+      "decksFullySimulated": {
+        "n": 400,
+        "full": 1,
+        "pct": 0.3
+      },
+      "decksAtMost2Partial": {
+        "n": 400,
+        "full": 35,
+        "pct": 8.8
+      },
+      "archetypes": [
+        {
+          "id": "legacy:other",
+          "name": "Other",
+          "decks": 56,
+          "copiesNonland": {
+            "n": 2299,
+            "full": 1211,
+            "pct": 52.7
+          },
+          "decksFullySimulated": {
+            "n": 56,
+            "full": 1,
+            "pct": 1.8
+          },
+          "topUnparsed": [
+            {
+              "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+              "decks": 11
+            },
+            {
+              "name": "Boseiju, Who Endures",
+              "decks": 9
+            },
+            {
+              "name": "Teferi, Time Raveler",
+              "decks": 8
+            },
+            {
+              "name": "Atraxa, Grand Unifier",
+              "decks": 8
+            },
+            {
+              "name": "Mystic Sanctuary",
+              "decks": 7
+            },
+            {
+              "name": "Pithing Needle",
+              "decks": 7
+            },
+            {
+              "name": "Back to Basics",
+              "decks": 6
+            },
+            {
+              "name": "Snapcaster Mage",
+              "decks": 6
+            }
+          ]
+        },
+        {
+          "id": "legacy:aluren-show-and-tell-stock-up",
+          "name": "Aluren / Show and Tell / Stock Up",
+          "decks": 32,
+          "copiesNonland": {
+            "n": 1297,
+            "full": 781,
+            "pct": 60.2
+          },
+          "decksFullySimulated": {
+            "n": 32,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Atraxa, Grand Unifier",
+              "decks": 32
+            },
+            {
+              "name": "Veil of Summer",
+              "decks": 32
+            },
+            {
+              "name": "Omniscience",
+              "decks": 30
+            },
+            {
+              "name": "Boseiju, Who Endures",
+              "decks": 28
+            },
+            {
+              "name": "Acererak the Archlich",
+              "decks": 27
+            },
+            {
+              "name": "Aluren",
+              "decks": 27
+            },
+            {
+              "name": "Emrakul, the Aeons Torn",
+              "decks": 14
+            },
+            {
+              "name": "Formidable Speaker",
+              "decks": 8
+            }
+          ]
+        },
+        {
+          "id": "legacy:fatal-push-orcish-bowmasters-tamiyo-inquisitive-student-tamiyo-seasoned-scholar",
+          "name": "Fatal Push / Orcish Bowmasters / Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+          "decks": 30,
+          "copiesNonland": {
+            "n": 1242,
+            "full": 988,
+            "pct": 79.5
+          },
+          "decksFullySimulated": {
+            "n": 30,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Kaito, Bane of Nightmares",
+              "decks": 30
+            },
+            {
+              "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+              "decks": 29
+            },
+            {
+              "name": "Bilbo, Thief in the Night",
+              "decks": 17
+            },
+            {
+              "name": "Barrowgoyf",
+              "decks": 13
+            },
+            {
+              "name": "Nihil Spellbomb",
+              "decks": 4
+            },
+            {
+              "name": "Strategic Betrayal",
+              "decks": 2
+            },
+            {
+              "name": "Cling to Dust",
+              "decks": 2
+            },
+            {
+              "name": "Witherbloom Command",
+              "decks": 2
+            }
+          ]
+        },
+        {
+          "id": "legacy:stifle-quantum-riddler-phelia-exuberant-shepherd",
+          "name": "Stifle / Quantum Riddler / Phelia, Exuberant Shepherd",
+          "decks": 23,
+          "copiesNonland": {
+            "n": 948,
+            "full": 716,
+            "pct": 75.5
+          },
+          "decksFullySimulated": {
+            "n": 23,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Quantum Riddler",
+              "decks": 23
+            },
+            {
+              "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+              "decks": 20
+            },
+            {
+              "name": "Teferi, Time Raveler",
+              "decks": 9
+            },
+            {
+              "name": "Consign to Memory",
+              "decks": 7
+            },
+            {
+              "name": "Batterskull",
+              "decks": 6
+            },
+            {
+              "name": "Mystic Sanctuary",
+              "decks": 5
+            },
+            {
+              "name": "Pre-War Formalwear",
+              "decks": 5
+            },
+            {
+              "name": "Snapcaster Mage",
+              "decks": 4
+            }
+          ]
+        },
+        {
+          "id": "legacy:dragon-s-rage-channeler-lightning-bolt-cori-steel-cutter",
+          "name": "Dragon's Rage Channeler / Lightning Bolt / Cori-Steel Cutter",
+          "decks": 23,
+          "copiesNonland": {
+            "n": 948,
+            "full": 856,
+            "pct": 90.3
+          },
+          "decksFullySimulated": {
+            "n": 23,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Unholy Heat",
+              "decks": 16
+            },
+            {
+              "name": "Delver of Secrets // Insectile Aberration",
+              "decks": 14
+            },
+            {
+              "name": "Prismari Charm",
+              "decks": 6
+            },
+            {
+              "name": "Chain Lightning",
+              "decks": 6
+            },
+            {
+              "name": "Bilbo, Thief in the Night",
+              "decks": 5
+            },
+            {
+              "name": "Mystic Sanctuary",
+              "decks": 3
+            },
+            {
+              "name": "Molten Collapse",
+              "decks": 1
+            },
+            {
+              "name": "True-Name Nemesis",
+              "decks": 1
+            }
+          ]
+        },
+        {
+          "id": "legacy:ajani-nacatl-pariah-ajani-nacatl-avenger-amped-raptor-guide-of-souls",
+          "name": "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger / Amped Raptor / Guide of Souls",
+          "decks": 22,
+          "copiesNonland": {
+            "n": 810,
+            "full": 228,
+            "pct": 28.1
+          },
+          "decksFullySimulated": {
+            "n": 22,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger",
+              "decks": 22
+            },
+            {
+              "name": "Amped Raptor",
+              "decks": 22
+            },
+            {
+              "name": "Guide of Souls",
+              "decks": 22
+            },
+            {
+              "name": "Ocelot Pride",
+              "decks": 22
+            },
+            {
+              "name": "Voice of Victory",
+              "decks": 22
+            },
+            {
+              "name": "Hexing Squelcher",
+              "decks": 15
+            },
+            {
+              "name": "Static Prison",
+              "decks": 15
+            },
+            {
+              "name": "Lazotep Quarry",
+              "decks": 14
+            }
+          ]
+        },
+        {
+          "id": "legacy:recruiter-of-the-guard-aether-vial-solitude",
+          "name": "Recruiter of the Guard / Aether Vial / Solitude",
+          "decks": 17,
+          "copiesNonland": {
+            "n": 858,
+            "full": 629,
+            "pct": 73.3
+          },
+          "decksFullySimulated": {
+            "n": 17,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Recruiter of the Guard",
+              "decks": 17
+            },
+            {
+              "name": "Skyclave Apparition",
+              "decks": 17
+            },
+            {
+              "name": "Pre-War Formalwear",
+              "decks": 15
+            },
+            {
+              "name": "Lion Sash",
+              "decks": 14
+            },
+            {
+              "name": "Cloak and Dagger, Entwined",
+              "decks": 11
+            },
+            {
+              "name": "Canoptek Scarab Swarm",
+              "decks": 7
+            },
+            {
+              "name": "Flagstones of Trokair",
+              "decks": 6
+            },
+            {
+              "name": "Emperor of Bones",
+              "decks": 4
+            }
+          ]
+        },
+        {
+          "id": "legacy:leyline-binding-up-the-beanstalk-quantum-riddler",
+          "name": "Leyline Binding / Up the Beanstalk / Quantum Riddler",
+          "decks": 17,
+          "copiesNonland": {
+            "n": 676,
+            "full": 460,
+            "pct": 68
+          },
+          "decksFullySimulated": {
+            "n": 17,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Quantum Riddler",
+              "decks": 17
+            },
+            {
+              "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+              "decks": 17
+            },
+            {
+              "name": "Up the Beanstalk",
+              "decks": 17
+            },
+            {
+              "name": "Wrath of the Skies",
+              "decks": 3
+            },
+            {
+              "name": "Consign to Memory",
+              "decks": 2
+            },
+            {
+              "name": "Drown in the Loch",
+              "decks": 1
+            },
+            {
+              "name": "Witherbloom Command",
+              "decks": 1
+            },
+            {
+              "name": "Teferi, Time Raveler",
+              "decks": 1
+            }
+          ]
+        },
+        {
+          "id": "legacy:exploration-crop-rotation-life-from-the-loam",
+          "name": "Exploration / Crop Rotation / Life from the Loam",
+          "decks": 15,
+          "copiesNonland": {
+            "n": 431,
+            "full": 368,
+            "pct": 85.4
+          },
+          "decksFullySimulated": {
+            "n": 15,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Boseiju, Who Endures",
+              "decks": 15
+            },
+            {
+              "name": "Dark Depths",
+              "decks": 15
+            },
+            {
+              "name": "Maze of Ith",
+              "decks": 15
+            },
+            {
+              "name": "Thespian's Stage",
+              "decks": 15
+            },
+            {
+              "name": "Yavimaya, Cradle of Growth",
+              "decks": 15
+            },
+            {
+              "name": "The Tabernacle at Pendrell Vale",
+              "decks": 14
+            },
+            {
+              "name": "Pithing Needle",
+              "decks": 13
+            },
+            {
+              "name": "Icetill Explorer",
+              "decks": 9
+            }
+          ]
+        },
+        {
+          "id": "legacy:sewer-veillance-cam-goblin-welder-goblin-engineer",
+          "name": "Sewer-veillance Cam / Goblin Welder / Goblin Engineer",
+          "decks": 15,
+          "copiesNonland": {
+            "n": 652,
+            "full": 228,
+            "pct": 35
+          },
+          "decksFullySimulated": {
+            "n": 15,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Agatha's Soul Cauldron",
+              "decks": 15
+            },
+            {
+              "name": "Goblin Engineer",
+              "decks": 15
+            },
+            {
+              "name": "Goblin Welder",
+              "decks": 15
+            },
+            {
+              "name": "Sewer-veillance Cam",
+              "decks": 15
+            },
+            {
+              "name": "Emry, Lurker of the Loch",
+              "decks": 14
+            },
+            {
+              "name": "Loki, God of Mischief",
+              "decks": 14
+            },
+            {
+              "name": "Phyrexian Dragon Engine",
+              "decks": 14
+            },
+            {
+              "name": "Urza's Bauble",
+              "decks": 14
+            }
+          ]
+        },
+        {
+          "id": "legacy:shallow-grave-unmask-animate-dead",
+          "name": "Shallow Grave / Unmask / Animate Dead",
+          "decks": 14,
+          "copiesNonland": {
+            "n": 659,
+            "full": 404,
+            "pct": 61.3
+          },
+          "decksFullySimulated": {
+            "n": 14,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Animate Dead",
+              "decks": 14
+            },
+            {
+              "name": "Archon of Cruelty",
+              "decks": 14
+            },
+            {
+              "name": "Atraxa, Grand Unifier",
+              "decks": 14
+            },
+            {
+              "name": "Raph & Mikey, Troublemakers",
+              "decks": 14
+            },
+            {
+              "name": "Shallow Grave",
+              "decks": 14
+            },
+            {
+              "name": "Collective Brutality",
+              "decks": 11
+            },
+            {
+              "name": "Faerie Macabre",
+              "decks": 1
+            },
+            {
+              "name": "Magus of the Moon",
+              "decks": 1
+            }
+          ]
+        },
+        {
+          "id": "legacy:doomsday-dark-ritual-flow-state",
+          "name": "Doomsday / Dark Ritual / Flow State",
+          "decks": 13,
+          "copiesNonland": {
+            "n": 561,
+            "full": 392,
+            "pct": 69.9
+          },
+          "decksFullySimulated": {
+            "n": 13,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Doomsday",
+              "decks": 13
+            },
+            {
+              "name": "Edge of Autumn",
+              "decks": 13
+            },
+            {
+              "name": "Street Wraith",
+              "decks": 13
+            },
+            {
+              "name": "Thassa's Oracle",
+              "decks": 13
+            },
+            {
+              "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+              "decks": 12
+            },
+            {
+              "name": "Bilbo, Thief in the Night",
+              "decks": 5
+            },
+            {
+              "name": "Jace, Wielder of Mysteries",
+              "decks": 3
+            },
+            {
+              "name": "Flusterstorm",
+              "decks": 2
+            }
+          ]
+        },
+        {
+          "id": "legacy:sneak-attack-show-and-tell-emrakul-the-aeons-torn",
+          "name": "Sneak Attack / Show and Tell / Emrakul, the Aeons Torn",
+          "decks": 13,
+          "copiesNonland": {
+            "n": 533,
+            "full": 320,
+            "pct": 60
+          },
+          "decksFullySimulated": {
+            "n": 13,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Atraxa, Grand Unifier",
+              "decks": 13
+            },
+            {
+              "name": "Emrakul, the Aeons Torn",
+              "decks": 13
+            },
+            {
+              "name": "Sneak Attack",
+              "decks": 13
+            },
+            {
+              "name": "Omniscience",
+              "decks": 11
+            },
+            {
+              "name": "Flusterstorm",
+              "decks": 8
+            },
+            {
+              "name": "Simian Spirit Guide",
+              "decks": 7
+            },
+            {
+              "name": "Mistrise Village",
+              "decks": 6
+            },
+            {
+              "name": "Raph & Mikey, Troublemakers",
+              "decks": 4
+            }
+          ]
+        },
+        {
+          "id": "legacy:gamble-burning-wish-chrome-mox",
+          "name": "Gamble / Burning Wish / Chrome Mox",
+          "decks": 10,
+          "copiesNonland": {
+            "n": 480,
+            "full": 243,
+            "pct": 50.6
+          },
+          "decksFullySimulated": {
+            "n": 10,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Beseech the Mirror",
+              "decks": 10
+            },
+            {
+              "name": "Burning Wish",
+              "decks": 10
+            },
+            {
+              "name": "Echo of Eons",
+              "decks": 10
+            },
+            {
+              "name": "Gaea's Will",
+              "decks": 10
+            },
+            {
+              "name": "Gamble",
+              "decks": 10
+            },
+            {
+              "name": "Hexing Squelcher",
+              "decks": 10
+            },
+            {
+              "name": "Runehorn Hellkite",
+              "decks": 10
+            },
+            {
+              "name": "Song of Creation",
+              "decks": 10
+            }
+          ]
+        },
+        {
+          "id": "legacy:grim-monolith-kozilek-s-command-karn-the-great-creator",
+          "name": "Grim Monolith / Kozilek's Command / Karn, the Great Creator",
+          "decks": 9,
+          "copiesNonland": {
+            "n": 342,
+            "full": 124,
+            "pct": 36.3
+          },
+          "decksFullySimulated": {
+            "n": 9,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Karn, the Great Creator",
+              "decks": 9
+            },
+            {
+              "name": "Kozilek's Command",
+              "decks": 9
+            },
+            {
+              "name": "Planar Nexus",
+              "decks": 9
+            },
+            {
+              "name": "The One Ring",
+              "decks": 9
+            },
+            {
+              "name": "Ugin, Eye of the Storms",
+              "decks": 8
+            },
+            {
+              "name": "Manifold Key",
+              "decks": 7
+            },
+            {
+              "name": "Pithing Needle",
+              "decks": 6
+            },
+            {
+              "name": "Tezzeret, Cruel Captain",
+              "decks": 5
+            }
+          ]
+        },
+        {
+          "id": "legacy:ignoble-hierarch-green-sun-s-zenith-wight-of-the-reliquary",
+          "name": "Ignoble Hierarch / Green Sun's Zenith / Wight of the Reliquary",
+          "decks": 8,
+          "copiesNonland": {
+            "n": 321,
+            "full": 111,
+            "pct": 34.6
+          },
+          "decksFullySimulated": {
+            "n": 8,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Atraxa, Grand Unifier",
+              "decks": 8
+            },
+            {
+              "name": "Ba Sing Se",
+              "decks": 8
+            },
+            {
+              "name": "Gaea's Cradle",
+              "decks": 8
+            },
+            {
+              "name": "Ignoble Hierarch",
+              "decks": 8
+            },
+            {
+              "name": "Once Upon a Time",
+              "decks": 8
+            },
+            {
+              "name": "Talon Gates of Madara",
+              "decks": 8
+            },
+            {
+              "name": "Wight of the Reliquary",
+              "decks": 8
+            },
+            {
+              "name": "Endurance",
+              "decks": 7
+            }
+          ]
+        },
+        {
+          "id": "legacy:moonshadow-nethergoyf-mishra-s-bauble",
+          "name": "Moonshadow / Nethergoyf / Mishra's Bauble",
+          "decks": 8,
+          "copiesNonland": {
+            "n": 346,
+            "full": 280,
+            "pct": 80.9
+          },
+          "decksFullySimulated": {
+            "n": 8,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Bilbo, Thief in the Night",
+              "decks": 8
+            },
+            {
+              "name": "Moonshadow",
+              "decks": 8
+            },
+            {
+              "name": "Consign to Memory",
+              "decks": 1
+            },
+            {
+              "name": "Massacre",
+              "decks": 1
+            },
+            {
+              "name": "Nihil Spellbomb",
+              "decks": 1
+            },
+            {
+              "name": "Null Rod",
+              "decks": 1
+            },
+            {
+              "name": "Silent Gravestone",
+              "decks": 1
+            }
+          ]
+        },
+        {
+          "id": "legacy:thundertrap-trainer-kozilek-s-command-karn-the-great-creator",
+          "name": "Thundertrap Trainer / Kozilek's Command / Karn, the Great Creator",
+          "decks": 7,
+          "copiesNonland": {
+            "n": 280,
+            "full": 125,
+            "pct": 44.6
+          },
+          "decksFullySimulated": {
+            "n": 7,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Karn, the Great Creator",
+              "decks": 7
+            },
+            {
+              "name": "Kozilek's Command",
+              "decks": 7
+            },
+            {
+              "name": "Planar Nexus",
+              "decks": 7
+            },
+            {
+              "name": "The One Ring",
+              "decks": 7
+            },
+            {
+              "name": "Thundertrap Trainer",
+              "decks": 7
+            },
+            {
+              "name": "Ugin, Eye of the Storms",
+              "decks": 7
+            },
+            {
+              "name": "Petrified Hamlet",
+              "decks": 6
+            },
+            {
+              "name": "Eldrazi Confluence",
+              "decks": 4
+            }
+          ]
+        },
+        {
+          "id": "legacy:stitcher-s-supplier-hogaak-arisen-necropolis-moonshadow",
+          "name": "Stitcher's Supplier / Hogaak, Arisen Necropolis / Moonshadow",
+          "decks": 7,
+          "copiesNonland": {
+            "n": 283,
+            "full": 113,
+            "pct": 39.9
+          },
+          "decksFullySimulated": {
+            "n": 7,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Boseiju, Who Endures",
+              "decks": 7
+            },
+            {
+              "name": "Hogaak, Arisen Necropolis",
+              "decks": 7
+            },
+            {
+              "name": "Moonshadow",
+              "decks": 7
+            },
+            {
+              "name": "Stitcher's Supplier",
+              "decks": 7
+            },
+            {
+              "name": "Once Upon a Time",
+              "decks": 6
+            },
+            {
+              "name": "Eumidian Hatchery",
+              "decks": 6
+            },
+            {
+              "name": "Talon Gates of Madara",
+              "decks": 6
+            },
+            {
+              "name": "Wight of the Reliquary",
+              "decks": 6
+            }
+          ]
+        },
+        {
+          "id": "legacy:golgari-grave-troll-otherworldly-gaze-stinkweed-imp",
+          "name": "Golgari Grave-Troll / Otherworldly Gaze / Stinkweed Imp",
+          "decks": 7,
+          "copiesNonland": {
+            "n": 322,
+            "full": 161,
+            "pct": 50
+          },
+          "decksFullySimulated": {
+            "n": 7,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Ashen Rider",
+              "decks": 7
+            },
+            {
+              "name": "Bridge from Below",
+              "decks": 7
+            },
+            {
+              "name": "Cephalid Coliseum",
+              "decks": 7
+            },
+            {
+              "name": "Dread Return",
+              "decks": 7
+            },
+            {
+              "name": "Narcomoeba",
+              "decks": 7
+            },
+            {
+              "name": "Poxwalkers",
+              "decks": 7
+            },
+            {
+              "name": "Stinkweed Imp",
+              "decks": 7
+            },
+            {
+              "name": "Anger",
+              "decks": 5
+            }
+          ]
+        },
+        {
+          "id": "legacy:lightning-bolt-orcish-bowmasters-kolaghan-s-command",
+          "name": "Lightning Bolt / Orcish Bowmasters / Kolaghan's Command",
+          "decks": 6,
+          "copiesNonland": {
+            "n": 246,
+            "full": 192,
+            "pct": 78
+          },
+          "decksFullySimulated": {
+            "n": 6,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Barrowgoyf",
+              "decks": 6
+            },
+            {
+              "name": "Cling to Dust",
+              "decks": 6
+            },
+            {
+              "name": "Kaito, Bane of Nightmares",
+              "decks": 6
+            },
+            {
+              "name": "Snapcaster Mage",
+              "decks": 6
+            },
+            {
+              "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+              "decks": 6
+            },
+            {
+              "name": "Narset, Parter of Veils",
+              "decks": 4
+            },
+            {
+              "name": "Nimble Obstructionist",
+              "decks": 4
+            },
+            {
+              "name": "Bilbo, Thief in the Night",
+              "decks": 2
+            }
+          ]
+        },
+        {
+          "id": "legacy:shatterskull-smashing-shatterskull-the-hammer-pass-fury-fable-of-the-mirror-breaker-reflection-of-kiki-jiki",
+          "name": "Shatterskull Smashing // Shatterskull, the Hammer Pass / Fury / Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
+          "decks": 5,
+          "copiesNonland": {
+            "n": 244,
+            "full": 68,
+            "pct": 27.9
+          },
+          "decksFullySimulated": {
+            "n": 5,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Blood Moon",
+              "decks": 5
+            },
+            {
+              "name": "Broadside Bombardiers",
+              "decks": 5
+            },
+            {
+              "name": "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
+              "decks": 5
+            },
+            {
+              "name": "Magus of the Moon",
+              "decks": 5
+            },
+            {
+              "name": "Shatterskull Smashing // Shatterskull, the Hammer Pass",
+              "decks": 5
+            },
+            {
+              "name": "Simian Spirit Guide",
+              "decks": 5
+            },
+            {
+              "name": "Sundering Eruption // Volcanic Fissure",
+              "decks": 5
+            },
+            {
+              "name": "The One Ring",
+              "decks": 5
+            }
+          ]
+        },
+        {
+          "id": "legacy:cephalid-illusionist-nomads-en-kor-narcomoeba",
+          "name": "Cephalid Illusionist / Nomads en-Kor / Narcomoeba",
+          "decks": 5,
+          "copiesNonland": {
+            "n": 202,
+            "full": 99,
+            "pct": 49
+          },
+          "decksFullySimulated": {
+            "n": 5,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Cephalid Illusionist",
+              "decks": 5
+            },
+            {
+              "name": "Dread Return",
+              "decks": 5
+            },
+            {
+              "name": "Narcomoeba",
+              "decks": 5
+            },
+            {
+              "name": "Nomads en-Kor",
+              "decks": 5
+            },
+            {
+              "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+              "decks": 5
+            },
+            {
+              "name": "Thassa's Oracle",
+              "decks": 5
+            },
+            {
+              "name": "Loki, God of Mischief",
+              "decks": 4
+            },
+            {
+              "name": "Orim's Chant",
+              "decks": 3
+            }
+          ]
+        },
+        {
+          "id": "legacy:archon-of-emeria-seasoned-dungeoneer-anointed-peacekeeper",
+          "name": "Archon of Emeria / Seasoned Dungeoneer / Anointed Peacekeeper",
+          "decks": 5,
+          "copiesNonland": {
+            "n": 202,
+            "full": 117,
+            "pct": 57.9
+          },
+          "decksFullySimulated": {
+            "n": 5,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Anointed Peacekeeper",
+              "decks": 5
+            },
+            {
+              "name": "Archon of Emeria",
+              "decks": 5
+            },
+            {
+              "name": "Seasoned Dungeoneer",
+              "decks": 5
+            },
+            {
+              "name": "Clarion Conqueror",
+              "decks": 4
+            },
+            {
+              "name": "Elite Spellbinder",
+              "decks": 1
+            },
+            {
+              "name": "Chancellor of the Annex",
+              "decks": 1
+            },
+            {
+              "name": "Touch the Spirit Realm",
+              "decks": 1
+            },
+            {
+              "name": "Nadaar, Selfless Paladin",
+              "decks": 1
+            }
+          ]
+        },
+        {
+          "id": "legacy:smallpox-liliana-of-the-veil-dark-ritual",
+          "name": "Smallpox / Liliana of the Veil / Dark Ritual",
+          "decks": 4,
+          "copiesNonland": {
+            "n": 139,
+            "full": 69,
+            "pct": 49.6
+          },
+          "decksFullySimulated": {
+            "n": 4,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Barrowgoyf",
+              "decks": 4
+            },
+            {
+              "name": "Currency Converter",
+              "decks": 4
+            },
+            {
+              "name": "Eumidian Hatchery",
+              "decks": 4
+            },
+            {
+              "name": "Liliana of the Veil",
+              "decks": 4
+            },
+            {
+              "name": "Pithing Needle",
+              "decks": 4
+            },
+            {
+              "name": "Smallpox",
+              "decks": 4
+            },
+            {
+              "name": "Urborg, Tomb of Yawgmoth",
+              "decks": 4
+            },
+            {
+              "name": "Nihil Spellbomb",
+              "decks": 3
+            }
+          ]
+        },
+        {
+          "id": "legacy:eldrazi-linebreaker-thought-knot-seer-glaring-fleshraker",
+          "name": "Eldrazi Linebreaker / Thought-Knot Seer / Glaring Fleshraker",
+          "decks": 4,
+          "copiesNonland": {
+            "n": 144,
+            "full": 51,
+            "pct": 35.4
+          },
+          "decksFullySimulated": {
+            "n": 4,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Eldrazi Linebreaker",
+              "decks": 4
+            },
+            {
+              "name": "Eye of Ugin",
+              "decks": 4
+            },
+            {
+              "name": "Kozilek's Command",
+              "decks": 4
+            },
+            {
+              "name": "Reality Smasher",
+              "decks": 4
+            },
+            {
+              "name": "Thought-Knot Seer",
+              "decks": 4
+            },
+            {
+              "name": "Wastescape Battlemage",
+              "decks": 4
+            },
+            {
+              "name": "Abundant Countryside",
+              "decks": 3
+            },
+            {
+              "name": "Petrified Hamlet",
+              "decks": 3
+            }
+          ]
+        },
+        {
+          "id": "legacy:thoughtcast-patchwork-automaton-urza-s-bauble",
+          "name": "Thoughtcast / Patchwork Automaton / Urza's Bauble",
+          "decks": 4,
+          "copiesNonland": {
+            "n": 187,
+            "full": 114,
+            "pct": 61
+          },
+          "decksFullySimulated": {
+            "n": 4,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Emry, Lurker of the Loch",
+              "decks": 4
+            },
+            {
+              "name": "Kappa Cannoneer",
+              "decks": 4
+            },
+            {
+              "name": "Pinnacle Emissary",
+              "decks": 4
+            },
+            {
+              "name": "Pithing Needle",
+              "decks": 4
+            },
+            {
+              "name": "Urza's Bauble",
+              "decks": 4
+            },
+            {
+              "name": "Loki, God of Mischief",
+              "decks": 3
+            },
+            {
+              "name": "Shadowspear",
+              "decks": 3
+            },
+            {
+              "name": "Krang, Master Mind",
+              "decks": 2
+            }
+          ]
+        },
+        {
+          "id": "legacy:painter-s-servant-pyroblast-goblin-engineer",
+          "name": "Painter's Servant / Pyroblast / Goblin Engineer",
+          "decks": 4,
+          "copiesNonland": {
+            "n": 156,
+            "full": 33,
+            "pct": 21.2
+          },
+          "decksFullySimulated": {
+            "n": 4,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Chaos Defiler",
+              "decks": 4
+            },
+            {
+              "name": "Goblin Engineer",
+              "decks": 4
+            },
+            {
+              "name": "Goblin Welder",
+              "decks": 4
+            },
+            {
+              "name": "Grindstone",
+              "decks": 4
+            },
+            {
+              "name": "Painter's Servant",
+              "decks": 4
+            },
+            {
+              "name": "Phyrexian Dragon Engine",
+              "decks": 4
+            },
+            {
+              "name": "Pyroblast",
+              "decks": 4
+            },
+            {
+              "name": "Agatha's Soul Cauldron",
+              "decks": 3
+            }
+          ]
+        },
+        {
+          "id": "legacy:swords-to-plowshares-tamiyo-inquisitive-student-tamiyo-seasoned-scholar-prismatic-ending",
+          "name": "Swords to Plowshares / Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar / Prismatic Ending",
+          "decks": 4,
+          "copiesNonland": {
+            "n": 160,
+            "full": 107,
+            "pct": 66.9
+          },
+          "decksFullySimulated": {
+            "n": 4,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Forth Eorlingas!",
+              "decks": 4
+            },
+            {
+              "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+              "decks": 4
+            },
+            {
+              "name": "Wrath of the Skies",
+              "decks": 4
+            },
+            {
+              "name": "Back to Basics",
+              "decks": 2
+            },
+            {
+              "name": "Day's Undoing",
+              "decks": 2
+            },
+            {
+              "name": "Lavinia, Azorius Renegade",
+              "decks": 2
+            },
+            {
+              "name": "Narset, Parter of Veils",
+              "decks": 2
+            },
+            {
+              "name": "Snapcaster Mage",
+              "decks": 2
+            }
+          ]
+        },
+        {
+          "id": "legacy:legolas-s-quick-reflexes-blighted-agent-glistener-elf",
+          "name": "Legolas's Quick Reflexes / Blighted Agent / Glistener Elf",
+          "decks": 4,
+          "copiesNonland": {
+            "n": 167,
+            "full": 60,
+            "pct": 35.9
+          },
+          "decksFullySimulated": {
+            "n": 4,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Blighted Agent",
+              "decks": 4
+            },
+            {
+              "name": "Embiggen",
+              "decks": 4
+            },
+            {
+              "name": "Glistener Elf",
+              "decks": 4
+            },
+            {
+              "name": "Inkmoth Nexus",
+              "decks": 4
+            },
+            {
+              "name": "Invigorate",
+              "decks": 4
+            },
+            {
+              "name": "Legolas's Quick Reflexes",
+              "decks": 4
+            },
+            {
+              "name": "Noble Hierarch",
+              "decks": 4
+            },
+            {
+              "name": "Berserk",
+              "decks": 3
+            }
+          ]
+        },
+        {
+          "id": "legacy:torpor-orb-phyrexian-dreadnought-dress-down",
+          "name": "Torpor Orb / Phyrexian Dreadnought / Dress Down",
+          "decks": 3,
+          "copiesNonland": {
+            "n": 131,
+            "full": 74,
+            "pct": 56.5
+          },
+          "decksFullySimulated": {
+            "n": 3,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Dress Down",
+              "decks": 3
+            },
+            {
+              "name": "Phyrexian Dreadnought",
+              "decks": 3
+            },
+            {
+              "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+              "decks": 3
+            },
+            {
+              "name": "Torpor Orb",
+              "decks": 3
+            },
+            {
+              "name": "Dark Confidant",
+              "decks": 1
+            },
+            {
+              "name": "Drown in the Loch",
+              "decks": 1
+            },
+            {
+              "name": "Pithing Needle",
+              "decks": 1
+            },
+            {
+              "name": "Shadowspear",
+              "decks": 1
+            }
+          ]
+        },
+        {
+          "id": "legacy:phyrexian-dreadnought-doorkeeper-thrull-swords-to-plowshares",
+          "name": "Phyrexian Dreadnought / Doorkeeper Thrull / Swords to Plowshares",
+          "decks": 3,
+          "copiesNonland": {
+            "n": 121,
+            "full": 73,
+            "pct": 60.3
+          },
+          "decksFullySimulated": {
+            "n": 3,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Bilbo, Thief in the Night",
+              "decks": 3
+            },
+            {
+              "name": "Phyrexian Dreadnought",
+              "decks": 3
+            },
+            {
+              "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+              "decks": 3
+            },
+            {
+              "name": "Curie, Emergent Intelligence",
+              "decks": 2
+            },
+            {
+              "name": "Doorkeeper Thrull",
+              "decks": 2
+            },
+            {
+              "name": "Abhorrent Oculus",
+              "decks": 2
+            },
+            {
+              "name": "Dress Down",
+              "decks": 2
+            },
+            {
+              "name": "Pithing Needle",
+              "decks": 1
+            }
+          ]
+        },
+        {
+          "id": "legacy:lord-of-atlantis-tide-shaper-vodalian-hexcatcher",
+          "name": "Lord of Atlantis / Tide Shaper / Vodalian Hexcatcher",
+          "decks": 3,
+          "copiesNonland": {
+            "n": 129,
+            "full": 41,
+            "pct": 31.8
+          },
+          "decksFullySimulated": {
+            "n": 3,
+            "full": 0,
+            "pct": 0
+          },
+          "topUnparsed": [
+            {
+              "name": "Floodpits Drowner",
+              "decks": 3
+            },
+            {
+              "name": "Harbinger of the Seas",
+              "decks": 3
+            },
+            {
+              "name": "Lord of Atlantis",
+              "decks": 3
+            },
+            {
+              "name": "Master of the Pearl Trident",
+              "decks": 3
+            },
+            {
+              "name": "Tide Shaper",
+              "decks": 3
+            },
+            {
+              "name": "Vodalian Hexcatcher",
+              "decks": 3
+            },
+            {
+              "name": "Silvergill Adept",
+              "decks": 2
+            },
+            {
+              "name": "Mindspring Merfolk",
+              "decks": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "top_unparsed_cards": [
+    {
+      "name": "Quantum Riddler",
+      "oracleId": "58582fac-4c42-4a1c-9ab1-4a892b500da4",
+      "weight": 0.1979,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 25,
+          "deckPct": 33.3,
+          "copies": 79
+        },
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        },
+        "Legacy": {
+          "decks": 47,
+          "deckPct": 11.8,
+          "copies": 171
+        }
+      },
+      "unparsed": [
+        "As long as you have one or fewer cards in hand, if you would draw one or more cards, you draw that many cards plus one instead."
+      ]
+    },
+    {
+      "name": "Multiversal Passage",
+      "oracleId": "17770eeb-ecbf-4510-af2d-acececfbe146",
+      "weight": 0.1429,
+      "isLand": true,
+      "byFormat": {
+        "Standard": {
+          "decks": 3,
+          "deckPct": 42.9,
+          "copies": 5
+        }
+      },
+      "unparsed": [
+        "As ~ enters, choose a basic land type. Then you may pay 2 life. If you don't, it enters tapped.",
+        "~ is the chosen type."
+      ]
+    },
+    {
+      "name": "Boseiju, Who Endures",
+      "oracleId": "bf1341dd-41a3-49f6-87ec-63170dde4324",
+      "weight": 0.1397,
+      "isLand": true,
+      "byFormat": {
+        "Modern": {
+          "decks": 20,
+          "deckPct": 26.7,
+          "copies": 28
+        },
+        "Legacy": {
+          "decks": 61,
+          "deckPct": 15.3,
+          "copies": 105
+        }
+      },
+      "unparsed": [
+        "{1}{G}, Discard ~: Destroy target artifact, enchantment, or nonbasic land an opponent controls. That player may search their library for a land card with a basic land type, put it onto the battlefield, then shuffle. This ability costs {1} less to activate for each legendary creature you control."
+      ]
+    },
+    {
+      "name": "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+      "oracleId": "1ed9e351-0000-4b75-8ecb-d15bd88df68a",
+      "weight": 0.1128,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 4,
+          "deckPct": 5.3,
+          "copies": 10
+        },
+        "Legacy": {
+          "decks": 114,
+          "deckPct": 28.5,
+          "copies": 408
+        }
+      },
+      "unparsed": [
+        "// +2: Until your next turn, whenever a creature attacks you or a planeswalker you control, it gets -1/-0 until end of turn.",
+        "// -3: Return target instant or sorcery card from your graveyard to your hand. If it's a green card, add one mana of any color.",
+        "// -7: Draw cards equal to half the number of cards in your library, rounded up. You get an emblem with \"You have no maximum hand size.\""
+      ]
+    },
+    {
+      "name": "Prismari Charm",
+      "oracleId": "c3c25a2c-f71c-4cb7-9117-0bcda9248bfd",
+      "weight": 0.1036,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 2,
+          "deckPct": 28.6,
+          "copies": 6
+        },
+        "Legacy": {
+          "decks": 10,
+          "deckPct": 2.5,
+          "copies": 12
+        }
+      },
+      "unparsed": [
+        "• ~ deals 1 damage to each of one or two targets."
+      ]
+    },
+    {
+      "name": "Atraxa, Grand Unifier",
+      "oracleId": "abbcb153-0763-44c6-964f-b4ff0eb64257",
+      "weight": 0.1025,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 9,
+          "deckPct": 12,
+          "copies": 36
+        },
+        "Legacy": {
+          "decks": 75,
+          "deckPct": 18.8,
+          "copies": 241
+        }
+      },
+      "unparsed": [
+        "When ~ enters, reveal the top ten cards of your library. For each card type, you may put a card of that type from among the revealed cards into your hand. Put the rest on the bottom of your library in a random order."
+      ]
+    },
+    {
+      "name": "Ghost Vacuum",
+      "oracleId": "4ef583ab-e0a0-4e4b-bd65-af766038b1fd",
+      "weight": 0.0961,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 2,
+          "deckPct": 28.6,
+          "copies": 3
+        },
+        "Legacy": {
+          "decks": 1,
+          "deckPct": 0.3,
+          "copies": 1
+        }
+      },
+      "unparsed": [
+        "{6}, {T}, Sacrifice ~: Put each creature card exiled with ~ onto the battlefield under your control with a flying counter on it. Each of them is a 1/1 Spirit in addition to its other types. Activate only as a sorcery."
+      ]
+    },
+    {
+      "name": "Practiced Offense",
+      "oracleId": "99678cc9-59c8-4358-b847-8c38ffb4a050",
+      "weight": 0.0952,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 2,
+          "deckPct": 28.6,
+          "copies": 7
+        }
+      },
+      "unparsed": [
+        "Put a +1/+1 counter on each creature target player controls. Target creature gains your choice of double strike or lifelink until end of turn.",
+        "Put a +1/+1 counter on each creature target player controls.",
+        "Target creature gains your choice of double strike or lifelink until end of turn."
+      ]
+    },
+    {
+      "name": "Requiting Hex",
+      "oracleId": "eda16b31-33db-4ad2-901a-80fbe6273733",
+      "weight": 0.0952,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 2,
+          "deckPct": 28.6,
+          "copies": 6
+        }
+      },
+      "unparsed": [
+        "As an additional cost to cast ~, you may blight 1.",
+        "Destroy target creature with mana value 2 or less. If ~'s additional cost was paid, you gain 2 life.",
+        "Destroy target creature with mana value 2 or less.",
+        "If ~'s additional cost was paid, you gain 2 life."
+      ]
+    },
+    {
+      "name": "Tablet of Discovery",
+      "oracleId": "19cf5798-4600-4a66-b1c7-de77bde157d0",
+      "weight": 0.0952,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 2,
+          "deckPct": 28.6,
+          "copies": 8
+        }
+      },
+      "unparsed": [
+        "When ~ enters, mill a card. You may play that card this turn.",
+        "{T}: Add {R}{R}. Spend this mana only to cast instant and sorcery spells."
+      ]
+    },
+    {
+      "name": "Three Steps Ahead",
+      "oracleId": "282dfeaa-6243-4f92-838a-5cb54fa85184",
+      "weight": 0.0952,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 2,
+          "deckPct": 28.6,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "Spree",
+        "+ {1}{U} — Counter target spell.",
+        "+ {3} — Create a token that's a copy of target artifact or creature you control.",
+        "+ {2} — Draw two cards, then discard a card."
+      ]
+    },
+    {
+      "name": "Teferi, Time Raveler",
+      "oracleId": "ae7604bb-4818-45a3-960c-cf3d83f15964",
+      "weight": 0.0931,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 17,
+          "deckPct": 22.7,
+          "copies": 32
+        },
+        "Legacy": {
+          "decks": 21,
+          "deckPct": 5.3,
+          "copies": 29
+        }
+      },
+      "unparsed": [
+        "Each opponent can cast spells only any time they could cast a sorcery.",
+        "+1: Until your next turn, you may cast sorcery spells as though they had flash.",
+        "-3: Return up to one target artifact, creature, or enchantment to its owner's hand. Draw a card."
+      ]
+    },
+    {
+      "name": "Mistrise Village",
+      "oracleId": "339f5334-b65a-445a-a016-20e997e0b4bb",
+      "weight": 0.0693,
+      "isLand": true,
+      "byFormat": {
+        "Modern": {
+          "decks": 3,
+          "deckPct": 4,
+          "copies": 3
+        },
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 1
+        },
+        "Legacy": {
+          "decks": 10,
+          "deckPct": 2.5,
+          "copies": 11
+        }
+      },
+      "unparsed": [
+        "{U}, {T}: The next spell you cast this turn can't be countered."
+      ]
+    },
+    {
+      "name": "Moonshadow",
+      "oracleId": "a3635b3f-839c-4fe5-83a5-7c70e8630184",
+      "weight": 0.0679,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 1,
+          "deckPct": 1.3,
+          "copies": 4
+        },
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        },
+        "Legacy": {
+          "decks": 19,
+          "deckPct": 4.8,
+          "copies": 76
+        }
+      },
+      "unparsed": [
+        "Whenever one or more permanent cards are put into your graveyard from anywhere while ~ has a -1/-1 counter on it, remove a -1/-1 counter from ~."
+      ]
+    },
+    {
+      "name": "Gemstone Caverns",
+      "oracleId": "c0adbddc-b070-4c5f-afe0-0474c72a9251",
+      "weight": 0.0622,
+      "isLand": true,
+      "byFormat": {
+        "Modern": {
+          "decks": 14,
+          "deckPct": 18.7,
+          "copies": 17
+        }
+      },
+      "unparsed": [
+        "If ~ is in your opening hand and you're not the starting player, you may begin the game with ~ on the battlefield with a luck counter on it. If you do, exile a card from your hand.",
+        "{T}: Add {C}. If ~ has a luck counter on it, instead add one mana of any color."
+      ]
+    },
+    {
+      "name": "Kozilek's Command",
+      "oracleId": "2f2c549d-0293-4b9d-b9a8-ff392800f3a5",
+      "weight": 0.06,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 9,
+          "deckPct": 12,
+          "copies": 36
+        },
+        "Legacy": {
+          "decks": 24,
+          "deckPct": 6,
+          "copies": 96
+        }
+      },
+      "unparsed": [
+        "• Target player creates X 0/1 colorless Eldrazi Spawn creature tokens with \"Sacrifice this token: Add {C}.\"",
+        "• Exile target creature with mana value X or less.",
+        "• Exile up to X target cards from graveyards."
+      ]
+    },
+    {
+      "name": "Otawara, Soaring City",
+      "oracleId": "e9b6a394-691c-425a-9307-76d8edc7375e",
+      "weight": 0.0586,
+      "isLand": true,
+      "byFormat": {
+        "Modern": {
+          "decks": 10,
+          "deckPct": 13.3,
+          "copies": 10
+        },
+        "Legacy": {
+          "decks": 17,
+          "deckPct": 4.3,
+          "copies": 18
+        }
+      },
+      "unparsed": [
+        "{3}{U}, Discard ~: Return target artifact, creature, enchantment, or planeswalker to its owner's hand. This ability costs {1} less to activate for each legendary creature you control."
+      ]
+    },
+    {
+      "name": "Icetill Explorer",
+      "oracleId": "109cdefd-e8cc-4ac7-b6ba-2cfdef8d780f",
+      "weight": 0.0585,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        },
+        "Legacy": {
+          "decks": 13,
+          "deckPct": 3.3,
+          "copies": 14
+        }
+      },
+      "unparsed": [
+        "You may play lands from your graveyard."
+      ]
+    },
+    {
+      "name": "Pithing Needle",
+      "oracleId": "a188fe7e-68de-4c7c-806c-bfe8fc7b44bf",
+      "weight": 0.0567,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 6,
+          "deckPct": 8,
+          "copies": 6
+        },
+        "Legacy": {
+          "decks": 36,
+          "deckPct": 9,
+          "copies": 37
+        }
+      },
+      "unparsed": [
+        "As ~ enters, choose a card name.",
+        "Activated abilities of sources with the chosen name can't be activated unless they're mana abilities."
+      ]
+    },
+    {
+      "name": "Into the Flood Maw",
+      "oracleId": "8cb36a67-9206-4665-a03f-64f52ba559c4",
+      "weight": 0.0529,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 1,
+          "deckPct": 1.3,
+          "copies": 3
+        },
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 1
+        },
+        "Legacy": {
+          "decks": 1,
+          "deckPct": 0.3,
+          "copies": 1
+        }
+      },
+      "unparsed": [
+        "Gift a tapped Fish",
+        "Return target creature an opponent controls to its owner's hand. If the gift was promised, instead return target nonland permanent an opponent controls to its owner's hand.",
+        "If the gift was promised, instead return target nonland permanent an opponent controls to its owner's hand."
+      ]
+    },
+    {
+      "name": "Bilbo, Thief in the Night",
+      "oracleId": "72a9a85d-7cfc-4b3c-82db-9d35be6c0982",
+      "weight": 0.0508,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 3,
+          "deckPct": 4,
+          "copies": 10
+        },
+        "Legacy": {
+          "decks": 45,
+          "deckPct": 11.3,
+          "copies": 117
+        }
+      },
+      "unparsed": [
+        "Whenever ~ attacks, you may cast an artifact, instant, or sorcery spell from your graveyard. If an instant or sorcery spell cast this way would be put into your graveyard, exile it instead."
+      ]
+    },
+    {
+      "name": "Guide of Souls",
+      "oracleId": "b304ac72-7f40-40de-b8d6-6392909b6029",
+      "weight": 0.0494,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 7,
+          "deckPct": 9.3,
+          "copies": 28
+        },
+        "Legacy": {
+          "decks": 22,
+          "deckPct": 5.5,
+          "copies": 88
+        }
+      },
+      "unparsed": [
+        "Whenever another creature you control enters, you gain 1 life and get {E} .",
+        "Whenever you attack, you may pay {E}{E}{E}. When you do, put two +1/+1 counters and a flying counter on target attacking creature. It becomes an Angel in addition to its other types."
+      ]
+    },
+    {
+      "name": "Ocelot Pride",
+      "oracleId": "b4ce2c8f-a19c-461e-8a2e-0ec2bd3ebca3",
+      "weight": 0.0494,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 7,
+          "deckPct": 9.3,
+          "copies": 28
+        },
+        "Legacy": {
+          "decks": 22,
+          "deckPct": 5.5,
+          "copies": 88
+        }
+      },
+      "unparsed": [
+        "Ascend",
+        "At the beginning of your end step, if you gained life this turn, create a 1/1 white Cat creature token. Then if you have the city's blessing, for each token you control that entered this turn, create a token that's a copy of it."
+      ]
+    },
+    {
+      "name": "Krang, Master Mind",
+      "oracleId": "52562194-4a97-40d2-aa73-7827f7834f2f",
+      "weight": 0.0493,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 1
+        },
+        "Legacy": {
+          "decks": 2,
+          "deckPct": 0.5,
+          "copies": 2
+        }
+      },
+      "unparsed": [
+        "When ~ enters, if you have fewer than four cards in hand, draw cards equal to the difference."
+      ]
+    },
+    {
+      "name": "Tersa Lightshatter",
+      "oracleId": "9918eb7b-054e-4b1c-afc7-1163ab642d50",
+      "weight": 0.0493,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 2
+        },
+        "Legacy": {
+          "decks": 2,
+          "deckPct": 0.5,
+          "copies": 2
+        }
+      },
+      "unparsed": [
+        "When ~ enters, discard up to two cards, then draw that many cards.",
+        "Whenever ~ attacks, if there are seven or more cards in your graveyard, exile a card at random from your graveyard. You may play that card this turn."
+      ]
+    },
+    {
+      "name": "March of Otherworldly Light",
+      "oracleId": "ed06e421-480c-40c8-8c3e-1e466e5327b2",
+      "weight": 0.0489,
+      "isLand": false,
+      "byFormat": {
+        "Modern": {
+          "decks": 11,
+          "deckPct": 14.7,
+          "copies": 12
+        }
+      },
+      "unparsed": [
+        "As an additional cost to cast ~, you may exile any number of white cards from your hand. ~ costs {2} less to cast for each card exiled this way.",
+        "Exile target artifact, creature, or enchantment with mana value X or less.",
+        "As an additional cost to cast ~, you may exile any number of white cards from your hand.",
+        "~ costs {2} less to cast for each card exiled this way."
+      ]
+    },
+    {
+      "name": "Fire Magic",
+      "oracleId": "c87db803-3490-41bc-af7a-78f99bcd77c8",
+      "weight": 0.0485,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 1
+        },
+        "Legacy": {
+          "decks": 1,
+          "deckPct": 0.3,
+          "copies": 2
+        }
+      },
+      "unparsed": [
+        "Tiered",
+        "• Fire — {0} — ~ deals 1 damage to each creature.",
+        "• Fira — {2} — ~ deals 2 damage to each creature.",
+        "• Firaga — {5} — ~ deals 3 damage to each creature."
+      ]
+    },
+    {
+      "name": "Flashback",
+      "oracleId": "02070488-9203-4304-9392-a111d20218c5",
+      "weight": 0.0485,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 1
+        },
+        "Legacy": {
+          "decks": 1,
+          "deckPct": 0.3,
+          "copies": 1
+        }
+      },
+      "unparsed": [
+        "Target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost.",
+        "Target instant or sorcery card in your graveyard gains flashback until end of turn.",
+        "The flashback cost is equal to its mana cost."
+      ]
+    },
+    {
+      "name": "Fomori Vault",
+      "oracleId": "622a53bd-d894-422c-a606-7126041afa02",
+      "weight": 0.0485,
+      "isLand": true,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 1
+        },
+        "Legacy": {
+          "decks": 1,
+          "deckPct": 0.3,
+          "copies": 2
+        }
+      },
+      "unparsed": [
+        "{3}, {T}, Discard a card: Look at the top X cards of your library, where X is the number of artifacts you control. Put one of those cards into your hand and the rest on the bottom of your library in a random order."
+      ]
+    },
+    {
+      "name": "Abandon Attachments",
+      "oracleId": "82333385-631f-4abf-b159-bb367f1c6fd9",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 3
+        }
+      },
+      "unparsed": [
+        "You may discard a card. If you do, draw two cards.",
+        "If you do, draw two cards."
+      ]
+    },
+    {
+      "name": "Accumulate Wisdom",
+      "oracleId": "a63eb744-71c4-447d-9372-c3a734f022c5",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "Look at the top three cards of your library. Put one of those cards into your hand and the rest on the bottom of your library in any order. Put each of those cards into your hand instead if there are three or more Lesson cards in your graveyard.",
+        "Look at the top three cards of your library.",
+        "Put one of those cards into your hand and the rest on the bottom of your library in any order.",
+        "Put each of those cards into your hand instead if there are three or more Lesson cards in your graveyard."
+      ]
+    },
+    {
+      "name": "Adagia, Windswept Bastion",
+      "oracleId": "70d35dbd-1d91-4a2a-a643-6870d168f4f5",
+      "weight": 0.0476,
+      "isLand": true,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 1
+        }
+      },
+      "unparsed": [
+        "Station",
+        "12+ | {3}{W}, {T}: Create a token that's a copy of target artifact or enchantment you control, except it's legendary. Activate only as a sorcery."
+      ]
+    },
+    {
+      "name": "Ashling's Command",
+      "oracleId": "9651d197-a408-4665-a292-58d5471f4ffc",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "• Create a token that's a copy of target Elemental you control.",
+        "• ~ deals 2 damage to each creature target player controls.",
+        "• Target player creates two Treasure tokens."
+      ]
+    },
+    {
+      "name": "Bloodghast",
+      "oracleId": "e97f9c2b-b41e-4f36-9245-77c0ac125647",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "Whenever a land you control enters, you may return ~ from your graveyard to the battlefield."
+      ]
+    },
+    {
+      "name": "Castle Doom",
+      "oracleId": "9bd013df-ad75-4099-940b-1765c58faf26",
+      "weight": 0.0476,
+      "isLand": true,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 3
+        }
+      },
+      "unparsed": [
+        "{T}: Add one mana of any color. Spend this mana only to cast an artifact spell."
+      ]
+    },
+    {
+      "name": "Clay-Fired Bricks // Cosmium Kiln",
+      "oracleId": "90e1bcef-53af-4c08-b713-bf10dfcbd577",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "Craft with artifact {5}{W}{W}"
+      ]
+    },
+    {
+      "name": "Colorstorm Stallion",
+      "oracleId": "47ee6837-2e2f-4344-ab9f-6b8887874f77",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "Ward {1}, haste",
+        "Opus — Whenever you cast an instant or sorcery spell, ~ gets +1/+1 until end of turn. If five or more mana was spent to cast that spell, create a token that's a copy of ~."
+      ]
+    },
+    {
+      "name": "Combustion Technique",
+      "oracleId": "522a04ff-cbfe-47b0-bd29-ef6fc27a6905",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "~ deals damage equal to 2 plus the number of Lesson cards in your graveyard to target creature. If that creature would die this turn, exile it instead.",
+        "~ deals damage equal to 2 plus the number of Lesson cards in your graveyard to target creature.",
+        "If that creature would die this turn, exile it instead."
+      ]
+    },
+    {
+      "name": "Cool but Rude",
+      "oracleId": "1f076303-d160-4e02-aa1e-9ed6040c3735",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "Whenever you attack, you may discard a card. If you do, draw a card.",
+        "{1}{R}: Level 2",
+        "Whenever you discard a card, this Class deals 2 damage to each opponent.",
+        "{1}{R}: Level 3",
+        "When this Class becomes level 3, search your library for a card, put it into your hand, shuffle, then discard a card at random."
+      ]
+    },
+    {
+      "name": "Cryogen Relic",
+      "oracleId": "106e9c0d-67a2-4db7-97d9-03e1ea1b40b5",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "When ~ enters or leaves the battlefield, draw a card.",
+        "{1}{U}, Sacrifice ~: Put a stun counter on up to one target tapped creature."
+      ]
+    },
+    {
+      "name": "Day of Black Sun",
+      "oracleId": "dc857129-533c-41d1-8e8b-1c0443030d69",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 2
+        }
+      },
+      "unparsed": [
+        "Each creature with mana value X or less loses all abilities until end of turn. Destroy those creatures.",
+        "Each creature with mana value X or less loses all abilities until end of turn.",
+        "Destroy those creatures."
+      ]
+    },
+    {
+      "name": "Daydream",
+      "oracleId": "094c4486-6cae-4268-850e-ff0082e5ad10",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "Exile target creature you control, then return that card to the battlefield under its owner's control with a +1/+1 counter on it."
+      ]
+    },
+    {
+      "name": "Earthbender Ascension",
+      "oracleId": "f8966fd5-2926-4ba0-b7d6-cfea40cd4e05",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "When ~ enters, earthbend 2. Then search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+        "Whenever a land you control enters, put a quest counter on ~. When you do, if it has four or more quest counters on it, put a +1/+1 counter on target creature you control. It gains trample until end of turn."
+      ]
+    },
+    {
+      "name": "Eddymurk Crab",
+      "oracleId": "3c345e24-1726-45ac-91ca-e348d1e7acfe",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "~ costs {1} less to cast for each instant and sorcery card in your graveyard.",
+        "~ enters tapped if it's not your turn."
+      ]
+    },
+    {
+      "name": "Emeritus of Abundance // Regrowth",
+      "oracleId": "e5152e8d-9f55-493d-a0fc-753cc72ee299",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 1
+        }
+      },
+      "unparsed": [
+        "~ enters prepared.",
+        "Whenever ~ attacks, if you control eight or more lands, ~ becomes prepared.",
+        "//",
+        "Return target card from your graveyard to your hand."
+      ]
+    },
+    {
+      "name": "Emeritus of Ideation // Ancestral Recall",
+      "oracleId": "24a29be4-5bc2-469b-b2ce-2fb305c3facb",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 2
+        }
+      },
+      "unparsed": [
+        "Flying, ward {2}",
+        "~ enters prepared.",
+        "Whenever ~ attacks, you may exile eight cards from your graveyard. If you do, ~ becomes prepared.",
+        "//",
+        "Target player draws three cards."
+      ]
+    },
+    {
+      "name": "Fabled Passage",
+      "oracleId": "0c85b8f7-0bd0-4680-9ec5-d4b110460a54",
+      "weight": 0.0476,
+      "isLand": true,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "{T}, Sacrifice ~: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Then if you control four or more lands, untap that land."
+      ]
+    },
+    {
+      "name": "Fecund Greenshell",
+      "oracleId": "a090be5a-b0f2-4c17-8f7d-e742f9de8f6b",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "As long as you control ten or more lands, creatures you control get +2/+2.",
+        "Whenever ~ or another creature you control with toughness greater than its power enters, look at the top card of your library. If it's a land card, you may put it onto the battlefield tapped. Otherwise, put it into your hand."
+      ]
+    },
+    {
+      "name": "Firebending Lesson",
+      "oracleId": "a9282f91-638e-414b-8b3d-9a99e30aec96",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "~ deals 2 damage to target creature. If ~ was kicked, it deals 5 damage to that creature instead.",
+        "If ~ was kicked, it deals 5 damage to that creature instead."
+      ]
+    },
+    {
+      "name": "Flashfreeze",
+      "oracleId": "eaf98e03-729b-4145-b2af-c910c415c15d",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 2
+        }
+      },
+      "unparsed": [
+        "Counter target red or green spell."
+      ]
+    },
+    {
+      "name": "Germination Practicum",
+      "oracleId": "c8d22139-7b25-4bb1-b0d9-d4c622401edf",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 1
+        }
+      },
+      "unparsed": [
+        "Paradigm"
+      ]
+    },
+    {
+      "name": "Get Out",
+      "oracleId": "b2f3c27e-b646-4449-901a-8b809cdfa84e",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 2
+        }
+      },
+      "unparsed": [
+        "• Counter target creature or enchantment spell.",
+        "• Return one or two target creatures and/or enchantments you own to your hand."
+      ]
+    },
+    {
+      "name": "Gleaming Bastion",
+      "oracleId": "7785ffd4-f169-475d-9558-ce4877b3378a",
+      "weight": 0.0476,
+      "isLand": true,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "{T}: Add {W} or {U}. Activate only if ~ entered this turn or if you control a basic land."
+      ]
+    },
+    {
+      "name": "Great Hall of the Biblioplex",
+      "oracleId": "a8c70dab-1e27-4a9c-bd2d-910d5720d02d",
+      "weight": 0.0476,
+      "isLand": true,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "{5}: If ~ isn't a creature, it becomes a 2/4 Wizard creature with \"Whenever you cast an instant or sorcery spell, ~ gets +1/+0 until end of turn.\" It's still a land."
+      ]
+    },
+    {
+      "name": "Hardened Academic",
+      "oracleId": "921252df-6679-4f70-ae26-d4956c90b7df",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "Whenever one or more cards leave your graveyard, put a +1/+1 counter on target creature you control."
+      ]
+    },
+    {
+      "name": "Hearth Elemental // Stoke Genius",
+      "oracleId": "f01cf0c5-0ac6-4ad3-8642-dd21c8e8563e",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "~ costs {X} less to cast, where X is the number of cards in your graveyard that are instant cards, sorcery cards, and/or have an Adventure."
+      ]
+    },
+    {
+      "name": "Impractical Joke",
+      "oracleId": "c8da73ed-2834-4094-8723-a4ad75660290",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 2
+        }
+      },
+      "unparsed": [
+        "Damage can't be prevented this turn. ~ deals 3 damage to up to one target creature or planeswalker.",
+        "Damage can't be prevented this turn."
+      ]
+    },
+    {
+      "name": "Improvisation Capstone",
+      "oracleId": "fd4f0315-567a-4cc5-bc7e-88a9d2cee910",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 1
+        }
+      },
+      "unparsed": [
+        "Exile cards from the top of your library until you exile cards with total mana value 4 or greater. You may cast any number of spells from among them without paying their mana costs.",
+        "Paradigm",
+        "Exile cards from the top of your library until you exile cards with total mana value 4 or greater.",
+        "You may cast any number of spells from among them without paying their mana costs."
+      ]
+    },
+    {
+      "name": "Iron Man Armor",
+      "oracleId": "958d81c2-ca09-4275-890e-3bb595317325",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 1
+        }
+      },
+      "unparsed": [
+        "When ~ enters, attach it to target creature you control.",
+        "{2}: If ~ isn't a creature, it becomes a 0/0 Construct Hero artifact creature with flying and \"~ gets +1/+1 for each artifact you control\" until end of turn."
+      ]
+    },
+    {
+      "name": "Iron-Shield Elf",
+      "oracleId": "1c77b4da-b580-4ce9-b127-76de674f5694",
+      "weight": 0.0476,
+      "isLand": false,
+      "byFormat": {
+        "Standard": {
+          "decks": 1,
+          "deckPct": 14.3,
+          "copies": 4
+        }
+      },
+      "unparsed": [
+        "Discard a card: ~ gains indestructible until end of turn. Tap it."
+      ]
+    }
+  ],
+  "top_unparsed_clauses": [
+    {
+      "pattern": "As long as you have one or fewer cards in hand, if you would draw one or more cards, you d",
+      "weight": 0.1979,
+      "cards": [
+        "Quantum Riddler"
+      ]
+    },
+    {
+      "pattern": "~ is the chosen type.",
+      "weight": 0.1429,
+      "cards": [
+        "Multiversal Passage"
+      ]
+    },
+    {
+      "pattern": "As ~ enters, choose a basic land type. Then you may pay # life. If you don't, it enters ta",
+      "weight": 0.1429,
+      "cards": [
+        "Multiversal Passage"
+      ]
+    },
+    {
+      "pattern": "{}{}, Discard ~: Destroy target artifact, enchantment, or nonbasic land an opponent contro",
+      "weight": 0.1397,
+      "cards": [
+        "Boseiju, Who Endures"
+      ]
+    },
+    {
+      "pattern": "// -#: Draw cards equal to half the number of cards in your library, rounded up. You get a",
+      "weight": 0.1128,
+      "cards": [
+        "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar"
+      ]
+    },
+    {
+      "pattern": "// -#: Return target instant or sorcery card from your graveyard to your hand. If it's a g",
+      "weight": 0.1128,
+      "cards": [
+        "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar"
+      ]
+    },
+    {
+      "pattern": "// +#: Until your next turn, whenever a creature attacks you or a planeswalker you control",
+      "weight": 0.1128,
+      "cards": [
+        "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar"
+      ]
+    },
+    {
+      "pattern": "• ~ deals # damage to each of one or two targets.",
+      "weight": 0.1036,
+      "cards": [
+        "Prismari Charm"
+      ]
+    },
+    {
+      "pattern": "When ~ enters, reveal the top ten cards of your library. For each card type, you may put a",
+      "weight": 0.1025,
+      "cards": [
+        "Atraxa, Grand Unifier"
+      ]
+    },
+    {
+      "pattern": "{}, {}, Sacrifice ~: Put each creature card exiled with ~ onto the battlefield under your ",
+      "weight": 0.0961,
+      "cards": [
+        "Ghost Vacuum"
+      ]
+    },
+    {
+      "pattern": "Spree",
+      "weight": 0.096,
+      "cards": [
+        "Three Steps Ahead",
+        "Lively Dirge"
+      ]
+    },
+    {
+      "pattern": "{}: Add {}{}. Spend this mana only to cast instant and sorcery spells.",
+      "weight": 0.0952,
+      "cards": [
+        "Tablet of Discovery"
+      ]
+    },
+    {
+      "pattern": "//",
+      "weight": 0.0952,
+      "cards": [
+        "Emeritus of Abundance // Regrowth",
+        "Emeritus of Ideation // Ancestral Recall"
+      ]
+    },
+    {
+      "pattern": "+ {} — Create a token that's a copy of target artifact or creature you control.",
+      "weight": 0.0952,
+      "cards": [
+        "Three Steps Ahead"
+      ]
+    },
+    {
+      "pattern": "+ {} — Draw two cards, then discard a card.",
+      "weight": 0.0952,
+      "cards": [
+        "Three Steps Ahead"
+      ]
+    },
+    {
+      "pattern": "+ {}{} — Counter target spell.",
+      "weight": 0.0952,
+      "cards": [
+        "Three Steps Ahead"
+      ]
+    },
+    {
+      "pattern": "~ enters prepared.",
+      "weight": 0.0952,
+      "cards": [
+        "Emeritus of Abundance // Regrowth",
+        "Emeritus of Ideation // Ancestral Recall"
+      ]
+    },
+    {
+      "pattern": "As an additional cost to cast ~, you may blight #.",
+      "weight": 0.0952,
+      "cards": [
+        "Requiting Hex"
+      ]
+    },
+    {
+      "pattern": "Destroy target creature with mana value # or less.",
+      "weight": 0.0952,
+      "cards": [
+        "Requiting Hex"
+      ]
+    },
+    {
+      "pattern": "Destroy target creature with mana value # or less. If ~'s additional cost was paid, you ga",
+      "weight": 0.0952,
+      "cards": [
+        "Requiting Hex"
+      ]
+    },
+    {
+      "pattern": "If ~'s additional cost was paid, you gain # life.",
+      "weight": 0.0952,
+      "cards": [
+        "Requiting Hex"
+      ]
+    },
+    {
+      "pattern": "Paradigm",
+      "weight": 0.0952,
+      "cards": [
+        "Germination Practicum",
+        "Improvisation Capstone"
+      ]
+    },
+    {
+      "pattern": "Put a +#/+# counter on each creature target player controls.",
+      "weight": 0.0952,
+      "cards": [
+        "Practiced Offense"
+      ]
+    },
+    {
+      "pattern": "Put a +#/+# counter on each creature target player controls. Target creature gains your ch",
+      "weight": 0.0952,
+      "cards": [
+        "Practiced Offense"
+      ]
+    },
+    {
+      "pattern": "Target creature gains your choice of double strike or lifelink until end of turn.",
+      "weight": 0.0952,
+      "cards": [
+        "Practiced Offense"
+      ]
+    },
+    {
+      "pattern": "When ~ enters, mill a card. You may play that card this turn.",
+      "weight": 0.0952,
+      "cards": [
+        "Tablet of Discovery"
+      ]
+    },
+    {
+      "pattern": "-#: Return up to one target artifact, creature, or enchantment to its owner's hand. Draw a",
+      "weight": 0.0931,
+      "cards": [
+        "Teferi, Time Raveler"
+      ]
+    },
+    {
+      "pattern": "+#: Until your next turn, you may cast sorcery spells as though they had flash.",
+      "weight": 0.0931,
+      "cards": [
+        "Teferi, Time Raveler"
+      ]
+    },
+    {
+      "pattern": "Each opponent can cast spells only any time they could cast a sorcery.",
+      "weight": 0.0931,
+      "cards": [
+        "Teferi, Time Raveler"
+      ]
+    },
+    {
+      "pattern": "Look at the top three cards of your library.",
+      "weight": 0.092,
+      "cards": [
+        "Accumulate Wisdom",
+        "Expressive Iteration"
+      ]
+    },
+    {
+      "pattern": "Activated abilities of sources with the chosen name can't be activated unless they're mana",
+      "weight": 0.0851,
+      "cards": [
+        "Pithing Needle",
+        "Disruptor Flute",
+        "Petrified Hamlet"
+      ]
+    },
+    {
+      "pattern": "As ~ enters, choose a card name.",
+      "weight": 0.0709,
+      "cards": [
+        "Pithing Needle",
+        "Disruptor Flute"
+      ]
+    },
+    {
+      "pattern": "Whenever you tap a creature for mana, add an additional {}.",
+      "weight": 0.0697,
+      "cards": [
+        "Badgermole Cub",
+        "Leyline of Abundance"
+      ]
+    },
+    {
+      "pattern": "{}, {}: The next spell you cast this turn can't be countered.",
+      "weight": 0.0693,
+      "cards": [
+        "Mistrise Village"
+      ]
+    },
+    {
+      "pattern": "Whenever one or more permanent cards are put into your graveyard from anywhere while ~ has",
+      "weight": 0.0679,
+      "cards": [
+        "Moonshadow"
+      ]
+    },
+    {
+      "pattern": "You may play lands from your graveyard.",
+      "weight": 0.0676,
+      "cards": [
+        "Icetill Explorer",
+        "Crucible of Worlds",
+        "Mole Man, Moloid Master",
+        "Walk-In Closet // Forgotten Cellar",
+        "Ramunap Excavator"
+      ]
+    },
+    {
+      "pattern": "You may activate abilities of creatures you control as though those creatures had haste.",
+      "weight": 0.063,
+      "cards": [
+        "Shang-Chi, Master of Kung Fu",
+        "Tyvar, Jubilant Brawler"
+      ]
+    },
+    {
+      "pattern": "{}: Add {}. If ~ has a luck counter on it, instead add one mana of any color.",
+      "weight": 0.0622,
+      "cards": [
+        "Gemstone Caverns"
+      ]
+    },
+    {
+      "pattern": "If ~ is in your opening hand and you're not the starting player, you may begin the game wi",
+      "weight": 0.0622,
+      "cards": [
+        "Gemstone Caverns"
+      ]
+    },
+    {
+      "pattern": "• Exile target creature with mana value X or less.",
+      "weight": 0.06,
+      "cards": [
+        "Kozilek's Command"
+      ]
+    },
+    {
+      "pattern": "• Exile up to X target cards from graveyards.",
+      "weight": 0.06,
+      "cards": [
+        "Kozilek's Command"
+      ]
+    },
+    {
+      "pattern": "• Target player creates X #/# colorless Eldrazi Spawn creature tokens with \"Sacrifice this",
+      "weight": 0.06,
+      "cards": [
+        "Kozilek's Command"
+      ]
+    },
+    {
+      "pattern": "{}{}, Discard ~: Return target artifact, creature, enchantment, or planeswalker to its own",
+      "weight": 0.0586,
+      "cards": [
+        "Otawara, Soaring City"
+      ]
+    },
+    {
+      "pattern": "Put the rest on the bottom of your library in a random order.",
+      "weight": 0.0582,
+      "cards": [
+        "United Battlefront",
+        "Consult the Star Charts",
+        "Planar Genesis"
+      ]
+    },
+    {
+      "pattern": "~ costs {} less to cast for each card exiled this way.",
+      "weight": 0.0533,
+      "cards": [
+        "March of Otherworldly Light",
+        "March of Swirling Mist"
+      ]
+    },
+    {
+      "pattern": "Damage can't be prevented this turn.",
+      "weight": 0.0529,
+      "cards": [
+        "Impractical Joke",
+        "Skullcrack"
+      ]
+    },
+    {
+      "pattern": "Gift a tapped Fish",
+      "weight": 0.0529,
+      "cards": [
+        "Into the Flood Maw"
+      ]
+    },
+    {
+      "pattern": "If the gift was promised, instead return target nonland permanent an opponent controls to ",
+      "weight": 0.0529,
+      "cards": [
+        "Into the Flood Maw"
+      ]
+    },
+    {
+      "pattern": "Return target creature an opponent controls to its owner's hand. If the gift was promised,",
+      "weight": 0.0529,
+      "cards": [
+        "Into the Flood Maw"
+      ]
+    },
+    {
+      "pattern": "The flashback cost is equal to its mana cost.",
+      "weight": 0.0529,
+      "cards": [
+        "Flashback",
+        "Past in Flames"
+      ]
+    },
+    {
+      "pattern": "Exile it at the beginning of the next end step.",
+      "weight": 0.0525,
+      "cards": [
+        "Goryo's Vengeance",
+        "Shallow Grave"
+      ]
+    },
+    {
+      "pattern": "{}{}: Level #",
+      "weight": 0.052,
+      "cards": [
+        "Cool but Rude",
+        "Artist's Talent"
+      ]
+    },
+    {
+      "pattern": "Flying, ward {}",
+      "weight": 0.052,
+      "cards": [
+        "Emeritus of Ideation // Ancestral Recall",
+        "Colossal Skyturtle"
+      ]
+    },
+    {
+      "pattern": "Whenever ~ attacks, you may cast an artifact, instant, or sorcery spell from your graveyar",
+      "weight": 0.0508,
+      "cards": [
+        "Bilbo, Thief in the Night"
+      ]
+    },
+    {
+      "pattern": "Ascend",
+      "weight": 0.0494,
+      "cards": [
+        "Ocelot Pride"
+      ]
+    },
+    {
+      "pattern": "At the beginning of your end step, if you gained life this turn, create a #/# white Cat cr",
+      "weight": 0.0494,
+      "cards": [
+        "Ocelot Pride"
+      ]
+    },
+    {
+      "pattern": "Whenever another creature you control enters, you gain # life and get {} .",
+      "weight": 0.0494,
+      "cards": [
+        "Guide of Souls"
+      ]
+    },
+    {
+      "pattern": "Whenever you attack, you may pay {}{}{}. When you do, put two +#/+# counters and a flying ",
+      "weight": 0.0494,
+      "cards": [
+        "Guide of Souls"
+      ]
+    },
+    {
+      "pattern": "When ~ enters, discard up to two cards, then draw that many cards.",
+      "weight": 0.0493,
+      "cards": [
+        "Tersa Lightshatter"
+      ]
+    },
+    {
+      "pattern": "When ~ enters, if you have fewer than four cards in hand, draw cards equal to the differen",
+      "weight": 0.0493,
+      "cards": [
+        "Krang, Master Mind"
+      ]
+    }
+  ]
+}

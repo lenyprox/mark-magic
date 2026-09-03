@@ -1,0 +1,17 @@
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.container { width: 100%; max-width: var(--content-max); margin-inline: auto; padding-inline: clamp(16px, 3vw, 40px); }
+.surface { background: var(--bg-2); box-shadow: var(--catch); border-radius: var(--r-3); }
+.surface-3 { background: var(--bg-3); box-shadow: var(--catch); border-radius: var(--r-3); }
+.lamp { background-image: var(--lamp); }
+.row { display: flex; align-items: center; gap: var(--s-2); }
+.stack { display: flex; flex-direction: column; gap: var(--s-2); }
+.grow { flex: 1 1 auto; min-width: 0; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hide-mobile { display: initial; }
+.show-mobile { display: none; }
+@media (max-width: 760px) { .hide-mobile { display: none !important; } .show-mobile { display: initial; } }
+.rarity-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--rarity-common); flex: none; }
+.rarity-dot[data-rarity='uncommon'] { background: var(--rarity-uncommon); }
+.rarity-dot[data-rarity='rare'] { background: var(--rarity-rare); }
+.rarity-dot[data-rarity='mythic'] { background: var(--rarity-mythic); }
+.rarity-dot[data-rarity='special'], .rarity-dot[data-rarity='bonus'] { background: var(--rarity-special); }

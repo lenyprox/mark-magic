@@ -1,6 +1,6 @@
 // Derived characteristics: power/toughness/keywords after counters, until-end-of-turn effects,
 // auras, equipment and static anthems (a simplified version of the CR 613 layer system).
-import type { Amount, CardType, Color, Filter, Keyword, StaticEffect } from '../cards/types.js';
+import type { Ability, Amount, CardDef, CardType, Color, Filter, Keyword, StaticEffect } from '../cards/types.js';
 import type { GameObject, GameState, PlayerId } from './state.js';
 
 export function allPermanents(s: GameState): GameObject[] { return [...s.players[0].battlefield, ...s.players[1].battlefield]; }
@@ -10,34 +10,65 @@ export function findObject(s: GameState, id: number): GameObject | undefined {
   return undefined;
 }
 
-export function types(o: GameObject): CardType[] { return o.token ? (o.token.types as CardType[]) : o.def.types; }
-export function subtypes(o: GameObject): string[] { return o.token ? o.token.subtypes : o.def.subtypes; }
-export function colors(o: GameObject): Color[] { return o.token ? o.token.colors : o.def.colors; }
+/** The card definition currently in effect for an object: the back face while a double-faced card is flipped. */
+export function defOf(o: GameObject): CardDef { return o.activeFace === 1 && o.def.backFace ? o.def.backFace : o.def; }
+/** The object's abilities: its (active face's) printed abilities followed by any granted ones (Saga chapters). */
+export function abilitiesOf(o: GameObject): Ability[] {
+  if (o.token) return o.grantedAbilities ?? EMPTY_ABILITIES; // a token's def is only its creator's card; its own text is in the TokenSpec
+  const g = o.grantedAbilities; const d = defOf(o).abilities; return g && g.length ? [...d, ...g] : d;
+}
+const EMPTY_ABILITIES: Ability[] = [];
+
+export function types(o: GameObject): CardType[] {
+  const base = o.token ? (o.token.types as CardType[]) : defOf(o).types;
+  if (o.eotFlags.crewed || o.eotFlags.saddled) return base.includes('Creature') ? base : [...base, 'Creature'];
+  if (o.counters.time && o.def.altCosts?.some(a => a.id === 'impending')) return base.filter(t => t !== 'Creature'); // impending: not a creature while it has time counters
+  return base;
+}
+export function subtypes(o: GameObject): string[] { return o.token ? o.token.subtypes : defOf(o).subtypes; }
+export function colors(o: GameObject): Color[] { return o.token ? o.token.colors : defOf(o).colors; }
 export function isCreature(o: GameObject): boolean { return types(o).includes('Creature'); }
 export function isLand(o: GameObject): boolean { return types(o).includes('Land'); }
 export function isType(o: GameObject, t: CardType): boolean { return types(o).includes(t); }
-export function name(o: GameObject): string { return o.token ? o.token.name : o.def.name; }
+export function name(o: GameObject): string { return o.token ? o.token.name : defOf(o).name; }
+export function manaValueOf(o: GameObject): number { return o.token ? 0 : defOf(o).manaValue; }
 
-function baseP(o: GameObject): number { if (o.token) return o.token.power; return numOrStar(o.def.power); }
-function baseT(o: GameObject): number { if (o.token) return o.token.toughness; return numOrStar(o.def.toughness); }
+function baseP(o: GameObject): number { if (o.token) return o.token.power + (o.token.dynamicPT ? dynamicPT(o) : 0); return numOrStar(defOf(o).power); }
+function baseT(o: GameObject): number { if (o.token) return o.token.toughness + (o.token.dynamicPT ? dynamicPT(o) : 0); return numOrStar(defOf(o).toughness); }
+let dynamicState: GameState | null = null;
+function dynamicPT(o: GameObject): number { return dynamicState && o.token?.dynamicPT ? evalAmount(dynamicState, o.token.dynamicPT, o.controller, 0, o) : 0; }
 function numOrStar(s: string | null): number { if (s == null) return 0; const n = Number(s); return Number.isFinite(n) ? n : 0; }
 
-export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, source?: GameObject): number {
+/** Extra context for amounts that refer to "that" object or to how the spell was cast. */
+export interface AmountCtx { that?: { power: number; manaValue: number }; colorsSpent?: number }
+
+export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, source?: GameObject, ctx?: AmountCtx): number {
   if (typeof a === 'number') return a;
   if (a === 'X') return x;
   const me = s.players[ctrl];
   let n = 0;
   switch (a.count) {
     case 'creatures-you-control': n = me.battlefield.filter(o => isCreature(o) && (!a.filter || matchesFilter(s, o, a.filter, source))).length; break;
+    case 'permanents-you-control': n = me.battlefield.filter(o => !a.filter || matchesFilter(s, o, a.filter, source)).length; break;
     case 'cards-in-hand': n = me.hand.length; break;
     case 'lands-you-control': n = me.battlefield.filter(isLand).length; break;
     case 'power-of-source': n = source ? power(s, source) : 0; break;
     case 'creatures-attacking': n = me.battlefield.filter(o => o.attacking !== null).length; break;
     case 'opponent-creatures': n = s.players[ctrl === 0 ? 1 : 0].battlefield.filter(isCreature).length; break;
     case 'life-lost-this-turn': n = s.players[ctrl === 0 ? 1 : 0].lifeLostThisTurn; break;
+    case 'domain': n = new Set(me.battlefield.filter(isLand).flatMap(o => subtypes(o)).filter(t => BASIC_TYPES.has(t))).size; break;
+    case 'exiled-with': n = (source?.exiledWith ?? []).map(id => findObject(s, id)).filter(o => o && (!a.filter || matchesFilter(s, o, a.filter, source))).length; break;
+    case 'cards-in-graveyard': n = me.graveyard.filter(o => !a.filter || matchesFilter(s, o, a.filter, source)).length; break;
+    case 'card-types-in-graveyard': n = new Set(me.graveyard.flatMap(o => o.def.types.filter(t => t !== 'Kindred' && t !== 'Tribal'))).size; break;
+    case 'card-types-in-all-graveyards': n = new Set([...s.players[0].graveyard, ...s.players[1].graveyard].flatMap(o => o.def.types.filter(t => t !== 'Kindred' && t !== 'Tribal'))).size; break;
+    case 'counters-on-source': n = source?.counters[a.counter ?? '+1/+1'] ?? 0; break;
+    case 'power-of-that': n = ctx?.that?.power ?? 0; break;
+    case 'mv-of-that': n = ctx?.that?.manaValue ?? 0; break;
+    case 'colors-spent': n = ctx?.colorsSpent ?? source?.castWith?.colorsSpent ?? 0; break;
   }
-  return n + (a.plus ?? 0);
+  return n * (a.times ?? 1) + (a.plus ?? 0);
 }
+const BASIC_TYPES = new Set(['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']);
 
 export function matchesFilter(s: GameState, o: GameObject, f: Filter | undefined, source?: GameObject): boolean {
   if (!f) return true;
@@ -55,13 +86,15 @@ export function matchesFilter(s: GameState, o: GameObject, f: Filter | undefined
   if (f.attacking && o.attacking === null) return false;
   if (f.blocking && !o.blocking.length) return false;
   if (f.flying && !hasKeyword(s, o, 'flying')) return false;
-  if (f.nonbasic && o.def.supertypes.includes('Basic')) return false;
+  if (f.nonbasic && defOf(o).supertypes.includes('Basic')) return false;
+  if (f.basic && !defOf(o).supertypes.includes('Basic')) return false;
   if (f.other && source && o.id === source.id) return false;
   if (f.powerGE != null && power(s, o) < f.powerGE) return false;
   if (f.powerLE != null && power(s, o) > f.powerLE) return false;
   if (f.toughnessLE != null && toughness(s, o) > f.toughnessLE) return false;
-  if (f.mvLE != null && (o.token ? 0 : o.def.manaValue) > f.mvLE) return false;
-  if (f.mvGE != null && (o.token ? 0 : o.def.manaValue) < f.mvGE) return false;
+  if (f.mvLE != null && manaValueOf(o) > (typeof f.mvLE === 'number' ? f.mvLE : evalAmount(s, f.mvLE, source?.controller ?? o.controller, 0, source))) return false;
+  if (f.mvGE != null && manaValueOf(o) < f.mvGE) return false;
+  if (f.mvEQ != null && manaValueOf(o) !== (typeof f.mvEQ === 'number' ? f.mvEQ : evalAmount(s, f.mvEQ, source?.controller ?? o.controller, 0, source))) return false;
   return true;
 }
 
@@ -73,7 +106,7 @@ function staticMods(s: GameState, o: GameObject): Mods {
   for (const src of allPermanents(s)) {
     // aura / equipment attached to o
     if (src.attachedTo === o.id) {
-      for (const ab of src.def.abilities) if (ab.kind === 'static') {
+      for (const ab of abilitiesOf(src)) if (ab.kind === 'static') {
         const e = ab.effect;
         if (e.kind === 'aura' || e.kind === 'equipment') {
           m.p += e.power; m.t += e.toughness; if (e.keywords) m.kw.push(...e.keywords);
@@ -81,7 +114,7 @@ function staticMods(s: GameState, o: GameObject): Mods {
         }
       }
     }
-    for (const ab of src.def.abilities) if (ab.kind === 'static') {
+    for (const ab of abilitiesOf(src)) if (ab.kind === 'static') {
       const e = ab.effect as StaticEffect & { opponentsOnly?: boolean; condition?: unknown };
       if (e.kind === 'anthem') {
         if (!isCreature(o)) continue;
@@ -120,23 +153,36 @@ export function conditionHolds(s: GameState, src: GameObject, c: unknown): boole
     case 'formidable': return me.battlefield.filter(isCreature).reduce((a, o) => a + power(s, o), 0) >= 8;
     case 'raid': return me.attackedThisTurn;
     case 'morbid': return s.players[0].creaturesDiedThisTurn + s.players[1].creaturesDiedThisTurn > 0;
-    case 'delirium': return new Set(me.graveyard.flatMap(o => o.def.types)).size >= 4;
-    case 'domain-ge': return new Set(me.battlefield.filter(isLand).flatMap(o => subtypes(o))).size >= cond.value;
-    case 'kicked': return false;
+    case 'delirium': return evalAmount(s, { count: 'card-types-in-graveyard' }, src.controller) >= 4;
+    case 'domain-ge': return evalAmount(s, { count: 'domain' }, src.controller) >= cond.value;
+    case 'kicked': return !!src.castWith?.kicked;
+    case 'revolt': return (me.permanentsLeftThisTurn ?? 0) > 0;
+    case 'not-your-turn': return s.activePlayer !== src.controller;
+    case 'your-turn': return s.activePlayer === src.controller;
+    case 'lands-le': return me.battlefield.filter(o => isLand(o) && (!cond.other || o.id !== src.id)).length <= cond.value;
+    case 'lands-ge': return me.battlefield.filter(o => isLand(o) && (!cond.other || o.id !== src.id)).length >= cond.value;
+    case 'turn-le': return (me.turnsTaken ?? 0) <= cond.value;
+    case 'escaped': return src.castWith?.alt === 'escape';
+    case 'evoked': return src.castWith?.alt === 'evoke';
+    case 'cast-from-hand': return (src.castWith?.from ?? 'hand') === 'hand';
+    case 'graveyard-has-each': return cond.filters.every(f => me.graveyard.some(o => matchesFilter(s, o, f, src)));
+    case 'controls-each': return cond.filters.every(f => me.battlefield.some(o => matchesFilter(s, o, f, src)));
+    case 'self-no-counters': return !(src.counters[cond.counter] > 0);
+    case 'life-gained-this-turn': return (me.lifeGainedThisTurn ?? 0) > 0;
     default: return false;
   }
 }
 
 export function power(s: GameState, o: GameObject): number {
-  const m = staticMods(s, o);
+  const m = staticMods(s, o); dynamicState = s;
   return baseP(o) + (o.counters['+1/+1'] ?? 0) - (o.counters['-1/-1'] ?? 0) + o.eotPower + m.p;
 }
 export function toughness(s: GameState, o: GameObject): number {
-  const m = staticMods(s, o);
+  const m = staticMods(s, o); dynamicState = s;
   return baseT(o) + (o.counters['+1/+1'] ?? 0) - (o.counters['-1/-1'] ?? 0) + o.eotToughness + m.t;
 }
 export function keywords(s: GameState, o: GameObject): Keyword[] {
-  const base = o.token ? o.token.keywords : o.def.keywords;
+  const base = o.token ? o.token.keywords : defOf(o).keywords;
   return [...new Set([...base, ...o.eotKeywords, ...staticMods(s, o).kw])];
 }
 export function hasKeyword(s: GameState, o: GameObject, k: Keyword): boolean { return keywords(s, o).includes(k); }
@@ -159,18 +205,18 @@ export function canBlock(s: GameState, blocker: GameObject, attacker: GameObject
   if (ak.includes('fear') && !(colors(blocker).includes('B') || isType(blocker, 'Artifact'))) return false;
   if (ak.includes('intimidate') && !(isType(blocker, 'Artifact') || colors(attacker).some(c => colors(blocker).includes(c)))) return false;
   if (ak.includes('skulk') && power(s, blocker) > power(s, attacker)) return false;
-  const ev = (attacker.def.abilities.find(a => a.kind === 'static' && a.effect.kind === 'self-keywords' && (a.effect as unknown as { evasion?: Filter }).evasion) as { effect: { evasion: Filter } } | undefined)?.effect.evasion;
+  const ev = (abilitiesOf(attacker).find(a => a.kind === 'static' && a.effect.kind === 'self-keywords' && (a.effect as unknown as { evasion?: Filter }).evasion) as { effect: { evasion: Filter } } | undefined)?.effect.evasion;
   if (ev) { if (ev.powerLE != null && power(s, blocker) > ev.powerLE) return false; if (ev.powerGE != null && power(s, blocker) < ev.powerGE) return false; if (ev.notColors && ev.notColors.some(c => colors(blocker).includes(c))) return false; }
-  const bo = (blocker.def.abilities.find(a => a.kind === 'static' && (a.effect as unknown as { blockOnlyFlying?: boolean }).blockOnlyFlying)) ? true : false;
+  const bo = (abilitiesOf(blocker).find(a => a.kind === 'static' && (a.effect as unknown as { blockOnlyFlying?: boolean }).blockOnlyFlying)) ? true : false;
   if (bo && !ak.includes('flying')) return false;
-  if (attacker.def.protectionFrom?.some(p => colors(blocker).some(c => colorName(c) === p) || (p === 'creatures') || (p === 'artifacts' && isType(blocker, 'Artifact')))) return false;
+  if (defOf(attacker).protectionFrom?.some(p => colors(blocker).some(c => colorName(c) === p) || (p === 'creatures') || (p === 'artifacts' && isType(blocker, 'Artifact')))) return false;
   return true;
 }
 export function colorName(c: Color): string { return { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' }[c]; }
 
 /** Protection check: can `source` (spell/permanent) target/damage `o`? */
 export function protectedFrom(s: GameState, o: GameObject, source: GameObject): boolean {
-  const prot = o.def.protectionFrom; if (!prot) return false;
+  const prot = defOf(o).protectionFrom; if (!prot) return false;
   const sc = colors(source);
   for (const p of prot) {
     if (p === 'everything') return true;

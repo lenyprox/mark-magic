@@ -1,28 +1,47 @@
 // Mana: what a player can produce, whether a cost is payable, and how to pay it (auto-tapping).
 import type { ManaCost, ManaSymbol, Filter } from '../cards/types.js';
 import type { GameObject, GameState, Player } from './state.js';
-import { isCreature, matchesFilter } from './characteristics.js';
+import { abilitiesOf, colors, conditionHolds, findObject, hasKeyword, isCreature, matchesFilter } from './characteristics.js';
 
 export interface ManaSource { obj: GameObject; abilityIndex: number; options: ManaSymbol[][] } // each option = the mana produced
 
 const ALL: ManaSymbol[] = ['W', 'U', 'B', 'R', 'G'];
 
+export interface ManaSourceOptions {
+  /** The spell being paid for: restricted sources (Cavern of Souls) only count when it qualifies. */
+  forSpell?: GameObject;
+  /** Extra sources (convoke creatures, improvise artifacts). */
+  extraSources?: ManaSource[];
+  /** Try the extra sources before real mana (the "max convoke" plan). */
+  extrasFirst?: boolean;
+}
+
 /** Untapped permanents with usable mana abilities. */
-export function manaSources(s: GameState, p: Player): ManaSource[] {
+export function manaSources(s: GameState, p: Player, opts: ManaSourceOptions = {}): ManaSource[] {
   const out: ManaSource[] = [];
+  const spell = opts.forSpell;
   for (const o of p.battlefield) {
     if (o.tapped) continue;
-    if (isCreature(o) && o.enteredTurn === s.turn && !o.def.keywords.includes('haste')) continue; // summoning sick creatures can't {T}
+    if (isCreature(o) && o.enteredTurn === s.turn && !hasKeyword(s, o, 'haste')) continue; // summoning sick creatures can't {T}
     if (o.token?.treasure) { out.push({ obj: o, abilityIndex: -1, options: ALL.map(c => [c]) }); continue; }
-    o.def.abilities.forEach((ab, i) => {
-      if (ab.kind !== 'activated' || !ab.manaAbility || !ab.cost.tap || ab.cost.mana || ab.cost.sacrificeSelf) return;
+    if (o.token?.spawn) { out.push({ obj: o, abilityIndex: -1, options: [['C']] }); continue; }
+    abilitiesOf(o).forEach((ab, i) => {
+      if (ab.kind !== 'activated' || !ab.manaAbility || !ab.cost.tap || ab.cost.mana || ab.cost.sacrificeSelf || ab.cost.discardHand) return;
+      if (ab.activateOnlyIf && !conditionHolds(s, o, ab.activateOnlyIf)) return;
       const options: ManaSymbol[][] = [];
       for (const e of ab.effects) {
         if (e.op !== 'add-mana') continue;
-        if (Array.isArray(e.mana)) options.push(e.mana);
+        if (e.restriction) {
+          if (!spell) continue;
+          if ((e.restriction === 'creature-spell' || e.restriction === 'chosen-type-creature') && !spell.def.types.includes('Creature')) continue;
+          if (e.restriction === 'instant-sorcery' && !spell.def.types.includes('Instant') && !spell.def.types.includes('Sorcery')) continue;
+          if (e.restriction === 'colorless-eldrazi' && (spell.def.colors.length || !spell.def.subtypes.includes('Eldrazi'))) continue;
+        }
+        if (e.altIf && conditionHolds(s, o, e.altIf.condition)) options.push(e.altIf.mana);
+        else if (Array.isArray(e.mana)) options.push(e.mana);
         else if (e.mana === 'any') options.push(...ALL.map(c => Array(e.amount ?? 1).fill(c)));
         else if (e.mana === 'any-one') {
-          const opts = (e as unknown as { options?: string[] }).options as ManaSymbol[] | undefined;
+          const opts = e.options === 'exiled-with-colors' ? exiledColors(s, o) : e.options;
           options.push(...(opts ?? ALL).map(c => Array(e.amount ?? 1).fill(c)));
         }
       }
@@ -32,26 +51,38 @@ export function manaSources(s: GameState, p: Player): ManaSource[] {
   return out;
 }
 
+function exiledColors(s: GameState, o: GameObject): ManaSymbol[] {
+  const cs = new Set<ManaSymbol>();
+  for (const id of o.exiledWith ?? []) { const x = findObject(s, id); if (x) for (const c of colors(x)) cs.add(c); }
+  return [...cs];
+}
+
 export interface Payment { pool: ManaSymbol[]; taps: { source: ManaSource; option: ManaSymbol[] }[] }
 
+/** Default cap on source-option combinations tried by `findPayment`; rollouts pass `FAST_MANA_LIMIT` (see GameOptions.fastMana). */
+export const MANA_COMBO_LIMIT = 5000;
+export const FAST_MANA_LIMIT = 48;
+
 /** Try to pay `cost` from the pool plus untapped sources. Returns the plan or null. Generic {X} is given via `x`. */
-export function findPayment(s: GameState, p: Player, cost: ManaCost, x = 0, reduction = 0): Payment | null {
+export function findPayment(s: GameState, p: Player, cost: ManaCost, x = 0, reduction = 0, limit = MANA_COMBO_LIMIT, opts: ManaSourceOptions = {}): Payment | null {
   const generic = Math.max(0, cost.generic + cost.x * x - reduction);
   const needPips: ManaSymbol[] = [...cost.pips];
   const hybrid = cost.hybrid.map(h => h);
   const phyrexian = [...cost.phyrexian]; // paid with life if no mana of that colour
-  const sources = manaSources(s, p);
+  const regular = manaSources(s, p, opts);
+  const extras = opts.extraSources ?? [];
+  const sources = extras.length ? (opts.extrasFirst ? [...extras, ...regular] : [...regular, ...extras]) : regular;
   // Enumerate: small search over source options (branching kept low by trying the most-constrained pips first).
   const pool = [...p.manaPool];
-  const best = solve(pool, sources, needPips, hybrid, phyrexian, generic);
+  const best = solve(pool, sources, needPips, hybrid, phyrexian, generic, limit);
   return best;
 }
 
-function solve(pool: ManaSymbol[], sources: ManaSource[], pips: ManaSymbol[], hybrid: ManaSymbol[][], phyrexian: ManaSymbol[], generic: number): Payment | null {
+function solve(pool: ManaSymbol[], sources: ManaSource[], pips: ManaSymbol[], hybrid: ManaSymbol[][], phyrexian: ManaSymbol[], generic: number, limit: number): Payment | null {
   // Greedy + backtracking: assign coloured pips first from pool, then sources; then hybrid; then generic.
   const avail: { mana: ManaSymbol; from: 'pool' | number; option?: ManaSymbol[] }[] = pool.map(m => ({ mana: m, from: 'pool' as const }));
   // choose one option per source; try all combos up to a limit (sources are few in practice)
-  const combos = enumerateSourceCombos(sources, 5000);
+  const combos = enumerateSourceCombos(sources, limit);
   let bestPlan: Payment | null = null;
   for (const combo of combos) {
     const units = [...avail];

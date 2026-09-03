@@ -1,0 +1,101 @@
+'use client';
+// One card object on the table: a live Card3D (or a token placeholder), with the interaction states the table needs
+// (castable rim, legal target pulse, dimmed, picked, attacking / blocking, selected) and a `data-obj-id` anchor for
+// the connector overlay. Multi-action cards open a small menu to choose the action.
+import { memo, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import clsx from 'clsx';
+import type { LegalAction } from '@engine/state';
+import type { CardView, PermanentView } from '@play/view';
+import { Card3D } from '@/components/card/Card3D';
+import { ManaCost } from '@/components/text/ManaSymbol';
+import { printingFor } from '@/lib/game/ui';
+import styles from './table.module.css';
+
+export interface TableCardProps {
+  card: CardView | PermanentView;
+  width?: number;
+  live?: 'always' | 'hover' | 'never';
+  tapped?: boolean;
+  state?: { castable?: boolean; legalTarget?: boolean; dimmed?: boolean; picked?: boolean; hovered?: boolean; selected?: boolean; attacking?: boolean; blocking?: boolean; source?: boolean; sick?: boolean };
+  badge?: ReactNode;
+  count?: number;
+  onActivate?: (id: number) => void;
+  menuActions?: LegalAction[];
+  menuOpen?: boolean;
+  onMenuOpenChange?: (open: boolean) => void;
+  onPickAction?: (l: LegalAction) => void;
+  className?: string;
+  style?: CSSProperties;
+  tilt?: number;
+}
+
+function TokenFace({ card }: { card: CardView }) {
+  return (
+    <div className={styles.token} aria-hidden>
+      <div className={styles.tokenName}>{card.name}</div>
+      <div className={styles.tokenType}>{card.typeLine}</div>
+      {card.power != null && <div className={styles.tokenPt}>{card.power}/{card.toughness}</div>}
+    </div>
+  );
+}
+
+function ActionMenu({ card, actions, onPick, onClose }: { card: CardView; actions: LegalAction[]; onPick: (l: LegalAction) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>('button')?.focus();
+    const onDoc = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+    const t = setTimeout(() => document.addEventListener('pointerdown', onDoc), 0);
+    document.addEventListener('keydown', onKey, true);
+    return () => { clearTimeout(t); document.removeEventListener('pointerdown', onDoc); document.removeEventListener('keydown', onKey, true); };
+  }, [onClose]);
+  return (
+    <div ref={ref} className={styles.actionMenu} role="menu" aria-label={`Actions for ${card.name}`} onClick={e => e.stopPropagation()}>
+      <div className={styles.actionMenuTitle}>{card.name}</div>
+      {actions.map((l, i) => (
+        <button key={i} type="button" role="menuitem" className={styles.actionMenuItem} onClick={() => onPick(l)}
+          onKeyDown={e => { const items = [...(ref.current?.querySelectorAll<HTMLElement>('[role=menuitem]') ?? [])]; const j = items.indexOf(e.currentTarget); if (e.key === 'ArrowDown') { e.preventDefault(); items[(j + 1) % items.length]?.focus(); } if (e.key === 'ArrowUp') { e.preventDefault(); items[(j - 1 + items.length) % items.length]?.focus(); } }}>
+          <span>{l.label}</span>
+          {l.action.type === 'cast' && card.manaCost && <ManaCost cost={card.manaCost} size={12} />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export const TableCard = memo(function TableCard({ card, width = 92, live = 'hover', tapped, state = {}, badge, count, onActivate, menuActions, menuOpen, onMenuOpenChange, onPickAction, className, style, tilt }: TableCardProps) {
+  const printing = printingFor(card);
+  const perm = 'controller' in card ? (card as PermanentView) : null;
+  const pt = perm?.isCreature ? `${perm.curPower}/${perm.curToughness}` : card.power != null ? `${card.power}/${card.toughness}` : null;
+  const damaged = perm && perm.damage > 0;
+  const label = `${card.name}${pt ? `, ${pt}` : ''}${tapped ? ', tapped' : ''}${state.castable ? ', playable' : ''}${state.legalTarget ? ', legal target' : ''}`;
+  const activate = onActivate ? () => onActivate(card.id) : undefined;
+  const hasMenu = !!menuActions && menuActions.length > 1 && !!onPickAction;
+
+  return (
+    <div
+      className={clsx(styles.tcard, tapped && styles.tcardTapped, state.castable && styles.castable, state.legalTarget && styles.legalTarget, state.dimmed && styles.dimmed, state.picked && styles.picked, state.hovered && styles.hovered, state.selected && styles.selected, state.attacking && styles.attacking, state.blocking && styles.blocking, state.source && styles.source, state.sick && styles.sick, className)}
+      style={{ width, ...style }}
+      data-obj-id={card.id}
+      data-card-name={card.name}
+      data-castable={state.castable ? '' : undefined}
+      data-legal-target={state.legalTarget ? '' : undefined}
+      onClick={activate}
+    >
+      {printing ? (
+        <Card3D printing={printing} face={card.face} live={live} tapped={tapped} size="normal" tilt={tilt ?? 8} onActivate={activate} aria-label={label} />
+      ) : (
+        <div role={activate ? 'button' : 'img'} tabIndex={activate ? 0 : -1} aria-label={label} className={clsx(styles.tokenWrap, tapped && styles.tokenTapped)} onKeyDown={e => { if (activate && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); activate(); } }}>
+          <TokenFace card={card} />
+        </div>
+      )}
+      {pt && <span className={clsx(styles.pt, damaged && styles.ptDamaged)} aria-hidden>{pt}</span>}
+      {count != null && count > 1 && <span className={styles.countBadge} aria-label={`${count} copies`}>×{count}</span>}
+      {badge}
+      {perm && Object.keys(perm.counters).length > 0 && (
+        <span className={styles.counters} aria-hidden>{Object.entries(perm.counters).map(([k, v]) => `${v > 0 ? '+' : ''}${v} ${k}`).join(' · ')}</span>
+      )}
+      {hasMenu && menuOpen && <ActionMenu card={card} actions={menuActions!} onPick={l => { onMenuOpenChange?.(false); onPickAction!(l); }} onClose={() => onMenuOpenChange?.(false)} />}
+    </div>
+  );
+});

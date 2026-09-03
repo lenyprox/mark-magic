@@ -1,0 +1,74 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext",
+      "webworker"
+    ],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "@engine/*": [
+        "../../src/engine/*"
+      ],
+      "@cards/*": [
+        "../../src/cards/*"
+      ],
+      "@ai/*": [
+        "../../src/ai/*"
+      ],
+      "@play/*": [
+        "../../src/play/*"
+      ],
+      "@analysis/*": [
+        "../../src/analysis/*"
+      ],
+      "@meta/*": [
+        "../../src/meta/*"
+      ],
+      "@user/*": [
+        "../../src/user/*"
+      ],
+      "@images/*": [
+        "../../src/images/*"
+      ],
+      "@decks/*": [
+        "../../src/decks/*"
+      ],
+      "@config/*": [
+        "../../src/config/*"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "../../src/**/*.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next"
+  ]
+}
