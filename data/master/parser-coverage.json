@@ -1,0 +1,306 @@
+{
+  "generated_at": "2026-09-03T06:58:01.467Z",
+  "playable_oracle_cards": 34513,
+  "fully_parsed": 6709,
+  "fully_parsed_pct": 19.44,
+  "of_which_vanilla_or_keyword_only": 1173,
+  "by_primary_type": {
+    "Creature": {
+      "total": 19233,
+      "full": 4250,
+      "pct": 22.1
+    },
+    "Artifact": {
+      "total": 2601,
+      "full": 398,
+      "pct": 15.3
+    },
+    "Enchantment": {
+      "total": 3564,
+      "full": 322,
+      "pct": 9
+    },
+    "Sorcery": {
+      "total": 3620,
+      "full": 518,
+      "pct": 14.3
+    },
+    "Instant": {
+      "total": 3849,
+      "full": 805,
+      "pct": 20.9
+    },
+    "Land": {
+      "total": 1161,
+      "full": 394,
+      "pct": 33.9
+    },
+    "Kindred": {
+      "total": 80,
+      "full": 8,
+      "pct": 10
+    },
+    "Planeswalker": {
+      "total": 335,
+      "full": 7,
+      "pct": 2.1
+    },
+    "Other": {
+      "total": 29,
+      "full": 6,
+      "pct": 20.7
+    },
+    "Battle": {
+      "total": 39,
+      "full": 0,
+      "pct": 0
+    },
+    "Tribal": {
+      "total": 2,
+      "full": 1,
+      "pct": 50
+    }
+  },
+  "most_common_unparsed_clauses": [
+    {
+      "n": 190,
+      "clause": "Crew #"
+    },
+    {
+      "n": 103,
+      "clause": "Convoke"
+    },
+    {
+      "n": 99,
+      "clause": "Flashback {}{}"
+    },
+    {
+      "n": 66,
+      "clause": "Morph {}{}"
+    },
+    {
+      "n": 64,
+      "clause": "Flashback {}{}{}"
+    },
+    {
+      "n": 60,
+      "clause": "{}{}: Level #"
+    },
+    {
+      "n": 56,
+      "clause": "As ~ enters, choose a creature type."
+    },
+    {
+      "n": 56,
+      "clause": "As an additional cost to cast ~, sacrifice a creature."
+    },
+    {
+      "n": 55,
+      "clause": "//"
+    },
+    {
+      "n": 53,
+      "clause": "~ enters with X +#/+# counters on it."
+    },
+    {
+      "n": 52,
+      "clause": "#/#"
+    },
+    {
+      "n": 51,
+      "clause": "Cumulative upkeep {}"
+    },
+    {
+      "n": 50,
+      "clause": "Start your engines!"
+    },
+    {
+      "n": 47,
+      "clause": "You may look at the top card of your library any time."
+    },
+    {
+      "n": 45,
+      "clause": "Infect"
+    },
+    {
+      "n": 44,
+      "clause": "You may choose not to untap ~ during your untap step."
+    },
+    {
+      "n": 40,
+      "clause": "Draw a card at the beginning of the next turn's upkeep."
+    },
+    {
+      "n": 40,
+      "clause": "~ can be your commander."
+    },
+    {
+      "n": 40,
+      "clause": "Morph {}{}{}"
+    },
+    {
+      "n": 40,
+      "clause": "Storm"
+    },
+    {
+      "n": 39,
+      "clause": "Shadow"
+    },
+    {
+      "n": 38,
+      "clause": "Swampwalk"
+    },
+    {
+      "n": 38,
+      "clause": "Affinity for artifacts"
+    },
+    {
+      "n": 38,
+      "clause": "Toxic #"
+    },
+    {
+      "n": 37,
+      "clause": "When this Aura enters, draw a card."
+    },
+    {
+      "n": 37,
+      "clause": "Daybound"
+    },
+    {
+      "n": 36,
+      "clause": "Rebound"
+    },
+    {
+      "n": 36,
+      "clause": "Station"
+    },
+    {
+      "n": 36,
+      "clause": "Madness {}{}"
+    },
+    {
+      "n": 36,
+      "clause": "When ~ enters, you become the monarch."
+    },
+    {
+      "n": 35,
+      "clause": "Exalted"
+    },
+    {
+      "n": 35,
+      "clause": "Cascade"
+    },
+    {
+      "n": 35,
+      "clause": "As ~ enters, choose a color."
+    },
+    {
+      "n": 35,
+      "clause": "Bushido #"
+    },
+    {
+      "n": 33,
+      "clause": "Islandwalk"
+    },
+    {
+      "n": 33,
+      "clause": "Saddle #"
+    },
+    {
+      "n": 32,
+      "clause": "Bestow {}{}"
+    },
+    {
+      "n": 32,
+      "clause": "Choose a Background"
+    },
+    {
+      "n": 32,
+      "clause": "Ninjutsu {}{}"
+    },
+    {
+      "n": 32,
+      "clause": "At the beginning of each upkeep, if no spells were cast last turn, transform ~."
+    },
+    {
+      "n": 31,
+      "clause": "Unearth {}{}"
+    },
+    {
+      "n": 31,
+      "clause": "Suspend #—{}{}"
+    },
+    {
+      "n": 30,
+      "clause": "Plot {}{}"
+    },
+    {
+      "n": 30,
+      "clause": "When ~ enters, you get {}{} ."
+    },
+    {
+      "n": 29,
+      "clause": "When this Aura enters, tap enchanted creature."
+    },
+    {
+      "n": 29,
+      "clause": "Landfall — Whenever a land you control enters, ~ gets +#/+# until end of turn."
+    },
+    {
+      "n": 29,
+      "clause": "Ascend"
+    },
+    {
+      "n": 29,
+      "clause": "Delve"
+    },
+    {
+      "n": 28,
+      "clause": "III — Exile this Saga, then return it to the battlefield transformed under your control."
+    },
+    {
+      "n": 28,
+      "clause": "Disguise {}{}"
+    },
+    {
+      "n": 28,
+      "clause": "~ enters with two +#/+# counters on it."
+    },
+    {
+      "n": 27,
+      "clause": "Horsemanship"
+    },
+    {
+      "n": 27,
+      "clause": "Flying, ward {}"
+    },
+    {
+      "n": 27,
+      "clause": "Foretell {}{}"
+    },
+    {
+      "n": 27,
+      "clause": "Flanking"
+    },
+    {
+      "n": 27,
+      "clause": "Doctor's companion"
+    },
+    {
+      "n": 27,
+      "clause": "When this Equipment enters, attach it to target creature you control."
+    },
+    {
+      "n": 27,
+      "clause": "LEVEL #-#"
+    },
+    {
+      "n": 27,
+      "clause": "LEVEL #+"
+    },
+    {
+      "n": 27,
+      "clause": "Morph {}"
+    }
+  ]
+}

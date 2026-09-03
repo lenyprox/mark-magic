@@ -1,0 +1,10 @@
+node_modules/
+dist/
+data/raw/
+data/master/*.jsonl
+data/master/*.json
+data/master/*.db
+!data/master/README.md
+!data/master/audit.json
+!data/master/summary.json
+!data/master/parser-coverage.json

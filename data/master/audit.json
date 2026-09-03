@@ -1,0 +1,1941 @@
+{
+  "audited_at": "2026-09-03T06:27:55.839Z",
+  "summary": {
+    "built_at": "2026-09-03T06:26:56.017Z",
+    "printings": 117621,
+    "oracle_cards": 38630,
+    "rulings": 78949,
+    "sets": 1049,
+    "seconds": 41.113,
+    "source_manifest": {
+      "fetched_at": "2026-09-03T06:18:12.476Z",
+      "files": {
+        "oracle_cards": {
+          "file": "oracle_cards.jsonl.gz",
+          "bytes": 24533446,
+          "updated_at": "2026-09-02T21:02:00.637+00:00",
+          "source": "https://data.scryfall.io/oracle-cards/oracle-cards-20260902210200.jsonl.gz"
+        },
+        "default_cards": {
+          "file": "default_cards.jsonl.gz",
+          "bytes": 78052259,
+          "updated_at": "2026-09-02T21:05:32.258+00:00",
+          "source": "https://data.scryfall.io/default-cards/default-cards-20260902210532.jsonl.gz"
+        },
+        "rulings": {
+          "file": "rulings.jsonl.gz",
+          "bytes": 5366171,
+          "updated_at": "2026-09-02T21:00:34.029+00:00",
+          "source": "https://data.scryfall.io/rulings/rulings-20260902210034.jsonl.gz"
+        },
+        "sets": {
+          "file": "sets.json",
+          "count": 1049,
+          "expected_cards": 117620
+        },
+        "catalogs": {
+          "file": "catalogs.json",
+          "keys": [
+            "card-types",
+            "supertypes",
+            "creature-types",
+            "planeswalker-types",
+            "artifact-types",
+            "enchantment-types",
+            "land-types",
+            "spell-types",
+            "keyword-abilities",
+            "keyword-actions",
+            "ability-words",
+            "battle-types"
+          ]
+        }
+      }
+    }
+  },
+  "checks": [
+    {
+      "id": "A1",
+      "title": "Bulk file sizes matched Scryfall-declared compressed_size",
+      "status": "pass",
+      "files": {
+        "oracle_cards": {
+          "file": "oracle_cards.jsonl.gz",
+          "bytes": 24533446,
+          "updated_at": "2026-09-02T21:02:00.637+00:00",
+          "source": "https://data.scryfall.io/oracle-cards/oracle-cards-20260902210200.jsonl.gz"
+        },
+        "default_cards": {
+          "file": "default_cards.jsonl.gz",
+          "bytes": 78052259,
+          "updated_at": "2026-09-02T21:05:32.258+00:00",
+          "source": "https://data.scryfall.io/default-cards/default-cards-20260902210532.jsonl.gz"
+        },
+        "rulings": {
+          "file": "rulings.jsonl.gz",
+          "bytes": 5366171,
+          "updated_at": "2026-09-02T21:00:34.029+00:00",
+          "source": "https://data.scryfall.io/rulings/rulings-20260902210034.jsonl.gz"
+        },
+        "sets": {
+          "file": "sets.json",
+          "count": 1049,
+          "expected_cards": 117620
+        },
+        "catalogs": {
+          "file": "catalogs.json",
+          "keys": [
+            "card-types",
+            "supertypes",
+            "creature-types",
+            "planeswalker-types",
+            "artifact-types",
+            "enchantment-types",
+            "land-types",
+            "spell-types",
+            "keyword-abilities",
+            "keyword-actions",
+            "ability-words",
+            "battle-types"
+          ]
+        }
+      },
+      "samples": []
+    },
+    {
+      "id": "A2",
+      "title": "Row counts: printings / oracle / rulings / sets loaded into SQLite",
+      "status": "pass",
+      "printings": 117621,
+      "oracle": 38630,
+      "rulings": 78949,
+      "sets": 1049,
+      "samples": []
+    },
+    {
+      "id": "A3",
+      "title": "No duplicate printing ids",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "A4",
+      "title": "No duplicate oracle ids",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "B1",
+      "title": "Every Scryfall set with card_count>0 is present in the master",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "B2",
+      "title": "Per-set printing counts equal Scryfall set.card_count",
+      "status": "warn",
+      "count": 1,
+      "note": "Small deltas are expected: card_count on /sets is computed separately from bulk exports and both are refreshed on different schedules.",
+      "samples": [
+        {
+          "code": "fra",
+          "name": "Reality Fracture",
+          "expected": 45,
+          "have": 46,
+          "delta": 1
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "title": "No printings reference a set absent from /sets",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "B4",
+      "title": "Grand total vs sum of set.card_count",
+      "status": "pass",
+      "printings": 117621,
+      "sum_of_set_counts": 117620,
+      "delta": 1,
+      "samples": []
+    },
+    {
+      "id": "B5",
+      "title": "Every printing maps to a known oracle card",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "B6",
+      "title": "Every printing carries an oracle_id",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "B7",
+      "title": "Every oracle card has at least one printing",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "B8",
+      "title": "Language distribution (non-English rows are cards that were never printed in English)",
+      "status": "info",
+      "langs": [
+        {
+          "lang": "en",
+          "c": 114976
+        },
+        {
+          "lang": "es",
+          "c": 1207
+        },
+        {
+          "lang": "ja",
+          "c": 662
+        },
+        {
+          "lang": "fr",
+          "c": 430
+        },
+        {
+          "lang": "it",
+          "c": 194
+        },
+        {
+          "lang": "zhs",
+          "c": 62
+        },
+        {
+          "lang": "ph",
+          "c": 49
+        },
+        {
+          "lang": "de",
+          "c": 9
+        },
+        {
+          "lang": "qya",
+          "c": 7
+        },
+        {
+          "lang": "ru",
+          "c": 5
+        },
+        {
+          "lang": "dw",
+          "c": 5
+        },
+        {
+          "lang": "zht",
+          "c": 4
+        },
+        {
+          "lang": "pt",
+          "c": 3
+        },
+        {
+          "lang": "grc",
+          "c": 3
+        },
+        {
+          "lang": "sa",
+          "c": 1
+        },
+        {
+          "lang": "la",
+          "c": 1
+        },
+        {
+          "lang": "ko",
+          "c": 1
+        },
+        {
+          "lang": "he",
+          "c": 1
+        },
+        {
+          "lang": "ar",
+          "c": 1
+        }
+      ],
+      "samples": []
+    },
+    {
+      "id": "B9",
+      "title": "Cross-check vs MTGJSON 5.3.0+20260902: set codes",
+      "status": "info",
+      "mtgjson_sets": 869,
+      "scryfall_sets": 1049,
+      "only_in_mtgjson": [
+        "dd3",
+        "fwb",
+        "mb1",
+        "q01",
+        "q02",
+        "q03",
+        "q04",
+        "q05",
+        "q08"
+      ],
+      "only_in_scryfall_count": 189,
+      "only_in_scryfall_by_type": {
+        "token": 189
+      },
+      "samples": [
+        {
+          "code": "ttrk",
+          "name": "Star Trek Tokens",
+          "set_type": "token",
+          "count": 1
+        },
+        {
+          "code": "tfra",
+          "name": "Reality Fracture Tokens",
+          "set_type": "token",
+          "count": 1
+        },
+        {
+          "code": "thob",
+          "name": "The Hobbit Tokens",
+          "set_type": "token",
+          "count": 15
+        },
+        {
+          "code": "tmsh",
+          "name": "Marvel Super Heroes Tokens",
+          "set_type": "token",
+          "count": 27
+        },
+        {
+          "code": "tmsc",
+          "name": "Marvel Super Heroes Commander Tokens",
+          "set_type": "token",
+          "count": 32
+        },
+        {
+          "code": "tsos",
+          "name": "Secrets of Strixhaven Tokens",
+          "set_type": "token",
+          "count": 14
+        },
+        {
+          "code": "tsoc",
+          "name": "Secrets of Strixhaven Commander Tokens",
+          "set_type": "token",
+          "count": 30
+        },
+        {
+          "code": "ttmc",
+          "name": "Teenage Mutant Ninja Turtles Eternal Tokens",
+          "set_type": "token",
+          "count": 31
+        },
+        {
+          "code": "ttmt",
+          "name": "Teenage Mutant Ninja Turtles Tokens",
+          "set_type": "token",
+          "count": 10
+        },
+        {
+          "code": "tecc",
+          "name": "Lorwyn Eclipsed Commander Tokens",
+          "set_type": "token",
+          "count": 13
+        },
+        {
+          "code": "tecl",
+          "name": "Lorwyn Eclipsed Tokens",
+          "set_type": "token",
+          "count": 13
+        },
+        {
+          "code": "ttle",
+          "name": "Avatar: The Last Airbender Eternal Tokens",
+          "set_type": "token",
+          "count": 2
+        },
+        {
+          "code": "ttla",
+          "name": "Avatar: The Last Airbender Tokens",
+          "set_type": "token",
+          "count": 22
+        },
+        {
+          "code": "tspm",
+          "name": "Marvel's Spider-Man Tokens",
+          "set_type": "token",
+          "count": 7
+        },
+        {
+          "code": "teoe",
+          "name": "Edge of Eternities Tokens",
+          "set_type": "token",
+          "count": 12
+        }
+      ]
+    },
+    {
+      "id": "B10",
+      "title": "Cross-check vs MTGJSON: per-set card counts (differences >10 listed)",
+      "status": "pass",
+      "sets_compared": 860,
+      "sets_differing": 73,
+      "sets_differing_by_more_than_10": 12,
+      "note": "MTGJSON counts tokens/promos/art-series differently from Scryfall; large deltas are almost always those.",
+      "samples": [
+        {
+          "code": "plst",
+          "name": "The List",
+          "master": 5584,
+          "mtgjson_totalSetSize": 5509,
+          "mtgjson_baseSetSize": 5075
+        },
+        {
+          "code": "sld",
+          "name": "Secret Lair Drop",
+          "master": 2754,
+          "mtgjson_totalSetSize": 2686,
+          "mtgjson_baseSetSize": 1
+        },
+        {
+          "code": "snc",
+          "name": "Streets of New Capenna",
+          "master": 513,
+          "mtgjson_totalSetSize": 469,
+          "mtgjson_baseSetSize": 281
+        },
+        {
+          "code": "hbg",
+          "name": "Alchemy Horizons: Baldur's Gate",
+          "master": 436,
+          "mtgjson_totalSetSize": 408,
+          "mtgjson_baseSetSize": 456
+        },
+        {
+          "code": "afr",
+          "name": "Adventures in the Forgotten Realms",
+          "master": 424,
+          "mtgjson_totalSetSize": 402,
+          "mtgjson_baseSetSize": 281
+        },
+        {
+          "code": "khm",
+          "name": "Kaldheim",
+          "master": 425,
+          "mtgjson_totalSetSize": 407,
+          "mtgjson_baseSetSize": 285
+        },
+        {
+          "code": "dmu",
+          "name": "Dominaria United",
+          "master": 453,
+          "mtgjson_totalSetSize": 436,
+          "mtgjson_baseSetSize": 281
+        },
+        {
+          "code": "neo",
+          "name": "Kamigawa: Neon Dynasty",
+          "master": 531,
+          "mtgjson_totalSetSize": 514,
+          "mtgjson_baseSetSize": 302
+        },
+        {
+          "code": "znr",
+          "name": "Zendikar Rising",
+          "master": 407,
+          "mtgjson_totalSetSize": 392,
+          "mtgjson_baseSetSize": 280
+        },
+        {
+          "code": "bro",
+          "name": "The Brothers' War",
+          "master": 399,
+          "mtgjson_totalSetSize": 387,
+          "mtgjson_baseSetSize": 287
+        },
+        {
+          "code": "vow",
+          "name": "Innistrad: Crimson Vow",
+          "master": 423,
+          "mtgjson_totalSetSize": 412,
+          "mtgjson_baseSetSize": 277
+        },
+        {
+          "code": "wc99",
+          "name": "World Championship Decks 1999",
+          "master": 111,
+          "mtgjson_totalSetSize": 100,
+          "mtgjson_baseSetSize": 111
+        }
+      ]
+    },
+    {
+      "id": "C1",
+      "title": "Every mana symbol is a known pip",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "C2",
+      "title": "Mana value recomputed from mana cost equals Scryfall cmc (CR 202.3, 709.4, 712.8, 715.4)",
+      "status": "warn",
+      "count": 4,
+      "note": "Remaining: B.F.M. (two-card Un-set creature, MV 15 by ruling), Un-set/playtest oddities, and adventure cards whose adventure face is the more expensive half.",
+      "samples": [
+        {
+          "name": "The Faction Dragon",
+          "layout": "normal",
+          "scryfall_cmc": 3,
+          "computed": 0
+        },
+        {
+          "name": "Land Station",
+          "layout": "normal",
+          "scryfall_cmc": 3,
+          "computed": 2
+        },
+        {
+          "name": "Keeper of the Crown // Coronation of the Wilds",
+          "layout": "adventure",
+          "scryfall_cmc": 3,
+          "computed": 2
+        },
+        {
+          "name": "B.F.M. (Big Furry Monster)",
+          "layout": "normal",
+          "scryfall_cmc": 15,
+          "computed": 0
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "title": "Card colours agree with mana cost + colour indicator",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "C4",
+      "title": "Colour identity is a superset of colours (tokens excluded: Scryfall leaves token identity empty; Fallaji Wayfarer excluded per official ruling)",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "C5",
+      "title": "Card types are in the Scryfall card-types catalog (or known non-traditional types)",
+      "status": "warn",
+      "count": 21,
+      "unique": {
+        "Dragon": 3,
+        "Elemental": 1,
+        "Licid": 1,
+        "Legend": 1,
+        "instant": 1,
+        "Knights": 1,
+        "Phenome-nom": 1,
+        "Universewalker": 1,
+        "Jaguar": 1,
+        "pLAnE": 1,
+        "Tribal": 2,
+        "Goblin": 1,
+        "Scariest": 1,
+        "You'll": 1,
+        "Ever": 1,
+        "See": 1,
+        "Poly": 1,
+        "Wolf": 1
+      },
+      "note": "Remaining hits are pre-Oracle \"Summon X\" printings (playtest/promo curiosities), Un-set jokes and Mystery Booster playtest cards; all are genuine Scryfall type lines.",
+      "samples": [
+        {
+          "name": "Prismatic Dragon",
+          "type": "Dragon",
+          "type_line": "Summon Dragon"
+        },
+        {
+          "name": "Trial and Error",
+          "type": "Elemental",
+          "type_line": "Elemental Instant — Fire"
+        },
+        {
+          "name": "Shichifukujin Dragon",
+          "type": "Dragon",
+          "type_line": "Summon Dragon"
+        },
+        {
+          "name": "Flanking Licid",
+          "type": "Licid",
+          "type_line": "Summon Licid"
+        },
+        {
+          "name": "1996 World Champion",
+          "type": "Legend",
+          "type_line": "Summon Legend"
+        },
+        {
+          "name": "Faerie Dragon",
+          "type": "Dragon",
+          "type_line": "Summon Dragon"
+        },
+        {
+          "name": "capital offense",
+          "type": "instant",
+          "type_line": "instant"
+        },
+        {
+          "name": "Rainbow Knights",
+          "type": "Knights",
+          "type_line": "Summon Knights"
+        },
+        {
+          "name": "That's Enough Slices",
+          "type": "Phenome-nom",
+          "type_line": "Phenome-nom"
+        },
+        {
+          "name": "Byode, Inverse Sun",
+          "type": "Universewalker",
+          "type_line": "Legendary Universewalker — Byode"
+        },
+        {
+          "name": "Aswan Jaguar",
+          "type": "Jaguar",
+          "type_line": "Summon Jaguar"
+        },
+        {
+          "name": "sAnS mERcY",
+          "type": "pLAnE",
+          "type_line": "pLAnE — sECreT LaIR"
+        },
+        {
+          "name": "Sarah's Wings",
+          "type": "Tribal",
+          "type_line": "Tribal Instant — Angel"
+        },
+        {
+          "name": "Goblin Polka Band",
+          "type": "Goblin",
+          "type_line": "Summon Goblin"
+        },
+        {
+          "name": "B.F.M. (Big Furry Monster)",
+          "type": "Scariest",
+          "type_line": "Scariest Creature You'll Ever See"
+        }
+      ]
+    },
+    {
+      "id": "C6",
+      "title": "Supertypes are in the supertypes catalog",
+      "status": "pass",
+      "count": 0,
+      "unique": {},
+      "samples": []
+    },
+    {
+      "id": "C7",
+      "title": "Subtypes are in the subtype catalogs",
+      "status": "warn",
+      "count": 108,
+      "unique": {
+        "Cow": 3,
+        "Cyborg": 18,
+        "Clamfolk": 4,
+        "Townsfolk": 2,
+        "Vampyre": 1,
+        "Waiter": 1,
+        "Spuzzem": 1,
+        "Athlete": 5,
+        "Omenpath": 1,
+        "Ship": 1,
+        "Fire": 1,
+        "Judge": 2,
+        "Vibranium": 1,
+        "Killbot": 4,
+        "Paratrooper": 1,
+        "Human?": 1,
+        "Autobot": 2,
+        "Chef": 2,
+        "Mutagen": 1,
+        "Barnyard": 1,
+        "Artist": 3,
+        "Tree": 1,
+        "Lady": 1,
+        "Proper": 1,
+        "Etiquette": 1,
+        "Donkey": 6,
+        "Zonian": 1,
+        "Realm": 1,
+        "Bureaucrat": 2,
+        "Hatificer": 2,
+        "Mummy": 1,
+        "Wrestler": 1,
+        "Pony": 2,
+        "Art": 1,
+        "Mime": 2,
+        "Quest": 1,
+        "The": 1,
+        "Biggest,": 1,
+        "Baddest,": 1,
+        "Nastiest,": 1,
+        "Control": 2,
+        "Point": 2,
+        "Cephalid": 1,
+        "Key": 1,
+        "Koala": 1,
+        "Lander": 2,
+        "Elemental?": 1,
+        "Hawk": 1,
+        "Champion": 1,
+        "Armored": 1,
+        "Mammoth": 1,
+        "Chameleon": 1,
+        "Ulamog's": 1,
+        "Deer": 1,
+        "Boxer": 1,
+        "Grandchild": 1,
+        "Gus": 1,
+        "Alicorn": 2,
+        "Elves": 1,
+        "Designer": 1
+      },
+      "note": "Scryfall catalogs cover sanctioned (black-border) types only; remaining hits are acorn/Un-set and playtest subtypes.",
+      "samples": [
+        {
+          "name": "Dairy Cow",
+          "subtype": "Cow",
+          "type_line": "Creature — Cow"
+        },
+        {
+          "name": "Aerial Toastmaster",
+          "subtype": "Cyborg",
+          "type_line": "Artifact Creature — Cyborg Rigger"
+        },
+        {
+          "name": "Rules Lawyer",
+          "subtype": "Cyborg",
+          "type_line": "Artifact Creature — Cyborg Advisor"
+        },
+        {
+          "name": "Clambassadors",
+          "subtype": "Clamfolk",
+          "type_line": "Creature — Clamfolk"
+        },
+        {
+          "name": "Bosom Buddy",
+          "subtype": "Townsfolk",
+          "type_line": "Creature — Elephant Townsfolk"
+        },
+        {
+          "name": "Old-Fashioned Vampire",
+          "subtype": "Vampyre",
+          "type_line": "Creature — Vampyre"
+        },
+        {
+          "name": "Mons's Goblin Waiters",
+          "subtype": "Waiter",
+          "type_line": "Creature — Goblin Waiter"
+        },
+        {
+          "name": "Spuzzem Strategist",
+          "subtype": "Spuzzem",
+          "type_line": "Creature — Spuzzem Advisor"
+        },
+        {
+          "name": "Terry Pin, Turboturtle",
+          "subtype": "Athlete",
+          "type_line": "Legendary Creature — Turtle Athlete"
+        },
+        {
+          "name": "Omenpath to Naya",
+          "subtype": "Omenpath",
+          "type_line": "Land — Omenpath"
+        },
+        {
+          "name": "Toy Boat",
+          "subtype": "Ship",
+          "type_line": "Artifact Creature — Ship"
+        },
+        {
+          "name": "Knight of the Widget",
+          "subtype": "Cyborg",
+          "type_line": "Artifact Creature — Cyborg Knight"
+        },
+        {
+          "name": "Trial and Error",
+          "subtype": "Fire",
+          "type_line": "Elemental Instant — Fire"
+        },
+        {
+          "name": "The Policy Maker",
+          "subtype": "Judge",
+          "type_line": "Legendary Creature — Human Judge"
+        },
+        {
+          "name": "Knight of the Kitchen Sink",
+          "subtype": "Cyborg",
+          "type_line": "Artifact Creature — Cyborg Knight"
+        }
+      ]
+    },
+    {
+      "id": "C8",
+      "title": "Keywords are in the keyword/ability-word catalogs",
+      "status": "warn",
+      "count": 581,
+      "unique": {
+        "Animal May-Ham": 1,
+        "Shrieking Gargoyles": 1,
+        "Phalanx Commander": 1,
+        "Rulebreaker": 12,
+        "Feed": 1,
+        "Friends": 1,
+        "Starfall": 1,
+        "Crash Landing": 2,
+        "Medicus Ministorum": 1,
+        "Combine Powers!": 1,
+        "Defense!": 1,
+        "Sonic Booster": 1,
+        "Blow Up": 1,
+        "Disarm": 1,
+        "Detonate": 1,
+        "Avoidance": 1,
+        "Chaos Control": 1,
+        "The Allagan Eye": 1,
+        "Mama's Coming": 1,
+        "Alluring Eyes": 1,
+        "A Test of Your Reflexes!": 1,
+        "History Teacher": 1,
+        "Keen Sight": 1,
+        "Scavenge the Dead": 1,
+        "The Most Important Punch in History": 1,
+        "Wild Shape": 1,
+        "Secrets of the Soul": 1,
+        "Golden Rule": 1,
+        "Leap Strike": 1,
+        "Rope Dart": 1,
+        "Synapse Creature": 1,
+        "Top of the Food Chain": 1,
+        "Rites of Banishment": 1,
+        "Nosh": 1,
+        "Share": 1,
+        "Sensational Save": 1,
+        "Take 59 Flights of Stairs": 1,
+        "Take the Elevator": 1,
+        "The Last Centurion": 1,
+        "Wild Card": 1,
+        "From the Future": 1,
+        "ED-E My Love": 1,
+        "Targeting Relay": 1,
+        "Pray": 1,
+        "Sonic Attack": 1,
+        "Sec": 1,
+        "Caan": 1,
+        "Jast": 1,
+        "Thay": 1,
+        "Sorcerous Elixir": 1,
+        "Check Map": 1,
+        "Pick a Perk": 1,
+        "Sort Inventory": 1,
+        "Prismatic Gallery": 1,
+        "Horrific Symbiosis": 1,
+        "Sonic Blaster": 1,
+        "Beeeeeeep, Beeeeeeep, Beeeeeeep": 1,
+        "Eternity Gate": 1,
+        "Tunnel Snakes Rule!": 1,
+        "Sense the Good": 1,
+        "Blood Chalice": 1,
+        "Midnight Entity": 1,
+        "Rapacious Hunger": 1,
+        "Devouring Monster": 1,
+        "Gather Your Courage": 1,
+        "Run and Hide": 1,
+        "Field Reprogramming": 1,
+        "Allons-y!": 1,
+        "Timey-Wimey": 1,
+        "Symphony of Pain": 1,
+        "Parallel Universe": 1,
+        "Martyrdom": 1,
+        "Mantle of Inspiration": 1,
+        "Science": 1,
+        "Cosplay": 1,
+        "Trance": 2,
+        "Two-Headed Coin": 1,
+        "Gatling Blaster": 1,
+        "Void Shields": 1,
+        "Distract the Horde": 1,
+        "Ceremorphosis": 1,
+        "Neurotraumal Rod": 1,
+        "Relentless March": 1,
+        "Rule Zero": 1,
+        "Play Games": 1,
+        "See a Show": 1,
+        "Buffet": 1,
+        "Go to Sleep": 2,
+        "Blessing of Light": 1,
+        "Puff Piece": 1,
+        "Investigative Journalism": 1,
+        "It's Probably Nothing": 1,
+        "That Could Actually Be Dangerous": 1,
+        "Bad Wolf": 1,
+        "Frenzied Rampage": 1,
+        "Sketch and Lore": 1,
+        "Wave Cannon": 1,
+        "Lucky Slots": 1,
+        "Jump": 16,
+        "No Mercy": 1,
+        "Berzerker": 1,
+        "Sigil of Corruption": 1,
+        "The Betrayer": 1,
+        "Lord of the Pyrrhian Legions": 1,
+        "Density Control": 1,
+        "Technopathy": 1,
+        "Solar Beam": 1,
+        "Science Teacher": 1,
+        "Bigby's Hand": 1,
+        "Gift of Tiamat": 1,
+        "Street Justice": 1,
+        "Legal Justice": 1,
+        "Sleight of Hand": 1,
+        "Prince of Chaos": 1,
+        "Lord of Torment": 1,
+        "Team TARDIS": 1,
+        "Low Gravity": 1,
+        "Fear Gas": 1,
+        "Seismic Takedown": 1,
+        "Flare Star": 1,
+        "Origami-Fu": 1,
+        "Coruscating Flames": 1,
+        "Echo of the Lost": 1,
+        "Crushing Teeth": 1,
+        "Chainsword": 1,
+        "Immune": 1,
+        "Vanguard Species": 1,
+        "Sage Project": 1,
+        "Pheromone Trail": 1,
+        "Negative": 1,
+        "Affirmative": 1,
+        "Meet in Reverse": 1,
+        "Spoilers": 1,
+        "Insatiable Hunger": 1,
+        "Polymorphine": 1,
+        "Phaeron": 1,
+        "Grand Strategist": 1,
+        "Patrol Night": 1,
+        "Date Night": 1,
+        "Shiva's Aid": 1,
+        "Synaptic Disintegrator": 1,
+        "Heavy Power Hammer": 1,
+        "Leap of Faith": 1,
+        "Allure of Slaanesh": 1,
+        "Smear Campaign": 1,
+        "Gust of Wind": 1,
+        "Lizard Formula": 1,
+        "Mine Vibranium": 1,
+        "Survey the Realm": 1,
+        "Time Lord's Prerogative": 1,
+        "Dragonfire Dive": 1,
+        "Conjure Elemental": 1,
+        "Inquisition Agents": 1,
+        "Mono Eminence": 5,
+        "Sarcophagus": 1,
+        "Strategic Coordinator": 1,
+        "Dualcast": 1,
+        "Diana": 1,
+        "Hive Mind": 1,
+        "Still Point in Time": 1,
+        "Nitro-9": 1,
+        "Particle Beam": 1,
+        "Dynastic Codes": 1,
+        "Command Section": 1,
+        "Bring it Down!": 1,
+        "Impossible Girl": 1,
+        "Trace Aether": 1,
+        "Advanced Species": 1,
+        "Shieldwall": 1,
+        "Vibro-Shock Gauntlets": 1,
+        "Sonic Blast": 1,
+        "Full Party": 1,
+        "Light Party": 1,
+        "Stagger": 1,
+        "Primarch of the Death Guard": 1,
+        "Harbinger of Despair": 1,
+        "Look to the Stars": 1,
+        "Wasp's Sting": 1,
+        "Woman Who Walked the Earth": 1,
+        "Feeder Mandibles": 1,
+        "Enthralling Performance": 1,
+        "Parade!": 1,
+        "Come Fly With Me": 1,
+        "Dinosaur Formula": 1,
+        "Shooting Star": 1,
+        "Psionic Adept": 1,
+        "Transdimensional Scout": 1,
+        "Wraith Form": 1,
+        "Gathered Swarm": 1,
+        "Thunder": 1,
+        "Thundaga": 1,
+        "Thundara": 1,
+        "Spirit of the Whalaqee": 1,
+        "Mind Swap": 1,
+        "Healing Tears": 1,
+        "Dynastic Command Node": 1,
+        "Translocation Protocols": 1,
+        "Sorcerous Inspiration": 1,
+        "Fire of Tzeentch": 1,
+        "Benediction of the Omnissiah": 1,
+        "Tax": 1,
+        "Arrest": 1,
+        "Water Always Wins": 1,
+        "Exile Cannon": 1,
+        "Genius Industrialist": 1,
+        "Bad Breath": 1,
+        "Body-print": 1,
+        "Trade Routes": 1,
+        "Subterranean Assault": 1,
+        "Master of Machines": 1,
+        "Ultima Founding": 1,
+        "Explosive": 1,
+        "Trick Arrows": 1,
+        "Boomerang": 1,
+        "Net": 1,
+        "Concealed Position": 1,
+        "Jolly Gutpipes": 1,
+        "Skyswarm": 1,
+        "Ronso Rage": 1,
+        "Unrivaled Lethality": 1,
+        "The Will of the Hive Mind": 1,
+        "Praesidium Protectiva": 1,
+        "Super Nova": 1,
+        "Calim's Breath": 1,
+        "Temporal Foresight": 1,
+        "Time Compression": 1,
+        "Fire Cross": 1,
+        "Sixty-Six Seconds": 1,
+        "Scions' Secretary": 1,
+        "Treasure Hunter": 1,
+        "I. AM. TALKING!": 1,
+        "Elite Troops": 1,
+        "Krishna": 1,
+        "One for My Baby": 1,
+        "Bribe the Guards": 1,
+        "Threaten the Merchant": 1,
+        "Tools": 1,
+        "Foot Toss": 1,
+        "Dash Attack": 1,
+        "Jump Kick": 1,
+        "GOOOOAAAALLL!": 1,
+        "Ghost": 1,
+        "Standoff": 1,
+        "Find Another Way": 1,
+        "Continue the Pilgrimage": 1,
+        "Genestealer's Kiss": 1,
+        "Children of the Cult": 1,
+        "Sanctified Rules of Combat": 1,
+        "Praise Him": 1,
+        "Warp-Strike": 1,
+        "Genomic Enhancement": 1,
+        "Ceaseless Tempest": 1,
+        "Loud Ruckus": 1,
+        "Byzantium Radiation": 1,
+        "Draw Arcanum": 1,
+        "Play Arcanum": 1,
+        "The Seven-fold Chant": 1,
+        "Throw ...": 1,
+        "... Catch": 1,
+        "Call for Aid": 1,
+        "Stall for Time": 1,
+        "Ew-minance": 1,
+        "Executioner Round": 1,
+        "Hyperfrag Round": 1,
+        "Warp Vortex": 1,
+        "Mash": 1,
+        "Stew": 1,
+        "Boil": 1,
+        "I LOVE Squirrels!": 1,
+        "Hellmasker": 1,
+        "Death Gigas": 1,
+        "Galian Beast": 1,
+        "Everypony's Invited": 1,
+        "Steal": 1,
+        "Blue Magic": 1,
+        "Web Support": 1,
+        "Avalanche!": 1,
+        "First Contact": 1,
+        "No One Dies!": 1,
+        "Mary": 1,
+        "Typhoid Mary": 1,
+        "Bloody Mary": 1,
+        "Blade of Magnus": 1,
+        "Unearthly Power": 1,
+        "Fast Healing": 1,
+        "Angelo Cannon": 1,
+        "Radar Sense": 1,
+        "Blizzard": 1,
+        "Blizzara": 1,
+        "Blizzaga": 1,
+        "Intangibility": 1,
+        "Pavitr's Sevā": 1,
+        "Flesh Flayer": 1,
+        "Gift of Chaos": 1,
+        "How Civil of You": 1,
+        "Attack": 1,
+        "Ability": 1,
+        "Item": 1,
+        "Magic": 1,
+        "History": 1,
+        "Flavor": 1,
+        "Skilled Outrider": 1,
+        "Song of the Ood": 1,
+        "Red-Eye": 1,
+        "Mark of Chaos Ascendant": 1,
+        "Flesh Hooks": 1,
+        "My First Friend": 1,
+        "Burning Chains": 1,
+        "Scorching Ray": 1,
+        "Avian Telepathy": 1,
+        "Omnislash": 1,
+        "Blade Beam": 1,
+        "Cross-Slash": 1,
+        "Unquestionable Wisdom": 1,
+        "Hunt for Heresy": 1,
+        "Rogue Trader": 1,
+        "Rot Fly": 1,
+        "Exterminate!": 1,
+        "Hagneia": 1,
+        "Atomic Transmutation": 1,
+        "Share Intelligence": 1,
+        "Peaceful Coexistence": 1,
+        "Heavy Rock Cutter": 1,
+        "Mirran Victory": 1,
+        "Phyrexian Victory": 1,
+        "My Will Be Done": 1,
+        "Protection Fighting Style": 1,
+        "Starscourge": 1,
+        "Murasame": 1,
+        "Psychic Blades": 1,
+        "Double Overdrive": 1,
+        "Cosmo Memory": 1,
+        "Rage": 1,
+        "Devour Intellect": 1,
+        "Body Thief": 2,
+        "Summon": 2,
+        "Project Image": 1,
+        "Chef's Knife": 1,
+        "Lethal Voice": 1,
+        "Consume Anomaly": 1,
+        "Go for the Goal!": 1,
+        "Gae Bolg": 1,
+        "Arcane Life-support": 1,
+        "A Thousand Souls Die Every Day": 1,
+        "Mug": 1,
+        "Spawn Termagants": 1,
+        "Goblin Formula": 1,
+        "Echo of the First Murder": 1,
+        "Daemon Sword": 1,
+        "Brave Heart": 1,
+        "Molting Exoskeleton": 1,
+        "Crown of Madness": 1,
+        "Infesting Spores": 1,
+        "Devastating Charge": 1,
+        "Spiritual Leader": 1,
+        "Psychic Stimulus": 1,
+        "Blood Drain": 1,
+        "Do Homework": 1,
+        "Fight Crime": 1,
+        "Gelato": 1,
+        "Pizza": 1,
+        "Pasta": 1,
+        "Ultimate Sacrifice": 1,
+        "Gotta Go Fast": 1,
+        "Death Sickle": 1,
+        "Three Autostubs": 1,
+        "Multi-threat Eliminator": 1,
+        "Dynastic Advisor": 1,
+        "Hunters for Hire": 1,
+        "Endurant": 1,
+        "Architect of Deception": 1,
+        "Natural Recovery": 2,
+        "Animate Chains": 1,
+        "Cosmic Awareness": 1,
+        "Strike first": 1,
+        "Strike hard": 1,
+        "Suppressing Fire": 1,
+        "Spiked Retribution": 1,
+        "Chaos": 1,
+        "Grand Summon": 1,
+        "Repair Barge": 1,
+        "Find New Host": 1,
+        "Fabricator Claw Array": 1,
+        "Plasma Incinerator": 1,
+        "Fallen Warrior": 1,
+        "Rosarius": 1,
+        "Release Juno": 1,
+        "Let the World Burn": 1,
+        "Natural Shelter": 1,
+        "Venom Blast": 1,
+        "Camouflage": 1,
+        "Summary Execution": 1,
+        "Leading from the Front": 1,
+        "Judge Call!": 1,
+        "Repair": 1,
+        "Impound": 1,
+        "Command Protocols": 1,
+        "Brontosaurus": 1,
+        "Tyrannosaurus Rex": 1,
+        "Homunculus Servant": 2,
+        "Confounding Clouds": 1,
+        "Decimate": 1,
+        "AV Bead": 1,
+        "Prime Bead": 1,
+        "Communication Bead": 1,
+        "Family gathering": 2,
+        "Family Gathering": 2,
+        "Fire": 1,
+        "Firaga": 1,
+        "Fira": 1,
+        "Darkforce Inversion": 1,
+        "Unbreakable Skin": 1,
+        "Into the TARDIS": 1,
+        "Jenova Cells": 1,
+        "The Reunion": 1,
+        "Veil of Time": 1,
+        "Aim for the Cursed Amulet": 1,
+        "Fire a Warning Shot": 1,
+        "Aim for the Wyvern": 1,
+        "Endless Swarm": 1,
+        "Death Ray": 1,
+        "Disintegration Ray": 1,
+        "Reverberating Summons": 1,
+        "Mutsunokami": 1,
+        "Bio-plasmic Barrage": 1,
+        "Deal with the Black Guardian": 1,
+        "Matter Absorption": 1,
+        "Spear of the Void Dragon": 1,
+        "Final Heaven": 1,
+        "Meteor Strikes": 1,
+        "Somersault": 1,
+        "Mold Harvest": 1,
+        "Eukrasia": 1,
+        "Hire a Mercenary": 1,
+        "Sell Contraband": 1,
+        "Buy Information": 1,
+        "Bear Witness": 1,
+        "Ruinous Ascension": 1,
+        "Lure the Unwary": 1,
+        "Abraxas": 1,
+        "Suspended Animation": 1,
+        "Psychic Defense": 1,
+        "Mold Earth": 1,
+        "Aberrant Tinkering": 1,
+        "Probing Telepathy": 1,
+        "Raise": 1,
+        "Proclamator Hailer": 1,
+        "Stowage": 1,
+        "Blind Betrayal": 1,
+        "Wind Walk": 1,
+        "Bull Rush": 1,
+        "Revelation": 1,
+        "Corrupted Metalcraft": 1,
+        "Royal Guard": 1,
+        "Photographic Reflexes": 1,
+        "Curaga": 1,
+        "Cura": 1,
+        "Cure": 1,
+        "Invasion Beams": 1,
+        "For Auld Lang Syne": 1,
+        "Those Who Came Before": 1,
+        "10,000 Needles": 1,
+        "Grumpy Co-play": 1,
+        "Selfie Shot": 1,
+        "Rough Divide": 1,
+        "Protector": 1,
+        "Rapid-fire Battle Cannon": 1,
+        "Aegis of the Emperor": 1,
+        "Brood Telepathy": 1,
+        "Curse of the Walking Pox": 1,
+        "Protect": 1,
+        "Darkness": 1,
+        "The Nuka-Cola Challenge": 1,
+        "Terror from the Deep": 1,
+        "Make Them Pay": 1,
+        "Conceal": 1,
+        "Vicious Mockery": 1,
+        "Allies": 1,
+        "Betrayal": 1,
+        "Warp Blast": 1,
+        "Death Frenzy": 1,
+        "Machina": 1,
+        "Guardian Protocols": 1,
+        "Cheer": 1,
+        "Lord of Chaos": 1,
+        "Locus of Slaanesh": 1,
+        "Rapid Regeneration": 1,
+        "Xenos Cunning": 1,
+        "Battle Cannon": 1,
+        "Embiggen Fist": 1,
+        "Weird Insight": 1,
+        "Look Around": 1,
+        "Bring Down": 1,
+        "Spore Chimney": 1,
+        "Chaosbringer": 1,
+        "Drain Life": 1,
+        "In You, All Things Are Possible": 1,
+        "Rat Tail": 1,
+        "Fateful Bite": 1,
+        "Dance": 1,
+        "The Goose is Loose": 1,
+        "The Goose Laid an Egg": 1,
+        "Titanic": 1,
+        "Frenzied Metabolism": 1,
+        "Unreliable Visions": 1,
+        "Undying Vengeance": 1,
+        "Devourer of Souls": 1,
+        "Rage Beyond Death": 1,
+        "Unlock Ability": 1,
+        "Pray for Protection": 1,
+        "Strike a Deal": 1,
+        "Sokratic Dialogue": 1,
+        "Toxic Spores": 1,
+        "Cure Cancer": 1,
+        "Turn People into Dinosaurs": 1,
+        "Hero Worship": 1,
+        "Heckle": 1,
+        "Throw Wide the Gates": 1,
+        "Master Tactician": 1,
+        "Chapter Master": 1,
+        "Cybernetic Senses": 1,
+        "Hyperphase Threshers": 1,
+        "Stimpak": 1,
+        "RadAway": 1,
+        "Fancy Lads Snack Cakes": 1,
+        "Grav-cannon": 1,
+        "Brand-new Sky": 1,
+        "Armour of Shrieking Souls": 1,
+        "Breakfast at Dawn": 1,
+        "Wake Up!": 1,
+        "Life of the Party": 1,
+        "VIP Line Access": 1,
+        "Bio-Plasmic Scream": 1,
+        "Blitzball Captain": 1,
+        "Hypertoxic Miasma": 1,
+        "Psychic Abomination": 1,
+        "Enmitic Exterminator": 1,
+        "Sonic Rainboom": 1,
+        "Mental Organism": 1,
+        "Designed Only for Killing": 1,
+        "Glory of Battle": 1,
+        "Grenades!": 1
+      },
+      "note": "Scryfall also tags named abilities of Alchemy / Universes Beyond cards (e.g. Astarion's Feed) as keywords; those are not in the CR catalogs.",
+      "samples": [
+        {
+          "name": "Spider-Ham, Peter Porker",
+          "keyword": "Animal May-Ham"
+        },
+        {
+          "name": "Tyranid Harridan",
+          "keyword": "Shrieking Gargoyles"
+        },
+        {
+          "name": "Royal Warden",
+          "keyword": "Phalanx Commander"
+        },
+        {
+          "name": "Hadran, Naya Sunseeder",
+          "keyword": "Rulebreaker"
+        },
+        {
+          "name": "Astarion, the Decadent",
+          "keyword": "Feed"
+        },
+        {
+          "name": "Astarion, the Decadent",
+          "keyword": "Friends"
+        },
+        {
+          "name": "The Emperor of Palamecia // The Lord Master of Hell",
+          "keyword": "Starfall"
+        },
+        {
+          "name": "Baldur's Gate Wilderness",
+          "keyword": "Crash Landing"
+        },
+        {
+          "name": "Sister Hospitaller",
+          "keyword": "Medicus Ministorum"
+        },
+        {
+          "name": "Summon: Magus Sisters",
+          "keyword": "Combine Powers!"
+        },
+        {
+          "name": "Summon: Magus Sisters",
+          "keyword": "Defense!"
+        },
+        {
+          "name": "Nyssa of Traken",
+          "keyword": "Sonic Booster"
+        },
+        {
+          "name": "Blazing Bomb",
+          "keyword": "Blow Up"
+        },
+        {
+          "name": "Megaton's Fate",
+          "keyword": "Disarm"
+        },
+        {
+          "name": "Megaton's Fate",
+          "keyword": "Detonate"
+        }
+      ]
+    },
+    {
+      "id": "C9",
+      "title": "Power/toughness values parse",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "C10",
+      "title": "Non-vanilla, non-basic cards have oracle text",
+      "status": "warn",
+      "count": 5,
+      "samples": [
+        {
+          "name": "Surprise!",
+          "layout": "front_card",
+          "type_line": "Card"
+        },
+        {
+          "name": "Red Mana",
+          "layout": "normal",
+          "type_line": "Card"
+        },
+        {
+          "name": "Stalwart",
+          "layout": "front_card",
+          "type_line": "Card"
+        },
+        {
+          "name": "Sticker sheet",
+          "layout": "normal",
+          "type_line": "Stickers"
+        },
+        {
+          "name": "Storm Counter",
+          "layout": "normal",
+          "type_line": "Card"
+        }
+      ]
+    },
+    {
+      "id": "C11",
+      "title": "Multi-face card names equal \"Face A // Face B\"",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "C12",
+      "title": "Rarity vocabulary",
+      "status": "pass",
+      "count": 0,
+      "distribution": {
+        "rare": 10923,
+        "uncommon": 10374,
+        "common": 14992,
+        "mythic": 2269,
+        "special": 63,
+        "bonus": 9
+      },
+      "samples": []
+    },
+    {
+      "id": "C13",
+      "title": "Release dates are ISO dates",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "C14",
+      "title": "Layout distribution across oracle cards",
+      "status": "info",
+      "layouts": {
+        "normal": 33330,
+        "art_series": 2243,
+        "token": 911,
+        "class": 38,
+        "front_card": 291,
+        "planar": 207,
+        "saga": 194,
+        "scheme": 102,
+        "double_faced_token": 80,
+        "prepare": 55,
+        "meld": 21,
+        "prototype": 21,
+        "vanguard": 107,
+        "transform": 401,
+        "adventure": 170,
+        "emblem": 87,
+        "modal_dfc": 100,
+        "split": 137,
+        "augment": 14,
+        "flip": 26,
+        "host": 20,
+        "mutate": 34,
+        "leveler": 26,
+        "case": 15
+      },
+      "samples": []
+    },
+    {
+      "id": "C15",
+      "title": "Card type distribution",
+      "status": "info",
+      "types": {
+        "Creature": 20017,
+        "Artifact": 4084,
+        "Enchantment": 3867,
+        "Sorcery": 3646,
+        "Card": 2676,
+        "Instant": 3875,
+        "Token": 809,
+        "Land": 1194,
+        "Kindred": 80,
+        "Plane": 184,
+        "Boss": 11,
+        "Scheme": 102,
+        "Planeswalker": 338,
+        "Vanguard": 107,
+        "Emblem": 88,
+        "Hero": 21,
+        "Summon": 11,
+        "Dragon": 3,
+        "Stickers": 50,
+        "Dungeon": 5,
+        "Event": 14,
+        "Conspiracy": 29,
+        "Phenomenon": 21,
+        "Eaturecray": 1,
+        "Battle": 39,
+        "Elemental": 1,
+        "Licid": 1,
+        "Legend": 1,
+        "instant": 1,
+        "Knights": 1,
+        "Phenome-nom": 1,
+        "Universewalker": 1,
+        "Jaguar": 1,
+        "pLAnE": 1,
+        "Tribal": 2,
+        "Goblin": 1,
+        "Scariest": 1,
+        "You'll": 1,
+        "Ever": 1,
+        "See": 1,
+        "Poly": 1,
+        "Wolf": 1
+      },
+      "samples": []
+    },
+    {
+      "id": "D1",
+      "title": "Reserved List size (Wizards list has 571 cards)",
+      "status": "pass",
+      "count": 571,
+      "expected": 571,
+      "samples": []
+    },
+    {
+      "id": "D2",
+      "title": "Power Nine present with Alpha (lea) printings",
+      "status": "pass",
+      "samples": [
+        {
+          "name": "Black Lotus",
+          "found": true,
+          "lea": true
+        },
+        {
+          "name": "Ancestral Recall",
+          "found": true,
+          "lea": true
+        },
+        {
+          "name": "Time Walk",
+          "found": true,
+          "lea": true
+        },
+        {
+          "name": "Mox Pearl",
+          "found": true,
+          "lea": true
+        },
+        {
+          "name": "Mox Sapphire",
+          "found": true,
+          "lea": true
+        },
+        {
+          "name": "Mox Jet",
+          "found": true,
+          "lea": true
+        },
+        {
+          "name": "Mox Ruby",
+          "found": true,
+          "lea": true
+        },
+        {
+          "name": "Mox Emerald",
+          "found": true,
+          "lea": true
+        },
+        {
+          "name": "Timetwister",
+          "found": true,
+          "lea": true
+        }
+      ]
+    },
+    {
+      "id": "D3",
+      "title": "Spot checks of well-known cards against hand-verified values",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "D4",
+      "title": "Alpha released 1993-08-05",
+      "status": "pass",
+      "got": "1993-08-05",
+      "samples": []
+    },
+    {
+      "id": "D5",
+      "title": "Most recent sets in master (should be current/upcoming releases)",
+      "status": "info",
+      "samples": [
+        {
+          "set_code": "pw26",
+          "set_name": "Wizards Play Network 2026",
+          "d": "2026-11-20"
+        },
+        {
+          "set_code": "pf26",
+          "set_name": "MagicFest 2026",
+          "d": "2026-11-13"
+        },
+        {
+          "set_code": "purl",
+          "set_name": "URL/Convention Promos",
+          "d": "2026-11-13"
+        },
+        {
+          "set_code": "sds",
+          "set_name": "Stardates",
+          "d": "2026-11-13"
+        },
+        {
+          "set_code": "trc",
+          "set_name": "Star Trek Commander",
+          "d": "2026-11-13"
+        }
+      ]
+    },
+    {
+      "id": "D6",
+      "title": "Every ruling attaches to a known oracle card",
+      "status": "pass",
+      "count": 0,
+      "samples": []
+    },
+    {
+      "id": "D7",
+      "title": "Legal-card counts per format",
+      "status": "info",
+      "formats": [
+        {
+          "format": "commander",
+          "c": 31830
+        },
+        {
+          "format": "oathbreaker",
+          "c": 31702
+        },
+        {
+          "format": "vintage",
+          "c": 31690
+        },
+        {
+          "format": "legacy",
+          "c": 31672
+        },
+        {
+          "format": "duel",
+          "c": 31635
+        },
+        {
+          "format": "modern",
+          "c": 22450
+        },
+        {
+          "format": "tlr",
+          "c": 18566
+        },
+        {
+          "format": "gladiator",
+          "c": 15787
+        },
+        {
+          "format": "timeless",
+          "c": 15753
+        },
+        {
+          "format": "competitivebrawl",
+          "c": 15747
+        },
+        {
+          "format": "brawl",
+          "c": 15722
+        },
+        {
+          "format": "historic",
+          "c": 15680
+        },
+        {
+          "format": "penny",
+          "c": 15494
+        },
+        {
+          "format": "pioneer",
+          "c": 14817
+        },
+        {
+          "format": "predh",
+          "c": 11514
+        },
+        {
+          "format": "paupercommander",
+          "c": 10908
+        },
+        {
+          "format": "pauper",
+          "c": 10793
+        },
+        {
+          "format": "premodern",
+          "c": 5375
+        },
+        {
+          "format": "standardbrawl",
+          "c": 4902
+        },
+        {
+          "format": "standard",
+          "c": 4887
+        },
+        {
+          "format": "future",
+          "c": 4669
+        },
+        {
+          "format": "alchemy",
+          "c": 3915
+        },
+        {
+          "format": "oldschool",
+          "c": 324
+        }
+      ],
+      "samples": []
+    },
+    {
+      "id": "D8",
+      "title": "Distinct card names vs oracle ids (names repeat only for reprints with changed oracle ids, e.g. Un-set variants, tokens)",
+      "status": "info",
+      "distinct_names": 38129,
+      "oracle_ids": 38630,
+      "delta": 501,
+      "samples": [
+        {
+          "name": "Elemental",
+          "c": 31
+        },
+        {
+          "name": "Spirit",
+          "c": 23
+        },
+        {
+          "name": "Bird",
+          "c": 13
+        },
+        {
+          "name": "Soldier",
+          "c": 13
+        },
+        {
+          "name": "Insect",
+          "c": 12
+        },
+        {
+          "name": "Golem",
+          "c": 11
+        },
+        {
+          "name": "Beast",
+          "c": 9
+        },
+        {
+          "name": "Construct",
+          "c": 9
+        },
+        {
+          "name": "Cat",
+          "c": 8
+        },
+        {
+          "name": "Dragon",
+          "c": 8
+        },
+        {
+          "name": "Horror",
+          "c": 8
+        },
+        {
+          "name": "Vampire",
+          "c": 8
+        },
+        {
+          "name": "Wall",
+          "c": 8
+        },
+        {
+          "name": "Zombie",
+          "c": 8
+        },
+        {
+          "name": "Illusion",
+          "c": 7
+        }
+      ]
+    },
+    {
+      "id": "D9",
+      "title": "Printings whose only version is non-English (sample)",
+      "status": "info",
+      "count": 2645,
+      "samples": [
+        {
+          "name": "Vaevictis Asmadi",
+          "lang": "ja",
+          "set_code": "bchr"
+        },
+        {
+          "name": "Island",
+          "lang": "fr",
+          "set_code": "fbb"
+        },
+        {
+          "name": "Fire Elemental",
+          "lang": "es",
+          "set_code": "4bb"
+        },
+        {
+          "name": "Immaculate Magistrate",
+          "lang": "es",
+          "set_code": "ps11"
+        },
+        {
+          "name": "Spirit",
+          "lang": "ja",
+          "set_code": "wmkm"
+        },
+        {
+          "name": "Ghost Ship",
+          "lang": "es",
+          "set_code": "4bb"
+        },
+        {
+          "name": "Crop Rotation",
+          "lang": "ja",
+          "set_code": "soa"
+        },
+        {
+          "name": "Urza's Power Plant",
+          "lang": "it",
+          "set_code": "rin"
+        },
+        {
+          "name": "Twiddle",
+          "lang": "es",
+          "set_code": "4bb"
+        },
+        {
+          "name": "Zombie Master",
+          "lang": "es",
+          "set_code": "4bb"
+        },
+        {
+          "name": "Mountain",
+          "lang": "ja",
+          "set_code": "pmps"
+        },
+        {
+          "name": "Sheoldred's Edict",
+          "lang": "ja",
+          "set_code": "soa"
+        },
+        {
+          "name": "Blighted Agent",
+          "lang": "ph",
+          "set_code": "sld"
+        },
+        {
+          "name": "Magma Sliver",
+          "lang": "es",
+          "set_code": "psal"
+        },
+        {
+          "name": "Caller of the Claw",
+          "lang": "es",
+          "set_code": "psal"
+        }
+      ]
+    },
+    {
+      "id": "E1",
+      "title": "Scope: default_cards = every card object Scryfall has, one language per printing; all_cards (every language) is ~10x larger and adds no new cards, only translations",
+      "status": "info",
+      "includes": [
+        "every paper and digital printing",
+        "tokens, emblems, art series, oversized",
+        "Un-sets, playtest cards, Alchemy rebalances",
+        "Vanguard, Planechase, Archenemy, Conspiracy, Attractions, Stickers"
+      ],
+      "excludes": [
+        "non-English translations of cards that have an English printing (fetch all_cards to add)",
+        "card images (URLs are stored; files are not)"
+      ],
+      "samples": []
+    }
+  ]
+}

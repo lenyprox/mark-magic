@@ -1,0 +1,14 @@
+// Mono-red burn: every card is fully simulated by the engine
+4 Lightning Bolt
+4 Lightning Strike
+4 Lava Spike
+4 Shock
+4 Searing Spear
+2 Volcanic Hammer
+2 Flame Slash
+4 Monastery Swiftspear
+4 Viashino Pyromancer
+4 Firebrand Archer
+2 Raging Goblin
+2 Goblin Piker
+20 Mountain

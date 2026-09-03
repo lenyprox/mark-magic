@@ -1,0 +1,16 @@
+// White-blue fliers with counterspells and removal
+4 Judge's Familiar
+4 Spectral Sailor
+4 Cloudkin Seer
+4 Serra Angel
+1 Lyra Dawnbringer
+4 Counterspell
+2 Essence Scatter
+2 Reprisal
+2 Divine Verdict
+3 Pacifism
+2 Opt
+2 Divination
+2 Glorious Anthem
+12 Island
+12 Plains

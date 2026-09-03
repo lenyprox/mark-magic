@@ -1,0 +1,13 @@
+// Mono-green creatures and pump
+4 Llanowar Elves
+4 Elvish Mystic
+4 Steel Leaf Champion
+4 Leatherback Baloth
+4 Kalonian Tusker
+4 Garruk's Companion
+3 Vine Mare
+4 Giant Growth
+3 Titanic Growth
+3 Larger Than Life
+2 Blossoming Defense
+21 Forest

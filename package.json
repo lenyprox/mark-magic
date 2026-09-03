@@ -1,0 +1,29 @@
+{
+  "name": "mtg-master-sim",
+  "version": "0.1.0",
+  "description": "Master file of every Magic: The Gathering card (Scryfall-backed, audited) plus a rules engine and reactive AI opponent.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "data:fetch": "node scripts/fetch-bulk.mjs",
+    "data:build": "node scripts/build-master.mjs",
+    "data:audit": "node scripts/audit-master.mjs",
+    "data:all": "npm run data:fetch && npm run data:build && npm run data:audit",
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test --import tsx test/*.test.ts",
+    "play": "tsx src/cli/play.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.4.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  }
+}

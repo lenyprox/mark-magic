@@ -1,0 +1,53 @@
+{
+  "built_at": "2026-09-03T06:26:56.017Z",
+  "printings": 117621,
+  "oracle_cards": 38630,
+  "rulings": 78949,
+  "sets": 1049,
+  "seconds": 41.113,
+  "source_manifest": {
+    "fetched_at": "2026-09-03T06:18:12.476Z",
+    "files": {
+      "oracle_cards": {
+        "file": "oracle_cards.jsonl.gz",
+        "bytes": 24533446,
+        "updated_at": "2026-09-02T21:02:00.637+00:00",
+        "source": "https://data.scryfall.io/oracle-cards/oracle-cards-20260902210200.jsonl.gz"
+      },
+      "default_cards": {
+        "file": "default_cards.jsonl.gz",
+        "bytes": 78052259,
+        "updated_at": "2026-09-02T21:05:32.258+00:00",
+        "source": "https://data.scryfall.io/default-cards/default-cards-20260902210532.jsonl.gz"
+      },
+      "rulings": {
+        "file": "rulings.jsonl.gz",
+        "bytes": 5366171,
+        "updated_at": "2026-09-02T21:00:34.029+00:00",
+        "source": "https://data.scryfall.io/rulings/rulings-20260902210034.jsonl.gz"
+      },
+      "sets": {
+        "file": "sets.json",
+        "count": 1049,
+        "expected_cards": 117620
+      },
+      "catalogs": {
+        "file": "catalogs.json",
+        "keys": [
+          "card-types",
+          "supertypes",
+          "creature-types",
+          "planeswalker-types",
+          "artifact-types",
+          "enchantment-types",
+          "land-types",
+          "spell-types",
+          "keyword-abilities",
+          "keyword-actions",
+          "ability-words",
+          "battle-types"
+        ]
+      }
+    }
+  }
+}
