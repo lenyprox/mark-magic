@@ -45,4 +45,16 @@ export const keywords: Scenario[] = [
     script: [{ cast: 'Anger of the Gods' }, { resolve: true }, { sba: true }],
     expect: [{ zone: ['Grizzly Bears', 'exile'] }],
   },
+  {
+    name: 'A morph creature is cast face down as a 2/2 and turns face up for its morph cost', cr: '702.37',
+    seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Forest', 'Forest', 'Forest'], hand: ['Ainok Survivalist'] }, {}],
+    script: [{ cast: 'Ainok Survivalist', alt: 'morph' }, { resolve: true }, { sba: true }],
+    expect: [{ zone: ['Ainok Survivalist', 'battlefield'] }, { pt: ['Ainok Survivalist', 2, 2] }],
+  },
+  {
+    name: 'Turning a megamorph creature face up pays its cost and adds a +1/+1 counter', cr: '702.37',
+    seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Forest', 'Forest', 'Forest'], hand: ['Ainok Survivalist'] }, {}],
+    script: [{ cast: 'Ainok Survivalist', alt: 'morph' }, { resolve: true }, { turnFaceUp: 'Ainok Survivalist' }, { sba: true }],
+    expect: [{ pt: ['Ainok Survivalist', 3, 2] }, { counters: ['Ainok Survivalist', { '+1/+1': 1 }] }],
+  },
 ];

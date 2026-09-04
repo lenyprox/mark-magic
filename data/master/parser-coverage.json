@@ -1,23 +1,23 @@
 {
-  "generated_at": "2026-09-04T20:03:02.918Z",
+  "generated_at": "2026-09-04T20:12:17.326Z",
   "playable_oracle_cards": 34513,
-  "fully_parsed": 11416,
-  "fully_parsed_pct": 33.08,
-  "of_which_vanilla_or_keyword_only": 1494,
+  "fully_parsed": 11541,
+  "fully_parsed_pct": 33.44,
+  "of_which_vanilla_or_keyword_only": 1540,
   "by_primary_type": {
     "Creature": {
       "total": 19233,
-      "full": 6957,
-      "pct": 36.2
+      "full": 7078,
+      "pct": 36.8
     },
     "Artifact": {
       "total": 2601,
-      "full": 736,
-      "pct": 28.3
+      "full": 738,
+      "pct": 28.4
     },
     "Enchantment": {
       "total": 3564,
-      "full": 712,
+      "full": 713,
       "pct": 20
     },
     "Sorcery": {
@@ -32,8 +32,8 @@
     },
     "Land": {
       "total": 1161,
-      "full": 714,
-      "pct": 61.5
+      "full": 715,
+      "pct": 61.6
     },
     "Kindred": {
       "total": 80,
@@ -63,10 +63,6 @@
   },
   "most_common_unparsed_clauses": [
     {
-      "n": 66,
-      "clause": "Morph {}{}"
-    },
-    {
       "n": 60,
       "clause": "{}{}: Level #"
     },
@@ -77,10 +73,6 @@
     {
       "n": 50,
       "clause": "Start your engines!"
-    },
-    {
-      "n": 40,
-      "clause": "Morph {}{}{}"
     },
     {
       "n": 37,
@@ -123,10 +115,6 @@
       "clause": "Ascend"
     },
     {
-      "n": 28,
-      "clause": "Disguise {}{}"
-    },
-    {
       "n": 27,
       "clause": "Foretell {}{}"
     },
@@ -141,10 +129,6 @@
     {
       "n": 27,
       "clause": "LEVEL #+"
-    },
-    {
-      "n": 27,
-      "clause": "Morph {}"
     },
     {
       "n": 26,
@@ -185,10 +169,6 @@
     {
       "n": 21,
       "clause": "Spree"
-    },
-    {
-      "n": 21,
-      "clause": "Megamorph {}{}"
     },
     {
       "n": 21,
@@ -301,6 +281,26 @@
     {
       "n": 15,
       "clause": "Enlist"
+    },
+    {
+      "n": 15,
+      "clause": "Cipher"
+    },
+    {
+      "n": 15,
+      "clause": "Sunburst"
+    },
+    {
+      "n": 15,
+      "clause": "For Mirrodin!"
+    },
+    {
+      "n": 15,
+      "clause": "Double team"
+    },
+    {
+      "n": 14,
+      "clause": "Look at the top four cards of your library."
     }
   ]
 }

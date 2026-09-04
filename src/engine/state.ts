@@ -30,6 +30,8 @@ export interface GameObject {
   animated?: { power: number; toughness: number; colors: Color[]; types: import('../cards/types.js').CardType[]; subtypes: string[]; keywords: Keyword[]; untilTurn?: number };
   /** Earthbent land: if it would die it returns to its owner's hand instead. */
   earthbent?: boolean;
+  /** Face down (CR 708): a 2/2 colourless creature with no name, types or abilities until turned face up. */
+  faceDown?: boolean;
   blocking: number[];              // attacker ids this creature blocks
   blockedBy: number[];
   activatedThisTurn: Set<number>;  // ability indexes used this turn (once-per-turn / loyalty)
@@ -62,7 +64,7 @@ export interface GameObject {
   commander?: boolean;
 }
 export type CastZone = 'hand' | 'graveyard' | 'exile' | 'command';
-export type AltCostId = 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard' | 'buyback' | 'dash';
+export type AltCostId = 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard' | 'buyback' | 'dash' | 'morph';
 
 export interface DelayedTrigger { id: number; at: 'next-upkeep' | 'next-end-step' | 'your-next-end-step' | 'end-of-combat'; controller: PlayerId; sourceId: number; sourceName: string; effects: Effect[]; affected?: StackItem['affected']; createdTurn: number }
 
@@ -187,6 +189,7 @@ export type PlayerAction =
       /** Optional explicit cost choices; when absent the engine picks (delve greedily, convoke via the mana solver, hand costs via choose-cards). */
       pay?: { delve?: number[]; convoke?: boolean; useExtras?: boolean; /** Permanents (ids) to tap for mana; when they cannot pay, the engine falls back to automatic payment. */ sources?: number[] } }
   | { type: 'activate'; objectId: number; abilityIndex: number; targets?: TargetRef[][]; x?: number; modes?: number[] }
+  | { type: 'turn-face-up'; objectId: number }
   | { type: 'concede' };
 
 /** What an attacker attacks: a player (seat) or a planeswalker (object id). */

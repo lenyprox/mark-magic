@@ -79,7 +79,7 @@ export interface AbilityCost {
 
 /** An alternative way to cast a spell (CR 118.9). `from` is the zone the card is cast from. */
 export interface AltCost {
-  id: 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard' | 'buyback' | 'dash';
+  id: 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard' | 'buyback' | 'dash' | 'morph';
   label: string;
   cost: AbilityCost;              // cost.mana undefined => free
   condition?: Condition;
@@ -254,6 +254,7 @@ export type TriggerEvent =
   | { on: 'ltb'; self: boolean }
   | { on: 'attacks'; self: boolean; filter?: Filter }
   | { on: 'you-attack' }                                                      // "Whenever you attack" (once per combat)
+  | { on: 'turned-face-up'; self: boolean }                                   // CR 701.28: "When ~ is turned face up, ..." 
   | { on: 'blocks'; self: boolean } | { on: 'becomes-blocked'; self: boolean }
   | { on: 'combat-damage-player'; self: boolean; filter?: Filter }                   // self, or "a creature you control [with deathtouch]"
   | { on: 'deals-damage'; self: boolean }
@@ -317,6 +318,8 @@ export interface CardDef {
   toxic?: number;
   /** Storm (CR 702.40). */
   storm?: boolean;
+  /** Morph / megamorph / disguise: the cost to turn it face up (CR 702.37); megamorph adds a +1/+1 counter. */
+  morph?: { cost: ManaCost; megamorph?: boolean; disguise?: boolean };
   /** This card has a static ability that works from the graveyard (Anger, Filth) — a fast gate for the layer scan. */
   graveyardStatic?: boolean;
   /** Firebending N: whenever this creature attacks, add N {R} that lasts until end of turn. */

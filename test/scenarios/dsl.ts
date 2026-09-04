@@ -30,6 +30,7 @@ export type ScriptStep =
   | { block: [string, string][] }
   | { resolve: true }
   | { sba: true }
+  | { turnFaceUp: string; by?: number }
   | { passUntil: Step }
   | { turns: number }
   | { answer: unknown };
@@ -159,6 +160,14 @@ export async function runScript(g: Game, steps: ScriptStep[]) {
       const l = legalFor(g, by, x => x.action.type === 'play-land' && x.action.cardId === card.id);
       const ok = await g.performAction(by, l.action);
       if (!ok) throw new Error(`scenario: play land ${st.playLand} was rejected`);
+      continue;
+    }
+    if ('turnFaceUp' in st) {
+      const by = (st.by ?? s.priority) as PlayerId;
+      const o = s.players[by].battlefield.find(x => x.def.name === st.turnFaceUp);
+      if (!o) throw new Error(`scenario: ${st.turnFaceUp} is not on P${by}'s battlefield`);
+      const ok = await g.performAction(by, { type: 'turn-face-up', objectId: o.id });
+      if (!ok) throw new Error(`scenario: turning ${st.turnFaceUp} face up was rejected`);
       continue;
     }
     if ('resolve' in st) { await g.resolveStackFully(); continue; }

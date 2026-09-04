@@ -393,7 +393,25 @@ export class Game {
       }
       case 'cast': return this.castSpell(p, action);
       case 'activate': return this.activateAbility(p, action);
+      case 'turn-face-up': return this.turnFaceUp(p, action.objectId);
     }
+  }
+
+  /** CR 702.37b: turning a face-down creature face up is a special action — it uses no stack and can be done any time you have priority. */
+  private async turnFaceUp(p: PlayerId, objectId: number): Promise<boolean> {
+    const s = this.state; const pl = s.players[p];
+    const o = pl.battlefield.find(x => x.id === objectId);
+    if (!o || !o.faceDown) return false;
+    const morph = defOf(o).morph; if (!morph) return false;
+    const pay = this.findPayment(pl, morph.cost); if (!pay) return false;
+    this.payMana(pl, pay);
+    delete o.faceDown;
+    this.bfGen++;
+    if (morph.megamorph) this.addCounters(o, '+1/+1', 1);
+    this.emit({ type: 'transform', id: o.id, name: name(o), into: name(o), face: 0 }, `${this.pname(p)} turns ${name(o)} face up.`);
+    this.queueTriggers('turned-face-up', { obj: o, player: p });
+    await this.resolveStackFully();
+    return true;
   }
 
   /** Cast a spell: pay costs, put it on the stack with its targets (CR 601). Handles alternative costs, delve/convoke, cast from graveyard/exile. */
@@ -548,7 +566,8 @@ export class Game {
       o.eotKeywords.push('haste');
       (s.delayed ??= []).push({ id: ++this.stackCounter, at: 'next-end-step', controller: p, sourceId: o.id, sourceName: def.name, effects: [{ op: 'bounce', target: 'self', to: 'hand' }], createdTurn: s.turn });
     }
-    let tapped = !!ctx.tapped || (typeof def.entersTapped === 'object' ? !conditionHolds(s, o, def.entersTapped.unless) : !!def.entersTapped);
+    if (o.castWith?.alt === 'morph') { o.faceDown = true; this.bfGen++; }
+    let tapped = !!ctx.tapped || (o.faceDown ? false : typeof def.entersTapped === 'object' ? !conditionHolds(s, o, def.entersTapped.unless) : !!def.entersTapped);
     for (const a of def.asEnters ?? []) {
       switch (a.kind) {
         case 'tapped': tapped = true; break;
@@ -1439,7 +1458,7 @@ export class Game {
   /** Move an object between zones, handling leave-the-battlefield bookkeeping. */
   moveTo(o: GameObject, zone: import('./state.js').Zone, libraryPos: 'top' | 'bottom' = 'top', reason: ZoneChangeReason = 'effect') {
     if (o.earthbent && o.zone === 'battlefield' && zone === 'graveyard') { this.note(`${name(o)} would die and returns to its owner's hand instead.`); zone = 'hand'; }
-    if (o.zone === 'battlefield' && zone !== 'battlefield') { delete o.animated; delete o.earthbent; }
+    if (o.zone === 'battlefield' && zone !== 'battlefield') { delete o.animated; delete o.earthbent; delete o.faceDown; }
     const s = this.state;
     this.bfGen++;
     const removeFrom = (arr: GameObject[]) => { const i = arr.indexOf(o); if (i >= 0) arr.splice(i, 1); };

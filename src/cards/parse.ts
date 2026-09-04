@@ -859,6 +859,7 @@ function parseTrigger(head: string): TriggerEvent {
   if (/^at the beginning of your draw step$/.test(t)) return { on: 'draw-step', whose: 'your' };
   if (/^at the beginning of combat on your turn$/.test(t)) return { on: 'combat-begin', whose: 'your' };
   if (/^at the beginning of your precombat main phase$/.test(t)) return { on: 'draw-step', whose: 'your' };
+  if (/^when(?:ever)? ~ is turned face up$/.test(t)) return { on: 'turned-face-up', self: true };
   if (/^whenever you attack(?: a player)?$/.test(t)) return { on: 'you-attack' };
   if (/^whenever you attack with one or more creatures$/.test(t)) return { on: 'you-attack' };
   if (/^whenever you cast a noncreature spell$/.test(t)) return { on: 'cast', filter: { notTypes: ['Creature'] }, who: 'you' };
@@ -1254,6 +1255,7 @@ export function parseCard(row: OracleRow): CardDef {
     if (/^persist$/i.test(line)) { def.abilities.push({ kind: 'triggered', event: { on: 'dies', self: true }, effects: [{ op: 'return-self-to-battlefield', counters: { counter: '-1/-1', amount: 1 } }], intervening: { kind: 'self-no-counters', counter: '-1/-1' }, text: line }); continue; }
     if (/^undying$/i.test(line)) { def.abilities.push({ kind: 'triggered', event: { on: 'dies', self: true }, effects: [{ op: 'return-self-to-battlefield', counters: { counter: '+1/+1', amount: 1 } }], intervening: { kind: 'self-no-counters', counter: '+1/+1' }, text: line }); continue; }
     if (/^storm$/i.test(line)) { def.storm = true; continue; }
+    if ((m = line.match(/^(morph|megamorph|disguise) (\{[^ ]+\}(?:\{[^ ]+\})*)$/i))) { const c = parseManaCost(m[2]); if (c) { const kind = m[1].toLowerCase(); def.morph = { cost: c, ...(kind === 'megamorph' ? { megamorph: true } : {}), ...(kind === 'disguise' ? { disguise: true } : {}) }; (def.altCosts ??= []).push({ id: 'morph', label: 'face down for {3}', cost: { mana: { generic: 3, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{3}' } }, from: 'hand' }); continue; } }
     if ((m = line.match(/^cumulative upkeep (\{[^ ]+\})$/i))) { const c = parseManaCost(m[1]); if (c) { def.abilities.push({ kind: 'triggered', event: { on: 'upkeep', whose: 'your' }, effects: [{ op: 'counters', target: 'self', counter: 'age', amount: 1 }, { op: 'sacrifice-unless-pay', mana: c, perCounter: 'age' }], text: line }); continue; } }
     if ((m = line.match(/^buyback (\{[^ ]+\})$/i)) && def.manaCost) { const extra = parseManaCost(m[1]); if (extra) { (def.altCosts ??= []).push({ id: 'buyback', label: `buyback ${m[1]}`, cost: { mana: addManaCost(def.manaCost, extra) }, from: 'hand', returnToHand: true }); continue; } }
     if ((m = line.match(/^dash (\{[^ ]+\})$/i))) { const c = parseManaCost(m[1]); if (c) { (def.altCosts ??= []).push({ id: 'dash', label: `dash ${m[1]}`, cost: { mana: c }, from: 'hand' }); continue; } }

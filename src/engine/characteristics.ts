@@ -15,8 +15,9 @@ export function findObject(s: GameState, id: number): GameObject | undefined {
 export function defOf(o: GameObject): CardDef { return o.activeFace === 1 && o.def.backFace ? o.def.backFace : o.def; }
 /** The object's abilities: its (active face's) printed abilities followed by any granted ones (Saga chapters). */
 /** Printed abilities only — used when scanning for the statics that hand out abilities (no recursion). */
-export function printedAbilities(o: GameObject): Ability[] { return o.token ? (o.grantedAbilities ?? EMPTY_ABILITIES) : defOf(o).abilities; }
+export function printedAbilities(o: GameObject): Ability[] { return o.faceDown ? EMPTY_ABILITIES : o.token ? (o.grantedAbilities ?? EMPTY_ABILITIES) : defOf(o).abilities; }
 export function abilitiesOf(o: GameObject): Ability[] {
+  if (o.faceDown) return EMPTY_ABILITIES;
   const sg = o.staticGranted;
   if (o.token) { const t = o.grantedAbilities ?? EMPTY_ABILITIES; return sg && sg.length ? [...t, ...sg] : t; } // a token's def is only its creator's card
   const g = o.grantedAbilities; const d = defOf(o).abilities;
@@ -25,23 +26,26 @@ export function abilitiesOf(o: GameObject): Ability[] {
 }
 const EMPTY_ABILITIES: Ability[] = [];
 
+/** CR 708.2: a face-down permanent is a 2/2 colourless creature with no name, card types beyond Creature, or abilities. */
+export const FACE_DOWN_TYPES: CardType[] = ['Creature'];
 export function types(o: GameObject): CardType[] {
+  if (o.faceDown) return FACE_DOWN_TYPES;
   let base = o.token ? (o.token.types as CardType[]) : defOf(o).types;
   if (o.animated) base = [...new Set([...base, ...o.animated.types])];
   if (o.eotFlags.crewed || o.eotFlags.saddled) return base.includes('Creature') ? base : [...base, 'Creature'];
   if (o.counters.time && o.def.altCosts?.some(a => a.id === 'impending')) return base.filter(t => t !== 'Creature'); // impending: not a creature while it has time counters
   return base;
 }
-export function subtypes(o: GameObject): string[] { const base = o.token ? o.token.subtypes : defOf(o).subtypes; return o.animated?.subtypes.length ? [...new Set([...base, ...o.animated.subtypes])] : base; }
-export function colors(o: GameObject): Color[] { if (o.animated?.colors.length) return o.animated.colors; return o.token ? o.token.colors : defOf(o).colors; }
+export function subtypes(o: GameObject): string[] { if (o.faceDown) return []; const base = o.token ? o.token.subtypes : defOf(o).subtypes; return o.animated?.subtypes.length ? [...new Set([...base, ...o.animated.subtypes])] : base; }
+export function colors(o: GameObject): Color[] { if (o.faceDown) return []; if (o.animated?.colors.length) return o.animated.colors; return o.token ? o.token.colors : defOf(o).colors; }
 export function isCreature(o: GameObject): boolean { return types(o).includes('Creature'); }
 export function isLand(o: GameObject): boolean { return types(o).includes('Land'); }
 export function isType(o: GameObject, t: CardType): boolean { return types(o).includes(t); }
-export function name(o: GameObject): string { return o.token ? o.token.name : defOf(o).name; }
-export function manaValueOf(o: GameObject): number { return o.token ? 0 : defOf(o).manaValue; }
+export function name(o: GameObject): string { return o.faceDown ? 'a face-down creature' : o.token ? o.token.name : defOf(o).name; }
+export function manaValueOf(o: GameObject): number { return o.faceDown || o.token ? 0 : defOf(o).manaValue; }
 
-function baseP(o: GameObject): number { if (o.animated) return o.animated.power; if (o.token) return o.token.power + (o.token.dynamicPT ? dynamicPT(o) : 0); return numOrStar(defOf(o).power); }
-function baseT(o: GameObject): number { if (o.animated) return o.animated.toughness; if (o.token) return o.token.toughness + (o.token.dynamicPT ? dynamicPT(o) : 0); return numOrStar(defOf(o).toughness); }
+function baseP(o: GameObject): number { if (o.faceDown) return 2; if (o.animated) return o.animated.power; if (o.token) return o.token.power + (o.token.dynamicPT ? dynamicPT(o) : 0); return numOrStar(defOf(o).power); }
+function baseT(o: GameObject): number { if (o.faceDown) return 2; if (o.animated) return o.animated.toughness; if (o.token) return o.token.toughness + (o.token.dynamicPT ? dynamicPT(o) : 0); return numOrStar(defOf(o).toughness); }
 let dynamicState: GameState | null = null;
 function dynamicPT(o: GameObject): number { return dynamicState && o.token?.dynamicPT ? evalAmount(dynamicState, o.token.dynamicPT, o.controller, 0, o) : 0; }
 function numOrStar(s: string | null): number { if (s == null) return 0; const n = Number(s); return Number.isFinite(n) ? n : 0; }

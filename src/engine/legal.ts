@@ -79,6 +79,8 @@ function describeSpec(spec: TargetSpec): string {
 }
 
 /** All legal actions for player p right now (CR 117 timing, CR 302.6 summoning sickness, CR 305 land drops). */
+/** CR 702.37a: face-down creature spells always cost {3}. */
+const FACE_DOWN_COST: ManaCost = { generic: 3, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{3}' };
 export function legalActions(g: Game, p: PlayerId): LegalAction[] {
   const s = g.state; const pl = s.players[p];
   const findPayment = (cost: ManaCost, x = 0, reduction = 0, opts?: ManaSourceOptions) => findPaymentFull(s, pl, cost, x, reduction, g.manaLimit, opts);
@@ -109,6 +111,11 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
       if (targetOptions.some(t => !t.optional && t.options.length === 0)) return;
       out.push({ action: { type: 'activate', objectId: c.id, abilityIndex: i }, label: `${d.name}: ${ab.text}`, targetOptions, manaValue: ab.cost.mana ? manaValue(ab.cost.mana) : 0 });
     });
+  }
+  for (const o of pl.battlefield) {
+    if (!o.faceDown) continue;
+    const morph = o.def.morph; if (!morph) continue;
+    if (findPayment(morph.cost)) out.push({ action: { type: 'turn-face-up', objectId: o.id }, label: `turn ${o.def.name} face up (${morph.cost.raw})`, manaValue: morph.cost.generic });
   }
   for (const c of pl.graveyard) if (c.def.altCosts?.some(a => a.from === 'graveyard')) castActionsFor(g, p, c, 'graveyard', sorceryTiming, out);
   // abilities activated from the graveyard (unearth)
