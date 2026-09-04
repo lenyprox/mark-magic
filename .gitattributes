@@ -1,3 +1,9 @@
-* text=auto
-*.sh text eol=lf
-*.cmd text eol=crlf
+# Normalise line endings: the index is LF; check out LF so tools, scripts and worktrees never see CRLF.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary
+*.db binary
+*.sqlite binary
+*.zip binary
+*.woff2 binary
