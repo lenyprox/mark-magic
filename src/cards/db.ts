@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import { MASTER_DB } from '../config/paths.js';
 import { parseCard, type OracleRow } from './parse.js';
+import { applyScript, scriptStore } from './scripts.js';
 import type { CardDef } from './types.js';
 
 const NON_PLAYABLE = "layout NOT IN ('art_series','token','double_faced_token','emblem','vanguard','planar','scheme','front_card') AND type_line NOT LIKE 'Card%' AND type_line NOT LIKE 'Stickers%' AND type_line NOT LIKE 'Dungeon%' AND type_line NOT LIKE 'Phenomenon%' AND type_line NOT LIKE 'Conspiracy%'";
@@ -39,17 +40,20 @@ export class CardDB {
     if (this.cache.has(key)) return this.cache.get(key)!;
     let row = this.db.prepare(`SELECT json FROM oracle_cards WHERE name = ? COLLATE NOCASE AND layout NOT IN ('art_series','token','double_faced_token','emblem') ORDER BY first_printed LIMIT 1`).get(name.trim()) as { json: string } | undefined;
     if (!row) row = this.db.prepare(`SELECT json FROM oracle_cards WHERE name LIKE ? COLLATE NOCASE AND layout NOT IN ('art_series','token','double_faced_token','emblem') ORDER BY first_printed LIMIT 1`).get(name.trim() + ' // %') as { json: string } | undefined;
-    const def = row ? parseCard(this.rowToOracle(row.json)) : null;
+    const def = row ? this.parse(this.rowToOracle(row.json)) : null;
     this.cache.set(key, def);
     return def;
   }
+
+  /** Parse a row and apply its script (data/scripts/<oracle_id>.json) when one exists and is not stale. */
+  private parse(o: OracleRow): CardDef { const def = parseCard(o); return applyScript(def, scriptStore().get(o.oracle_id)); }
 
   /** Lookup by oracle id. */
   getByOracleId(oracleId: string): CardDef | null {
     const key = 'oid:' + oracleId;
     if (this.cache.has(key)) return this.cache.get(key)!;
     const row = this.db.prepare('SELECT json FROM oracle_cards WHERE oracle_id = ?').get(oracleId) as { json: string } | undefined;
-    const def = row ? parseCard(this.rowToOracle(row.json)) : null;
+    const def = row ? this.parse(this.rowToOracle(row.json)) : null;
     this.cache.set(key, def);
     return def;
   }
@@ -61,12 +65,15 @@ export class CardDB {
   /** Iterate every playable oracle card (used by the coverage report). */
   *all(): Generator<CardDef> {
     const stmt = this.db.prepare(`SELECT json FROM oracle_cards WHERE ${NON_PLAYABLE}`);
-    for (const r of stmt.iterate() as Iterable<{ json: string }>) yield parseCard(this.rowToOracle(r.json));
+    for (const r of stmt.iterate() as Iterable<{ json: string }>) yield this.parse(this.rowToOracle(r.json));
   }
 
   rulings(oracleId: string): { published_at: string; comment: string }[] {
     return this.db.prepare('SELECT published_at, comment FROM rulings WHERE oracle_id = ? ORDER BY published_at').all(oracleId) as { published_at: string; comment: string }[];
   }
+
+  /** Drop parsed defs (after scripts change). */
+  clearCache() { this.cache.clear(); }
 
   close() { this.db.close(); if (CardDB.instance === this) CardDB.instance = null; }
 }

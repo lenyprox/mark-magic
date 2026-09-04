@@ -4,6 +4,7 @@
 // state), fanning Monte Carlo work out to nested analysis workers, and its reports are forwarded to the page.
 import { Game } from '@engine/game';
 import { AiAgent } from '@ai/ai';
+import { MctsAgent } from '@ai/mcts';
 import { DeferredAgent, type AskRequest } from '@engine/agents/deferred';
 import type { Agent, Decision } from '@engine/state';
 import { redact } from '@engine/view';
@@ -115,14 +116,15 @@ async function start(id: string, decks: DeckPayload[], opts: StartOptions) {
     runAnalysis();
   });
   const aiOpts = { name: opts.aiName ?? 'AI', aggression: opts.ai.aggression, maxSims: opts.ai.maxSims, verbose: opts.ai.verbose, cheat: opts.ai.cheat, determinizations: opts.ai.determinizations, seed: opts.seed, defs, myList: oppList, opponentModel: opts.ai.knowsOpponentList ? { kind: 'exact' as const, list: myList } : { kind: 'none' as const } };
-  const ai = new AiAgent(aiOpts);
+  const mkAi = (o: typeof aiOpts) => opts.ai.policy === 'mcts' ? new MctsAgent({ ...o, iterations: opts.ai.iterations ?? 120 }) : new AiAgent(o);
+  const ai = mkAi(aiOpts);
   ai.onReasoning = r => { reasoning.push(r); post({ type: 'reasoning', reasoning: r }); };
   let seat0: Agent;
   if (opts.humanSeat === 0) {
     human = new DeferredAgent({ name: opts.playerName ?? 'You', ask, stops: opts.stops, onLog });
     seat0 = human;
   } else {
-    const ai0 = new AiAgent({ ...aiOpts, name: opts.playerName ?? 'AI 1', myList, opponentModel: opts.ai.knowsOpponentList ? { kind: 'exact', list: oppList } : { kind: 'none' } });
+    const ai0 = mkAi({ ...aiOpts, name: opts.playerName ?? 'AI 1', myList, opponentModel: opts.ai.knowsOpponentList ? { kind: 'exact' as const, list: oppList } : { kind: 'none' as const } });
     ai0.onReasoning = r => { reasoning.push(r); post({ type: 'reasoning', reasoning: r }); };
     ai0.onLog = onLog;
     seat0 = ai0;
@@ -132,7 +134,7 @@ async function start(id: string, decks: DeckPayload[], opts: StartOptions) {
     pool = new AnalysisPool(makeAnalysisWorker, opts.analysis.workers ?? defaultPoolSize(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 4));
     await pool.init(defs.values());
   }
-  const extra = decks.slice(2).map((d, i) => { const a = new AiAgent({ ...aiOpts, name: `AI ${i + 2}`, myList: listOf(d), opponentModel: { kind: 'none' as const } }); a.onLog = onLog; return a; });
+  const extra = decks.slice(2).map((d, i) => { const a = mkAi({ ...aiOpts, name: `AI ${i + 2}`, myList: listOf(d), opponentModel: { kind: 'none' as const } }); a.onLog = onLog; return a; });
   const agents: Agent[] = [seat0, ai, ...extra];
   const commander = isCommanderMatch(decks, opts.format);
   const split = decks.map(splitPayload);

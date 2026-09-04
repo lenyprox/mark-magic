@@ -13,10 +13,10 @@ export interface CardView {
 export interface PermanentView extends CardView {
   controller: PlayerId; owner: PlayerId; tapped: boolean; damage: number; counters: Record<string, number>;
   curPower: number; curToughness: number; curKeywords: Keyword[]; isCreature: boolean; isLand: boolean;
-  summoningSick: boolean; canAttack: boolean; attacking: PlayerId | null; blocking: number[]; blockedBy: number[]; attachedTo: number | null; transformed: boolean; enteredTurn: number;
+  summoningSick: boolean; canAttack: boolean; attacking: PlayerId | null; attackingPlaneswalker?: number | null; blocking: number[]; blockedBy: number[]; attachedTo: number | null; transformed: boolean; enteredTurn: number;
 }
 export interface PlayerView {
-  id: PlayerId; name: string; life: number; poison: number; librarySize: number; handSize: number;
+  id: PlayerId; name: string; life: number; poison: number; energy: number; librarySize: number; handSize: number;
   hand: CardView[] | null; battlefield: PermanentView[]; graveyard: CardView[]; exile: CardView[];
   /** Commander: the command zone, the ids of this player's commanders, casts so far (tax) and combat damage taken per commander id. */
   command: CardView[]; commanders: number[]; commanderCasts: Record<number, number>; commanderDamage: Record<number, number>;
@@ -27,6 +27,7 @@ export interface ViewState {
   gameId: string; viewer: PlayerId | null; turn: number; activePlayer: PlayerId; step: Step; priority: PlayerId; winner: PlayerId | null;
   players: PlayerView[]; turnOrder: PlayerId[]; stack: StackItemView[]; attackers: number[]; logLength: number; passesInRow: number;
   format: 'freeform' | 'commander' | 'brawl';
+  monarch: PlayerId | null;
 }
 
 function defOf(o: GameObject): CardDef { return o.def; }
@@ -52,7 +53,7 @@ export function permanentView(s: GameState, o: GameObject): PermanentView {
     ...cardView(s, o), controller: o.controller, owner: o.owner, tapped: o.tapped, damage: o.damage, counters: { ...o.counters },
     curPower: cr ? power(s, o) : 0, curToughness: cr ? toughness(s, o) : 0, curKeywords: cr ? keywords(s, o) : [], isCreature: cr, isLand: types(o).includes('Land'),
     summoningSick: cr && o.enteredTurn === s.turn && !hasKeyword(s, o, 'haste'), canAttack: cr && canAttack(s, o),
-    attacking: o.attacking, blocking: [...o.blocking], blockedBy: [...o.blockedBy], attachedTo: o.attachedTo, transformed: o.transformed, enteredTurn: o.enteredTurn,
+    attacking: o.attacking, attackingPlaneswalker: o.attackingPlaneswalker ?? null, blocking: [...o.blocking], blockedBy: [...o.blockedBy], attachedTo: o.attachedTo, transformed: o.transformed, enteredTurn: o.enteredTurn,
   };
 }
 
@@ -61,7 +62,7 @@ export function buildView(g: Game, viewer: PlayerId | null, gameId = ''): ViewSt
   const players = s.players.map(p => {
     const show = viewer === null || p.id === viewer;
     const pv: PlayerView = {
-      id: p.id, name: p.name, life: p.life, poison: p.poison, librarySize: p.library.length, handSize: p.hand.length,
+      id: p.id, name: p.name, life: p.life, poison: p.poison, energy: p.energy ?? 0, librarySize: p.library.length, handSize: p.hand.length,
       hand: show ? p.hand.map(o => cardView(s, o)) : null,
       battlefield: p.battlefield.map(o => permanentView(s, o)), graveyard: p.graveyard.map(o => cardView(s, o)), exile: p.exile.map(o => cardView(s, o)),
       command: (p.command ?? []).map(o => cardView(s, o)), commanders: [...(p.commanders ?? [])], commanderCasts: { ...(p.commanderCasts ?? {}) }, commanderDamage: { ...(p.commanderDamage ?? {}) },
@@ -73,5 +74,5 @@ export function buildView(g: Game, viewer: PlayerId | null, gameId = ''): ViewSt
     const targets = [...it.targetsByEffect.values()].flat();
     return { id: it.id, kind: it.kind, name: it.name, controller: it.controller, text: it.text, sourceId: it.source.id, source: cardView(s, it.source), targets, targetLabels: targets.map(t => g.refName(t)), countered: !!it.countered } satisfies StackItemView;
   });
-  return { gameId, viewer, turn: s.turn, activePlayer: s.activePlayer, step: s.step, priority: s.priority, winner: s.winner, players, turnOrder: [...(s.turnOrder ?? players.map(p => p.id))], stack, attackers: [...s.attackers], logLength: s.log.length, passesInRow: s.passesInRow, format: g.opts.format ?? (g.commanderRules ? 'commander' : 'freeform') };
+  return { gameId, viewer, turn: s.turn, activePlayer: s.activePlayer, step: s.step, priority: s.priority, winner: s.winner, players, turnOrder: [...(s.turnOrder ?? players.map(p => p.id))], stack, attackers: [...s.attackers], logLength: s.log.length, passesInRow: s.passesInRow, format: g.opts.format ?? (g.commanderRules ? 'commander' : 'freeform'), monarch: s.monarch ?? null };
 }

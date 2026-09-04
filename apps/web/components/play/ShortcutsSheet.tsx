@@ -5,12 +5,14 @@ import styles from './table.module.css';
 
 const ROWS: [string, string][] = [
   ['Drag', 'Drag a card onto your battlefield to play it, onto a target to aim it, onto the opponent to attack, onto an attacker to block'],
+  ['Hover', 'Rest on any card for a moment to inspect it: oracle text, rulings, and why it cannot be played right now'],
   ['Space', 'Pass priority / resolve the top of the stack'],
   ['1 – 9', 'Pick the nth legal action (or target, when targeting)'],
   ['Enter', 'Confirm the current declaration or armed play'],
   ['Esc', 'Cancel targeting / clear the declaration'],
+  ['E', 'Explain: inline rule chips next to every animation, at half speed'],
   ['L', 'Toggle the log rail'],
-  ['P', 'Toggle the analysis panel'],
+  ['P', 'Toggle the right rail (Analysis · Explain · Timeline)'],
   ['F', 'Flip a focused double-faced card'],
   ['Arrows', 'Tilt a focused card'],
   ['?', 'This sheet'],

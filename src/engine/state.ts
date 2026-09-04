@@ -7,7 +7,7 @@ export type PlayerId = number;
 export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'stack' | 'command';
 export type Step = 'untap' | 'upkeep' | 'draw' | 'main1' | 'combat-begin' | 'declare-attackers' | 'declare-blockers' | 'first-strike-damage' | 'combat-damage' | 'combat-end' | 'main2' | 'end' | 'cleanup';
 
-export interface TokenSpec { name: string; power: number; toughness: number; colors: Color[]; types: string[]; subtypes: string[]; keywords: Keyword[]; treasure?: boolean; clue?: boolean; spawn?: boolean; dynamicPT?: Amount }
+export interface TokenSpec { name: string; power: number; toughness: number; colors: Color[]; types: string[]; subtypes: string[]; keywords: Keyword[]; treasure?: boolean; clue?: boolean; spawn?: boolean; food?: boolean; dynamicPT?: Amount }
 
 export interface GameObject {
   id: number;
@@ -22,14 +22,21 @@ export interface GameObject {
   attachedTo: number | null;       // aura/equipment -> host id
   token: TokenSpec | null;
   // until-end-of-turn modifications
-  eotPower: number; eotToughness: number; eotKeywords: Keyword[]; eotFlags: { cantAttackOrBlock?: boolean; preventDamage?: number | 'all'; regenerationShield?: number; crewed?: boolean; saddled?: boolean };
+  eotPower: number; eotToughness: number; eotKeywords: Keyword[]; eotFlags: { cantAttackOrBlock?: boolean; cantBlock?: boolean; preventDamage?: number | 'all'; regenerationShield?: number; crewed?: boolean; saddled?: boolean };
   noUntapNext: boolean;
-  attacking: PlayerId | null;      // player being attacked (this engine has no planeswalker attacks)
+  attacking: PlayerId | null;      // player being attacked (or the controller of the planeswalker being attacked)
+  attackingPlaneswalker?: number;  // planeswalker being attacked, if any (CR 508.1)
   blocking: number[];              // attacker ids this creature blocks
   blockedBy: number[];
   activatedThisTurn: Set<number>;  // ability indexes used this turn (once-per-turn / loyalty)
   transformed: boolean;
-  lastKnown?: { power: number; toughness: number; controller: PlayerId };
+  lastKnown?: { power: number; toughness: number; controller: PlayerId; counters?: Record<string, number> };
+  /** Renown (702.111): already renowned. */
+  renowned?: boolean;
+  /** Echo paid (the upkeep cost is only due the turn after it came under your control). */
+  echoPaid?: boolean;
+  /** Unearth / similar: exile it instead if it would leave the battlefield. */
+  exileIfLeaves?: boolean;
   /** How the spell was cast (kept on the permanent it became): alternative cost, zone, kicker, X, delve count. */
   castWith?: { alt?: AltCostId; from?: CastZone; kicked?: boolean; x?: number; delved?: number; colorsSpent?: number };
   /** Ids of cards exiled as a cost of casting this (delve) or imprinted on it. */
@@ -55,6 +62,7 @@ export interface Player {
   name: string;
   life: number;
   poison: number;
+  energy: number;
   library: GameObject[];
   hand: GameObject[];
   graveyard: GameObject[];
@@ -133,6 +141,8 @@ export interface GameState {
   passesInRow: number;
   knowledge: PublicKnowledge;
   delayed?: DelayedTrigger[];
+  /** The monarch (CR 724), if any. */
+  monarch?: PlayerId;
   /** Bumped on every emitted event; memoised derived data keys on it. */
   version: number;
   /** The typed event stream (only with GameOptions.events = 'full'). */
@@ -151,18 +161,20 @@ export type PlayerAction =
       /** Alternative cost id and the zone the card is cast from (default hand). */
       alt?: AltCostId; from?: CastZone;
       /** Optional explicit cost choices; when absent the engine picks (delve greedily, convoke via the mana solver, hand costs via choose-cards). */
-      pay?: { delve?: number[]; convoke?: boolean; useExtras?: boolean } }
+      pay?: { delve?: number[]; convoke?: boolean; useExtras?: boolean; /** Permanents (ids) to tap for mana; when they cannot pay, the engine falls back to automatic payment. */ sources?: number[] } }
   | { type: 'activate'; objectId: number; abilityIndex: number; targets?: TargetRef[][]; x?: number; modes?: number[] }
   | { type: 'concede' };
 
-/** `targets`: defending player per attacker id (default: the primary opponent). */
-export interface AttackDeclaration { attackers: number[]; targets?: Record<number, PlayerId> }
+/** What an attacker attacks: a player (seat) or a planeswalker (object id). */
+export type AttackTarget = PlayerId | { planeswalker: number };
+/** `targets`: defender per attacker id (default: the primary opponent). */
+export interface AttackDeclaration { attackers: number[]; targets?: Record<number, AttackTarget> }
 export interface BlockDeclaration { blocks: { blocker: number; attacker: number }[] }
 
 /** Something the engine needs a player to decide. */
 export type Decision =
-  | { kind: 'priority'; legal: LegalAction[] }
-  | { kind: 'attackers'; candidates: number[]; mustAttack: number[]; /** Players that can be attacked (multiplayer). */ defenders?: PlayerId[] }
+  | { kind: 'priority'; legal: LegalAction[]; /** Why cards with no legal action cannot be played right now (only for agents with `wantsHints`). */ illegal?: IllegalHint[] }
+  | { kind: 'attackers'; candidates: number[]; mustAttack: number[]; /** Players that can be attacked (multiplayer). */ defenders?: PlayerId[]; /** Planeswalkers that can be attacked (with their controller). */ planeswalkers?: { id: number; controller: PlayerId }[] }
   | { kind: 'blockers'; attackers: number[]; candidates: number[] }
   | { kind: 'choose-cards'; from: number[]; count: number; reason: string; exact: boolean }
   | { kind: 'yes-no'; prompt: string; tag?: 'mulligan' | 'shock' | 'unless-pay' | 'dredge' | 'optional' | 'commander-zone' }
@@ -174,12 +186,17 @@ export type Decision =
   | { kind: 'choose-number'; min: number; max: number; reason: string }
   | { kind: 'order-triggers'; items: number[]; labels: string[] };
 
+/** Why an object in hand or on the battlefield has no legal action right now, with the rule that says so. */
+export interface IllegalHint { id: number; reasons: { code: 'land-drop-used' | 'sorcery-timing' | 'not-your-turn' | 'stack-not-empty' | 'summoning-sick' | 'tapped' | 'cant-pay' | 'no-action' | 'once-per-turn' | 'no-targets'; rule: string; text: string }[] }
+
 export interface LegalAction {
   action: PlayerAction;
   label: string;
   /** For cast/activate: target requirements per targeting effect; each entry lists legal target refs */
   targetOptions?: { spec: string; options: TargetRef[]; optional: boolean; count: number }[];
   manaValue?: number;
+  /** The engine's automatic payment for this action (what it will tap): the UI shows it and may override it with `pay.sources`. */
+  pay?: { cost: string; taps: { id: number; name: string; mana: ManaSymbol[] }[]; pool: ManaSymbol[] };
 }
 
 export interface Agent {
@@ -189,10 +206,12 @@ export interface Agent {
   onLog?(line: string): void;
   /** When true the engine hands this agent a redacted state (opponent's hand and both libraries hidden). */
   hidden?: boolean;
+  /** When true priority decisions carry `illegal` hints (why the other cards cannot be played); UIs set it, AIs do not. */
+  wantsHints?: boolean;
 }
 
 export function makePlayer(id: PlayerId, name: string): Player {
-  return { id, name, life: 20, poison: 0, library: [], hand: [], graveyard: [], exile: [], battlefield: [], command: [], commanders: [], commanderCasts: {}, commanderDamage: {}, manaPool: [], landsPlayedThisTurn: 0, lost: false, attackedThisTurn: false, lifeLostThisTurn: 0, creaturesDiedThisTurn: 0, spellsCastThisTurn: 0 };
+  return { id, name, life: 20, poison: 0, energy: 0, library: [], hand: [], graveyard: [], exile: [], battlefield: [], command: [], commanders: [], commanderCasts: {}, commanderDamage: {}, manaPool: [], landsPlayedThisTurn: 0, lost: false, attackedThisTurn: false, lifeLostThisTurn: 0, creaturesDiedThisTurn: 0, spellsCastThisTurn: 0 };
 }
 
 export function makeObject(id: number, def: CardDef, owner: PlayerId, zone: Zone, turn: number): GameObject {

@@ -1,5 +1,5 @@
 // Play whole games between decks and report win rates with Wilson intervals. Deterministic for a given seed.
-//   npm run sim:batch -- --deck mono-red-burn --deck mono-green-stompy [--games 200] [--seed 1] [--agent rollout|ai]
+//   npm run sim:batch -- --deck mono-red-burn --deck mono-green-stompy [--games 200] [--seed 1] [--agent rollout|ai|mcts]
 //                        [--ai-sims 30] [--workers N] [--max-turns 30] [--mulligans none|lands] [--seating rotate|fixed]
 //                        [--format commander] [--out data/bench/run.json] [--log] [--verify <result.json>]
 // A deck is a decks/*.txt or *.csv file, a saved deck id or a saved deck name. `--verify` replays the games of a

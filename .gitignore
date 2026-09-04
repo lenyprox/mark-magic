@@ -9,6 +9,7 @@ data/master/*.db
 !data/master/summary.json
 !data/master/parser-coverage.json
 !data/master/meta-coverage.json
+data/rules/
 data/user.db*
 data/images/
 apps/web/.next/
@@ -20,3 +21,4 @@ apps/web/playwright-report/
 # benchmark and batch outputs
 data/bench/
 data/optimizer/
+data/scripts/drafts/

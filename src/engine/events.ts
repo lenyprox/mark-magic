@@ -67,7 +67,7 @@ export function citation(ev: GameEventBody): string | undefined {
     case 'trigger': return '603.2';
     case 'resolve': return ev.kind === 'spell' ? '608.2' : '608.2';
     case 'fizzle': return '608.2b';
-    case 'countered': return '701.5a';
+    case 'countered': return '701.6a';
     case 'attack': return '508.1';
     case 'block': return '509.1';
     case 'damage': return ev.combat ? '510.2' : '120.3';
@@ -75,7 +75,7 @@ export function citation(ev: GameEventBody): string | undefined {
     case 'sba': return { 'lethal-damage': '704.5g', 'zero-toughness': '704.5f', 'zero-loyalty': '704.5i', 'aura-unattached': '704.5m', 'legend-rule': '704.5j', 'saga-final': '714.4', life: '704.5a', poison: '704.5c', 'counters-cancel': '704.5q', 'empty-library': '704.5b', 'commander-damage': '704.6c' }[ev.kind];
     case 'player-eliminated': return '104.3';
     case 'game-over': return ev.winner === null ? '104.4' : '104.2';
-    case 'replaced': return ev.what === 'regenerate' ? '701.19' : ev.what === 'indestructible' ? '702.12b' : ev.what === 'protection' ? '702.16' : ev.what === 'rebound' ? '702.88' : ev.what === 'dredge' ? '702.52' : ev.what === 'commander-zone' ? '903.9a' : '614.1';
+    case 'replaced': return ev.what === 'regenerate' ? '701.19a' : ev.what === 'indestructible' ? '702.12b' : ev.what === 'protection' ? '702.16' : ev.what === 'rebound' ? '702.88' : ev.what === 'dredge' ? '702.52' : ev.what === 'commander-zone' ? '903.9a' : '614.1';
     case 'prevented': return '615.1';
     case 'mulligan': return '103.5';
     case 'transform': return '712.1';
@@ -83,9 +83,9 @@ export function citation(ev: GameEventBody): string | undefined {
     case 'create-token': return '111.1';
     case 'extra-turn': return '500.7';
     case 'mana': return '106.4';
-    case 'library': return ev.action === 'scry' ? '701.22' : ev.action === 'surveil' ? '701.42' : ev.action === 'search' ? '701.19' : ev.action === 'shuffle' ? '701.20' : undefined;
-    case 'zone-change': return ev.to === 'battlefield' ? '400.7' : ev.reason === 'destroy' ? '701.7' : ev.reason === 'sacrifice' ? '701.17' : ev.reason === 'discard' ? '701.8' : ev.reason === 'mill' ? '701.13' : ev.reason === 'exile' ? '406.1' : '400.7';
-    case 'tap': return ev.tapped ? '701.21a' : '701.21b';
+    case 'library': return ev.action === 'scry' ? '701.22a' : ev.action === 'surveil' ? '701.25a' : ev.action === 'search' ? '701.23a' : ev.action === 'shuffle' ? '701.24a' : undefined;
+    case 'zone-change': return ev.to === 'battlefield' ? '400.7' : ev.reason === 'destroy' ? '701.8a' : ev.reason === 'sacrifice' ? '701.21a' : ev.reason === 'discard' ? '701.9a' : ev.reason === 'mill' ? '701.17a' : ev.reason === 'exile' ? '406.1' : '400.7';
+    case 'tap': return ev.tapped ? '701.26a' : '701.26b';
     case 'counter': return '122.1';
     default: return undefined;
   }
@@ -171,7 +171,7 @@ function zoneChangeText(ev: Extract<GameEventBody, { type: 'zone-change' }>, pna
     case 'destroy': return `${ev.name}#${ev.id} is destroyed.`;
     case 'sacrifice': return `${pname(ev.controller)} sacrifices ${ev.name}#${ev.id}.`;
     case 'play': return `${pname(ev.controller)} plays ${ev.name}${ev.tapped ? ' (tapped)' : ''}.`;
-    case 'resolve': return `${ev.name} enters the battlefield under ${pname(ev.controller)}'s control${ev.tapped ? ' tapped' : ''}.`;
+    case 'resolve': return ev.to === 'battlefield' ? `${ev.name} enters the battlefield under ${pname(ev.controller)}'s control${ev.tapped ? ' tapped' : ''}.` : '';
     default: return '';
   }
 }

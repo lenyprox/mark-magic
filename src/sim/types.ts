@@ -4,7 +4,7 @@ import type { Derivation, Estimate } from '../analysis/types.js';
 import type { DeckPayload } from '../play/protocol.js';
 
 export type SeatingMode = 'rotate' | 'fixed';
-export type BatchAgent = 'rollout' | 'ai';
+export type BatchAgent = 'rollout' | 'ai' | 'mcts';
 /** 'none': always keep; 'lands': the AI's rule (mulligan a 7-card hand with 0-1 or 6-7 lands, at most once). */
 export type MulliganPolicy = 'none' | 'lands';
 export type BatchFormat = 'freeform' | 'commander';

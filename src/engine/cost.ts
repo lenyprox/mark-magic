@@ -67,6 +67,7 @@ export function pickDelve(s: GameState, pl: Player, card: GameObject, n: number)
 
 /** Whether the non-mana parts of a cost can be paid right now. `self` is the object being cast/activated (excluded from "other" choices). */
 export function nonManaCostPayable(s: GameState, pl: Player, cost: AbilityCost, self: GameObject): boolean {
+  if (cost.energy && (pl.energy ?? 0) < cost.energy) return false;
   const others = (zone: GameObject[]) => zone.filter(o => o.id !== self.id);
   if (cost.sacrifice && !pl.battlefield.some(o => o.id !== self.id && matchesFilter(s, o, cost.sacrifice, self))) return false;
   if (cost.discard && others(pl.hand).length < cost.discard) return false;

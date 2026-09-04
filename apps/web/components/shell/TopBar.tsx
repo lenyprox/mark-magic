@@ -12,6 +12,7 @@ const NAV = [
   { href: '/decks', label: 'Decks' },
   { href: '/collection', label: 'Collection' },
   { href: '/optimize', label: 'Optimise' },
+  { href: '/coverage', label: 'Coverage' },
   { href: '/play', label: 'Play' },
 ];
 

@@ -1,7 +1,9 @@
 'use client';
 // A player's plate: name, life (rolling), poison, library count, hand (fanned card backs for the opponent),
 // graveyard / exile stacks that open the zone drawer, and the mana pool. Doubles as a target when it is legal.
+// The graveyard thumb carries the top card's `layoutId`, so a dying permanent FLIPs into it.
 import clsx from 'clsx';
+import { motion } from 'motion/react';
 import { BookOpen, Skull, Sparkles, Crown } from 'lucide-react';
 import type { PlayerId } from '@engine/state';
 import type { PlayerView } from '@play/view';
@@ -23,8 +25,12 @@ export interface PlayerPlateProps {
   /** Drop-zone highlight while a drag that can land here is in flight. */
   dropTarget?: boolean;
   dropOver?: boolean;
+  /** "Show me" from the explain panel. */
+  pulsed?: boolean;
   onClick?: (pid: PlayerId) => void;
   onOpenZone: (pid: PlayerId, zone: 'graveyard' | 'exile' | 'command') => void;
+  layoutKey?: unknown;
+  reducedMotion?: boolean;
 }
 
 function CardBacks({ n }: { n: number }) {
@@ -36,14 +42,15 @@ function CardBacks({ n }: { n: number }) {
   );
 }
 
-export function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, picked, dimmed, hovered, thinking, dropTarget, dropOver, onClick, onOpenZone }: PlayerPlateProps) {
+export function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, picked, dimmed, hovered, thinking, dropTarget, dropOver, pulsed, onClick, onOpenZone, layoutKey, reducedMotion }: PlayerPlateProps) {
   const clickable = !!onClick && legalTarget;
   const topGy = player.graveyard[player.graveyard.length - 1];
   const topEx = player.exile[player.exile.length - 1];
   const pool = player.manaPool;
+  const t = reducedMotion ? { duration: 0 } : { type: 'spring' as const, stiffness: 380, damping: 32, mass: 0.9 };
   return (
     <div
-      className={clsx(styles.plate, isMe && styles.plateMe, active && styles.plateActive, legalTarget && styles.legalTarget, picked && styles.picked, dimmed && styles.dimmed, hovered && styles.hovered, clickable && styles.plateClickable, dropTarget && styles.dropZone, dropOver && styles.dropZoneOver)}
+      className={clsx(styles.plate, isMe && styles.plateMe, active && styles.plateActive, legalTarget && styles.legalTarget, picked && styles.picked, dimmed && styles.dimmed, hovered && styles.hovered, clickable && styles.plateClickable, dropTarget && styles.dropZone, dropOver && styles.dropZoneOver, pulsed && styles.platePulsed)}
       data-player-id={player.id}
       data-testid={isMe ? 'plate-me' : 'plate-opp'}
       data-legal-target={legalTarget ? '' : undefined}
@@ -71,8 +78,12 @@ export function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, pi
           </button>
         )}
         <span className={styles.zoneStat} title="Library"><BookOpen size={13} aria-hidden /><span className="mono">{player.librarySize}</span><span className="sr-only"> cards in library</span></span>
-        <button type="button" className={clsx(styles.zoneBtn, !player.graveyard.length && styles.zoneEmpty)} onClick={() => onOpenZone(player.id, 'graveyard')} aria-label={`Graveyard, ${player.graveyard.length} cards`} title="Graveyard">
-          {topGy?.printingId ? <CardImage printingId={topGy.printingId} face={topGy.face} size="small" alt="" className={styles.zoneThumb} /> : <span className={styles.zoneThumbEmpty} />}
+        <button type="button" className={clsx(styles.zoneBtn, !player.graveyard.length && styles.zoneEmpty)} onClick={() => onOpenZone(player.id, 'graveyard')} aria-label={`Graveyard, ${player.graveyard.length} cards`} title="Graveyard" data-testid={`graveyard-${player.id}`}>
+          {topGy ? (
+            <motion.span key={topGy.id} layoutId={`card-${topGy.id}`} layoutDependency={layoutKey} transition={t} className={styles.zoneThumbWrap} data-obj-id={topGy.id}>
+              {topGy.printingId ? <CardImage printingId={topGy.printingId} face={topGy.face} size="small" alt="" className={styles.zoneThumb} /> : <span className={styles.zoneThumbEmpty} />}
+            </motion.span>
+          ) : <span className={styles.zoneThumbEmpty} />}
           <span className="mono">{player.graveyard.length}</span>
         </button>
         <button type="button" className={clsx(styles.zoneBtn, !player.exile.length && styles.zoneEmpty)} onClick={() => onOpenZone(player.id, 'exile')} aria-label={`Exile, ${player.exile.length} cards`} title="Exile">

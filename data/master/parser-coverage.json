@@ -1,49 +1,49 @@
 {
-  "generated_at": "2026-09-03T19:54:54.893Z",
+  "generated_at": "2026-09-04T08:55:26.554Z",
   "playable_oracle_cards": 34513,
-  "fully_parsed": 8491,
-  "fully_parsed_pct": 24.6,
-  "of_which_vanilla_or_keyword_only": 1260,
+  "fully_parsed": 9814,
+  "fully_parsed_pct": 28.44,
+  "of_which_vanilla_or_keyword_only": 1477,
   "by_primary_type": {
     "Creature": {
       "total": 19233,
-      "full": 5088,
-      "pct": 26.5
+      "full": 6021,
+      "pct": 31.3
     },
     "Artifact": {
       "total": 2601,
-      "full": 572,
-      "pct": 22
+      "full": 666,
+      "pct": 25.6
     },
     "Enchantment": {
       "total": 3564,
-      "full": 441,
-      "pct": 12.4
+      "full": 562,
+      "pct": 15.8
     },
     "Sorcery": {
       "total": 3620,
-      "full": 755,
-      "pct": 20.9
+      "full": 802,
+      "pct": 22.2
     },
     "Instant": {
       "total": 3849,
-      "full": 1043,
-      "pct": 27.1
+      "full": 1110,
+      "pct": 28.8
     },
     "Land": {
       "total": 1161,
-      "full": 566,
-      "pct": 48.8
+      "full": 624,
+      "pct": 53.7
     },
     "Kindred": {
       "total": 80,
-      "full": 10,
-      "pct": 12.5
+      "full": 12,
+      "pct": 15
     },
     "Planeswalker": {
       "total": 335,
-      "full": 8,
-      "pct": 2.4
+      "full": 9,
+      "pct": 2.7
     },
     "Other": {
       "total": 29,
@@ -71,10 +71,6 @@
       "clause": "{}{}: Level #"
     },
     {
-      "n": 55,
-      "clause": "//"
-    },
-    {
       "n": 52,
       "clause": "#/#"
     },
@@ -87,52 +83,16 @@
       "clause": "Start your engines!"
     },
     {
-      "n": 47,
-      "clause": "You may look at the top card of your library any time."
-    },
-    {
-      "n": 45,
-      "clause": "Infect"
-    },
-    {
-      "n": 44,
-      "clause": "You may choose not to untap ~ during your untap step."
-    },
-    {
-      "n": 43,
-      "clause": "Untap that creature."
-    },
-    {
-      "n": 40,
-      "clause": "~ can be your commander."
-    },
-    {
       "n": 40,
       "clause": "Morph {}{}{}"
     },
     {
-      "n": 40,
-      "clause": "Storm"
-    },
-    {
       "n": 39,
-      "clause": "Shadow"
-    },
-    {
-      "n": 38,
-      "clause": "Swampwalk"
-    },
-    {
-      "n": 38,
-      "clause": "Toxic #"
+      "clause": "Storm"
     },
     {
       "n": 37,
       "clause": "Daybound"
-    },
-    {
-      "n": 37,
-      "clause": "When ~ enters, you become the monarch."
     },
     {
       "n": 36,
@@ -145,42 +105,6 @@
     {
       "n": 36,
       "clause": "// Nightbound"
-    },
-    {
-      "n": 36,
-      "clause": "Then that player shuffles."
-    },
-    {
-      "n": 35,
-      "clause": "Exalted"
-    },
-    {
-      "n": 35,
-      "clause": "Cascade"
-    },
-    {
-      "n": 35,
-      "clause": "Bushido #"
-    },
-    {
-      "n": 35,
-      "clause": "Gain control of target creature until end of turn."
-    },
-    {
-      "n": 34,
-      "clause": "When ~ enters, you get {}{} ."
-    },
-    {
-      "n": 34,
-      "clause": "Target opponent reveals their hand."
-    },
-    {
-      "n": 33,
-      "clause": "Islandwalk"
-    },
-    {
-      "n": 33,
-      "clause": "Untap it."
     },
     {
       "n": 32,
@@ -204,10 +128,6 @@
     },
     {
       "n": 31,
-      "clause": "Unearth {}{}"
-    },
-    {
-      "n": 31,
       "clause": "Suspend #—{}{}"
     },
     {
@@ -216,39 +136,15 @@
     },
     {
       "n": 29,
-      "clause": "When ~ enters, tap enchanted creature."
-    },
-    {
-      "n": 29,
       "clause": "Ascend"
-    },
-    {
-      "n": 28,
-      "clause": "III — Exile ~, then return it to the battlefield transformed under your control."
     },
     {
       "n": 28,
       "clause": "Disguise {}{}"
     },
     {
-      "n": 28,
-      "clause": "When ~ enters, attach it to target creature you control."
-    },
-    {
-      "n": 27,
-      "clause": "Horsemanship"
-    },
-    {
-      "n": 27,
-      "clause": "Flying, ward {}"
-    },
-    {
       "n": 27,
       "clause": "Foretell {}{}"
-    },
-    {
-      "n": 27,
-      "clause": "Flanking"
     },
     {
       "n": 27,
@@ -267,20 +163,8 @@
       "clause": "Morph {}"
     },
     {
-      "n": 27,
-      "clause": "Wither"
-    },
-    {
-      "n": 26,
-      "clause": "Forestwalk"
-    },
-    {
       "n": 26,
       "clause": "~ enters prepared."
-    },
-    {
-      "n": 26,
-      "clause": "~ can't attack unless defending player controls an Island."
     },
     {
       "n": 26,
@@ -288,19 +172,135 @@
     },
     {
       "n": 25,
-      "clause": "Echo {}{}"
-    },
-    {
-      "n": 25,
       "clause": "Suspend #—{}"
     },
     {
       "n": 25,
-      "clause": "// If ~ would be put into a graveyard from anywhere, exile it instead."
+      "clause": "Soulshift #"
     },
     {
       "n": 25,
-      "clause": "Soulshift #"
+      "clause": "Backup #"
+    },
+    {
+      "n": 25,
+      "clause": "Exploit"
+    },
+    {
+      "n": 24,
+      "clause": "Soulbond"
+    },
+    {
+      "n": 23,
+      "clause": "You may choose the same mode more than once."
+    },
+    {
+      "n": 22,
+      "clause": "Evoke {}{}"
+    },
+    {
+      "n": 22,
+      "clause": "Fuse"
+    },
+    {
+      "n": 22,
+      "clause": "Disturb {}{}"
+    },
+    {
+      "n": 22,
+      "clause": "Bargain"
+    },
+    {
+      "n": 21,
+      "clause": "Spree"
+    },
+    {
+      "n": 21,
+      "clause": "Megamorph {}{}"
+    },
+    {
+      "n": 21,
+      "clause": "Mutate {}{}"
+    },
+    {
+      "n": 20,
+      "clause": "When ~ is put into a graveyard from the battlefield, return it to its owner's hand."
+    },
+    {
+      "n": 20,
+      "clause": "Mentor"
+    },
+    {
+      "n": 20,
+      "clause": "If that creature would die this turn, exile it instead."
+    },
+    {
+      "n": 20,
+      "clause": "Starting intensity #"
+    },
+    {
+      "n": 19,
+      "clause": "Devour #"
+    },
+    {
+      "n": 19,
+      "clause": "If ~ is in your opening hand, you may begin the game with it on the battlefield."
+    },
+    {
+      "n": 19,
+      "clause": "Living weapon"
+    },
+    {
+      "n": 19,
+      "clause": "Choose a creature type."
+    },
+    {
+      "n": 19,
+      "clause": "Vanishing #"
+    },
+    {
+      "n": 19,
+      "clause": "Myriad"
+    },
+    {
+      "n": 19,
+      "clause": "Ward—Pay # life."
+    },
+    {
+      "n": 19,
+      "clause": "When ~ enters, you take the initiative."
+    },
+    {
+      "n": 19,
+      "clause": "Job select"
+    },
+    {
+      "n": 18,
+      "clause": "Extort"
+    },
+    {
+      "n": 18,
+      "clause": "Retrace"
+    },
+    {
+      "n": 18,
+      "clause": "Reconfigure {}"
+    },
+    {
+      "n": 18,
+      "clause": "{}{}{}: Monstrosity #."
+    },
+    {
+      "n": 18,
+      "clause": "#+ | Flying"
+    },
+    {
+      "n": 17,
+      "clause": "Entwine {}"
+    },
+    {
+      "n": 17,
+      "clause": "Choose target creature."
     }
   ]
 }

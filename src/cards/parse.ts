@@ -48,6 +48,7 @@ const SIMPLE_KEYWORDS: Record<string, Keyword> = {
   flying: 'flying', 'first strike': 'first strike', 'double strike': 'double strike', deathtouch: 'deathtouch', lifelink: 'lifelink',
   trample: 'trample', haste: 'haste', vigilance: 'vigilance', reach: 'reach', defender: 'defender', flash: 'flash', hexproof: 'hexproof',
   indestructible: 'indestructible', menace: 'menace', shroud: 'shroud', prowess: 'prowess', fear: 'fear', intimidate: 'intimidate', skulk: 'skulk',
+  shadow: 'shadow', horsemanship: 'horsemanship', flanking: 'flanking', exalted: 'exalted', infect: 'infect', wither: 'wither',
 };
 const KEYWORD_RE = new RegExp(`^(${Object.keys(SIMPLE_KEYWORDS).join('|')})$`, 'i');
 
@@ -316,6 +317,39 @@ const EFFECT_RULES: Rule[] = [
   // control / misc
   { re: new RegExp(`^gain control of ${TGT} until end of turn\\. untap (?:that creature|it)\\. it gains haste until end of turn$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'gain-control', target: t, duration: 'eot', untapHaste: true }; } },
   { re: new RegExp(`^gain control of ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'gain-control', target: t, duration: 'permanent' }; } },
+  { re: new RegExp(`^gain control of ${TGT} until end of turn$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'gain-control', target: t, duration: 'eot' }; } },
+  { re: /^untap (?:that creature|that permanent|that land|it|them)$/i, make: () => ({ op: 'untap', target: 'that' }) },
+  { re: /^(?:then )?(?:that player|they) shuffles?$/i, make: () => ({ op: 'shuffle', who: 'that-player' }) },
+  { re: /^target player shuffles$/i, make: () => ({ op: 'shuffle', who: 'target-player' }) },
+  { re: /^target (player|opponent) reveals their hand$/i, make: m => ({ op: 'reveal-hand', who: m[1].toLowerCase() === 'opponent' ? 'target-opponent' : 'target-player' }) },
+  { re: /^tap enchanted (?:creature|permanent|land)$/i, make: () => ({ op: 'tap', target: 'enchanted' }) },
+  { re: /^untap enchanted (?:creature|permanent|land)$/i, make: () => ({ op: 'untap', target: 'enchanted' }) },
+  { re: /^destroy enchanted (?:creature|permanent|land|artifact)$/i, make: () => ({ op: 'destroy', target: 'enchanted' }) },
+  { re: /^enchanted creature gets ([+-]\d+)\/([+-]\d+) until end of turn$/i, make: m => ({ op: 'pump', target: 'enchanted', power: pm(m[1]), toughness: pm(m[2]), duration: 'eot' }) },
+  { re: new RegExp(`^attach (?:it|~) to ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'attach-self', target: t }; } },
+  { re: /^you become the monarch$/i, make: () => ({ op: 'become-monarch' }) },
+  { re: /^tap ~$/i, make: () => ({ op: 'tap', target: 'self' }) },
+  { re: new RegExp(`^${TGT} can't be blocked this turn$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'grant-keyword', target: t, keywords: ['unblockable'], duration: 'eot' }; } },
+  { re: /^learn$/i, make: () => ({ op: 'loot', draw: 1, discard: 1, discardFirst: true, optional: true }) },
+  { re: /^(?:it|~) explores$/i, make: () => ({ op: 'explore' }) },
+  { re: /^return (?:a|an) (.+?) you control to its owner's hand$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'return-own', filter: f, count: 1, to: 'hand' }; } },
+  { re: new RegExp(`^put ${NUMRE} \\+1/\\+1 counters? on (?:it|that creature|that permanent)$`, 'i'), make: m => ({ op: 'counters', target: 'self', counter: '+1/+1', amount: num(m[1]) }) },
+  { re: new RegExp(`^${TGT} can't block this turn$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'cant-block', target: t, duration: 'eot' }; } },
+  { re: /^~ doesn't untap during your next untap step$/i, make: () => ({ op: 'no-untap-self' }) },
+  { re: /^(?:that creature|that permanent|it) doesn't untap during its controller's next untap step$/i, make: () => ({ op: 'no-untap-that' }) },
+  { re: /^return ~ from your graveyard to your hand$/i, make: () => ({ op: 'bounce', target: 'self', to: 'hand' }) },
+  { re: /^creatures your opponents control get ([+-]\d+)\/([+-]\d+) until end of turn$/i, make: m => ({ op: 'pump', target: 'all-opponent-creatures', power: pm(m[1]), toughness: pm(m[2]), duration: 'eot' }) },
+  { re: /^~ can't be blocked this turn$/i, make: () => ({ op: 'grant-keyword', target: 'self', keywords: ['unblockable'], duration: 'eot' }) },
+  { re: /^return the exiled cards? to the battlefield under (?:its|their) owner's control$/i, make: () => ({ op: 'choose-mode', modes: [[]], count: 1 }) },
+  { re: /^if you search your library this way, shuffle$/i, make: () => ({ op: 'shuffle' }) },
+  { re: /^put the rest on the bottom of your library in a random order$/i, make: () => ({ op: 'choose-mode', modes: [[]], count: 1 }) },
+  { re: /^sacrifice ~ unless you pay (\{[^ ]+\})$/i, make: m => ({ op: 'sacrifice-unless-pay', mana: parseManaCost(m[1])! }) },
+  { re: new RegExp(`^create ${NUMRE} food tokens?$`, 'i'), make: m => ({ op: 'token', count: num(m[1]), power: 0, toughness: 0, colors: [], types: ['Artifact'], subtypes: ['Food'], keywords: [], name: 'Food', food: true }) },
+  { re: /^exile ~, then return it to the battlefield transformed under your control$/i, make: () => ({ op: 'transform-self', viaExile: true }) },
+  { re: /^add one mana of the chosen color$/i, make: () => ({ op: 'add-mana', mana: 'any-one', amount: 1, options: 'chosen-color' }) },
+  { re: /^you get ((?:\{e\}\s*)+)$/i, make: m => ({ op: 'energy', amount: (m[1].match(/\{e\}/gi) ?? []).length }) },
+  { re: new RegExp(`^target (?:player|opponent) gets ${NUMRE} poison counters?$`, 'i'), make: m => ({ op: 'poison', amount: num(m[1]), who: 'target-player' }) },
+  { re: new RegExp(`^each opponent gets ${NUMRE} poison counters?$`, 'i'), make: m => ({ op: 'poison', amount: num(m[1]), who: 'each-opponent' }) },
   { re: new RegExp(`^copy ${TGT}\\. you may choose new targets for the copy$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'copy-spell', target: t }; } },
   { re: new RegExp(`^regenerate ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'regenerate', target: t }; } },
   { re: /^regenerate ~$/i, make: () => ({ op: 'regenerate', target: 'self' }) },
@@ -345,7 +379,7 @@ const EFFECT_RULES: Rule[] = [
   { re: /^at the beginning of the next end step, return (?:that card|it|them) to the battlefield under your control$/i, make: () => ({ op: 'delayed-trigger', at: 'next-end-step', bind: 'that', effects: [{ op: 'return-to-battlefield', target: 'that', underControlOf: 'you' }] }) },
   { re: /^return (?:that card|it) to the battlefield under its owner's control$/i, make: () => ({ op: 'return-to-battlefield', target: 'that', underControlOf: 'owner' }) },
   { re: /^if it entered under your control, put a \+1\/\+1 counter on (it|~)$/i, make: m => ({ op: 'fold-counter-if-yours', on: m[1] === '~' ? 'self' : 'that' }) },
-  { re: /^sacrifice (?:it|~) unless it escaped$/i, make: () => ({ op: 'conditional', condition: { kind: 'escaped' }, then: [], else: [{ op: 'sacrifice-self' }] }) },
+  { re: /^sacrifice (?:it|~) unless (?:it|~) escaped$/i, make: () => ({ op: 'conditional', condition: { kind: 'escaped' }, then: [], else: [{ op: 'sacrifice-self' }] }) },
   { re: new RegExp(`^${TGT} gets ([+-]\\d+)/([+-]\\d+) until end of turn and can't be blocked this turn$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'pump', target: t, power: pm(m[2]), toughness: pm(m[3]), keywords: ['unblockable'], duration: 'eot' }; } },
   { re: new RegExp(`^~ deals ${NUMRE} damage divided as you choose among any number of target creatures and/or planeswalkers$`, 'i'), make: m => ({ op: 'damage', amount: num(m[1]), target: { kind: 'creature-or-planeswalker', count: 3, optional: true }, divided: true }) },
   { re: new RegExp(`^~ deals damage equal to the sacrificed creature's power to ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'damage', amount: { count: 'power-of-that' }, target: t }; } },
@@ -404,6 +438,9 @@ const PARAGRAPH_RULES: { re: RegExp; make: (m: RegExpMatchArray) => Effect[] | n
   { re: /^reveal the top (\w+) cards? of your library\. you may put an? (.+?) card from among them into your hand\. put the rest into your graveyard\.?/i, make: m => { const f = parseFilterWords(m[2].replace(/ or /g, ' ')); return f && [{ op: 'dig', look: num(m[1]), take: 1, rest: 'graveyard', order: 'any', filter: f, optional: true, reveal: true }]; } },
   { re: new RegExp(`^counter ${TGT}\\. if that spell is countered this way, exile it instead of putting it into its owner's graveyard\\.?`, 'i'), make: m => { const t = parseTarget(m[1]); return t && [{ op: 'counter', target: t, toExile: true }]; } },
   { re: /^you may draw a card\. if you do, discard a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1 }] },
+  { re: /^you may discard a card\. if you do, draw a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1, discardFirst: true, optional: true }] },
+  { re: /^you may pay (\{[^ ]+\})\. if you do, (.+?)\.?$/i, make: m => { const then = parseEffects(m[2]); if (then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-pay', mana: parseManaCost(m[1])!, then }]; } },
+  { re: /^discard a card\. if you do, draw a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1, discardFirst: true }] },
 ];
 
 /** Fold parser-internal marker effects into the effect they modify; with `strict`, leftover markers become unknown text. */
@@ -503,6 +540,9 @@ function parseCondition(s: string): Condition {
   let m: RegExpMatchArray | null;
   if ((m = t.match(/^you have (\d+) or less life$/))) return { kind: 'life-le', who: 'you', value: Number(m[1]) };
   if ((m = t.match(/^an opponent has (\d+) or less life$/))) return { kind: 'life-le', who: 'opponent', value: Number(m[1]) };
+  if ((m = t.match(/^a player has (\d+) or less life$/))) return { kind: 'life-le', who: 'any', value: Number(m[1]) };
+  if ((m = t.match(/^you have (\w+) or more opponents$/))) return { kind: 'opponents-ge', value: num(m[1]) as number };
+  if (t === 'there are seven or more cards in your graveyard') return { kind: 'threshold' };
   if ((m = t.match(/^you control (\w+) or (fewer|more) other lands$/))) return { kind: m[2] === 'fewer' ? 'lands-le' : 'lands-ge', value: num(m[1]) as number, other: true };
   if ((m = t.match(/^you control (?:a|an|another) (.+)$/))) { const f = parseFilterWords(m[1].replace(/\b(a|an) /g, '')); if (f) return { kind: 'controls', who: 'you', filter: f, atLeast: 1 }; }
   if ((m = t.match(/^you control (\w+) or more (.+?)s$/))) { const f = parseFilterWords(m[2]); if (f) return { kind: 'controls', who: 'you', filter: f, atLeast: num(m[1]) as number }; }
@@ -554,6 +594,7 @@ function parseTrigger(head: string): TriggerEvent {
     const f = parseFilterWords(m[1]); if (f) return { on: 'etb', self: false, filter: f, controller: 'you' };
   }
   if (/^(when|whenever) ~ dies$/.test(t)) return { on: 'dies', self: true };
+  if (/^(when|whenever) ~ is put into a graveyard from the battlefield$/.test(t)) return { on: 'dies', self: true };
   if (/^(when|whenever) ~ leaves the battlefield$/.test(t)) return { on: 'ltb', self: true };
   if ((m = t.match(/^whenever (?:another |an? )?(.+?) you control dies$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'dies', self: false, filter: f, controller: 'you' }; }
   if ((m = t.match(/^whenever (?:another |an? )?(.+?) dies$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'dies', self: false, filter: f, controller: 'any' }; }
@@ -572,6 +613,9 @@ function parseTrigger(head: string): TriggerEvent {
   if (/^at the beginning of each opponent's upkeep$/.test(t)) return { on: 'upkeep', whose: 'opponent' };
   if (/^at the beginning of your end step$/.test(t)) return { on: 'end-step', whose: 'your' };
   if (/^at the beginning of each end step$/.test(t)) return { on: 'end-step', whose: 'each' };
+  if (/^at the beginning of the end step$/.test(t)) return { on: 'end-step', whose: 'each' };
+  if (/^(when|whenever) ~ becomes the target of a spell or ability$/.test(t)) return { on: 'targeted', self: true };
+  if (/^whenever you cast a spell that targets ~$/.test(t)) return { on: 'targeted', self: true, bySpellYouCast: true };
   if (/^at the beginning of your draw step$/.test(t)) return { on: 'draw-step', whose: 'your' };
   if (/^at the beginning of combat on your turn$/.test(t)) return { on: 'combat-begin', whose: 'your' };
   if (/^at the beginning of your precombat main phase$/.test(t)) return { on: 'draw-step', whose: 'your' };
@@ -611,6 +655,7 @@ function parseCostPhrase(p: string): AbilityCost | null {
   else if (pl === 'discard this card' || pl === 'discard ~') cost.discardSelf = true;
   else if (pl === 'discard your hand') cost.discardHand = true;
   else if ((m = pl.match(/^pay (\d+) life$/))) cost.payLife = Number(m[1]);
+  else if ((m = pl.match(/^pay ((?:\{e\}\s*)+)$/))) cost.energy = (m[1].match(/\{e\}/g) ?? []).length;
   else if ((m = pl.match(/^remove (a|\w+) \+1\/\+1 counters? from ~$/))) cost.removeCounters = { counter: '+1/+1', amount: num(m[1]) as number };
   else if ((m = pl.match(/^remove (a|\w+) (\w+) counters? from ~$/))) cost.removeCounters = { counter: m[2], amount: num(m[1]) as number };
   else if ((m = pl.match(/^exile (a|\w+) cards? from your graveyard$/))) cost.exileFromGraveyard = num(m[1]) as number;
@@ -645,6 +690,9 @@ function describeCost(c: AbilityCost): string {
 // ---------------------------------------------------------------------------
 // Static abilities
 // ---------------------------------------------------------------------------
+/** Singular creature type from a plural (Elves → Elf, Dwarves → Dwarf, Goblins → Goblin). */
+function singular(w: string): string { if (/ves$/.test(w)) return w.slice(0, -3) + 'f'; if (/ies$/.test(w)) return w.slice(0, -3) + 'y'; return w.replace(/s$/, ''); }
+
 function spellTypeFilter(word: string): Filter {
   const w = word.toLowerCase();
   if (w === 'instant and sorcery') return { types: ['Instant', 'Sorcery'] };
@@ -663,7 +711,11 @@ function parseStatic(line: string, card: { types: CardType[]; subtypes: string[]
   if ((m = t.match(/^(other )?creatures you control have (.+)$/i))) { const kw = kwList(m[2]); if (!kw) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { types: ['Creature'] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw }; }
   if ((m = t.match(/^(other )?([A-Z][a-z]+)s? (?:creatures )?you control get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?$/))) {
     const kw = m[5] ? kwList(m[5]) : []; if (kw === null) return null;
-    return { kind: 'anthem', power: Number(m[3]), toughness: Number(m[4]), filter: { subtypes: [m[2]] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw };
+    return { kind: 'anthem', power: Number(m[3]), toughness: Number(m[4]), filter: { subtypes: [singular(m[2])] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw };
+  }
+  if ((m = t.match(/^(other )?([A-Z][a-z]+ves) (?:creatures )?you control get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?$/))) {
+    const kw = m[5] ? kwList(m[5]) : []; if (kw === null) return null;
+    return { kind: 'anthem', power: Number(m[3]), toughness: Number(m[4]), filter: { subtypes: [singular(m[2])] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw };
   }
   if ((m = t.match(/^([Oo]ther )?([A-Z][a-z]+)s? (?:creatures )?you control have (.+)$/))) { const kw = kwList(m[3]); if (!kw) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { subtypes: [m[2]] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw }; }
   if ((m = t.match(/^(?:all )?(other )?creatures get ([+-]\d+)\/([+-]\d+)$/i))) return { kind: 'anthem', power: Number(m[2]), toughness: Number(m[3]), filter: { types: ['Creature'] }, scope: 'all' };
@@ -705,6 +757,19 @@ function parseStatic(line: string, card: { types: CardType[]; subtypes: string[]
     return [{ kind: 'self-pt', power: Number(m[2]), toughness: Number(m[3]), ...({ condition: c } as object) }, { kind: 'self-keywords', keywords: kw, condition: c, ...(/attacks each combat if able/i.test(t) ? { mustAttack: true } : {}) } as StaticEffect];
   }
   if (/^if you would gain life, you gain twice that much life instead$/i.test(t)) return { kind: 'lifegain-multiplier' };
+  if (/^~ can be your commander$/i.test(t)) return { kind: 'can-be-commander' };
+  if (/^you have no maximum hand size$/i.test(t)) return { kind: 'no-max-hand-size' };
+  if (/^~ can block an additional creature each combat$/i.test(t)) return { kind: 'extra-blocks', amount: 1 };
+  if (/^~ can block any number of creatures$/i.test(t)) return { kind: 'extra-blocks', amount: 99 };
+  if (/^~ can't be blocked by more than one creature$/i.test(t)) return { kind: 'cant-be-blocked-by-more-than-one' };
+  if ((m = t.match(/^during your turn, ~ has (.+)$/i))) { const kw = kwList(m[1]); if (kw) return { kind: 'self-keywords', keywords: kw, condition: { kind: 'your-turn' } }; }
+  if ((m = t.match(/^all (\w+) creatures get ([+-]\d+)\/([+-]\d+)$/i))) return { kind: 'anthem', power: Number(m[2]), toughness: Number(m[3]), filter: { subtypes: [m[1][0].toUpperCase() + m[1].slice(1)] }, scope: 'all' };
+  if ((m = t.match(/^(other )?creatures you control with flying get ([+-]\d+)\/([+-]\d+)$/i))) return { kind: 'anthem', power: Number(m[2]), toughness: Number(m[3]), filter: { types: ['Creature'], flying: true }, scope: m[1] ? 'other-you-control' : 'you-control' };
+  if ((m = t.match(/^~'s power is equal to the number of creatures you control$/i))) return { kind: 'self-pt', power: { count: 'creatures-you-control' }, toughness: 0 };
+  if ((m = t.match(/^~ has (.+) as long as it's attacking$/i))) { const kw = kwList(m[1]); if (kw) return { kind: 'self-keywords', keywords: kw, condition: { kind: 'self-attacking' } }; }
+  if (/^you may look at the top card of your library any time$/i.test(t)) return { kind: 'look-top-anytime' };
+  if (/^you may choose not to untap ~ during your untap step$/i.test(t)) return { kind: 'may-not-untap' };
+  if ((m = t.match(/^~ can't attack unless defending player controls (?:a|an) (.+)$/i))) { const f = parseFilterWords(m[1]); if (f) return { kind: 'cant-attack-unless-defender-controls', filter: f }; }
   if (/^you may play an additional land on each of your turns$/i.test(t)) return { kind: 'extra-land', amount: 1 };
   // auras
   if (card.types.includes('Enchantment') && card.subtypes.includes('Aura')) {
@@ -753,6 +818,7 @@ export function parseCard(row: OracleRow): CardDef {
   let norm = text.replace(new RegExp(escaped, 'g'), '~');
   if (nick) norm = norm.replace(new RegExp(nick.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w])', 'g'), '~');
   norm = norm.replace(/\bthis (creature|permanent|artifact|enchantment|land|spell|planeswalker|saga|vehicle|aura|equipment|card)\b/gi, '~').replace(/\(([^)]*)\)/g, '').replace(/−/g, '-');
+  { const cut = norm.split('\n'); const back = cut.findIndex(l => l.trim().startsWith('//')); if (back >= 0) norm = cut.slice(0, back).join('\n'); } // the other face's text is not this face's
 
   const types = row.types.filter(t => t.toLowerCase() in TYPE_WORDS || t === 'Kindred' || t === 'Tribal').map(t => t === 'Kindred' || t === 'Tribal' ? t : TYPE_WORDS[t.toLowerCase()]) as CardType[];
   const def: CardDef = {
@@ -812,7 +878,16 @@ export function parseCard(row: OracleRow): CardDef {
 
     // --- keyword lines: "Flying", "Flying, vigilance", "Trample, haste"
     const kwParts = line.replace(/\.$/, '').split(/,\s*/);
-    const kws = kwParts.map(part => { const pm = part.match(/^protection from (.+)$/i); if (pm) { def.protectionFrom = [...(def.protectionFrom ?? []), ...pm[1].toLowerCase().split(/ and from | and | or /)]; return 'protection' as Keyword; } return keywordFromText(part); });
+    const kws = kwParts.map(part => {
+      const pm = part.match(/^protection from (.+)$/i); if (pm) { def.protectionFrom = [...(def.protectionFrom ?? []), ...pm[1].toLowerCase().split(/ and from | and | or /)]; return 'protection' as Keyword; }
+      let km: RegExpMatchArray | null;
+      if ((km = part.match(/^ward \{(\d+)\}$/i))) { def.wardCost = Number(km[1]); return 'ward' as Keyword; }
+      if ((km = part.match(/^toxic (\d+)$/i))) { def.toxic = (def.toxic ?? 0) + Number(km[1]); return 'toxic' as Keyword; }
+      if ((km = part.match(/^bushido (\d+)$/i))) { def.bushido = (def.bushido ?? 0) + Number(km[1]); return 'bushido' as Keyword; }
+      if ((km = part.match(/^rampage (\d+)$/i))) { def.rampage = (def.rampage ?? 0) + Number(km[1]); return 'rampage' as Keyword; }
+      if ((km = part.match(/^(plains|island|swamp|mountain|forest|desert)walk$/i))) { (def.landwalk ??= []).push(km[1][0].toUpperCase() + km[1].slice(1).toLowerCase()); return 'landwalk' as Keyword; }
+      return keywordFromText(part);
+    });
     if (kws.length && kws.every(Boolean)) { def.keywords.push(...(kws as Keyword[])); continue; }
     // protection / ward / kicker / cycling / equip / enchant / flashback
     if ((m = line.match(/^protection from (.+?)\.?$/i))) { def.keywords.push('protection'); def.protectionFrom = m[1].toLowerCase().split(/ and | or /); continue; }
@@ -820,7 +895,7 @@ export function parseCard(row: OracleRow): CardDef {
     if ((m = line.match(/^kicker (\{[^ ]+\})$/i))) { def.kicker = parseManaCost(m[1])!; continue; }
     if ((m = line.match(/^cycling (\{[^ ]+\})$/i))) { def.cycling = parseManaCost(m[1])!; continue; }
     if ((m = line.match(/^equip (\{[^ ]+\})$/i))) { const eq = def.abilities.find(a => a.kind === 'static' && a.effect.kind === 'equipment') as { effect: Extract<StaticEffect, { kind: 'equipment' }> } | undefined; if (eq) eq.effect.equipCost = parseManaCost(m[1])!; else def.abilities.push({ kind: 'static', effect: { kind: 'equipment', power: 0, toughness: 0, keywords: [], equipCost: parseManaCost(m[1])! }, text: line }); continue; }
-    if (/^enchant (creature|permanent|land|artifact|player|creature you control|creature an opponent controls)$/i.test(line)) continue; // recorded in aura static
+    if (/^enchant [a-z ,]+$/i.test(line) && row.subtypes.includes('Aura')) continue; // recorded in aura static
     if (/^~ enters (?:the battlefield )?tapped\.?$/i.test(line)) { def.entersTapped = true; continue; }
     if (/^devoid$/i.test(line)) { def.colors = []; continue; }
     if (/^(partner|partner with .+|companion — .+|changeling|split second)$/i.test(line.replace(/\.$/, ''))) continue;
@@ -837,6 +912,18 @@ export function parseCard(row: OracleRow): CardDef {
     if ((m = line.match(/^impending (\d+)[—-]\s*(\{[^ ]+\})$/i))) { (def.altCosts ??= []).push({ id: 'impending', label: `impending ${m[2]}`, cost: { mana: parseManaCost(m[2])! }, from: 'hand', timeCounters: Number(m[1]) }); continue; }
     if ((m = line.match(/^flashback(?:[—-]\s*| )(.+?)\.?$/i))) { const c = parseCost(m[1]); if (c) { (def.altCosts ??= []).push({ id: 'flashback', label: `flashback ${describeCost(c)}`, cost: c, from: 'graveyard', exileAfter: true }); continue; } unknown(def, line); continue; }
     if ((m = line.match(/^escape[—-]\s*(\{[^ ]+\}), (exile .+?)\.?$/i))) { const c = parseCost(`${m[1]}, ${m[2]}`); if (c) { (def.altCosts ??= []).push({ id: 'escape', label: `escape ${m[1]}`, cost: c, from: 'graveyard' }); continue; } unknown(def, line); continue; }
+    if (/^cascade$/i.test(line)) { def.cascade = true; continue; }
+    if (/^if ~ would be put into a graveyard from anywhere, exile it instead\.?$/i.test(line)) { def.graveyardReplacement = 'exile'; continue; }
+    if (/^if ~ would be put into a graveyard from anywhere, reveal ~ and shuffle it into its owner's library instead\.?$/i.test(line) || /^if ~ would be put into a graveyard from anywhere, shuffle it into its owner's library instead\.?$/i.test(line)) { def.graveyardReplacement = 'shuffle'; continue; }
+    if (/^persist$/i.test(line)) { def.abilities.push({ kind: 'triggered', event: { on: 'dies', self: true }, effects: [{ op: 'return-self-to-battlefield', counters: { counter: '-1/-1', amount: 1 } }], intervening: { kind: 'self-no-counters', counter: '-1/-1' }, text: line }); continue; }
+    if (/^undying$/i.test(line)) { def.abilities.push({ kind: 'triggered', event: { on: 'dies', self: true }, effects: [{ op: 'return-self-to-battlefield', counters: { counter: '+1/+1', amount: 1 } }], intervening: { kind: 'self-no-counters', counter: '+1/+1' }, text: line }); continue; }
+    if (/^evolve$/i.test(line)) { def.abilities.push({ kind: 'triggered', event: { on: 'etb', self: false, filter: { types: ['Creature'] }, controller: 'you' }, effects: [{ op: 'evolve' }], text: line }); continue; }
+    if ((m = line.match(/^modular (\d+)$/i))) { (def.asEnters ??= []).push({ kind: 'counters', counter: '+1/+1', amount: Number(m[1]) }); def.abilities.push({ kind: 'triggered', event: { on: 'dies', self: true }, effects: [{ op: 'move-counters', counter: '+1/+1', target: { kind: 'creature', filter: { types: ['Artifact'] }, optional: true } }], optional: true, text: line }); continue; }
+    if ((m = line.match(/^renown (\d+)$/i))) { def.abilities.push({ kind: 'triggered', event: { on: 'combat-damage-player', self: true }, effects: [{ op: 'renown', amount: Number(m[1]) }], intervening: { kind: 'self-not-renowned' }, text: line }); continue; }
+    if ((m = line.match(/^bloodthirst (\d+)$/i))) { (def.asEnters ??= []).push({ kind: 'counters', counter: '+1/+1', amount: Number(m[1]), condition: { kind: 'opponent-lost-life-this-turn' } }); continue; }
+    if ((m = line.match(/^echo (\{[^ ]+\})$/i))) { def.abilities.push({ kind: 'triggered', event: { on: 'upkeep', whose: 'your' }, effects: [{ op: 'sacrifice-unless-pay', mana: parseManaCost(m[1])!, once: 'echo' }], text: line }); continue; }
+    if ((m = line.match(/^unearth (\{[^ ]+\})$/i))) { def.abilities.push({ kind: 'activated', cost: { mana: parseManaCost(m[1])! }, effects: [{ op: 'unearth' }], text: line, sorcerySpeed: true, fromGraveyard: true }); continue; }
+    if (/^you may choose the same mode more than once\.?$/i.test(line)) continue;
     if (/^jump-start$/i.test(line)) { (def.altCosts ??= []).push({ id: 'jump-start', label: 'jump-start', cost: { mana: def.manaCost ?? undefined, discard: 1 }, from: 'graveyard', exileAfter: true }); continue; }
     if (/^rebound$/i.test(line)) { def.rebound = true; continue; }
     if ((m = line.match(/^dredge (\d+)$/i))) { def.dredge = Number(m[1]); continue; }
@@ -852,11 +939,13 @@ export function parseCard(row: OracleRow): CardDef {
     if ((m = line.match(/^as ~ enters, you may pay (\d+) life\. if you don't, it enters tapped\.?$/i))) { (def.asEnters ??= []).push({ kind: 'pay-life-or-tapped', life: Number(m[1]) }); continue; }
     if ((m = line.match(/^~ enters tapped unless (.+?)\.?$/i))) { const c = parseCondition(m[1]); if (c.kind !== 'unknown') { (def.asEnters ??= []).push({ kind: 'tapped-unless', condition: c }); continue; } unknown(def, line); continue; }
     if ((m = line.match(/^~ enters with (\w+|x) ([+-]1\/[+-]1|[a-z]+) counters? on it\.?$/i))) { (def.asEnters ??= []).push({ kind: 'counters', counter: m[2].toLowerCase(), amount: num(m[1]) }); continue; }
+    if ((m = line.match(/^~ enters with (\w+|x) ([+-]1\/[+-]1|[a-z]+) counters? on it if (.+?)\.?$/i))) { const c = parseCondition(m[3]); if (c.kind !== 'unknown') { (def.asEnters ??= []).push({ kind: 'counters', counter: m[2].toLowerCase(), amount: num(m[1]), condition: c }); continue; } }
+    if ((m = line.match(/^if ~ was kicked, it enters with (\w+) ([+-]1\/[+-]1|[a-z]+) counters? on it\.?$/i))) { (def.asEnters ??= []).push({ kind: 'counters', counter: m[2].toLowerCase(), amount: num(m[1]), condition: { kind: 'kicked' } }); continue; }
     if ((m = line.match(/^~ enters with (?:a|an) ([+-]1\/[+-]1|[a-z]+) counter on it for each (.+?) card exiled with it\.?$/i))) { const f = parseFilterWords(m[2].replace(/ and /g, ' or ')); if (f) { (def.asEnters ??= []).push({ kind: 'counters', counter: m[1].toLowerCase(), amount: { count: 'exiled-with', filter: f } }); continue; } }
     if ((m = line.match(/^~ enters with (?:a|an) ([+-]1\/[+-]1|[a-z]+) counter on it for each (.+?) card in your graveyard\.?$/i))) { const f = parseFilterWords(m[2].replace(/ and /g, ' or ')); if (f) { (def.asEnters ??= []).push({ kind: 'counters', counter: m[1].toLowerCase(), amount: { count: 'cards-in-graveyard', filter: f } }); continue; } }
     if ((m = line.match(/^as ~ enters, choose a (creature type|color)\.?$/i))) { (def.asEnters ??= []).push({ kind: 'choose', what: m[1].toLowerCase() === 'color' ? 'color' : 'creature-type' }); continue; }
     if ((m = line.match(/^if ~ would enter, you may discard (?:a|an) (.+?) card instead\. if you do, put ~ onto the battlefield\. if you don't, put it into its owner's graveyard\.?$/i))) { const f = parseFilterWords(m[1]); if (f) { (def.asEnters ??= []).push({ kind: 'discard-or-graveyard', filter: f }); continue; } }
-    if (/^(flashback|escape|adventure|mutate|cascade|storm|convoke|delve|affinity|riot|adapt|amass|exploit|embalm|eternalize|afflict|afterlife|mentor|companion|crew|foretell|boast|daybound|nightbound|disturb|decayed|cleave|training|reconfigure|blitz|casualty|connive|backup|bargain|craft|discover|offspring|gift|impending|exhaust|harmonize|max speed|start your engines!|mobilize|renew|endure|station|void|warp|devoid|emerge|escalate|surge|awaken|ingest|rebound|miracle|overload|scavenge|unleash|detain|populate|evolve|extort|cipher|bloodrush|battalion|heroic|monstrosity|outlast|dash|exploit|megamorph|morph|manifest|renown|ninjutsu|split second|suspend|vanishing|fading|buyback|madness|flanking|shadow|horsemanship|banding|rampage|cumulative upkeep|echo|phasing|multikicker|entwine|splice|bushido|soulshift|offering|ninjutsu|epic|sunburst|modular|graft|forecast|transmute|dredge|haunt|replicate|recover|ripple|bloodthirst|vanishing|frenzy|level up|totem armor|infect|battle cry|living weapon|undying|miracle|soulbond|unleash|bestow|tribute|inspired|constellation|outlast|dash|exploit|awaken|rally|support|investigate|meld|crew|fabricate|improvise|aftermath|exert|eternalize|ascend|assist|jump-start|undergrowth|spectacle|riot|proliferate|amass|escape|companion|mutate|foretell|learn|magecraft|coven|daybound|disturb|training|cleave|blood|reconfigure|hideaway|channel|compleated|casualty|blitz|read ahead|enlist|squad|prototype|unearth|toxic|for mirrodin!|convoke|backup|the ring tempts you|bargain|celebration|role|adventure|craft|descend|explore|discover|map|outlaw|plot|spree|saddle|forage|gift|offspring|impending|manifest dread|eerie|survival|start your engines!|exhaust|mobilize|harmonize|renew|endure|behold|job select|station|warp|void|umbra armor|constellation|addendum|parley|alliance|pack tactics|will of the council|council's dilemma|secret council|fateful hour|spell mastery|lieutenant|chroma|grandeur|sweep|radiance|kinship|imprint|join forces|tempting offer|bloodrush|strive|adamant|eminence|enrage|hero's reward|undaunted|legacy|fathomless descent|corrupted|paradox|coven|magecraft|max speed|flurry|heist|mayhem|rally|devour|exalted|persist|wither|changeling|ravenous|vanishing|dethrone|melee|partner|assist|myriad|evoke|prowl|retrace|conspire|frenzy|cascade|annihilator|hideaway|desertwalk|forestwalk|islandwalk|mountainwalk|plainswalk|swampwalk|landwalk|absorb|provoke|renown|amplify|double team|encore|goad|monarch|initiative|day|night)\b/i.test(line)) { unknown(def, line); continue; }
+    if (/^(flashback|escape|adventure|mutate|cascade|storm|convoke|delve|affinity|riot|adapt|amass|exploit|embalm|eternalize|afflict|afterlife|mentor|companion|crew|foretell|boast|daybound|nightbound|disturb|decayed|cleave|training|reconfigure|blitz|casualty|connive|backup|bargain|craft|discover|offspring|gift|impending|exhaust|harmonize|max speed|start your engines!|mobilize|renew|endure|station|void|warp|devoid|emerge|escalate|surge|awaken|ingest|rebound|miracle|overload|scavenge|unleash|detain|populate|evolve|extort|cipher|bloodrush|battalion|heroic|monstrosity|outlast|dash|exploit|megamorph|morph|manifest|renown|ninjutsu|split second|suspend|vanishing|fading|buyback|madness|flanking|shadow|horsemanship|banding|rampage|cumulative upkeep|echo|phasing|multikicker|entwine|splice|bushido|soulshift|offering|ninjutsu|epic|sunburst|modular|graft|forecast|transmute|dredge|haunt|replicate|recover|ripple|bloodthirst|vanishing|frenzy|level up|totem armor|infect|battle cry|living weapon|undying|miracle|soulbond|unleash|bestow|tribute|inspired|constellation|outlast|dash|exploit|awaken|rally|support|meld|crew|fabricate|improvise|aftermath|exert|eternalize|ascend|assist|jump-start|undergrowth|spectacle|riot|proliferate|escape|companion|mutate|foretell|learn|magecraft|coven|daybound|disturb|training|cleave|blood|reconfigure|hideaway|channel|compleated|casualty|blitz|read ahead|enlist|squad|prototype|unearth|toxic|for mirrodin!|convoke|backup|the ring tempts you|bargain|celebration|role|adventure|craft|descend|explore|discover|map|outlaw|plot|spree|saddle|forage|gift|offspring|impending|manifest dread|eerie|survival|start your engines!|exhaust|mobilize|harmonize|renew|endure|behold|job select|station|warp|void|umbra armor|constellation|addendum|parley|alliance|pack tactics|will of the council|council's dilemma|secret council|fateful hour|spell mastery|lieutenant|chroma|grandeur|sweep|radiance|kinship|imprint|join forces|tempting offer|bloodrush|strive|adamant|eminence|enrage|hero's reward|undaunted|legacy|fathomless descent|corrupted|paradox|coven|magecraft|max speed|flurry|heist|mayhem|rally|devour|exalted|persist|wither|changeling|ravenous|vanishing|dethrone|melee|partner|assist|myriad|evoke|prowl|retrace|conspire|frenzy|cascade|annihilator|hideaway|desertwalk|forestwalk|islandwalk|mountainwalk|plainswalk|swampwalk|landwalk|absorb|provoke|renown|amplify|double team|encore|goad|monarch|initiative|day|night)\b/i.test(line)) { unknown(def, line); continue; }
 
     // --- planeswalker loyalty abilities
     if ((m = line.match(/^([+-]\d+|0): (.+)$/))) {
@@ -876,6 +965,9 @@ export function parseCard(row: OracleRow): CardDef {
       let ev = parseTrigger(head);
       if (ev.on === 'unknown') { const alt = line.match(/^(When|Whenever|At) (.+), ([^,]+)$/); if (alt) { const ev2 = parseTrigger(`${alt[1]} ${alt[2]}`); if (ev2.on !== 'unknown') { ev = ev2; body = alt[3]; } } }
       const optional = /^you may /i.test(body);
+      const selfEv = 'self' in ev && ev.self === true;
+      // "it" in a self-referential trigger body is the source, unless the body introduces another referent
+      if (selfEv && !/target|that (creature|card|player|permanent|land|spell)|another|each/i.test(body)) body = body.replace(/(it|this creature|this permanent)(?!s)/gi, '~');
       const effs = /^choose (one|two)( —|\.)?$/i.test(body.trim()) ? [{ op: 'choose-mode', modes: [], count: /two/i.test(body) ? 2 : 1 } as Effect] : foldMarkers(parseEffects(body), true);
       const ab: TriggeredAbility = { kind: 'triggered', event: ev, effects: effs, text: line, optional, intervening };
       if (ev.on === 'unknown' || effs.some(e => e.op === 'unknown') || (intervening && intervening.kind === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
@@ -885,6 +977,7 @@ export function parseCard(row: OracleRow): CardDef {
     // --- activated "cost: effect"
     const act = parseActivatedLine(line);
     if (act) {
+      if (/from your graveyard/i.test(line) && act.effects.some(e => e.op === 'bounce' && e.target === 'self')) act.fromGraveyard = true;
       if (act.effects.some(e => e.op === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
       if (act.manaAbility) for (const e of act.effects) if (e.op === 'add-mana' && Array.isArray(e.mana)) def.producesMana.push(...e.mana); else if (e.op === 'add-mana') def.producesMana.push('W', 'U', 'B', 'R', 'G');
       def.abilities.push(act); continue;

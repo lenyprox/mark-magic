@@ -145,7 +145,8 @@ export function conditionHolds(s: GameState, src: GameObject, c: unknown): boole
   const me = s.players[src.controller]; const opps = opponentsOf(s, src.controller).map(q => s.players[q]);
   const side = (who: string | undefined, pred: (pl: typeof me) => boolean) => who === 'you' ? pred(me) : opps.some(pred);
   switch (cond.kind) {
-    case 'life-le': return side(cond.who, pl => pl.life <= cond.value);
+    case 'life-le': return cond.who === 'any' ? [me, ...opps].some(pl => pl.life <= cond.value) : side(cond.who, pl => pl.life <= cond.value);
+    case 'opponents-ge': return opps.length >= cond.value;
     case 'controls': return side(cond.who, pl => pl.battlefield.filter(o => matchesFilter(s, o, cond.filter, src)).length >= cond.atLeast);
     case 'cards-in-hand-ge': return side(cond.who, pl => pl.hand.length >= cond.value);
     case 'threshold': return me.graveyard.length >= 7;
@@ -169,7 +170,10 @@ export function conditionHolds(s: GameState, src: GameObject, c: unknown): boole
     case 'cast-from-hand': return (src.castWith?.from ?? 'hand') === 'hand';
     case 'graveyard-has-each': return cond.filters.every(f => me.graveyard.some(o => matchesFilter(s, o, f, src)));
     case 'controls-each': return cond.filters.every(f => me.battlefield.some(o => matchesFilter(s, o, f, src)));
-    case 'self-no-counters': return !(src.counters[cond.counter] > 0);
+    case 'self-no-counters': { const c = src.zone !== 'battlefield' && src.lastKnown?.counters ? src.lastKnown.counters : src.counters; return !(c[cond.counter] > 0); }
+    case 'self-not-renowned': return !src.renowned;
+    case 'self-attacking': return src.attacking !== null;
+    case 'opponent-lost-life-this-turn': return opps.some(pl => pl.lifeLostThisTurn > 0);
     case 'life-gained-this-turn': return (me.lifeGainedThisTurn ?? 0) > 0;
     default: return false;
   }
@@ -188,13 +192,14 @@ export function keywords(s: GameState, o: GameObject): Keyword[] {
   return [...new Set([...base, ...o.eotKeywords, ...staticMods(s, o).kw])];
 }
 export function hasKeyword(s: GameState, o: GameObject, k: Keyword): boolean { return keywords(s, o).includes(k); }
-export function flags(s: GameState, o: GameObject) { const f = staticMods(s, o).flags; if (o.eotFlags.cantAttackOrBlock) f.cantAttackOrBlock = true; return f; }
+export function flags(s: GameState, o: GameObject) { const f = staticMods(s, o).flags; if (o.eotFlags.cantAttackOrBlock) f.cantAttackOrBlock = true; if (o.eotFlags.cantBlock) f.cantBlock = true; return f; }
 
 export function canAttack(s: GameState, o: GameObject): boolean {
   if (!isCreature(o) || o.tapped) return false;
   if (o.enteredTurn === s.turn && !hasKeyword(s, o, 'haste')) return false;
   if (hasKeyword(s, o, 'defender') || hasKeyword(s, o, 'cant attack')) return false;
   const f = flags(s, o); if (f.cantAttack || f.cantAttackOrBlock) return false;
+  for (const ab of abilitiesOf(o)) if (ab.kind === 'static' && ab.effect.kind === 'cant-attack-unless-defender-controls') { const fl = ab.effect.filter; if (!opponentsOf(s, o.controller).some(q => s.players[q].battlefield.some(x => matchesFilter(s, x, fl, o)))) return false; }
   return true;
 }
 export function canBlock(s: GameState, blocker: GameObject, attacker: GameObject): boolean {
@@ -204,6 +209,10 @@ export function canBlock(s: GameState, blocker: GameObject, attacker: GameObject
   const ak = keywords(s, attacker), bk = keywords(s, blocker);
   if (ak.includes('unblockable')) return false;
   if (ak.includes('flying') && !bk.includes('flying') && !bk.includes('reach')) return false;
+  // shadow and horsemanship: only creatures with the same keyword can block or be blocked (CR 702.28, 702.31)
+  if (ak.includes('shadow') !== bk.includes('shadow')) return false;
+  if (ak.includes('horsemanship') !== bk.includes('horsemanship')) return false;
+  if (ak.includes('landwalk') && attacker.def.landwalk?.some(t => s.players[blocker.controller].battlefield.some(l => isLand(l) && subtypes(l).includes(t)))) return false;
   if (ak.includes('fear') && !(colors(blocker).includes('B') || isType(blocker, 'Artifact'))) return false;
   if (ak.includes('intimidate') && !(isType(blocker, 'Artifact') || colors(attacker).some(c => colors(blocker).includes(c)))) return false;
   if (ak.includes('skulk') && power(s, blocker) > power(s, attacker)) return false;

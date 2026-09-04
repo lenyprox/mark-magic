@@ -6,6 +6,7 @@ import { wilson } from '../analysis/montecarlo.js';
 import { RolloutAgent } from '../analysis/rolloutAgent.js';
 import type { Derivation, Estimate } from '../analysis/types.js';
 import { AiAgent } from '../ai/ai.js';
+import { MctsAgent } from '../ai/mcts.js';
 import type { CardDef } from '../cards/types.js';
 import { defKey } from '../engine/serialize.js';
 import type { Agent, PlayerId } from '../engine/state.js';
@@ -63,6 +64,7 @@ export function prepare(spec: MatchSpec): PreparedMatch {
 
 function makeAgent(spec: MatchSpec, name: string, seat: number, seed: number): Agent {
   if (spec.agent === 'ai') return new AiAgent({ name, verbose: false, maxSims: spec.aiSims ?? 30, cheat: true, seed: hashSeed(seed, seat + 1) });
+  if (spec.agent === 'mcts') return new MctsAgent({ name, verbose: false, maxSims: 30, iterations: spec.aiSims ?? 60, cheat: true, seed: hashSeed(seed, seat + 1) });
   return new RolloutAgent(name);
 }
 
@@ -200,7 +202,7 @@ export function matchDerivation(spec: MatchSpecRef, agg: MatchAggregate, deck = 
     ],
     result: d.winRate.value,
     assumptions: [
-      spec.agent === 'rollout' ? 'both seats follow the deterministic rollout policy (no look-ahead)' : `both seats use the simulation AI with ${spec.aiSims ?? 30} sims per decision`,
+      spec.agent === 'rollout' ? 'both seats follow the deterministic rollout policy (no look-ahead)' : spec.agent === 'mcts' ? `both seats use the MCTS AI with ${spec.aiSims ?? 60} playouts per decision` : `both seats use the simulation AI with ${spec.aiSims ?? 30} sims per decision`,
       spec.mulligans === 'none' ? 'every seven is kept' : 'a seven with 0-1 or 6-7 lands is mulliganed once',
       `a game still running after turn ${spec.maxTurns} is a draw (1/${n} of a win each)`,
       'cards with unparsed text play with those lines inert',

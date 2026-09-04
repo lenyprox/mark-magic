@@ -14,6 +14,10 @@ export interface ManaSourceOptions {
   extraSources?: ManaSource[];
   /** Try the extra sources before real mana (the "max convoke" plan). */
   extrasFirst?: boolean;
+  /** Only these permanents (by id) may be tapped (manual payment); the mana pool is always usable. */
+  onlyIds?: number[];
+  /** Tap these permanents first when several plans tie (manual preference). */
+  preferIds?: number[];
 }
 
 /** Untapped permanents with usable mana abilities. */
@@ -41,7 +45,7 @@ export function manaSources(s: GameState, p: Player, opts: ManaSourceOptions = {
         else if (Array.isArray(e.mana)) options.push(e.mana);
         else if (e.mana === 'any') options.push(...ALL.map(c => Array(e.amount ?? 1).fill(c)));
         else if (e.mana === 'any-one') {
-          const opts = e.options === 'exiled-with-colors' ? exiledColors(s, o) : e.options;
+          const opts = e.options === 'exiled-with-colors' ? exiledColors(s, o) : e.options === 'chosen-color' ? (o.chosen?.color ? [o.chosen.color] : ALL) : e.options;
           options.push(...(opts ?? ALL).map(c => Array(e.amount ?? 1).fill(c)));
         }
       }
@@ -69,7 +73,9 @@ export function findPayment(s: GameState, p: Player, cost: ManaCost, x = 0, redu
   const needPips: ManaSymbol[] = [...cost.pips];
   const hybrid = cost.hybrid.map(h => h);
   const phyrexian = [...cost.phyrexian]; // paid with life if no mana of that colour
-  const regular = manaSources(s, p, opts);
+  let regular = manaSources(s, p, opts);
+  if (opts.onlyIds) { const only = new Set(opts.onlyIds); regular = regular.filter(r => only.has(r.obj.id)); }
+  if (opts.preferIds?.length) { const pref = new Set(opts.preferIds); regular = [...regular.filter(r => pref.has(r.obj.id)), ...regular.filter(r => !pref.has(r.obj.id))]; }
   const extras = opts.extraSources ?? [];
   const sources = extras.length ? (opts.extrasFirst ? [...extras, ...regular] : [...regular, ...extras]) : regular;
   // Enumerate: small search over source options (branching kept low by trying the most-constrained pips first).

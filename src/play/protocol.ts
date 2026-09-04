@@ -25,6 +25,10 @@ export interface DeckPayload {
 
 export interface AiSettings {
   aggression: number; maxSims: number; verbose: boolean;
+  /** 'oneply' (default): score each action by the board after it resolves; 'mcts': play candidates out with UCB1 over sampled worlds. */
+  policy?: 'oneply' | 'mcts';
+  /** MCTS playouts per decision (default 120). */
+  iterations?: number;
   /** false (default in the app): the AI plays from a redacted view over sampled worlds. */
   cheat: boolean; determinizations?: number;
   /** Whether the AI is told the human's decklist (it still never sees the hidden hand/library order). */

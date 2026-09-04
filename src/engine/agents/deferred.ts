@@ -38,6 +38,7 @@ export class DeferredAgent implements Agent {
   name: string;
   stops: StopPolicy;
   hidden: boolean;
+  wantsHints = true;
   onLog?: (line: string) => void;
   /** Every answer given, in order: enough to replay a game deterministically with the same seed. */
   recorded: RecordedAnswer[] = [];

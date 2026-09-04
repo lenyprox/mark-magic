@@ -2,10 +2,10 @@
 import type { AltCost, Effect, ManaCost, TargetSpec } from '../cards/types.js';
 import { manaValue } from '../cards/parse.js';
 import { abilitiesOf, allPermanents, conditionHolds, defOf, isCreature, isLand, isType, matchesFilter, name, protectedFrom, hasKeyword } from './characteristics.js';
-import { findPayment as findPaymentFull, manaSources, type ManaSourceOptions } from './mana.js';
+import { findPayment as findPaymentFull, manaSources, type ManaSourceOptions, type Payment } from './mana.js';
 import { costAdjust, exileWindowOpen, extraManaSources, hasModifier, nonManaCostPayable, pickDelve, spellManaCost, ZERO_COST } from './cost.js';
 import type { Game } from './game.js';
-import { type CastZone, type GameObject, type LegalAction, type PlayerAction, type PlayerId, type TargetRef } from './state.js';
+import { type CastZone, type GameObject, type IllegalHint, type LegalAction, type PlayerAction, type PlayerId, type TargetRef } from './state.js';
 import { alive, opponentsOf } from './players.js';
 
 /** Which effects of a spell/ability take targets, with their spec. */
@@ -106,12 +106,20 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
     });
   }
   for (const c of pl.graveyard) if (c.def.altCosts?.some(a => a.from === 'graveyard')) castActionsFor(g, p, c, 'graveyard', sorceryTiming, out);
+  // abilities activated from the graveyard (unearth)
+  for (const c of pl.graveyard) c.def.abilities.forEach((ab, i) => {
+    if (ab.kind !== 'activated' || !ab.fromGraveyard) return;
+    if (ab.sorcerySpeed && !sorceryTiming) return;
+    if (ab.cost.mana && !findPayment(ab.cost.mana)) return;
+    out.push({ action: { type: 'activate', objectId: c.id, abilityIndex: i }, label: `${c.def.name}: ${ab.text}`, manaValue: ab.cost.mana ? manaValue(ab.cost.mana) : 0 });
+  });
   for (const c of pl.exile) if (c.castableFromExile && exileWindowOpen(s, p, c.castableFromExile)) castActionsFor(g, p, c, 'exile', sorceryTiming, out);
   for (const c of pl.command ?? []) castActionsFor(g, p, c, 'command', sorceryTiming, out);
   // activated abilities of permanents
   for (const o of pl.battlefield) {
     if (o.token?.treasure && !o.tapped) { out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -1 }, label: `sacrifice Treasure for mana` }); continue; }
     if (o.token?.clue) { if (findPayment({ generic: 2, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{2}' })) out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -6 }, label: `sacrifice Clue: draw a card`, manaValue: 2 }); continue; }
+    if (o.token?.food) { if (!o.tapped && findPayment({ generic: 2, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{2}' })) out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -7 }, label: `sacrifice Food: gain 3 life`, manaValue: 2 }); continue; }
     abilitiesOf(o).forEach((ab, i) => {
       if (ab.kind !== 'activated') return;
       // tap-only mana abilities are used implicitly by auto-payment; ones with other costs (Lotus Petal, Lion's Eye Diamond) are explicit actions
@@ -172,7 +180,7 @@ function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZone, sor
   const wantsXRange = !!d.asEnters?.some(a => a.kind === 'counters' && a.amount === 'X');
   const tryPay = (cost: ManaCost, x: number, delveN: number, useExtras: boolean) => findPaymentFull(s, pl, cost, x, adjust + delveN, g.manaLimit, { forSpell: c, extraSources: useExtras ? extras : [], extrasFirst: useExtras });
 
-  interface Variant { alt?: AltCost; kicked?: boolean; x?: number; pay?: { delve?: number[]; useExtras?: boolean }; how: string[]; mv: number }
+  interface Variant { alt?: AltCost; kicked?: boolean; x?: number; pay?: { delve?: number[]; useExtras?: boolean }; how: string[]; mv: number; plan?: Payment | null; cost?: ManaCost }
   const variants: Variant[] = [];
   const consider = (alt: AltCost | undefined, kicked: boolean) => {
     if (alt && alt.from !== from) return;
@@ -189,8 +197,9 @@ function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZone, sor
       const genericNeeded = Math.max(0, cost.generic + cost.x * xn - adjust);
       const how: string[] = [alt ? alt.label : '', from === 'graveyard' && !alt ? 'from graveyard' : from === 'exile' ? 'from exile' : from === 'command' ? (tax ? `from command zone, tax ${tax}` : 'from command zone') : '', kicked ? 'kicked' : ''].filter(Boolean);
       const mv = alt && !alt.cost.mana ? 0 : manaValue(cost, xn);
-      if (tryPay(cost, xn, 0, false)) {
-        variants.push({ alt, kicked, x, how, mv });
+      const plan = tryPay(cost, xn, 0, false);
+      if (plan) {
+        variants.push({ alt, kicked, x, how, mv, plan, cost });
         if (delve && countsExiled && gy > 0 && genericNeeded > 0) { const n = Math.min(gy, genericNeeded); variants.push({ alt, kicked, x, pay: { delve: pickDelve(s, pl, c, n) }, how: [...how, `delve ${n}`], mv }); }
         continue;
       }
@@ -211,8 +220,51 @@ function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZone, sor
     const modeLabel = modes ? ` [mode ${modes.map(m => m + 1).join('+')}]` : '';
     const label = `cast ${d.name}${v.how.length ? ` (${v.how.join(', ')})` : ''}${modeLabel}`;
     const action: PlayerAction = { type: 'cast', cardId: c.id, modes, x: v.x, kicked: v.kicked || undefined, alt: v.alt?.id, from: from !== 'hand' ? from : undefined, pay: v.pay };
-    out.push({ action, label, targetOptions, manaValue: v.mv });
+    const pay = v.plan ? { cost: v.cost?.raw ?? '', taps: v.plan.taps.map(t => ({ id: t.source.obj.id, name: name(t.source.obj), mana: t.option })), pool: [...v.plan.pool] } : undefined;
+    out.push({ action, label, targetOptions, manaValue: v.mv, ...(pay ? { pay } : {}) });
   }
+}
+
+/**
+ * Why each hand card and permanent with abilities has no legal action right now (a cheap sibling pass over the
+ * same predicates legalActions uses), for the table's "why not?" affordances. CR numbers cite the rule involved.
+ */
+export function illegalReasons(g: Game, p: PlayerId, legal: LegalAction[]): IllegalHint[] {
+  const s = g.state; const pl = s.players[p]; const out: IllegalHint[] = [];
+  const actionable = new Set<number>();
+  for (const l of legal) { if (l.action.type === 'play-land' || l.action.type === 'cast') actionable.add(l.action.cardId); else if (l.action.type === 'activate') actionable.add(l.action.objectId); }
+  const myTurn = s.activePlayer === p; const mainStep = s.step === 'main1' || s.step === 'main2'; const stackEmpty = s.stack.length === 0;
+  const sorceryTiming = myTurn && mainStep && stackEmpty;
+  const extraLands = pl.battlefield.reduce((a, o) => a + abilitiesOf(o).reduce((b, ab) => b + (ab.kind === 'static' && ab.effect.kind === 'extra-land' ? ab.effect.amount : 0), 0), 0);
+  const timing = (): IllegalHint['reasons'][number] => !myTurn ? { code: 'not-your-turn', rule: '505.1a', text: "It isn't your turn" } : !mainStep ? { code: 'sorcery-timing', rule: '307.1', text: 'Only during your main phase' } : { code: 'stack-not-empty', rule: '117.1a', text: 'The stack must be empty' };
+  for (const c of pl.hand) {
+    if (actionable.has(c.id)) continue;
+    const d = c.def; const reasons: IllegalHint['reasons'] = [];
+    if (d.types.includes('Land')) {
+      if (!sorceryTiming) { const t = timing(); reasons.push({ ...t, rule: t.code === 'not-your-turn' ? '305.1' : t.rule }); }
+      else if (pl.landsPlayedThisTurn >= 1 + extraLands) reasons.push({ code: 'land-drop-used', rule: '305.2', text: 'You already played a land this turn' });
+    } else {
+      const instant = d.types.includes('Instant') || d.keywords.includes('flash');
+      if (!instant && !sorceryTiming) reasons.push(timing());
+      else if (!d.manaCost && !d.altCosts?.length) reasons.push({ code: 'no-action', rule: '601.2', text: 'No cost the engine can pay for this card' });
+      else reasons.push({ code: 'cant-pay', rule: '601.2g', text: `Can't pay ${d.manaCost?.raw ?? 'its cost'} with the mana available` });
+    }
+    if (reasons.length) out.push({ id: c.id, reasons });
+  }
+  for (const o of pl.battlefield) {
+    if (actionable.has(o.id)) continue;
+    const abs = abilitiesOf(o).filter((ab): ab is Extract<typeof ab, { kind: 'activated' }> => ab.kind === 'activated' && !(ab.manaAbility && !ab.cost.sacrificeSelf && !ab.cost.discardHand && !ab.cost.mana));
+    if (!abs.length) continue;
+    const reasons: IllegalHint['reasons'] = [];
+    const needsTap = abs.every(ab => ab.cost.tap);
+    if (needsTap && o.tapped) reasons.push({ code: 'tapped', rule: '602.5a', text: 'It is already tapped' });
+    else if (needsTap && isCreature(o) && o.enteredTurn === s.turn && !hasKeyword(s, o, 'haste')) reasons.push({ code: 'summoning-sick', rule: '302.6', text: 'It came under your control this turn (summoning sickness)' });
+    else if (abs.every(ab => ab.sorcerySpeed) && !sorceryTiming) reasons.push(timing());
+    else if (abs.every(ab => ab.oncePerTurn) && abs.every((_, i) => o.activatedThisTurn.has(i))) reasons.push({ code: 'once-per-turn', rule: '602.2', text: 'Already activated this turn' });
+    else reasons.push({ code: 'cant-pay', rule: '602.2b', text: "Can't pay the ability's cost right now" });
+    out.push({ id: o.id, reasons });
+  }
+  return out;
 }
 
 export function expandModes(effects: Effect[], modes: number[] | undefined): Effect[] {

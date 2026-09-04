@@ -111,9 +111,20 @@ export class RolloutAgent implements Agent {
   }
 
   /** Multiplayer: attack the opponent that can be killed this turn, else the one with the weakest defence; 2-player: the opponent. */
-  attackDeclaration(s: GameState, me: PlayerId, candidates: number[], mustAttack: number[], defenders?: PlayerId[]): { attackers: number[]; targets?: Record<number, PlayerId> } {
+  attackDeclaration(s: GameState, me: PlayerId, candidates: number[], mustAttack: number[], defenders?: PlayerId[]): { attackers: number[]; targets?: Record<number, PlayerId | { planeswalker: number }> } {
     const opts = defenders && defenders.length > 1 ? defenders : null;
-    if (!opts) return { attackers: this.attackers(s, me, candidates, mustAttack) };
+    if (!opts) {
+      const attackers = this.attackers(s, me, candidates, mustAttack);
+      const opp = primaryOpponent(s, me);
+      const walkers = s.players[opp].battlefield.filter(o => o.def.types.includes('Planeswalker'));
+      if (!walkers.length || !attackers.length) return { attackers };
+      // point attackers at planeswalkers they can finish, unless the swing is lethal on the player
+      const total = attackers.reduce((a, id) => a + power(s, findObject(s, id)!), 0);
+      if (total >= s.players[opp].life) return { attackers };
+      const targets: Record<number, PlayerId | { planeswalker: number }> = {};
+      for (const id of attackers) { const o = findObject(s, id)!; const pw = walkers.find(w => (w.counters.loyalty ?? 0) <= power(s, o) && !Object.values(targets).some(t => typeof t === 'object' && t.planeswalker === w.id)); if (pw) targets[id] = { planeswalker: pw.id }; }
+      return Object.keys(targets).length ? { attackers, targets } : { attackers };
+    }
     const cands = candidates.map(id => findObject(s, id)!).filter(o => o && canAttack(s, o));
     const totalPower = cands.reduce((a, o) => a + power(s, o), 0);
     const defence = (q: PlayerId) => s.players[q].battlefield.filter(o => isCreature(o) && !o.tapped).reduce((a, o) => a + toughness(s, o), 0);

@@ -62,6 +62,7 @@ export function PlaySetup() {
   const [lifeTouched, setLifeTouched] = useState(false);
   const [mulligans, setMulligans] = useState<boolean>(last?.options.mulligans ?? DEFAULT_START_OPTIONS.mulligans);
   const [strength, setStrength] = useState<Strength>(String(last?.options.ai.maxSims ?? 300) as Strength);
+  const [aiSearch, setAiSearch] = useState<'oneply' | 'mcts'>(last?.options.ai.policy ?? 'oneply');
   const [knowsList, setKnowsList] = useState<boolean>(last?.options.ai.knowsOpponentList ?? false);
   const [cheat, setCheat] = useState<boolean>(last?.options.ai.cheat ?? false);
   const [anEnabled, setAnEnabled] = useState<boolean>(last?.options.analysis.enabled ?? true);
@@ -95,7 +96,7 @@ export function PlaySetup() {
       }
       const options: StartOptions = {
         ...DEFAULT_START_OPTIONS, seed: seedNum, startingLife: life, mulligans,
-        ai: { ...DEFAULT_START_OPTIONS.ai, maxSims: Number(strength), knowsOpponentList: knowsList, cheat },
+        ai: { ...DEFAULT_START_OPTIONS.ai, maxSims: Number(strength), knowsOpponentList: knowsList, cheat, policy: aiSearch, iterations: aiSearch === 'mcts' ? Math.round(Number(strength) / 2.5) : undefined },
         analysis: { ...DEFAULT_START_OPTIONS.analysis, enabled: anEnabled, trials: Number(trials), policy, opponentModel: wantArchetype && profile ? 'archetype' : oppModel === 'archetype' ? 'exact' : oppModel, opponentProfile: profile },
         playerName: name.trim() || 'You', aiName: b.archetype?.name ?? oppRef.name,
       };
@@ -178,6 +179,8 @@ export function PlaySetup() {
           <div className={styles.field}>
             <span className={styles.fieldLabel}>Strength (simulations per decision)</span>
             <Segmented label="AI strength" value={strength} onChange={setStrength} options={[{ value: '100', label: 'Quick · 100' }, { value: '300', label: 'Standard · 300' }, { value: '600', label: 'Strong · 600' }]} size="sm" />
+            <span className={styles.fieldLabel}>Search</span>
+            <Segmented<'oneply' | 'mcts'> label="AI search" value={aiSearch} onChange={setAiSearch} options={[{ value: 'oneply', label: 'One ply · fast' }, { value: 'mcts', label: 'Look-ahead · MCTS' }]} size="sm" />
           </div>
           <label className={styles.toggle}>
             <input type="checkbox" checked={knowsList} onChange={e => setKnowsList(e.target.checked)} />

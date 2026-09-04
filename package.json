@@ -27,12 +27,18 @@
     "sim:batch": "tsx scripts/sim-batch.ts",
     "bench:games": "tsx scripts/bench-games.ts",
     "verify:scenarios": "node --test --import tsx test/scenarios.test.ts",
+    "verify:pool": "tsx scripts/verify-pool.ts",
+    "verify:dashboard": "tsx scripts/verify-dashboard.ts",
+    "scripts:draft": "tsx scripts/scripts-draft.ts",
+    "scripts:check": "tsx scripts/scripts-check.ts",
+    "verify:all": "npm run typecheck:all && npm test && npm run scripts:check && npm run coverage:pool && npm run verify:pool && npm run bench:games",
     "optimize": "tsx scripts/optimize.ts",
     "optimize:daemon": "tsx scripts/optimizer-daemon.ts",
     "test:e2e": "npm run test:e2e -w apps/web",
     "typecheck:all": "npm run typecheck && npm run web:typecheck",
     "demo:pack": "node demo/pack.mjs",
-    "collection:import": "tsx scripts/import-collection.ts"
+    "collection:import": "tsx scripts/import-collection.ts",
+    "data:cr": "node scripts/build-cr.mjs"
   },
   "engines": {
     "node": ">=20"

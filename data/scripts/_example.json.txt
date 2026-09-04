@@ -1,0 +1,14 @@
+{
+  "oracleId": "00000000-0000-0000-0000-000000000000",
+  "name": "Example Card",
+  "oracleHash": "deadbeef",
+  "source": "hand",
+  "mode": "extend",
+  "covers": ["Whenever ~ attacks, you gain 1 life."],
+  "abilities": [
+    { "kind": "triggered", "event": { "on": "attacks", "self": true }, "effects": [{ "op": "gain-life", "amount": 1, "who": "you" }], "text": "Whenever this creature attacks, you gain 1 life." }
+  ],
+  "scenarios": ["Example Card gains life on attack"],
+  "aiHints": { "role": "creature", "timing": "main" },
+  "notes": "Rename to <oracle_id>.json and set oracleHash to oracleHash(def.oracleText) to activate."
+}

@@ -18,7 +18,8 @@ export interface ManaCost {
 export type Keyword =
   | 'flying' | 'first strike' | 'double strike' | 'deathtouch' | 'lifelink' | 'trample' | 'haste' | 'vigilance'
   | 'reach' | 'defender' | 'flash' | 'hexproof' | 'indestructible' | 'menace' | 'unblockable' | 'cant block'
-  | 'shroud' | 'protection' | 'prowess' | 'ward' | 'fear' | 'intimidate' | 'skulk' | 'cant attack' | 'ward';
+  | 'shroud' | 'protection' | 'prowess' | 'ward' | 'fear' | 'intimidate' | 'skulk' | 'cant attack'
+  | 'shadow' | 'horsemanship' | 'flanking' | 'exalted' | 'infect' | 'wither' | 'toxic' | 'bushido' | 'landwalk' | 'rampage';
 
 /** Who / what an effect can target */
 export interface TargetSpec {
@@ -58,6 +59,7 @@ export interface AbilityCost {
   sacrifice?: Filter;
   discard?: number;
   discardSelf?: boolean;                                                 // Channel ("Discard this card:"), activated from hand
+  energy?: number;                                                       // "Pay {E}{E}"
   discardHand?: boolean;                                                 // Lion's Eye Diamond
   payLife?: number;
   removeCounters?: { counter: string; amount: number };
@@ -89,13 +91,13 @@ export type AsEnters =
   | { kind: 'tapped' }
   | { kind: 'tapped-unless'; condition: Condition }                      // fastlands, slowlands, checklands, Starting Town
   | { kind: 'pay-life-or-tapped'; life: number }                         // shocklands
-  | { kind: 'counters'; counter: string; amount: Amount }                // Chalice X, Ballista X, Moonshadow, Murktide
+  | { kind: 'counters'; counter: string; amount: Amount; condition?: Condition }   // Chalice X, Ballista X, Moonshadow, Murktide, bloodthirst
   | { kind: 'choose'; what: 'creature-type' | 'color' }                  // Cavern of Souls
   | { kind: 'discard-or-graveyard'; filter: Filter };                    // Mox Diamond
 
 export type Effect =
   | { op: 'damage'; amount: Amount; target: TargetSpec | 'each-opponent' | 'each-player' | 'each-creature' | 'each-other-creature' | 'each-opponent-creature' | 'each-creature-and-player' | 'each-flying-creature' | 'each-nonflying-creature' | 'each-creature-you-dont-control' ; divided?: boolean; kickedAmount?: Amount }
-  | { op: 'destroy'; target: TargetSpec | 'all-creatures' | 'all-artifacts' | 'all-enchantments' | 'all-lands' | 'all-nonland' | 'all-opponent-creatures' | 'all-tapped-creatures'; noRegenerate?: boolean; filter?: Filter; ifTarget?: Filter; ifTargetAlt?: { condition: Condition; filter: Filter } }
+  | { op: 'destroy'; target: TargetSpec | 'all-creatures' | 'all-artifacts' | 'all-enchantments' | 'all-lands' | 'all-nonland' | 'all-opponent-creatures' | 'all-tapped-creatures' | 'enchanted'; noRegenerate?: boolean; filter?: Filter; ifTarget?: Filter; ifTargetAlt?: { condition: Condition; filter: Filter } }
   | { op: 'exile'; target: TargetSpec | 'all-creatures'; from?: 'graveyard' | 'battlefield'; until?: 'leaves'; ifTarget?: Filter; ifTargetAlt?: { condition: Condition; filter: Filter } }
   | { op: 'counter'; target: TargetSpec; unlessPay?: number; toExile?: boolean }
   | { op: 'draw'; amount: Amount; who: 'you' | 'target-player' | 'each-player' | 'opponent' | 'controller' }
@@ -105,7 +107,24 @@ export type Effect =
   /** Look at the top `look` cards, put `take` of them into your hand (or none, Ponder-style), the rest to `rest`. */
   | { op: 'dig'; look: Amount; take: number; rest: 'bottom' | 'top' | 'graveyard'; order: 'any' | 'random'; reveal?: boolean; filter?: Filter; optional?: boolean; altTake?: { condition: Condition; take: number } }
   | { op: 'put-from-hand'; amount: Amount; to: 'library-top' | 'library-bottom' | 'battlefield'; filter?: Filter; optional?: boolean; who?: 'you' | 'each-player' }
-  | { op: 'shuffle'; optional?: boolean }
+  | { op: 'shuffle'; optional?: boolean; who?: 'that-player' | 'target-player' }
+  | { op: 'reveal-hand'; who: 'target-player' | 'target-opponent' }
+  | { op: 'become-monarch' }
+  | { op: 'return-self-to-battlefield'; counters?: { counter: string; amount: number } }   // persist, undying
+  | { op: 'evolve' }
+  | { op: 'move-counters'; counter: string; target: TargetSpec }                          // modular
+  | { op: 'renown'; amount: number }
+  | { op: 'sacrifice-unless-pay'; mana: ManaCost; once?: 'echo' }
+  | { op: 'unearth' }
+  | { op: 'cascade' }
+  | { op: 'explore' }
+  | { op: 'optional-pay'; mana: ManaCost; then: Effect[] }                   // "you may pay {2}. If you do, ..."
+  | { op: 'return-own'; filter: Filter; count: number; to: 'hand' }        // "return a land you control to its owner's hand"
+  | { op: 'cant-block'; target: TargetSpec; duration: 'eot' }
+  | { op: 'no-untap-self' }                                                  // "~ doesn't untap during your next untap step" (mana side effect)
+  | { op: 'no-untap-that' }                                                  // "That creature doesn't untap during its controller's next untap step"
+  | { op: 'energy'; amount: Amount }
+  | { op: 'poison'; amount: Amount; who: 'target-player' | 'each-opponent' }
   | { op: 'shuffle-self-into-library' }
   | { op: 'reveal-hand-discard'; who: 'target-player' | 'target-opponent'; filter: Filter; count: 1 | 'all-named' }
   | { op: 'look-top'; who: 'target-player' | 'you'; amount: number }
@@ -127,18 +146,18 @@ export type Effect =
   | { op: 'exile-graveyard'; who: 'target-player' | 'each-opponent' | 'each-player' }
   | { op: 'attach-to-that' }
   | { op: 'counter-triggering' }
-  | { op: 'pump'; target: TargetSpec | 'creatures-you-control' | 'self' | 'all-creatures' | 'other-creatures-you-control' | 'attacking-creatures'; power: Amount; toughness: Amount; keywords?: Keyword[]; duration: 'eot' | 'permanent' }
+  | { op: 'pump'; target: TargetSpec | 'creatures-you-control' | 'self' | 'all-creatures' | 'other-creatures-you-control' | 'attacking-creatures' | 'enchanted' | 'all-opponent-creatures'; power: Amount; toughness: Amount; keywords?: Keyword[]; duration: 'eot' | 'permanent' }
   | { op: 'grant-keyword'; target: TargetSpec | 'self' | 'creatures-you-control' | 'permanents-you-control'; keywords: Keyword[]; duration: 'eot' | 'permanent' }
   | { op: 'bounce'; target: TargetSpec | 'all-creatures' | 'all-nonland' | 'self'; to: 'hand' | 'library-top' | 'library-bottom' }
-  | { op: 'token'; count: Amount; power: number; toughness: number; colors: Color[]; types: CardType[]; subtypes: string[]; keywords: Keyword[]; tapped?: boolean; attacking?: boolean; name?: string; text?: string; treasure?: boolean; clue?: boolean; spawn?: boolean; dynamicPT?: Amount }
+  | { op: 'token'; count: Amount; power: number; toughness: number; colors: Color[]; types: CardType[]; subtypes: string[]; keywords: Keyword[]; tapped?: boolean; attacking?: boolean; name?: string; text?: string; treasure?: boolean; clue?: boolean; spawn?: boolean; food?: boolean; dynamicPT?: Amount }
   | { op: 'counters'; target: TargetSpec | 'self' | 'creatures-you-control' | 'each-other-creature-you-control'; counter: string; amount: Amount; optional?: boolean }
-  | { op: 'tap'; target: TargetSpec | 'all-opponent-creatures' | 'all-creatures' ; noUntap?: boolean }
-  | { op: 'untap'; target: TargetSpec | 'self' | 'all-you-control' | 'lands-you-control' }
+  | { op: 'tap'; target: TargetSpec | 'all-opponent-creatures' | 'all-creatures' | 'enchanted' | 'self'; noUntap?: boolean }
+  | { op: 'untap'; target: TargetSpec | 'self' | 'all-you-control' | 'lands-you-control' | 'that' | 'enchanted' }
   | { op: 'sacrifice'; who: 'you' | 'target-player' | 'each-opponent' | 'each-player'; what: Filter; amount: number }
   | { op: 'sacrifice-self' }
   | { op: 'mill'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' }
   | { op: 'search-land'; toBattlefield: boolean; tapped: boolean; basic: boolean; count: number; subtypes?: string[] }
-  | { op: 'add-mana'; mana: ManaSymbol[] | 'any' | 'any-one' ; amount?: number; options?: ManaSymbol[] | 'exiled-with-colors'; restriction?: 'creature-spell' | 'instant-sorcery' | 'chosen-type-creature' | 'colorless-eldrazi'; altIf?: { condition: Condition; mana: ManaSymbol[] } }
+  | { op: 'add-mana'; mana: ManaSymbol[] | 'any' | 'any-one' ; amount?: number; options?: ManaSymbol[] | 'exiled-with-colors' | 'chosen-color'; restriction?: 'creature-spell' | 'instant-sorcery' | 'chosen-type-creature' | 'colorless-eldrazi'; altIf?: { condition: Condition; mana: ManaSymbol[] } }
   | { op: 'scry'; amount: number }
   | { op: 'surveil'; amount: number }
   | { op: 'return-from-graveyard'; what: Filter; to: 'hand' | 'battlefield'; target?: boolean; anyGraveyard?: boolean }
@@ -155,11 +174,12 @@ export type Effect =
   | { op: 'prevent-damage'; target: TargetSpec | 'self' | 'you'; amount: Amount | 'all'; duration: 'eot' }
   | { op: 'cant-attack-or-block'; target: TargetSpec; duration: 'eot' }
   | { op: 'extra-turn' }
-  | { op: 'loot'; draw: number; discard: number }
+  | { op: 'loot'; draw: number; discard: number; discardFirst?: boolean; optional?: boolean }
   | { op: 'unknown'; text: string };
 
 export type Condition =
-  | { kind: 'life-le'; who: 'you' | 'opponent'; value: number }
+  | { kind: 'life-le'; who: 'you' | 'opponent' | 'any'; value: number }
+  | { kind: 'opponents-ge'; value: number }
   | { kind: 'controls'; who: 'you' | 'opponent'; filter: Filter; atLeast: number }
   | { kind: 'cards-in-hand-ge'; who: 'you' | 'opponent'; value: number }
   | { kind: 'threshold' } | { kind: 'metalcraft' } | { kind: 'delirium' } | { kind: 'kicked' } | { kind: 'raid' } | { kind: 'morbid' } | { kind: 'revolt' } | { kind: 'spell-mastery' } | { kind: 'ferocious' } | { kind: 'formidable' } | { kind: 'hellbent' } | { kind: 'landfall-this-turn' } | { kind: 'domain-ge'; value: number }
@@ -170,6 +190,9 @@ export type Condition =
   | { kind: 'graveyard-has-each'; filters: Filter[] }
   | { kind: 'controls-each'; filters: Filter[] }
   | { kind: 'self-no-counters'; counter: string }
+  | { kind: 'self-not-renowned' }
+  | { kind: 'self-attacking' }
+  | { kind: 'opponent-lost-life-this-turn' }
   | { kind: 'life-gained-this-turn' }
   | { kind: 'unknown'; text: string };
 
@@ -194,12 +217,13 @@ export type TriggerEvent =
   | { on: 'life-gain' } | { on: 'life-loss-opponent' }
   | { on: 'sacrifice'; filter?: Filter }
   | { on: 'tapped'; self: boolean }
+  | { on: 'targeted'; self: boolean; bySpellYouCast?: boolean }
   | { on: 'discard' }
   | { on: 'end-of-turn' }
   | { on: 'unknown'; text: string };
 
 export interface TriggeredAbility { kind: 'triggered'; event: TriggerEvent; effects: Effect[]; condition?: Condition; optional?: boolean; text: string; intervening?: Condition }
-export interface ActivatedAbility { kind: 'activated'; cost: AbilityCost; effects: Effect[]; text: string; sorcerySpeed?: boolean; loyalty?: number; oncePerTurn?: boolean; manaAbility?: boolean; activateOnlyIf?: Condition; instantSpeed?: boolean }
+export interface ActivatedAbility { kind: 'activated'; cost: AbilityCost; effects: Effect[]; text: string; sorcerySpeed?: boolean; loyalty?: number; oncePerTurn?: boolean; manaAbility?: boolean; activateOnlyIf?: Condition; instantSpeed?: boolean; /** Activated while the card is in the graveyard (unearth). */ fromGraveyard?: boolean }
 export interface StaticAbility { kind: 'static'; effect: StaticEffect; text: string }
 export interface SpellAbility { kind: 'spell'; effects: Effect[]; text: string }
 export type Ability = TriggeredAbility | ActivatedAbility | StaticAbility | SpellAbility;
@@ -208,6 +232,10 @@ export type StaticEffect =
   | { kind: 'anthem'; power: number; toughness: number; filter: Filter; scope: 'you-control' | 'all' | 'other-you-control'; keywords?: Keyword[] }
   | { kind: 'self-pt'; power: Amount; toughness: Amount }                                 // "~ gets +1/+1 for each ..."
   | { kind: 'self-keywords'; keywords: Keyword[]; condition?: Condition }
+  | { kind: 'can-be-commander' } | { kind: 'look-top-anytime' } | { kind: 'may-not-untap' } | { kind: 'no-max-hand-size' }
+  | { kind: 'cant-attack-unless-defender-controls'; filter: Filter }
+  | { kind: 'extra-blocks'; amount: number }
+  | { kind: 'cant-be-blocked-by-more-than-one' }
   | { kind: 'aura'; power: number; toughness: number; keywords?: Keyword[]; cantAttackOrBlock?: boolean; cantAttack?: boolean; cantBlock?: boolean; doesntUntap?: boolean; enchant: TargetSpec; controlEnchanted?: boolean; text?: string }
   | { kind: 'equipment'; power: number; toughness: number; keywords?: Keyword[]; equipCost: ManaCost }
   /** Signed generic-mana adjustment to spells matching `filter`: positive = cheaper. `who` = whose spells; `from` restricts to non-hand casts (Bilbo). */
@@ -219,6 +247,14 @@ export type StaticEffect =
   | { kind: 'unknown'; text: string };
 
 export interface CardDef {
+  /** Status of the per-card script (data/scripts/<oracle_id>.json) if one exists: applied, or stale after an oracle text change. */
+  script?: { applied: boolean; stale: boolean; source?: 'generated' | 'reviewed' | 'hand'; confidence?: number };
+  /** Keyword parameters: toxic N, bushido N, rampage N, landwalk land types. */
+  toxic?: number; bushido?: number; rampage?: number; landwalk?: string[];
+  /** Cascade (CR 702.85): on cast, exile from the top until a cheaper nonland card and cast it free. */
+  cascade?: boolean;
+  /** "If ~ would be put into a graveyard from anywhere, exile it / shuffle it into its owner's library instead." (CR 614) */
+  graveyardReplacement?: 'exile' | 'shuffle';
   name: string;
   oracleId: string;
   manaCost: ManaCost | null;

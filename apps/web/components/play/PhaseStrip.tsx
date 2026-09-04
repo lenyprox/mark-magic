@@ -30,7 +30,7 @@ export function PhaseStrip({ step, turn, myTurn, stops, onToggleStop }: PhaseStr
           return (
             <li key={s} className={clsx(styles.step, i === cur && styles.stepCur, i < cur && styles.stepPast)} aria-current={i === cur ? 'step' : undefined}>
               <Tooltip content={STEP_LABELS[s]}>
-                <span className={styles.stepLabel} aria-label={STEP_LABELS[s]}>{STEP_SHORT[s]}</span>
+                <span key={i === cur ? `${s}-cur` : s} className={clsx(styles.stepLabel, i === cur && styles.stepFlash)} aria-label={STEP_LABELS[s]}>{STEP_SHORT[s]}</span>
               </Tooltip>
               {key ? (
                 <button type="button" className={clsx(styles.stopBtn, on && styles.stopOn)} role="switch" aria-checked={on} aria-label={`Stop at ${STEP_LABELS[s]} on ${myTurn ? 'my' : "the opponent's"} turn`} title={`Stop at ${STEP_LABELS[s]}`} onClick={() => onToggleStop(key, !on)} />
