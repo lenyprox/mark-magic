@@ -125,9 +125,31 @@ export function matchesFilter(s: GameState, o: GameObject, f: Filter | undefined
 interface Mods { p: number; t: number; kw: Keyword[]; landwalk?: string[]; flags: { cantAttack?: boolean; cantBlock?: boolean; cantAttackOrBlock?: boolean; doesntUntap?: boolean } }
 
 /** Collect static modifications applying to `o` from all permanents on the battlefield. */
+/** Permanents carrying static abilities, cached per battlefield generation: most permanents have none. */
+let staticSrcCache: { state: unknown; gen: number; count: number; list: GameObject[] } | null = null;
+function staticSources(s: GameState): GameObject[] {
+  const gen = s.bfGen ?? 0;
+  const perms = allPermanents(s);
+  if (staticSrcCache && staticSrcCache.state === s && staticSrcCache.gen === gen && staticSrcCache.count === perms.length) return staticSrcCache.list;
+  const list = perms.filter(o => abilitiesOf(o).some(ab => ab.kind === 'static'));
+  staticSrcCache = { state: s, gen, count: perms.length, list };
+  return list;
+}
+
+let modCache: { state: unknown; version: number; gen: number; map: Map<number, Mods> } | null = null;
 function staticMods(s: GameState, o: GameObject): Mods {
+  const gen = s.bfGen ?? 0;
+  if (!modCache || modCache.state !== s || modCache.version !== s.version || modCache.gen !== gen) modCache = { state: s, version: s.version, gen, map: new Map() };
+  const hit = modCache.map.get(o.id);
+  if (hit) return hit;
+  const m = computeStaticMods(s, o);
+  modCache.map.set(o.id, m);
+  return m;
+}
+
+function computeStaticMods(s: GameState, o: GameObject): Mods {
   const m: Mods = { p: 0, t: 0, kw: [], flags: {} };
-  for (const src of allPermanents(s)) {
+  for (const src of staticSources(s)) {
     // aura / equipment attached to o
     if (src.attachedTo === o.id) {
       for (const ab of abilitiesOf(src)) if (ab.kind === 'static') {
@@ -162,7 +184,7 @@ function staticMods(s: GameState, o: GameObject): Mods {
     }
   }
   // Anger / Filth: anthems that work from the graveyard (the def flag keeps this off the hot path)
-  if (isCreature(o)) for (const src of s.players[o.controller].graveyard) if (src.def.graveyardStatic) for (const ab of abilitiesOf(src)) {
+  if (isCreature(o) && hasGraveyardStatics(s, o.controller)) for (const src of s.players[o.controller].graveyard) if (src.def.graveyardStatic) for (const ab of abilitiesOf(src)) {
     if (ab.kind !== 'static' || ab.effect.kind !== 'anthem' || !ab.effect.whileInGraveyard) continue;
     const e = ab.effect;
     if (e.condition && !conditionHolds(s, src, e.condition)) continue;
@@ -251,11 +273,22 @@ export function toughness(s: GameState, o: GameObject): number {
 }
 export function keywords(s: GameState, o: GameObject): Keyword[] {
   const base = o.token ? o.token.keywords : defOf(o).keywords;
-  const fromCounters = Object.keys(o.counters).filter(k => o.counters[k] > 0 && KEYWORD_COUNTERS.has(k)) as Keyword[];
-  return [...new Set([...base, ...(o.animated?.keywords ?? []), ...fromCounters, ...o.eotKeywords, ...staticMods(s, o).kw])];
+  let fromCounters: Keyword[] | undefined;
+  for (const k in o.counters) if (o.counters[k] > 0 && KEYWORD_COUNTERS.has(k)) (fromCounters ??= []).push(k as Keyword);
+  const mods = staticMods(s, o).kw;
+  if (!fromCounters && !o.animated && !o.eotKeywords.length && !mods.length) return base;
+  return [...new Set([...base, ...(o.animated?.keywords ?? []), ...(fromCounters ?? []), ...o.eotKeywords, ...mods])];
 }
 /** CR 122.1: keyword counters grant the keyword. */
 const KEYWORD_COUNTERS = new Set(['flying', 'first strike', 'double strike', 'deathtouch', 'haste', 'hexproof', 'indestructible', 'lifelink', 'menace', 'reach', 'trample', 'vigilance', 'shadow', 'exalted']);
+/** Does this player's graveyard hold a card whose static ability works from there? Cached per state version. */
+let gyStaticCache: { state: unknown; version: number; flags: boolean[] } | null = null;
+function hasGraveyardStatics(s: GameState, p: PlayerId): boolean {
+  if (!gyStaticCache || gyStaticCache.state !== s || gyStaticCache.version !== s.version) {
+    gyStaticCache = { state: s, version: s.version, flags: s.players.map(pl => pl.graveyard.some(o => o.def.graveyardStatic)) };
+  }
+  return gyStaticCache.flags[p] ?? false;
+}
 /** Doran and friends: does this creature assign combat damage equal to its toughness? */
 export function damageByToughness(s: GameState, o: GameObject): boolean {
   for (const src of s.players[o.controller].battlefield) for (const ab of abilitiesOf(src)) {
@@ -279,7 +312,7 @@ export function castForbiddenBy(s: GameState, p: PlayerId, c: GameObject): GameO
   return null;
 }
 export function hasKeyword(s: GameState, o: GameObject, k: Keyword): boolean { return keywords(s, o).includes(k); }
-export function flags(s: GameState, o: GameObject) { const f = staticMods(s, o).flags; if (o.eotFlags.cantAttackOrBlock) f.cantAttackOrBlock = true; if (o.eotFlags.cantBlock) f.cantBlock = true; return f; }
+export function flags(s: GameState, o: GameObject) { const f = { ...staticMods(s, o).flags }; if (o.eotFlags.cantAttackOrBlock) f.cantAttackOrBlock = true; if (o.eotFlags.cantBlock) f.cantBlock = true; return f; }
 
 export function canAttack(s: GameState, o: GameObject): boolean {
   if (!isCreature(o) || o.tapped) return false;

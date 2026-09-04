@@ -102,6 +102,8 @@ export interface Player {
   spellsCastLastTurn?: number;
   /** A permanent card was put into this player's graveyard from anywhere this turn (descend). */
   descendedThisTurn?: boolean;
+  /** How many cards in this graveyard have a static ability that works from there (Anger, Filth). */
+  graveyardStatics?: number;
   cardsDrawnThisTurn?: number;
   lifeGainedThisTurn?: number;
 }
@@ -161,6 +163,8 @@ export interface GameState {
   monarch?: PlayerId;
   /** Bumped on every emitted event; memoised derived data keys on it. */
   version: number;
+  /** Bumped whenever permanents enter, leave or change abilities; ability caches key on it. */
+  bfGen?: number;
   /** The typed event stream (only with GameOptions.events = 'full'). */
   events?: GameEvent[];
   /** Per-type event counts (GameOptions.events = 'counts' or 'full'). */

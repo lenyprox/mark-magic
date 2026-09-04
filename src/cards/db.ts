@@ -8,6 +8,8 @@ import type { CardDef } from './types.js';
 
 const NON_PLAYABLE = "layout NOT IN ('art_series','token','double_faced_token','emblem','vanguard','planar','scheme','front_card') AND type_line NOT LIKE 'Card%' AND type_line NOT LIKE 'Stickers%' AND type_line NOT LIKE 'Dungeon%' AND type_line NOT LIKE 'Phenomenon%' AND type_line NOT LIKE 'Conspiracy%'";
 
+const PLAYABLE_LAYOUT = "layout NOT IN ('art_series','token','double_faced_token','emblem')";
+
 export class CardDB {
   readonly db: Database.Database;
   private cache = new Map<string, CardDef | null>();
@@ -38,12 +40,20 @@ export class CardDB {
   get(name: string): CardDef | null {
     const key = name.trim().toLowerCase();
     if (this.cache.has(key)) return this.cache.get(key)!;
-    let row = this.db.prepare(`SELECT json FROM oracle_cards WHERE name = ? COLLATE NOCASE AND layout NOT IN ('art_series','token','double_faced_token','emblem') ORDER BY first_printed LIMIT 1`).get(name.trim()) as { json: string } | undefined;
-    if (!row) row = this.db.prepare(`SELECT json FROM oracle_cards WHERE name LIKE ? COLLATE NOCASE AND layout NOT IN ('art_series','token','double_faced_token','emblem') ORDER BY first_printed LIMIT 1`).get(name.trim() + ' // %') as { json: string } | undefined;
+    const trimmed = name.trim();
+    // Exact first: `name = ?` uses idx_o_name, while COLLATE NOCASE forces a full scan (60 ms a card on this data set).
+    let row = this.stmt('exact', `SELECT json FROM oracle_cards WHERE name = ? AND ${PLAYABLE_LAYOUT} ORDER BY first_printed LIMIT 1`).get(trimmed) as { json: string } | undefined;
+    if (!row) row = this.stmt('nocase', `SELECT json FROM oracle_cards WHERE name = ? COLLATE NOCASE AND ${PLAYABLE_LAYOUT} ORDER BY first_printed LIMIT 1`).get(trimmed) as { json: string } | undefined;
+    if (!row) row = this.stmt('front', `SELECT json FROM oracle_cards WHERE name LIKE ? COLLATE NOCASE AND ${PLAYABLE_LAYOUT} ORDER BY first_printed LIMIT 1`).get(trimmed + ' // %') as { json: string } | undefined;
     const def = row ? this.parse(this.rowToOracle(row.json)) : null;
     this.cache.set(key, def);
     return def;
   }
+
+  /** Prepared statements are reused: preparing costs more than the lookup once the index is used. */
+  private stmts = new Map<string, import('better-sqlite3').Statement>();
+  private stmt(key: string, sql: string) { let st = this.stmts.get(key); if (!st) { st = this.db.prepare(sql); this.stmts.set(key, st); } return st; }
+
 
   /** Parse a row and apply its script (data/scripts/<oracle_id>.json) when one exists and is not stale. */
   private parse(o: OracleRow): CardDef { const def = parseCard(o); return applyScript(def, scriptStore().get(o.oracle_id)); }

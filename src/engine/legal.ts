@@ -163,11 +163,24 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
  * convoke variants only when they change what is affordable (or grow a Murktide). One action per variant keeps the
  * AI's branching small; the engine picks the concrete cards to exile/tap.
  */
+/** Do any permanents on the board grant flash or forbid casting? Cached per state version so the per-card check stays cheap. */
+let gateCache: { state: unknown; version: number; p: PlayerId; flash: boolean; forbid: boolean } | null = null;
+function castGates(s: import('./state.js').GameState, p: PlayerId): { flash: boolean; forbid: boolean } {
+  if (gateCache && gateCache.state === s && gateCache.version === s.version && gateCache.p === p) return gateCache;
+  let flash = false, forbid = false;
+  for (const pl of s.players) for (const o of pl.battlefield) for (const ab of abilitiesOf(o)) {
+    if (ab.kind !== 'static') continue;
+    if (ab.effect.kind === 'flash-for' && o.controller === p) flash = true;
+    else if (ab.effect.kind === 'opponents-cant-cast') forbid = true;
+  }
+  gateCache = { state: s, version: s.version, p, flash, forbid };
+  return gateCache;
+}
 function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZone, sorceryTiming: boolean, out: LegalAction[]) {
   const s = g.state; const pl = s.players[p]; const d = c.def;
   if (d.types.includes('Land')) return;
-  const instantSpeed = d.types.includes('Instant') || d.keywords.includes('flash') || flashFor(s, p, c);
-  if (castForbiddenBy(s, p, c)) return [];
+  const instantSpeed = d.types.includes('Instant') || d.keywords.includes('flash') || (castGates(s, p).flash && flashFor(s, p, c));
+  if (castGates(s, p).forbid && castForbiddenBy(s, p, c)) return [];
   const free = from === 'exile' && !!c.castableFromExile?.free; // rebound: cast during the upkeep, timing permissions aside (CR 702.88a)
   if (!instantSpeed && !sorceryTiming && !free) return;
   const spell = d.abilities.find(a => a.kind === 'spell');

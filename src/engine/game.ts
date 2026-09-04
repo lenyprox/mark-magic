@@ -561,8 +561,8 @@ export class Game {
         }
         case 'counters': { if (a.condition && !conditionHolds(s, o, a.condition)) break; const n = evalAmount(s, a.amount, p, ctx.item?.x ?? o.castWith?.x ?? 0, o); if (n > 0) { this.addCounters(o, a.counter, n); this.note(`${def.name} enters with ${n} ${a.counter} counter${n > 1 ? 's' : ''}.`); } break; }
         case 'choose': {
-          if (a.what === 'color') { const c = ctx.sync ? 'G' : await this.ask(p, { kind: 'choose-color', reason: def.name }) as Color; o.chosen = { ...o.chosen, color: c }; this.note(`${def.name}: ${this.pname(p)} chooses ${c}.`); }
-          else { const options = this.creatureTypeOptions(p); const pick = ctx.sync ? options[0] : await this.ask(p, { kind: 'choose-option', options, reason: `${def.name}: choose a creature type` }) as string; const t = options.includes(pick) ? pick : options[0]; o.chosen = { ...o.chosen, creatureType: t }; this.note(`${def.name}: ${this.pname(p)} chooses ${t}.`); }
+          if (a.what === 'color') { const c = ctx.sync ? 'G' : await this.ask(p, { kind: 'choose-color', reason: def.name }) as Color; o.chosen = { ...o.chosen, color: c }; s.version++; this.note(`${def.name}: ${this.pname(p)} chooses ${c}.`); }
+          else { const options = this.creatureTypeOptions(p); const pick = ctx.sync ? options[0] : await this.ask(p, { kind: 'choose-option', options, reason: `${def.name}: choose a creature type` }) as string; const t = options.includes(pick) ? pick : options[0]; o.chosen = { ...o.chosen, creatureType: t }; s.version++; this.note(`${def.name}: ${this.pname(p)} chooses ${t}.`); }
           break;
         }
       }
@@ -1056,8 +1056,8 @@ export class Game {
         break;
       }
       case 'gain-ability': { if (src.zone === 'battlefield') { this.bfGen++; (src.grantedAbilities ??= []).push(e.ability); this.note(`${name(src)} gains "${e.ability.text}".`); } break; }
-      case 'crew-self': if (src.zone === 'battlefield') { src.eotFlags.crewed = true; this.note(`${name(src)} becomes an artifact creature until end of turn.`); } break;
-      case 'saddle-self': if (src.zone === 'battlefield') { src.eotFlags.saddled = true; this.note(`${name(src)} is saddled until end of turn.`); } break;
+      case 'crew-self': if (src.zone === 'battlefield') { src.eotFlags.crewed = true; s.version++; this.note(`${name(src)} becomes an artifact creature until end of turn.`); } break;
+      case 'saddle-self': if (src.zone === 'battlefield') { src.eotFlags.saddled = true; s.version++; this.note(`${name(src)} is saddled until end of turn.`); } break;
       case 'damage-you': this.dealDamageToPlayer(src, p, amt(e.amount)); break;
       case 'discard': {
         const who = e.who === 'you' ? [p] : e.who === 'each-opponent' ? opps : e.who === 'each-player' ? everyone : this.players(T);
@@ -1198,7 +1198,7 @@ export class Game {
       }
       case 'earthbend': {
         const o = this.objs(T)[0]; if (!o || o.zone !== 'battlefield') break;
-        o.animated = { power: 0, toughness: 0, colors: [], types: ['Creature'], subtypes: ['Elemental'], keywords: ['haste'] }; o.earthbent = true;
+        o.animated = { power: 0, toughness: 0, colors: [], types: ['Creature'], subtypes: ['Elemental'], keywords: ['haste'] }; o.earthbent = true; s.version++;
         this.addCounters(o, '+1/+1', amt(e.amount));
         this.noteAffected(item, [o]);
         this.note(`${name(o)} is earthbent: a 0/0 Elemental creature with haste that's still a land.`);
@@ -1206,7 +1206,7 @@ export class Game {
       }
       case 'animate': {
         const o = e.target === 'self' ? src : this.objs(T)[0]; if (!o || o.zone !== 'battlefield') break;
-        o.animated = { power: e.power, toughness: e.toughness, colors: e.colors, types: e.types, subtypes: e.subtypes, keywords: e.keywords, ...(e.duration === 'eot' ? { untilTurn: s.turn } : {}) };
+        o.animated = { power: e.power, toughness: e.toughness, colors: e.colors, types: e.types, subtypes: e.subtypes, keywords: e.keywords, ...(e.duration === 'eot' ? { untilTurn: s.turn } : {}) }; s.version++;
         this.noteAffected(item, [o]);
         this.note(`${name(o)} becomes a ${e.power}/${e.toughness} ${[...e.subtypes, ...e.types].join(' ')}${e.duration === 'eot' ? ' until end of turn' : ''}.`);
         break;
@@ -1541,7 +1541,8 @@ export class Game {
   // ------------------------------------------------------------------ triggers (CR 603)
   private triggerKindsCache: { gen: number; count: number; kinds: Set<string> } | null = null;
   /** Bumped whenever the set of abilities on the battlefield can change (zone moves, granted abilities, transforms). */
-  private bfGen = 0;
+  private get bfGen(): number { return this.state.bfGen ?? 0; }
+  private set bfGen(v: number) { this.state.bfGen = v; }
   /** Trigger event names present on any permanent (memoised on the battlefield generation + permanent count). */
   private lastGrantGen = -1;
   /** Refresh the static grants when the battlefield generation moved (the trigger-kind cache shares the same generation counter). */
