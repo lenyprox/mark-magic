@@ -19,3 +19,4 @@ apps/web/playwright-report/
 
 # benchmark and batch outputs
 data/bench/
+data/optimizer/
