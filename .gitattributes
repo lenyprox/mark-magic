@@ -1,5 +1,7 @@
 # Normalise line endings: the index is LF; check out LF so tools, scripts and worktrees never see CRLF.
 * text=auto eol=lf
+*.sh text eol=lf
+*.cmd text eol=crlf
 *.png binary
 *.jpg binary
 *.webp binary
