@@ -24,6 +24,8 @@
     "coverage:pool": "tsx scripts/parser-coverage.ts",
     "coverage:meta": "tsx scripts/meta-coverage.ts",
     "analysis:selftest": "tsx scripts/analysis-selftest.ts",
+    "sim:batch": "tsx scripts/sim-batch.ts",
+    "bench:games": "tsx scripts/bench-games.ts",
     "test:e2e": "npm run test:e2e -w apps/web",
     "typecheck:all": "npm run typecheck && npm run web:typecheck",
     "demo:pack": "node demo/pack.mjs",

@@ -169,3 +169,18 @@
   .coverGrid { grid-template-columns: repeat(2, 120px); }
   .printGrid { grid-template-columns: repeat(3, 80px); }
 }
+
+/* Simulate section */
+.simControls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
+.simSeed { width: 96px; }
+.simError { color: var(--danger, #c0392b); font-size: var(--t-sm); margin: 0; }
+.simResults { display: flex; flex-direction: column; gap: 8px; }
+.simTable { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+.simTable th, .simTable td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.simTable thead th { font-weight: 600; color: var(--ink-2); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.04em; }
+.simTable tbody th { font-weight: 600; }
+.simBest th { color: var(--brass-1); }
+.simBadge { margin-left: 8px; }
+.simWarn { color: var(--warn, #b7791f); }
+.simDerivation { display: flex; flex-direction: column; gap: 8px; }
+.simVerify { display: flex; align-items: center; gap: 10px; }

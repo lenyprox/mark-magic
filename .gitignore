@@ -16,3 +16,6 @@ apps/web/next-env.d.ts
 apps/web/test-results/
 apps/web/playwright-report/
 .env.local
+
+# benchmark and batch outputs
+data/bench/

@@ -165,7 +165,7 @@ export function pickTargetsHeuristic(s: GameState, me: PlayerId, l: LegalAction)
     const sign = hostile ? 1 : -1;
     const ranked = [...r.options].sort((a, b) => (side(b) * sign * 100 + targetPriority(s, me, b)) - (side(a) * sign * 100 + targetPriority(s, me, a)));
     const pick = ranked.slice(0, r.count);
-    return r.optional && side(pick[0]) * sign < 0 ? [] : pick;
+    return r.optional && (!pick.length || side(pick[0]) * sign < 0) ? [] : pick;
   });
   return { ...l.action, targets } as PlayerAction;
 }

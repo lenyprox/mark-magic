@@ -1,5 +1,6 @@
 // Result types of the play-analysis engine. Everything here is JSON-serializable so it can cross a worker boundary.
 import type { LegalAction, PlayerAction, PlayerId } from '../engine/state.js';
+import type { SimRerunRef } from '../sim/types.js';
 
 export type Method = 'exact' | 'hypergeometric' | 'montecarlo' | 'heuristic';
 
@@ -15,6 +16,8 @@ export interface Derivation {
   result: number;
   assumptions: string[];
   mc?: { n: number; seed: number; successes: number; ci95: [number, number]; rerun: McRequest };
+  /** For whole-game batch estimates: the spec reference needed to replay the games (the batch analogue of mc.rerun). */
+  sim?: SimRerunRef;
 }
 
 export type RiskKind = 'lethal-crackback' | 'counterspell' | 'removal' | 'sweeper' | 'combat-trick' | 'burn' | 'discard' | 'mana-screw' | 'decking';

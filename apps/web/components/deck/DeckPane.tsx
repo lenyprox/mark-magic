@@ -20,6 +20,7 @@ import { ManaCurve } from './ManaCurve';
 import { ColorPie } from './ColorPie';
 import { ManaSourceCheck } from './ManaSourceCheck';
 import { ImportExport } from './ImportExport';
+import { SimulateSection } from './SimulateSection';
 import styles from './deck.module.css';
 
 type Tab = 'main' | 'side' | 'maybe';
@@ -64,6 +65,7 @@ export function DeckPane({ deck }: { deck: DeckRecord }) {
         </div>
         <ManaSourceCheck entries={mainEntries} />
       </section>
+      <SimulateSection deckId={deck.id} />
       <ImportExport />
     </div>
   );
