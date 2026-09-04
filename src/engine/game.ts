@@ -809,16 +809,18 @@ export class Game {
     switch (e.op) {
       case 'damage': {
         const n = amt(item.kicked && e.kickedAmount != null ? e.kickedAmount : e.amount);
+        const hit: GameObject[] = [];
         if (typeof e.target === 'string') {
           const group = this.groupTargets(e.target, p);
-          for (const o of group.objects) this.dealDamage(src, o, n);
+          for (const o of group.objects) { this.dealDamage(src, o, n); hit.push(o); }
           for (const pl of group.players) this.dealDamageToPlayer(src, pl, n);
         } else if (e.divided && T.length) {
           const per = Math.floor(n / T.length); let extra = n - per * T.length;
-          for (const r of T) { const d = per + (extra > 0 ? 1 : 0); if (extra > 0) extra--; if (r.kind === 'player') this.dealDamageToPlayer(src, r.id, d); else { const o = findObject(s, r.id); if (o) this.dealDamage(src, o, d); } }
+          for (const r of T) { const d = per + (extra > 0 ? 1 : 0); if (extra > 0) extra--; if (r.kind === 'player') this.dealDamageToPlayer(src, r.id, d); else { const o = findObject(s, r.id); if (o) { this.dealDamage(src, o, d); hit.push(o); } } }
         } else {
-          for (const r of T) { if (r.kind === 'player') this.dealDamageToPlayer(src, r.id, n); else { const o = findObject(s, r.id); if (o) this.dealDamage(src, o, n); } }
+          for (const r of T) { if (r.kind === 'player') this.dealDamageToPlayer(src, r.id, n); else { const o = findObject(s, r.id); if (o) { this.dealDamage(src, o, n); hit.push(o); } } }
         }
+        if (hit.length) this.noteAffected(item, hit);
         break;
       }
       case 'destroy': {
@@ -1283,6 +1285,15 @@ export class Game {
         break;
       }
       case 'fold-new-targets': break;
+      case 'exile-if-dies': {
+        const list = e.who === 'self' ? [src]
+          : e.who === 'affected' || e.who === 'that' ? (item.affected ?? []).map(a => findObject(s, a.id)).filter((o): o is GameObject => !!o && o.zone === 'battlefield')
+          : e.who === 'all-creatures' ? allPermanents(s).filter(isCreature)
+          : opponentsOf(s, p).flatMap(q => s.players[q].battlefield.filter(isCreature));
+        for (const o of list) o.exileIfDiesTurn = s.turn;
+        if (list.length) this.note(`${list.map(o => name(o)).join(', ')} will be exiled instead of dying this turn.`);
+        break;
+      }
       case 'remove-from-combat': {
         for (const o of this.objs(T)) {
           const i = s.attackers.indexOf(o.id); if (i >= 0) s.attackers.splice(i, 1);
@@ -1365,7 +1376,9 @@ export class Game {
     if (!silent) this.queueTriggers('draw', { player: p, obj: c, stepDraw });
   }
   discard(p: PlayerId, id: number) { const pl = this.state.players[p]; const c = pl.hand.find(x => x.id === id); if (!c) return; this.moveTo(c, 'graveyard', 'top', 'discard'); this.queueTriggers('discard', { player: p, obj: c }); }
-  gainLife(p: PlayerId, n: number) { if (n <= 0) return; const pl = this.state.players[p]; const mult = pl.battlefield.some(o => abilitiesOf(o).some(a => a.kind === 'static' && a.effect.kind === 'lifegain-multiplier')) ? 2 : 1; pl.life += n * mult; pl.lifeGainedThisTurn = (pl.lifeGainedThisTurn ?? 0) + n * mult; this.emit({ type: 'life', player: p, delta: n * mult, total: pl.life, reason: 'gain' }); this.queueTriggers('life-gain', { player: p }); }
+  gainLife(p: PlayerId, n: number) { if (n <= 0) return; const pl = this.state.players[p]; let gained = n;
+    for (const o of pl.battlefield) for (const a of abilitiesOf(o)) if (a.kind === 'static' && a.effect.kind === 'lifegain-multiplier') gained = a.effect.plus ? gained + a.effect.plus : gained * 2;
+    const mult = gained / n; pl.life += gained; pl.lifeGainedThisTurn = (pl.lifeGainedThisTurn ?? 0) + gained; this.emit({ type: 'life', player: p, delta: n * mult, total: pl.life, reason: 'gain' }); this.queueTriggers('life-gain', { player: p }); }
   loseLife(p: PlayerId, n: number, why: string) { if (n <= 0) return; const pl = this.state.players[p]; pl.life -= n; pl.lifeLostThisTurn += n; this.emit({ type: 'life', player: p, delta: -n, total: pl.life, reason: why }); this.queueTriggers('life-loss-opponent', { player: p }); }
 
   dealDamageToPlayer(src: GameObject, p: PlayerId, n: number) {
@@ -1432,6 +1445,7 @@ export class Game {
     if (wasOnBattlefield) {
       o.lastKnown = { power: power(s, o), toughness: toughness(s, o), controller: o.controller, counters: { ...o.counters } };
       if (o.exileIfLeaves && zone !== 'exile') { zone = 'exile'; delete o.exileIfLeaves; }
+      if (o.exileIfDiesTurn === s.turn && zone === 'graveyard' && o.zone === 'battlefield') { zone = 'exile'; this.note(`${name(o)} is exiled instead of dying.`); }
       const creature = isCreature(o);
       const ctl = o.controller;
       // detach attachments; auras go to graveyard (SBA), equipment stays

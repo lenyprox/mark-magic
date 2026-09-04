@@ -42,6 +42,8 @@ export interface GameObject {
   echoPaid?: boolean;
   /** Unearth / similar: exile it instead if it would leave the battlefield. */
   exileIfLeaves?: boolean;
+  /** "If it would die this turn, exile it instead" — holds the turn the replacement applies to (CR 614.1c). */
+  exileIfDiesTurn?: number;
   /** How the spell was cast (kept on the permanent it became): alternative cost, zone, kicker, X, delve count. */
   castWith?: { alt?: AltCostId; from?: CastZone; kicked?: boolean; x?: number; delved?: number; colorsSpent?: number };
   /** Ids of cards exiled as a cost of casting this (delve) or imprinted on it. */

@@ -439,6 +439,11 @@ const EFFECT_RULES: Rule[] = [
   { re: /^search your library for an? (.+?) card(?: with mana value (\w+) or less)?, reveal it, put it into your hand(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[1]); if (!f) return null; const mv = m[2] ? num(m[2]) : undefined; return { op: 'search', filter: f, to: 'hand', count: 1, reveal: true, ...(mv !== undefined ? { mvLE: mv } : {}) }; } },
   { re: /^untap all (.+?) you control$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'untap-all', filter: f }; } },
   { re: /^proliferate$/i, make: () => ({ op: 'proliferate' }) },
+  { re: /^if (?:that|the) (?:creature|permanent)(?: or planeswalker)? would die this turn, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'that' }) },
+  { re: /^if a creature dealt damage (?:this way|by ~ this turn) would die(?: this turn)?, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'affected' }) },
+  { re: /^if a creature would die this turn, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'all-creatures' }) },
+  { re: /^if a creature an opponent controls would die(?: this turn)?, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'opponent-creatures' }) },
+  { re: /^if ~ would die, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'self' }) },
   { re: new RegExp(`^put ${NUMRE} ([a-z]+|[+-]1/[+-]1) counters? on each (.+?) you control$`, 'i'), make: m => { const f = parseFilterWords(m[3]) ?? subtypeFilter(m[3]); return f ? { op: 'counters', target: 'creatures-you-control', counter: m[2].toLowerCase(), amount: num(m[1]), filter: singularSubtypes(f) } : null; } },
   { re: new RegExp(`^put ${TGT} from your graveyard on top of your library$`, 'i'), make: m => { const t = parseTarget(m[1].replace(/^target /, 'target ')); const f = parseFilterWords(m[1].replace(/^target /, '').replace(/ card$/, '')) ?? subtypeFilter(m[1].replace(/^target /, '').replace(/ card$/, '')); return f ? { op: 'return-from-graveyard', what: singularSubtypes(f), to: 'library-top', target: true } : (t ? null : null); } },
   { re: /^each creature gets ([+-]x)\/([+-]x) until end of turn$/i, make: m => ({ op: 'pump', target: 'all-creatures', power: pm(m[1]), toughness: pm(m[2]), duration: 'eot' }) },
@@ -500,6 +505,7 @@ const PARAGRAPH_RULES: { re: RegExp; make: (m: RegExpMatchArray) => Effect[] | n
   { re: /^~ becomes an? (\d+)\/(\d+) ([a-z ]+?) creature(?: with (.+?))? until end of turn\. it's still a land\.?/i, make: m => { const desc = m[3].split(/\s+/).filter(w => w !== 'and'); const colors = desc.filter(w => w in COLOR_WORDS).map(w => COLOR_WORDS[w]); const subs = desc.filter(w => !(w in COLOR_WORDS)).map(w => w[0].toUpperCase() + w.slice(1)); const kw = m[4] ? kwList(m[4]) : []; if (!kw) return null; return [{ op: 'animate', target: 'self', power: Number(m[1]), toughness: Number(m[2]), colors, types: ['Creature'], subtypes: subs, keywords: kw, duration: 'eot' }]; } },
   { re: new RegExp(`^choose ${TGT}\\. its owner shuffles it into their library\\.?`, 'i'), make: m => { const t = parseTarget(m[1]); return t && [{ op: 'shuffle-into-library', target: t }]; } },
   { re: /^choose a color of a permanent you control\. add one mana of that color\.?/i, make: () => [{ op: 'add-mana', mana: 'any-one', options: 'permanent-colors' }] },
+  { re: /^([^.]+?)\. if ~ was kicked, ([^.]+?) instead\.?/i, make: m => { const weak = parseEffects(m[1]); const strong = parseEffects(m[2].replace(/^that creature /i, '~ ').replace(/^that player /i, 'target player ')); if (weak.some(e => e.op === 'unknown') || strong.some(e => e.op === 'unknown')) return null; return [{ op: 'conditional', condition: { kind: 'kicked' }, then: strong, else: weak }]; } },
   { re: /^you may draw a card\. if you do, discard a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1 }] },
   { re: /^you may discard a card\. if you do, draw a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1, discardFirst: true, optional: true }] },
   { re: /^you may pay (\{[^ ]+\})\. if you do, (.+?)\.?$/i, make: m => { const then = parseEffects(m[2]); if (then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-pay', mana: parseManaCost(m[1])!, then }]; } },
@@ -1036,6 +1042,7 @@ function parseStatic(line: string, card: { types: CardType[]; subtypes: string[]
     return [{ kind: 'self-pt', power: Number(m[2]), toughness: Number(m[3]), ...({ condition: c } as object) }, { kind: 'self-keywords', keywords: kw, condition: c, ...(/attacks each combat if able/i.test(t) ? { mustAttack: true } : {}) } as StaticEffect];
   }
   if (/^if you would gain life, you gain twice that much life instead$/i.test(t)) return { kind: 'lifegain-multiplier' };
+  if ((m = t.match(/^if you would gain life, you gain that much life plus (\d+) instead$/i))) return { kind: 'lifegain-multiplier', plus: Number(m[1]) };
   if (/^~ can be your commander$/i.test(t)) return { kind: 'can-be-commander' };
   if (/^you have no maximum hand size$/i.test(t)) return { kind: 'no-max-hand-size' };
   if (/^~ can block an additional creature each combat$/i.test(t)) return { kind: 'extra-blocks', amount: 1 };

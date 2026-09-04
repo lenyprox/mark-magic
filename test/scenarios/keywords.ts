@@ -39,4 +39,10 @@ export const keywords: Scenario[] = [
     script: [{ turns: 2 }],
     expect: [{ log: /transforms/ }],
   },
+  {
+    name: 'A creature that would die after this damage is exiled instead', cr: '614.1c',
+    seats: [{ bf: ['Mountain', 'Mountain', 'Mountain'], hand: ['Anger of the Gods'] }, { bf: ['Grizzly Bears'] }],
+    script: [{ cast: 'Anger of the Gods' }, { resolve: true }, { sba: true }],
+    expect: [{ zone: ['Grizzly Bears', 'exile'] }],
+  },
 ];

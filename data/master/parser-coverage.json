@@ -1,19 +1,19 @@
 {
-  "generated_at": "2026-09-04T19:18:25.557Z",
+  "generated_at": "2026-09-04T19:44:44.953Z",
   "playable_oracle_cards": 34513,
-  "fully_parsed": 11215,
-  "fully_parsed_pct": 32.5,
+  "fully_parsed": 11258,
+  "fully_parsed_pct": 32.62,
   "of_which_vanilla_or_keyword_only": 1494,
   "by_primary_type": {
     "Creature": {
       "total": 19233,
-      "full": 6869,
+      "full": 6873,
       "pct": 35.7
     },
     "Artifact": {
       "total": 2601,
-      "full": 729,
-      "pct": 28
+      "full": 730,
+      "pct": 28.1
     },
     "Enchantment": {
       "total": 3564,
@@ -22,13 +22,13 @@
     },
     "Sorcery": {
       "total": 3620,
-      "full": 939,
-      "pct": 25.9
+      "full": 959,
+      "pct": 26.5
     },
     "Instant": {
       "total": 3849,
-      "full": 1221,
-      "pct": 31.7
+      "full": 1239,
+      "pct": 32.2
     },
     "Land": {
       "total": 1161,
@@ -200,10 +200,6 @@
     },
     {
       "n": 20,
-      "clause": "If that creature would die this turn, exile it instead."
-    },
-    {
-      "n": 20,
       "clause": "Starting intensity #"
     },
     {
@@ -301,6 +297,10 @@
     {
       "n": 15,
       "clause": "Foretell {}"
+    },
+    {
+      "n": 15,
+      "clause": "Enlist"
     }
   ]
 }

@@ -178,6 +178,7 @@ export type Effect =
   | { op: 'token-copy'; target: TargetSpec | 'that' | 'self'; count: Amount; extraTypes?: CardType[]; extraSubtypes?: string[]; extraKeywords?: Keyword[]; tapped?: boolean; attacking?: 'each-other-opponent' | boolean }
   | { op: 'remove-those'; how: 'exile' | 'sacrifice' }
   | { op: 'remove-from-combat'; target: TargetSpec; untap?: boolean }
+  | { op: 'exile-if-dies'; who: 'that' | 'affected' | 'self' | 'all-creatures' | 'opponent-creatures' }   // CR 614: "if it would die this turn, exile it instead\"
   | { op: 'proliferate' }
   | { op: 'storm-copies' }                                                     // CR 702.40: copy the spell once per spell cast before it this turn
   | { op: 'player-counter'; counter: string; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' }
@@ -304,7 +305,7 @@ export type StaticEffect =
   | { kind: 'opponent-creatures-etb-tapped' }
   | { kind: 'extra-land'; amount: number }
   | { kind: 'cant-be-countered' }
-  | { kind: 'lifegain-multiplier' }
+  | { kind: 'lifegain-multiplier'; plus?: number }
   | { kind: 'unknown'; text: string };
 
 export interface CardDef {
