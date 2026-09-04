@@ -1,24 +1,24 @@
 {
-  "generated_at": "2026-09-04T18:58:20.651Z",
+  "generated_at": "2026-09-04T19:03:31.209Z",
   "playable_oracle_cards": 34513,
-  "fully_parsed": 11096,
-  "fully_parsed_pct": 32.15,
+  "fully_parsed": 11121,
+  "fully_parsed_pct": 32.22,
   "of_which_vanilla_or_keyword_only": 1494,
   "by_primary_type": {
     "Creature": {
       "total": 19233,
-      "full": 6823,
+      "full": 6831,
       "pct": 35.5
     },
     "Artifact": {
       "total": 2601,
-      "full": 725,
-      "pct": 27.9
+      "full": 728,
+      "pct": 28
     },
     "Enchantment": {
       "total": 3564,
-      "full": 638,
-      "pct": 17.9
+      "full": 651,
+      "pct": 18.3
     },
     "Sorcery": {
       "total": 3620,
@@ -32,8 +32,8 @@
     },
     "Land": {
       "total": 1161,
-      "full": 711,
-      "pct": 61.2
+      "full": 712,
+      "pct": 61.3
     },
     "Kindred": {
       "total": 80,

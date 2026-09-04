@@ -60,6 +60,8 @@ test('mobile: the phone table collapses the seats, drags a land from the hand st
   // the strip scrolls horizontally rather than overflowing the viewport
   const width = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   expect(width, 'the table must not scroll horizontally').toBe(true);
+  const height = await page.getByTestId('play-table').evaluate(el => el.scrollHeight <= el.clientHeight + 1);
+  expect(height, 'the phone table must fit the viewport without scrolling').toBe(true);
   // every tool button clears the 44 px touch target
   const small = await page.getByTestId('play-table').locator('button:visible').evaluateAll(els => els.filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.height < 44 || r.width < 44); }).map(e => `${e.getAttribute('aria-label') ?? e.textContent?.trim()}: ${Math.round(e.getBoundingClientRect().width)}x${Math.round(e.getBoundingClientRect().height)}px`));
   expect(small, small.join(' | ')).toEqual([]);
@@ -77,7 +79,9 @@ test('mobile: the phone table collapses the seats, drags a land from the hand st
   const before = await myLands(page).count();
   const bf = page.getByTestId('battlefield-me');
   await expect(bf).toBeVisible();
-  await dragCard(page, handCard(page, 'Mountain').first(), await centre(bf));
+  const card = handCard(page, 'Mountain').first();
+  await card.scrollIntoViewIfNeeded();
+  await dragCard(page, card, await centre(bf));
   await expect(myLands(page)).toHaveCount(before + 1, { timeout: 30_000 });
 
   // ---- the right rail is a bottom sheet with a grab handle

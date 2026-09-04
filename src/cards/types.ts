@@ -286,6 +286,7 @@ export type StaticEffect =
   | { kind: 'counters-replacement'; mode: 'double' | 'plus-one'; filter?: Filter; counter?: string }              // Doubling Season / Kami of Whispered Hopes
   | { kind: 'tokens-replacement'; mode: 'double' }                                              // Doubling Season / Exalted Sunborn
   | { kind: 'extra-mana-on-tap'; filter?: Filter; enchanted?: boolean; mana: ManaSymbol[] | 'chosen-color' }     // "whenever you tap a Forest for mana, add an additional {G}"
+  | { kind: 'grant-mana-ability'; filter?: Filter; enchanted?: boolean; effect: Effect }
   | { kind: 'opponents-cant-cast'; during: 'your-turn'; filter?: Filter }                       // Grand Abolisher
   | { kind: 'play-lands-from'; zone: 'graveyard' | 'library-top' }                              // Ancient Greenwarden / Oracle of Mul Daya
   | { kind: 'unspent-mana-becomes-red' }                                                         // Ozai, the Phoenix King

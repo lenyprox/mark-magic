@@ -321,6 +321,7 @@ const EFFECT_RULES: Rule[] = [
   { re: /^add (\{[^}]+\}) for each (.+?) you control$/i, make: m => { const f = parseFilterWords(m[2]); const mana = parseManaCost(m[1]); if (!f || !mana) return null; return { op: 'add-mana', mana: manaSymbolsOf(mana), perEach: { count: 'permanents-you-control', filter: f } }; } },
   { re: /^add an amount of (\{[^}]+\}) equal to ~'s power$/i, make: m => { const mana = parseManaCost(m[1]); return mana && { op: 'add-mana', mana: manaSymbolsOf(mana), perEach: { count: 'power-of-source' } }; } },
   { re: /^add x mana of any one color, where x is ~'s power$/i, make: () => ({ op: 'add-mana', mana: 'any-one', perEach: { count: 'power-of-source' } }) },
+  { re: /^add (\w+) mana of any one color$/i, make: m => { const n = num(m[1]); return typeof n === 'number' ? { op: 'add-mana', mana: 'any-one', amount: n } : null; } },
   { re: /^add one mana of any color$/i, make: () => ({ op: 'add-mana', mana: 'any', amount: 1 }) },
   { re: /^add two mana of any one color$/i, make: () => ({ op: 'add-mana', mana: 'any-one', amount: 2 }) },
   { re: /^add two mana in any combination of colors$/i, make: () => ({ op: 'add-mana', mana: 'any', amount: 2 }) },
@@ -723,7 +724,8 @@ function parseCondition(s: string): Condition {
   if (t === 'an opponent lost life this turn') return { kind: 'opponent-lost-life-this-turn' };
   if (t === "you've cast another spell this turn" || t === 'you cast another spell this turn' || t === "you've cast a spell this turn") return { kind: 'spells-cast-this-turn-ge', value: 2 };
   if ((m = t.match(/^you've cast (\w+) or more (?:other )?spells this turn$/))) return { kind: 'spells-cast-this-turn-ge', value: num(m[1]) as number };
-  if ((m = t.match(/^you have (\w+) or fewer cards in hand$/))) return { kind: 'cards-in-hand-le', who: 'you', value: num(m[1]) as number };
+  if ((m = t.match(/^you have (\w+) or fewer cards in (?:your )?hand$/))) return { kind: 'cards-in-hand-le', who: 'you', value: num(m[1]) as number };
+  if ((m = t.match(/^you have (\w+) or more cards in (?:your )?hand$/))) return { kind: 'cards-in-hand-ge', who: 'you', value: num(m[1]) as number };
   if ((m = t.match(/^an opponent has (\w+) or more cards in hand$/))) return { kind: 'cards-in-hand-ge', who: 'opponent', value: num(m[1]) as number };
   if (t === 'an opponent has no cards in hand') return { kind: 'opponent-hellbent' };
   if ((m = t.match(/^there are (\w+) or more (.+?) cards? in your graveyard$/))) { const f = parseFilterWords(m[2]); if (f) return { kind: 'graveyard-ge', value: num(m[1]) as number, filter: f }; }
@@ -923,6 +925,15 @@ function parseStatic(line: string, card: { types: CardType[]; subtypes: string[]
   if ((m = t.match(/^creatures you control of the chosen type get ([+-]\d+)\/([+-]\d+)$/i))) return { kind: 'anthem', power: Number(m[1]), toughness: Number(m[2]), filter: { types: ['Creature'], chosenType: true }, scope: 'you-control' };
   if (/^~ assigns combat damage equal to its toughness rather than its power$/i.test(t)) return { kind: 'damage-by-toughness', scope: 'self' };
   if (/^each creature you control with toughness greater than its power assigns combat damage equal to its toughness rather than its power$/i.test(t)) return { kind: 'damage-by-toughness', scope: 'you-control', onlyWhenGreater: true };
+  if ((m = line.match(/^(?:Each |All )?(.+?) you control (?:has|have) "\{T\}: (Add [^"]+?)\.(?: Spend this mana only to cast (instant and sorcery|creature|noncreature) spells\.)?"$/i))) {
+    const f = parseFilterWords(m[1].replace(/ and /g, ' ')) ?? subtypeFilter(m[1]);
+    const eff = parseEffects(m[2]);
+    if (f && eff.length === 1 && eff[0].op === 'add-mana') { const e0 = { ...eff[0] }; if (m[3]) e0.restriction = m[3].toLowerCase() === 'instant and sorcery' ? 'instant-sorcery' : m[3].toLowerCase() === 'creature' ? 'creature-spell' : undefined; return { kind: 'grant-mana-ability', filter: singularSubtypes(f), effect: e0 }; }
+  }
+  if ((m = line.match(/^Enchanted (?:land|creature|permanent) has "\{T\}: (Add [^"]+?)\."$/i))) {
+    const eff = parseEffects(m[1]);
+    if (eff.length === 1 && eff[0].op === 'add-mana') return { kind: 'grant-mana-ability', enchanted: true, effect: eff[0] };
+  }
   if (/^you may cast spells as though they had flash$/i.test(t)) return { kind: 'flash-for', filter: {} };
   if (/^if you would lose unspent mana, that mana becomes red instead$/i.test(t)) return { kind: 'unspent-mana-becomes-red' };
   if (/^you may play lands from your graveyard$/i.test(t)) return { kind: 'play-lands-from', zone: 'graveyard' };

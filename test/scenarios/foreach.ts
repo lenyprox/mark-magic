@@ -32,4 +32,10 @@ export const foreach: Scenario[] = [
     script: [{ cast: 'Lightning Bolt', by: 1, targets: [['P0']] }, { cast: 'Counterspell', by: 0, targets: [['Lightning Bolt']] }, { resolve: true }],
     expect: [{ zone: ['Lightning Bolt', 'graveyard'] }, { life: [0, 20] }],
   },
+  {
+    name: 'Cryptolith Rite grants every creature you control a mana ability',
+    seats: [{ bf: ['Cryptolith Rite', 'Grizzly Bears', 'Hill Giant'], hand: ['Lightning Bolt'] }, {}],
+    script: [{ cast: 'Lightning Bolt', targets: [['P1']] }, { resolve: true }],
+    expect: [{ zone: ['Lightning Bolt', 'graveyard'] }, { life: [1, 17] }],
+  },
 ];

@@ -58,6 +58,32 @@ export function manaSources(s: GameState, p: Player, opts: ManaSourceOptions = {
       }
       if (options.length) out.push({ obj: o, abilityIndex: i, options: withExtraMana(s, p, o, options) });
     });
+    const granted = grantedManaOptions(s, p, o, spell);
+    if (granted.length) out.push({ obj: o, abilityIndex: -4, options: withExtraMana(s, p, o, granted) });
+  }
+  return out;
+}
+
+/** 'Each land you control has "{T}: Add one mana of any color."' — options a permanent gains from someone else's static. */
+function grantedManaOptions(s: GameState, p: Player, o: GameObject, spell: GameObject | undefined): ManaSymbol[][] {
+  const out: ManaSymbol[][] = [];
+  for (const src of p.battlefield) for (const ab of abilitiesOf(src)) {
+    if (ab.kind !== 'static' || ab.effect.kind !== 'grant-mana-ability') continue;
+    const g = ab.effect;
+    const hit = g.enchanted ? src.attachedTo === o.id : matchesFilter(s, o, g.filter, src);
+    if (!hit) continue;
+    const e = g.effect;
+    if (e.op !== 'add-mana') continue;
+    if (e.restriction) {
+      if (!spell) continue;
+      if (e.restriction === 'instant-sorcery' && !spell.def.types.includes('Instant') && !spell.def.types.includes('Sorcery')) continue;
+      if (e.restriction === 'creature-spell' && !spell.def.types.includes('Creature')) continue;
+    }
+    const n = e.amount ?? 1;
+    if (e.choices) out.push(...e.choices);
+    else if (Array.isArray(e.mana)) out.push(e.mana);
+    else if (e.mana === 'any' || e.mana === 'any-one') out.push(...ALL.map(c => Array(n).fill(c) as ManaSymbol[]));
+    else if (e.mana === 'commander-identity') commanderIdentity(s, o.controller).forEach(c => out.push(Array(n).fill(c) as ManaSymbol[]));
   }
   return out;
 }
