@@ -12,7 +12,7 @@ const count = (f: string) => (fs.readFileSync(f, 'utf8').match(re) ?? []).length
 
 test('engine, AI, sim and play code have no two-player assumptions', () => {
   const offenders: string[] = [];
-  for (const f of [...files('src/engine'), ...files('src/engine/agents'), ...files('src/ai'), ...files('src/sim'), ...files('src/play')]) {
+  for (const f of [...files('src/engine'), ...files('src/engine/agents'), ...files('src/engine/ops'), ...files('src/ai'), ...files('src/sim'), ...files('src/play')]) {
     if (f.endsWith('state.ts') || f.endsWith('characteristics.ts')) continue; // the deprecated definition and the 2-seat fast path
     const n = count(f); if (n) offenders.push(`${f}: ${n}`);
   }

@@ -2,6 +2,7 @@
 // while keeping object ids and zone sizes, so `evaluate`, `legalActions` and `findObject` keep working on the view.
 import type { CardDef } from '../cards/types.js';
 import { cloneState } from './clone.js';
+import { REDACT_HOOKS, REDACT_PLAYER_HOOKS, REDACT_STATE_HOOKS } from './ops/_registry.js';
 import type { GameObject, GameState, PlayerId } from './state.js';
 
 export const HIDDEN_DEF_NAME = '__hidden__';
@@ -25,10 +26,15 @@ export function visibleHiddenIds(s: GameState, viewer: PlayerId): Set<number> {
 export function redact(s: GameState, viewer: PlayerId): GameState {
   const v = cloneState(s);
   const vis = visibleHiddenIds(s, viewer);
-  const hide = (o: GameObject) => { if (!vis.has(o.id)) o.def = HIDDEN_DEF; };
+  const hide = (o: GameObject) => { if (!vis.has(o.id)) { o.def = HIDDEN_DEF; if (o.copyDef) delete o.copyDef; } };
   for (const p of v.players) { p.library.forEach(hide); if (p.id !== viewer) p.hand.forEach(hide); }
   // other players' private scry knowledge is not ours
   for (const p of v.players) if (p.id !== viewer) v.knowledge.knownTop[p.id] = v.knowledge.knownTop[p.id].filter(id => v.knowledge.revealed.includes(id));
+  // family state hidden from this viewer (suspended face-down cards, secret piles, votes, ...): objects, then the
+  // per-seat bags, then the game's own bag — every place `ext` state can live
+  if (REDACT_HOOKS.length) for (const p of v.players) for (const z of [p.library, p.hand, p.graveyard, p.exile, p.battlefield, p.command ?? []]) for (const o of z) for (const h of REDACT_HOOKS) h(o, viewer);
+  if (REDACT_PLAYER_HOOKS.length) for (const p of v.players) for (const h of REDACT_PLAYER_HOOKS) h(p, viewer);
+  if (REDACT_STATE_HOOKS.length) for (const h of REDACT_STATE_HOOKS) h(v, viewer);
   return v;
 }
 

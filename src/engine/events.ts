@@ -4,6 +4,7 @@
 // the replay/animation queue can consume structured data instead of grepping text.
 import type { ManaSymbol } from '../cards/types.js';
 import type { Decision, PlayerId, Step, Zone } from './state.js';
+import { EVENT_META, HAS } from './ops/_registry.js';
 
 export type EventMode = 'none' | 'counts' | 'full';
 
@@ -14,7 +15,7 @@ export type SbaKind = 'lethal-damage' | 'zero-toughness' | 'zero-loyalty' | 'aur
 
 interface Base { seq: number; turn: number; step: Step; /** The log line this event produced (empty for silent events). */ text: string; /** Comprehensive Rules citation, when one applies. */ cr?: string }
 
-export type GameEventBody =
+export type CoreGameEventBody =
   | { type: 'game-start'; first: PlayerId; players: string[] }
   | { type: 'mulligan'; player: PlayerId; count: number }
   | { type: 'turn'; player: PlayerId; number: number }
@@ -48,14 +49,19 @@ export type GameEventBody =
   | { type: 'unsimulated'; id: number; name: string; clause: string }
   | { type: 'extra-turn'; player: PlayerId }
   | { type: 'note'; text: string; tag?: 'manual' | 'engine' };
+/** Families add events by augmenting EventRegistry; EVENT_META[type] carries their logged flag, CR citation and renderer. */
+export interface EventRegistry {}
+export type GameEventBody = CoreGameEventBody | EventRegistry[keyof EventRegistry];
 
 export type GameEvent = Base & GameEventBody;
 export type GameEventType = GameEventBody['type'];
 
 /** Event types whose rendered text is appended to the string log (the rest are silent structure). */
-export const LOGGED: ReadonlySet<GameEventType> = new Set<GameEventType>([
+const CORE_LOGGED: ReadonlySet<string> = new Set<string>([
   'game-start', 'mulligan', 'turn', 'zone-change', 'draw', 'damage', 'life', 'create-token', 'control', 'attach', 'transform', 'cast', 'activate', 'trigger', 'resolve', 'fizzle', 'countered', 'attack', 'block', 'sba', 'player-eliminated', 'game-over', 'replaced', 'prevented', 'library', 'unsimulated', 'extra-turn', 'note',
 ]);
+/** Set-like view over the core set plus every registered family event that asks to be logged. */
+export const LOGGED: { has(t: GameEventType): boolean } = { has: (t: GameEventType): boolean => CORE_LOGGED.has(t as string) || (HAS.events && EVENT_META[t as string]?.logged === true) };
 
 /** CR citations for the events that have a canonical rule. */
 export function citation(ev: GameEventBody): string | undefined {
@@ -87,7 +93,7 @@ export function citation(ev: GameEventBody): string | undefined {
     case 'zone-change': return ev.to === 'battlefield' ? '400.7' : ev.reason === 'destroy' ? '701.8a' : ev.reason === 'sacrifice' ? '701.21a' : ev.reason === 'discard' ? '701.9a' : ev.reason === 'mill' ? '701.17a' : ev.reason === 'exile' ? '406.1' : '400.7';
     case 'tap': return ev.tapped ? '701.26a' : '701.26b';
     case 'counter': return '122.1';
-    default: return undefined;
+    default: return EVENT_META[(ev as { type: string }).type]?.cr;
   }
 }
 
@@ -161,7 +167,7 @@ export function renderEvent(ev: GameEventBody, pname: (p: PlayerId) => string): 
     case 'extra-turn': return `${pname(ev.player)} will take an extra turn.`;
     case 'note': return ev.text;
     case 'zone-change': return zoneChangeText(ev, pname);
-    default: return '';
+    default: { const m = EVENT_META[(ev as { type: string }).type]; return m?.render ? m.render(ev, pname) : ''; }
   }
 }
 

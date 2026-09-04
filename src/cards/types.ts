@@ -15,15 +15,22 @@ export interface ManaCost {
   raw: string;
 }
 
-export type Keyword =
+export type CoreKeyword =
   | 'flying' | 'first strike' | 'double strike' | 'deathtouch' | 'lifelink' | 'trample' | 'haste' | 'vigilance'
   | 'reach' | 'defender' | 'flash' | 'hexproof' | 'indestructible' | 'menace' | 'unblockable' | 'cant block'
   | 'shroud' | 'protection' | 'prowess' | 'ward' | 'fear' | 'intimidate' | 'skulk' | 'cant attack'
   | 'shadow' | 'horsemanship' | 'flanking' | 'exalted' | 'infect' | 'wither' | 'toxic' | 'bushido' | 'landwalk' | 'rampage' | 'firebending';
+/** Families add keywords by augmenting KeywordRegistry (see src/engine/ops/_example.ts). */
+export interface KeywordRegistry {}
+export type Keyword = CoreKeyword | keyof KeywordRegistry;
+
+export type CoreTargetKind = 'creature' | 'player' | 'any' | 'permanent' | 'spell' | 'creature-or-player' | 'creature-or-planeswalker' | 'planeswalker' | 'opponent' | 'artifact' | 'enchantment' | 'land' | 'nonland-permanent' | 'artifact-or-enchantment' | 'creature-spell' | 'noncreature-spell' | 'attacking-creature' | 'blocking-creature' | 'tapped-creature' | 'ability' | 'artifact-enchantment-or-nonbasic-land' | 'spell-or-nonland-permanent' | 'graveyard-card';
+/** Families add target kinds by augmenting TargetKindRegistry; TARGET_KINDS[kind] enumerates them. */
+export interface TargetKindRegistry {}
 
 /** Who / what an effect can target */
 export interface TargetSpec {
-  kind: 'creature' | 'player' | 'any' | 'permanent' | 'spell' | 'creature-or-player' | 'creature-or-planeswalker' | 'planeswalker' | 'opponent' | 'artifact' | 'enchantment' | 'land' | 'nonland-permanent' | 'artifact-or-enchantment' | 'creature-spell' | 'noncreature-spell' | 'attacking-creature' | 'blocking-creature' | 'tapped-creature' | 'ability' | 'artifact-enchantment-or-nonbasic-land' | 'spell-or-nonland-permanent' | 'graveyard-card';
+  kind: CoreTargetKind | keyof TargetKindRegistry;
   controller?: 'you' | 'opponent';         // "target creature you control" / "an opponent controls"
   filter?: Filter;
   optional?: boolean;                      // "up to one"
@@ -47,17 +54,24 @@ export interface Filter {
   withKeyword?: Keyword;                         // "creature with deathtouch"
 }
 
-/** Amount expression */
-export type Amount = number | 'X' | {
-  count: 'creatures-you-control' | 'cards-in-hand' | 'lands-you-control' | 'power-of-source' | 'creatures-attacking' | 'opponent-creatures' | 'life-lost-this-turn'
+export type CoreAmountCount = 'creatures-you-control' | 'cards-in-hand' | 'lands-you-control' | 'power-of-source' | 'creatures-attacking' | 'opponent-creatures' | 'life-lost-this-turn'
     | 'permanents-you-control' | 'domain' | 'exiled-with' | 'cards-in-graveyard' | 'power-of-that' | 'mv-of-that' | 'colors-spent' | 'card-types-in-graveyard' | 'card-types-in-all-graveyards' | 'counters-on-source'
     | 'counters-on-permanents' | 'that-many' | 'commander-casts' | 'opponents' | 'player-counters' | 'cards-drawn-this-turn'
     | 'permanents-on-battlefield' | 'creatures-died-this-turn' | 'attached-to-source' | 'blocking-source' | 'cards-in-all-hands' | 'spells-cast-this-turn';
+/** Families add amount counts by augmenting AmountCountRegistry; AMOUNTS[count] evaluates them. */
+export interface AmountCountRegistry {}
+export type AmountCount = CoreAmountCount | keyof AmountCountRegistry;
+
+/** Amount expression */
+export type Amount = number | 'X' | {
+  count: AmountCount;
   filter?: Filter; plus?: number; times?: number; counter?: string;
 };
 
 /** A non-mana (or mixed) cost: shared by activated abilities, alternative costs, additional costs and Crew/Saddle. */
-export interface AbilityCost {
+/** Families add cost parts by augmenting AbilityCostExt; COST_PARTS[key] pays and checks them. */
+export interface AbilityCostExt {}
+export interface AbilityCost extends AbilityCostExt {
   mana?: ManaCost;
   tap?: boolean;
   untap?: boolean;
@@ -78,12 +92,19 @@ export interface AbilityCost {
 }
 
 /** An alternative way to cast a spell (CR 118.9). `from` is the zone the card is cast from. */
+export type CoreAltCostId = 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard' | 'buyback' | 'dash' | 'morph';
+/** Families add alternative-cost ids by augmenting AltCostIdRegistry (state.ts re-exports AltCostId). */
+export interface AltCostIdRegistry {}
+export type AltCostId = CoreAltCostId | keyof AltCostIdRegistry;
+/** The zone a spell is cast from (CR 601.2); AltCost.from and GameObject.castWith.from use it. */
+export type CastZone = 'hand' | 'graveyard' | 'exile' | 'command';
+
 export interface AltCost {
-  id: 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard' | 'buyback' | 'dash' | 'morph';
+  id: AltCostId;
   label: string;
   cost: AbilityCost;              // cost.mana undefined => free
   condition?: Condition;
-  from: 'hand' | 'graveyard';
+  from: CastZone;
   exileAfter?: boolean;           // flashback / jump-start: exile instead of graveyard when the spell leaves the stack
   returnToHand?: boolean;         // buyback: the spell goes back to its owner's hand instead of the graveyard
   timeCounters?: number;          // impending N
@@ -94,15 +115,18 @@ export type CostModifier =
   | { kind: 'reduce'; amount: Amount };                                  // affinity, domain, "costs {1} less for each ..."
 
 /** Replacement / as-enters effects applied when the permanent enters the battlefield (CR 614.1c). */
-export type AsEnters =
+export type CoreAsEnters =
   | { kind: 'tapped' }
   | { kind: 'tapped-unless'; condition: Condition }                      // fastlands, slowlands, checklands, Starting Town
   | { kind: 'pay-life-or-tapped'; life: number }                         // shocklands
   | { kind: 'counters'; counter: string; amount: Amount; condition?: Condition }   // Chalice X, Ballista X, Moonshadow, Murktide, bloodthirst
   | { kind: 'choose'; what: 'creature-type' | 'color' }                  // Cavern of Souls
   | { kind: 'discard-or-graveyard'; filter: Filter };                    // Mox Diamond
+/** Families add as-enters kinds by augmenting AsEntersRegistry; AS_ENTERS[kind] applies them. */
+export interface AsEntersRegistry {}
+export type AsEnters = CoreAsEnters | AsEntersRegistry[keyof AsEntersRegistry];
 
-export type Effect =
+export type CoreEffect =
   | { op: 'damage'; amount: Amount; target: TargetSpec | 'each-opponent' | 'each-player' | 'each-creature' | 'each-other-creature' | 'each-opponent-creature' | 'each-creature-and-player' | 'each-flying-creature' | 'each-nonflying-creature' | 'each-creature-you-dont-control' ; divided?: boolean; kickedAmount?: Amount }
   | { op: 'destroy'; target: TargetSpec | 'all-creatures' | 'all-artifacts' | 'all-enchantments' | 'all-lands' | 'all-nonland' | 'all-opponent-creatures' | 'all-tapped-creatures' | 'enchanted'; noRegenerate?: boolean; filter?: Filter; ifTarget?: Filter; ifTargetAlt?: { condition: Condition; filter: Filter } }
   | { op: 'exile'; target: TargetSpec | 'all-creatures'; from?: 'graveyard' | 'battlefield'; until?: 'leaves'; ifTarget?: Filter; ifTargetAlt?: { condition: Condition; filter: Filter } }
@@ -203,8 +227,11 @@ export type Effect =
   | { op: 'extra-turn' }
   | { op: 'loot'; draw: number; discard: number; discardFirst?: boolean; optional?: boolean }
   | { op: 'unknown'; text: string };
+/** Families add effect ops by augmenting EffectRegistry; EFFECT_OPS[op] applies them. */
+export interface EffectRegistry {}
+export type Effect = CoreEffect | EffectRegistry[keyof EffectRegistry];
 
-export type Condition =
+export type CoreCondition =
   | { kind: 'or'; conditions: Condition[] }
   | { kind: 'self-entered-this-turn' }
   | { kind: 'total-toughness-ge'; value: number }
@@ -247,8 +274,11 @@ export type Condition =
   | { kind: 'opponent-lost-life-this-turn' }
   | { kind: 'life-gained-this-turn' }
   | { kind: 'unknown'; text: string };
+/** Families add conditions by augmenting ConditionRegistry; CONDITIONS[kind] evaluates them. */
+export interface ConditionRegistry {}
+export type Condition = CoreCondition | ConditionRegistry[keyof ConditionRegistry];
 
-export type TriggerEvent =
+export type CoreTriggerEvent =
   | { on: 'etb'; self: boolean; filter?: Filter; controller?: 'you' | 'any' }          // "When ~ enters" / "Whenever a creature enters under your control"
   | { on: 'dies'; self: boolean; filter?: Filter; controller?: 'you' | 'any' }
   | { on: 'ltb'; self: boolean }
@@ -275,6 +305,9 @@ export type TriggerEvent =
   | { on: 'discard'; filter?: Filter }
   | { on: 'end-of-turn' }
   | { on: 'unknown'; text: string };
+/** Families add trigger events by augmenting TriggerRegistry; TRIGGERS[on] matches them. */
+export interface TriggerRegistry {}
+export type TriggerEvent = CoreTriggerEvent | TriggerRegistry[keyof TriggerRegistry];
 
 export interface TriggeredAbility { kind: 'triggered'; event: TriggerEvent; effects: Effect[]; condition?: Condition; optional?: boolean; text: string; intervening?: Condition; /** "This ability triggers only once each turn." */ oncePerTurn?: boolean }
 export interface ActivatedAbility { kind: 'activated'; cost: AbilityCost; effects: Effect[]; text: string; sorcerySpeed?: boolean; loyalty?: number; oncePerTurn?: boolean; manaAbility?: boolean; activateOnlyIf?: Condition; instantSpeed?: boolean; /** Activated while the card is in the graveyard (unearth). */ fromGraveyard?: boolean }
@@ -282,7 +315,7 @@ export interface StaticAbility { kind: 'static'; effect: StaticEffect; text: str
 export interface SpellAbility { kind: 'spell'; effects: Effect[]; text: string }
 export type Ability = TriggeredAbility | ActivatedAbility | StaticAbility | SpellAbility;
 
-export type StaticEffect =
+export type CoreStaticEffect =
   | { kind: 'anthem'; power: number; toughness: number; filter: Filter; scope: 'you-control' | 'all' | 'other-you-control'; keywords?: Keyword[]; condition?: Condition; anyPermanent?: boolean; whileInGraveyard?: boolean; landwalk?: string[] }
   | { kind: 'damage-by-toughness'; scope: 'self' | 'you-control'; onlyWhenGreater?: boolean }   // Doran: assigns combat damage equal to its toughness
   | { kind: 'flash-for'; filter: Filter }                                                       // "you may cast X spells as though they had flash"
@@ -310,6 +343,9 @@ export type StaticEffect =
   | { kind: 'cant-be-countered' }
   | { kind: 'lifegain-multiplier'; plus?: number }
   | { kind: 'unknown'; text: string };
+/** Families add static effects by augmenting StaticRegistry; STATICS[kind] folds them into Mods. */
+export interface StaticRegistry {}
+export type StaticEffect = CoreStaticEffect | StaticRegistry[keyof StaticRegistry];
 
 export interface CardDef {
   /** Status of the per-card script (data/scripts/<oracle_id>.json) if one exists: applied, or stale after an oracle text change. */

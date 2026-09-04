@@ -2,10 +2,12 @@
 // object (the dominant cost of the AI's search); this clone shares CardDefs (they are immutable) and copies only
 // the mutable game data, recreating Sets/Maps and preserving the aliasing between StackItem.source and zone objects.
 import { makeKnowledge, type GameObject, type GameState, type Player, type StackItem } from './state.js';
+import { cloneExt } from './ops/ext.js';
 
 export function cloneObject(o: GameObject): GameObject {
   // Spread copies every own enumerable property, including the ad-hoc flags the engine bolts on
-  // (controlUntilEot, exiledUntilLeaves, deathtouched, wasBlocked, kicked, ...).
+  // (controlUntilEot, exiledUntilLeaves, deathtouched, wasBlocked, kicked, ...) and `copyDef`, which is shared by
+  // reference exactly like `def` because CardDefs are immutable.
   const c = { ...o } as GameObject & Record<string, unknown>;
   c.counters = { ...o.counters };
   c.eotKeywords = [...o.eotKeywords];
@@ -25,11 +27,12 @@ export function cloneObject(o: GameObject): GameObject {
   if (o.castableFromExile) c.castableFromExile = { ...o.castableFromExile };
   if (o.grantedAbilities) c.grantedAbilities = [...o.grantedAbilities];
   if (o.staticGranted) c.staticGranted = [...o.staticGranted];
+  if (o.ext) c.ext = cloneExt(o.ext);
   return c as GameObject;
 }
 
 function clonePlayer(p: Player, cl: (o: GameObject) => GameObject): Player {
-  return { ...p, ...(p.stickyMana ? { stickyMana: [...p.stickyMana] } : {}), ...(p.counters ? { counters: { ...p.counters } } : {}), library: p.library.map(cl), hand: p.hand.map(cl), graveyard: p.graveyard.map(cl), exile: p.exile.map(cl), battlefield: p.battlefield.map(cl), command: (p.command ?? []).map(cl), commanders: [...(p.commanders ?? [])], commanderCasts: { ...(p.commanderCasts ?? {}) }, commanderDamage: { ...(p.commanderDamage ?? {}) }, manaPool: [...p.manaPool] };
+  return { ...p, ...(p.ext ? { ext: cloneExt(p.ext) } : {}), ...(p.stickyMana ? { stickyMana: [...p.stickyMana] } : {}), ...(p.counters ? { counters: { ...p.counters } } : {}), library: p.library.map(cl), hand: p.hand.map(cl), graveyard: p.graveyard.map(cl), exile: p.exile.map(cl), battlefield: p.battlefield.map(cl), command: (p.command ?? []).map(cl), commanders: [...(p.commanders ?? [])], commanderCasts: { ...(p.commanderCasts ?? {}) }, commanderDamage: { ...(p.commanderDamage ?? {}) }, manaPool: [...p.manaPool] };
 }
 
 function cloneStackItem(it: StackItem, cl: (o: GameObject) => GameObject): StackItem {
@@ -53,5 +56,6 @@ export function cloneState(s: GameState): GameState {
   const k = s.knowledge;
   out.knowledge = k ? { knownTop: k.knownTop.map(a => [...a]), knownInHand: [...k.knownInHand], revealed: [...k.revealed] } : makeKnowledge(players.length);
   if (s.delayed) out.delayed = s.delayed.map(d => ({ ...d, affected: d.affected?.map(a => ({ id: a.id, lastKnown: { ...a.lastKnown } })) }));
+  if (s.ext) out.ext = cloneExt(s.ext);
   return out as GameState;
 }

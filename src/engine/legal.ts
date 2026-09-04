@@ -1,12 +1,13 @@
 // Enumerates legal actions for a player with priority, and legal targets for a target spec.
 import type { AltCost, Effect, ManaCost, TargetSpec } from '../cards/types.js';
 import { manaValue } from '../cards/parse.js';
-import { abilitiesOf, allPermanents, castForbiddenBy, conditionHolds, defOf, flashFor, isCreature, isLand, isType, matchesFilter, name, protectedFrom, hasKeyword } from './characteristics.js';
+import { abilitiesOf, allPermanents, battlefieldOf, castForbiddenBy, conditionHolds, defOf, flashFor, isCreature, isLand, isType, matchesFilter, name, protectedFrom, hasKeyword } from './characteristics.js';
 import { findPayment as findPaymentFull, manaSources, type ManaSourceOptions, type Payment } from './mana.js';
 import { costAdjust, exileWindowOpen, extraManaSources, hasModifier, nonManaCostPayable, pickDelve, spellManaCost, ZERO_COST } from './cost.js';
 import type { Game } from './game.js';
 import { type CastZone, type GameObject, type IllegalHint, type LegalAction, type PlayerAction, type PlayerId, type TargetRef } from './state.js';
 import { alive, opponentsOf } from './players.js';
+import { HAS, LEGAL_PROVIDERS, TARGET_KINDS, tokenAbilityOf } from './ops/_registry.js';
 
 /** Which effects of a spell/ability take targets, with their spec. */
 export function targetingEffects(effects: Effect[]): { index: number; spec: TargetSpec }[] {
@@ -68,11 +69,12 @@ export function targetOptionsFor(g: Game, controller: PlayerId, spec: TargetSpec
         out.push({ kind: 'stack', id: it.id });
       }
       break;
+    default: if (HAS.targetKinds) { const h = TARGET_KINDS[spec.kind as string]; if (h) out.push(...h(g, controller, source, spec)); } break;
   }
   return out;
 }
 
-function describeSpec(spec: TargetSpec): string {
+export function describeSpec(spec: TargetSpec): string {
   const base = spec.kind.replace(/-/g, ' ');
   const ctl = spec.controller === 'you' ? ' you control' : spec.controller === 'opponent' ? ' an opponent controls' : '';
   return `${spec.optional ? 'up to ' : ''}${spec.count && spec.count > 1 ? spec.count + ' ' : ''}target ${base}${ctl}`;
@@ -127,11 +129,10 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
   });
   for (const c of pl.exile) if (c.castableFromExile && exileWindowOpen(s, p, c.castableFromExile)) castActionsFor(g, p, c, 'exile', sorceryTiming, out);
   for (const c of pl.command ?? []) castActionsFor(g, p, c, 'command', sorceryTiming, out);
-  // activated abilities of permanents
-  for (const o of pl.battlefield) {
-    if (o.token?.treasure && !o.tapped) { out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -1 }, label: `sacrifice Treasure for mana` }); continue; }
-    if (o.token?.clue) { if (findPayment({ generic: 2, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{2}' })) out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -6 }, label: `sacrifice Clue: draw a card`, manaValue: 2 }); continue; }
-    if (o.token?.food) { if (!o.tapped && findPayment({ generic: 2, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{2}' })) out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -7 }, label: `sacrifice Food: gain 3 life`, manaValue: 2 }); continue; }
+  // activated abilities of permanents (phasing-aware: a phased-out permanent does not exist, CR 702.26e)
+  for (const o of battlefieldOf(s, p)) {
+    // predefined tokens (Treasure, Clue, Food, ...) carry their built-in ability in the TOKEN_ABILITIES registry
+    if (o.token !== null) { const ta = tokenAbilityOf(o); if (ta) { const la = ta.legal(g, p, o); if (la) out.push(la); continue; } }
     abilitiesOf(o).forEach((ab, i) => {
       if (ab.kind !== 'activated') return;
       // tap-only mana abilities are used implicitly by auto-payment; ones with other costs (Lotus Petal, Lion's Eye Diamond) are explicit actions
@@ -162,6 +163,7 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
       if (options.length) out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -3 }, label: `equip ${name(o)}#${o.id}`, targetOptions: [{ spec: 'target creature you control', options, optional: false, count: 1 }], manaValue: manaValue(eq.effect.equipCost) });
     }
   }
+  if (LEGAL_PROVIDERS.length) for (const f of LEGAL_PROVIDERS) f(g, p, out, sorceryTiming);
   return out;
 }
 
@@ -183,7 +185,7 @@ function castGates(s: import('./state.js').GameState, p: PlayerId): { flash: boo
   gateCache = { state: s, version: s.version, p, flash, forbid };
   return gateCache;
 }
-function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZone, sorceryTiming: boolean, out: LegalAction[]) {
+export function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZone, sorceryTiming: boolean, out: LegalAction[]) {
   const s = g.state; const pl = s.players[p]; const d = c.def;
   if (d.types.includes('Land')) return;
   const instantSpeed = d.types.includes('Instant') || d.keywords.includes('flash') || (castGates(s, p).flash && flashFor(s, p, c));
@@ -208,13 +210,15 @@ function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZone, sor
 
   interface Variant { alt?: AltCost; kicked?: boolean; x?: number; pay?: { delve?: number[]; useExtras?: boolean }; how: string[]; mv: number; plan?: Payment | null; cost?: ManaCost }
   const variants: Variant[] = [];
-  const consider = (alt: AltCost | undefined, kicked: boolean) => {
+  // `modes` is threaded into spellManaCost for entwine/spree-style mode costs; the variant loop below still enumerates
+  // modes after the payment plans, so no core card passes a non-undefined value yet (8a-2 restructures it).
+  const consider = (alt: AltCost | undefined, kicked: boolean, modes?: number[]) => {
     if (alt && alt.from !== from) return;
     if (!alt && from === 'graveyard') return;
     if (alt?.condition && !conditionHolds(s, { ...c, controller: p }, alt.condition)) return;
     if (alt && !nonManaCostPayable(s, pl, alt.cost, c)) return;
     if (!free && !alt && !d.manaCost) return;
-    const cost = free ? ZERO_COST : spellManaCost(d, alt, kicked);
+    const cost = free ? ZERO_COST : spellManaCost(d, alt, kicked, modes);
     let maxX = 0;
     if (cost.x) { while (maxX < 20 && (tryPay(cost, maxX + 1, 0, false) || (delve && gy > 0 && tryPay(cost, maxX + 1, Math.min(gy, cost.generic + cost.x * (maxX + 1)), false)))) maxX++; }
     const xs: (number | undefined)[] = cost.x ? (wantsXRange ? Array.from({ length: Math.min(maxX, 4) + 1 }, (_, i) => i) : [maxX]) : [undefined];

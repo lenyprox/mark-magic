@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 
 const src = fs.readFileSync('src/engine/game.ts', 'utf8');
 const count = (re: RegExp) => (src.match(re) ?? []).length;
@@ -22,4 +23,20 @@ test('direct state writes in game.ts stay at or below the pinned ceilings', () =
   const report: string[] = [];
   for (const c of CEILINGS) { const n = count(c.re); report.push(`${c.name}: ${n}/${c.max}`); assert.ok(n <= c.max, `${c.name}: ${n} > ${c.max} — route the new write through a Game primitive`); }
   assert.ok(report.length);
+});
+
+// Mechanic families are new code: they get no allowance at all. Every observable change an op makes must go through a
+// Game primitive (setTapped / addCounters / gainLife / loseLife / dealDamage* / moveTo / enterBattlefield / addMana /
+// attach / changeControl / emit), so the typed event stream stays complete for the UI, the replay and the analysis layer.
+const OPS_DIR = 'src/engine/ops';
+function opsSources(): { file: string; src: string }[] {
+  return fs.readdirSync(OPS_DIR).filter(f => f.endsWith('.ts')).map(f => ({ file: path.join(OPS_DIR, f), src: fs.readFileSync(path.join(OPS_DIR, f), 'utf8') }));
+}
+
+test('src/engine/ops does no direct writes to observable state (ceiling 0)', () => {
+  const offenders: string[] = [];
+  for (const { file, src: s } of opsSources()) {
+    for (const c of CEILINGS) { const hits = s.match(c.re) ?? []; for (const h of hits) offenders.push(`${file}: ${c.name} — ${h.trim()}`); }
+  }
+  assert.deepEqual(offenders, [], 'ops must route every observable change through a Game primitive');
 });
