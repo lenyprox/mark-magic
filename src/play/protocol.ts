@@ -4,6 +4,7 @@ import type { CardDef } from '../cards/types.js';
 import type { DeckList } from '../cards/db.js';
 import type { StopPolicy, RecordedAnswer } from '../engine/agents/deferred.js';
 import type { Decision, PlayerId, Step } from '../engine/state.js';
+import type { GameEvent } from '../engine/events.js';
 import type { Reasoning } from '../ai/ai.js';
 import type { AnalysisReport, ArchetypeProfile, McRequest, TrialResult } from '../analysis/types.js';
 import type { ViewState } from './view.js';
@@ -47,8 +48,8 @@ export interface StartOptions {
   startingLife: number;
   maxTurns?: number;
   mulligans: boolean;
-  /** 0 = the human plays seat 0; null = AI vs AI (spectate). */
-  humanSeat: 0 | null;
+  /** The seat the human plays (0 today); null = AI vs AI (spectate). */
+  humanSeat: number | null;
   ai: AiSettings;
   analysis: AnalysisSettings;
   stops?: Partial<StopPolicy>;
@@ -63,7 +64,8 @@ export const DEFAULT_START_OPTIONS: Omit<StartOptions, 'seed'> = {
 };
 
 export type MainToWorker =
-  | { type: 'start'; gameId: string; decks: [DeckPayload, DeckPayload]; options: StartOptions }
+  /** Two decks for a duel, three or four for a pod (seat i plays decks[i]). */
+  | { type: 'start'; gameId: string; decks: DeckPayload[]; options: StartOptions }
   | { type: 'answer'; requestId: number; answer: unknown }
   | { type: 'set-stops'; stops: Partial<StopPolicy> }
   | { type: 'request-view' }
@@ -75,12 +77,13 @@ export type MainToWorker =
 
 export type WorkerToMain =
   | { type: 'ready' }
-  | { type: 'started'; gameId: string; view: ViewState }
-  | { type: 'decision'; requestId: number; decision: Decision; view: ViewState }
-  | { type: 'view'; view: ViewState }
+  | { type: 'started'; gameId: string; view: ViewState; events?: GameEvent[] }
+  /** `events`: the redacted typed events since the previous message that carried events (in order). */
+  | { type: 'decision'; requestId: number; decision: Decision; view: ViewState; events?: GameEvent[] }
+  | { type: 'view'; view: ViewState; events?: GameEvent[] }
   | { type: 'log'; line: string; turn: number; step: Step; index: number }
   | { type: 'reasoning'; reasoning: Reasoning }
   | { type: 'analysis'; requestId: number; report: AnalysisReport; phase: 'quick' | 'update' | 'done' }
   | { type: 'analysis-rerun-result'; req: McRequest; identical: boolean; results: TrialResult[] }
-  | { type: 'finished'; gameId: string; winner: PlayerId | null; view: ViewState; log: string[]; actions: RecordedAnswer[]; reasoning: Reasoning[]; turns: number }
+  | { type: 'finished'; gameId: string; winner: PlayerId | null; view: ViewState; log: string[]; actions: RecordedAnswer[]; reasoning: Reasoning[]; turns: number; events?: GameEvent[] }
   | { type: 'error'; message: string; stack?: string };

@@ -89,7 +89,7 @@ export async function playOne(spec: MatchSpec, prepared: PreparedMatch, i: numbe
   rec.winner = ws === null ? null : order[ws];
   rec.firstSeat = firstSeat(game);
   rec.turns = s.turn;
-  rec.unsimulated = s.log.filter(l => l.includes('unsimulated text')).length;
+  rec.unsimulated = s.eventCounts?.unsimulated ?? s.log.filter(l => l.includes('unsimulated text')).length;
   order.forEach((d, seat) => {
     const st = agents[seat].stats;
     rec.mulligans[d] = st.mulligans; rec.openingHand[d] = st.openingHand ?? s.players[seat].hand.map(c => c.def.name);
@@ -156,7 +156,7 @@ export function aggregateMatches(spec: MatchSpecRef, records: GameRecordLite[], 
     const hasCommander = castTurns.length + never > 0 && spec.format === 'commander';
     return {
       deck, name: d.name, games, wins, losses, draws: dr,
-      winRate: estimate(wins + dr / 2, games, spec.baseSeed),
+      winRate: estimate(wins + dr / n, games, spec.baseSeed),
       seatWins, seatGames, onThePlay: play, onTheDraw: drawSide,
       mulliganRate: games ? round(mulls / games) : 0,
       avgTurnsWon: wonTurns.length ? round(wonTurns.reduce((a, b) => a + b, 0) / wonTurns.length) : null,
@@ -173,12 +173,12 @@ export function aggregateMatches(spec: MatchSpecRef, records: GameRecordLite[], 
 
 /** The derivation of one deck's win rate, with the reference needed to replay the batch. */
 export function matchDerivation(spec: MatchSpecRef, agg: MatchAggregate, deck = 0): Derivation {
-  const d = agg.byDeck[deck]; const succ = d.wins + d.draws / 2;
+  const d = agg.byDeck[deck]; const n = spec.decks.length; const succ = d.wins + d.draws / n;
   const others = spec.decks.filter((_, i) => i !== deck).map(x => x.name).join(', ');
   const sim: SimRerunRef = { specId: spec.id, baseSeed: spec.baseSeed, gameStart: spec.gameStart ?? 0, games: spec.games, deck, decks: spec.decks, successes: succ, n: d.games, ci95: d.winRate.ci95 ?? [0, 1], agent: spec.agent, seating: spec.seating, mulligans: spec.mulligans, maxTurns: spec.maxTurns };
   return {
     id: `sim-${spec.id}-${deck}`, method: 'montecarlo', title: `Win rate: ${d.name} vs ${others}`,
-    formula: 'P(win) ≈ (wins + draws/2) / games, Wilson 95% interval; game i uses seed = hashSeed(baseSeed, i) and the Latin seat rotation',
+    formula: `P(win) ≈ (wins + draws/${n}) / games, Wilson 95% interval; game i uses seed = hashSeed(baseSeed, i) and the Latin seat rotation`,
     inputs: [
       { name: 'games', value: d.games }, { name: 'baseSeed', value: spec.baseSeed }, { name: 'gameStart', value: spec.gameStart ?? 0 },
       { name: 'agent', value: spec.agent === 'ai' ? `ai (${spec.aiSims ?? 30} sims)` : 'rollout' }, { name: 'seating', value: spec.seating }, { name: 'mulligans', value: spec.mulligans }, { name: 'maxTurns', value: spec.maxTurns },
@@ -186,7 +186,7 @@ export function matchDerivation(spec: MatchSpecRef, agg: MatchAggregate, deck = 
     ],
     steps: [
       { text: `wins ${d.wins}, losses ${d.losses}, draws ${d.draws}${agg.errors ? `, ${agg.errors} game(s) hit an engine error and were excluded` : ''}` },
-      { text: `(${d.wins} + ${d.draws}/2) / ${d.games} = ${d.winRate.value}`, value: d.winRate.value },
+      { text: `(${d.wins} + ${d.draws}/${n}) / ${d.games} = ${d.winRate.value}`, value: d.winRate.value },
       { text: `Wilson 95%: [${d.winRate.ci95?.[0]}, ${d.winRate.ci95?.[1]}]` },
       { text: `on the play ${d.onThePlay.wins}/${d.onThePlay.games}, on the draw ${d.onTheDraw.wins}/${d.onTheDraw.games}; seat wins ${d.seatWins.join('/')} of ${d.seatGames.join('/')}` },
       { text: `unsimulated card text encountered: ${agg.unsimulated}`, value: agg.unsimulated },
@@ -195,7 +195,7 @@ export function matchDerivation(spec: MatchSpecRef, agg: MatchAggregate, deck = 
     assumptions: [
       spec.agent === 'rollout' ? 'both seats follow the deterministic rollout policy (no look-ahead)' : `both seats use the simulation AI with ${spec.aiSims ?? 30} sims per decision`,
       spec.mulligans === 'none' ? 'every seven is kept' : 'a seven with 0-1 or 6-7 lands is mulliganed once',
-      `a game still running after turn ${spec.maxTurns} is a draw (half a win each)`,
+      `a game still running after turn ${spec.maxTurns} is a draw (1/${n} of a win each)`,
       'cards with unparsed text play with those lines inert',
       ...(spec.format === 'commander' ? ['commanders start in the library (the command zone arrives with the Commander milestone)'] : []),
     ],
@@ -216,6 +216,6 @@ export function assembleResult(spec: MatchSpec | MatchSpecRef, records: GameReco
 export async function verifyRerun(ref: SimRerunRef, decks: DeckPayload[], opts: RunOptions = {}): Promise<{ identical: boolean; successes: number; result: MatchResult }> {
   const spec: MatchSpec = { id: ref.specId, decks, games: ref.games, gameStart: ref.gameStart, baseSeed: ref.baseSeed, seating: ref.seating, agent: ref.agent, format: decks.some(d => d.commander.length) ? 'commander' : 'freeform', maxTurns: ref.maxTurns, mulligans: ref.mulligans, record: 'summary' };
   const result = await runMatches(spec, opts);
-  const d = result.aggregate.byDeck[ref.deck]; const successes = d.wins + d.draws / 2;
+  const d = result.aggregate.byDeck[ref.deck]; const successes = d.wins + d.draws / decks.length;
   return { identical: d.games === ref.n && Math.abs(successes - ref.successes) < 1e-9, successes, result };
 }

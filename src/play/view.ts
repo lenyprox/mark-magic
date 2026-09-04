@@ -23,7 +23,7 @@ export interface PlayerView {
 export interface StackItemView { id: number; kind: StackItem['kind']; name: string; controller: PlayerId; text: string; sourceId: number; source: CardView; targets: TargetRef[]; targetLabels: string[]; countered: boolean }
 export interface ViewState {
   gameId: string; viewer: PlayerId | null; turn: number; activePlayer: PlayerId; step: Step; priority: PlayerId; winner: PlayerId | null;
-  players: [PlayerView, PlayerView]; stack: StackItemView[]; attackers: number[]; logLength: number; passesInRow: number;
+  players: PlayerView[]; turnOrder: PlayerId[]; stack: StackItemView[]; attackers: number[]; logLength: number; passesInRow: number;
 }
 
 function defOf(o: GameObject): CardDef { return o.def; }
@@ -64,10 +64,10 @@ export function buildView(g: Game, viewer: PlayerId | null, gameId = ''): ViewSt
       manaPool: [...p.manaPool], landsPlayedThisTurn: p.landsPlayedThisTurn, lost: p.lost, lossReason: p.lossReason,
     };
     return pv;
-  }) as [PlayerView, PlayerView];
+  });
   const stack = s.stack.map(it => {
     const targets = [...it.targetsByEffect.values()].flat();
     return { id: it.id, kind: it.kind, name: it.name, controller: it.controller, text: it.text, sourceId: it.source.id, source: cardView(s, it.source), targets, targetLabels: targets.map(t => g.refName(t)), countered: !!it.countered } satisfies StackItemView;
   });
-  return { gameId, viewer, turn: s.turn, activePlayer: s.activePlayer, step: s.step, priority: s.priority, winner: s.winner, players, stack, attackers: [...s.attackers], logLength: s.log.length, passesInRow: s.passesInRow };
+  return { gameId, viewer, turn: s.turn, activePlayer: s.activePlayer, step: s.step, priority: s.priority, winner: s.winner, players, turnOrder: [...(s.turnOrder ?? players.map(p => p.id))], stack, attackers: [...s.attackers], logLength: s.log.length, passesInRow: s.passesInRow };
 }

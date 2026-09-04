@@ -7,6 +7,7 @@ import { AiAgent } from '@ai/ai';
 import { DeferredAgent, type AskRequest } from '@engine/agents/deferred';
 import type { Agent, Decision } from '@engine/state';
 import { redact } from '@engine/view';
+import { redactEvent, type GameEvent } from '@engine/events';
 import { defTable } from '@engine/serialize';
 import { AnalysisPool, inlineWorker, defaultPoolSize, type WorkerLike } from '@analysis/pool';
 import type { AnalysisReport, ListEntry, McRequest, OpponentModel } from '@analysis/types';
@@ -20,13 +21,21 @@ const post = (m: WorkerToMain) => ctx.postMessage(m);
 
 let game: Game | null = null;
 let gameId = '';
-let viewer: 0 | null = 0;
+let viewer: number | null = 0;
 let options: StartOptions | null = null;
 const pending = new Map<number, (v: unknown) => void>();
 let human: DeferredAgent | null = null;
 const reasoning: Reasoning[] = [];
 let viewScheduled = false;
 let logIndex = 0;
+let eventCursor = 0;
+
+/** Events emitted since the last call, redacted for the viewer. */
+function drainEvents(): GameEvent[] {
+  const all = game?.state.events; if (!all) return [];
+  const out = all.slice(eventCursor).map(e => redactEvent(e, viewer)); eventCursor = all.length;
+  return out;
+}
 
 // ---- analysis
 let pool: AnalysisPool | null = null;
@@ -86,7 +95,7 @@ async function rerun(req: McRequest) {
 function scheduleView() {
   if (viewScheduled || !game) return;
   viewScheduled = true;
-  setTimeout(() => { viewScheduled = false; if (game) post({ type: 'view', view: buildView(game, viewer, gameId) }); }, 0);
+  setTimeout(() => { viewScheduled = false; if (game) post({ type: 'view', view: buildView(game, viewer, gameId), events: drainEvents() }); }, 0);
 }
 
 function onLog(line: string) {
@@ -95,14 +104,14 @@ function onLog(line: string) {
   scheduleView();
 }
 
-async function start(id: string, decks: [DeckPayload, DeckPayload], opts: StartOptions) {
-  gameId = id; viewer = opts.humanSeat; options = opts; reasoning.length = 0; logIndex = 0; pending.clear(); currentDecision = null; latestReport = null;
+async function start(id: string, decks: DeckPayload[], opts: StartOptions) {
+  gameId = id; viewer = opts.humanSeat; options = opts; reasoning.length = 0; logIndex = 0; eventCursor = 0; pending.clear(); currentDecision = null; latestReport = null;
   myList = listOf(decks[0]); oppList = listOf(decks[1]);
   const defs = defTable([...Object.values(decks[0].defs), ...Object.values(decks[1].defs)]);
   const ask = (req: AskRequest) => new Promise<unknown>(resolve => {
     pending.set(req.id, resolve);
     currentDecision = { requestId: req.id, decision: req.decision };
-    if (game) post({ type: 'decision', requestId: req.id, decision: req.decision, view: buildView(game, viewer, gameId) });
+    if (game) post({ type: 'decision', requestId: req.id, decision: req.decision, view: buildView(game, viewer, gameId), events: drainEvents() });
     runAnalysis();
   });
   const aiOpts = { name: opts.aiName ?? 'AI', aggression: opts.ai.aggression, maxSims: opts.ai.maxSims, verbose: opts.ai.verbose, cheat: opts.ai.cheat, determinizations: opts.ai.determinizations, seed: opts.seed, defs, myList: oppList, opponentModel: opts.ai.knowsOpponentList ? { kind: 'exact' as const, list: myList } : { kind: 'none' as const } };
@@ -118,18 +127,19 @@ async function start(id: string, decks: [DeckPayload, DeckPayload], opts: StartO
     ai0.onLog = onLog;
     seat0 = ai0;
   }
-  if (opts.analysis.enabled && opts.humanSeat === 0) {
+  if (opts.analysis.enabled && opts.humanSeat === 0 && decks.length === 2) {
     pool?.cancel();
     pool = new AnalysisPool(makeAnalysisWorker, opts.analysis.workers ?? defaultPoolSize(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 4));
     await pool.init(defs.values());
   }
-  game = new Game([expandPayload(decks[0]), expandPayload(decks[1])], [seat0, ai], { seed: opts.seed, startingLife: opts.startingLife, maxTurns: opts.maxTurns, mulligans: opts.mulligans });
-  if (seat0 instanceof AiAgent) seat0.attach(game);
-  ai.attach(game);
+  const extra = decks.slice(2).map((d, i) => { const a = new AiAgent({ ...aiOpts, name: `AI ${i + 2}`, myList: listOf(d), opponentModel: { kind: 'none' as const } }); a.onLog = onLog; return a; });
+  const agents: Agent[] = [seat0, ai, ...extra];
+  game = new Game(decks.map(expandPayload), agents, { seed: opts.seed, startingLife: opts.startingLife, maxTurns: opts.maxTurns, mulligans: opts.mulligans, events: 'full' });
+  for (const a of agents) if (a instanceof AiAgent) a.attach(game);
   post({ type: 'started', gameId, view: buildView(game, viewer, gameId) });
   try {
     const winner = await game.play();
-    post({ type: 'finished', gameId, winner, view: buildView(game, viewer, gameId), log: game.state.log, actions: human?.recorded ?? [], reasoning, turns: game.state.turn });
+    post({ type: 'finished', gameId, winner, view: buildView(game, viewer, gameId), log: game.state.log, actions: human?.recorded ?? [], reasoning, turns: game.state.turn, events: drainEvents() });
   } catch (e) {
     post({ type: 'error', message: (e as Error).message, stack: (e as Error).stack });
   }
@@ -141,7 +151,7 @@ ctx.onmessage = (ev: MessageEvent<MainToWorker>) => {
     case 'start': void start(m.gameId, m.decks, m.options); break;
     case 'answer': { const r = pending.get(m.requestId); if (r) { pending.delete(m.requestId); if (currentDecision?.requestId === m.requestId) { currentDecision = null; pool?.cancel(); } r(m.answer); } break; }
     case 'set-stops': human?.setStops(m.stops); break;
-    case 'request-view': if (game) post({ type: 'view', view: buildView(game, viewer, gameId) }); break;
+    case 'request-view': if (game) post({ type: 'view', view: buildView(game, viewer, gameId), events: drainEvents() }); break;
     case 'analyze': runAnalysis({ trials: m.trials, horizon: m.horizon, policy: m.policy }); break;
     case 'analysis-rerun': void rerun(m.req); break;
     case 'analysis-cancel': pool?.cancel(); break;

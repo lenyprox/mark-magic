@@ -11,7 +11,7 @@ export function defKey(def: CardDef): string { return def.printingId ? `${def.na
 export type SerializedObject = Omit<GameObject, 'def' | 'activatedThisTurn'> & { defKey: string; activatedThisTurn: number[] } & Record<string, unknown>;
 export type SerializedStackItem = Omit<StackItem, 'source' | 'targetsByEffect'> & { source: SerializedObject; targetsByEffect: [number, TargetRef[]][] } & Record<string, unknown>;
 export type SerializedPlayer = Omit<Player, 'library' | 'hand' | 'graveyard' | 'exile' | 'battlefield'> & { library: SerializedObject[]; hand: SerializedObject[]; graveyard: SerializedObject[]; exile: SerializedObject[]; battlefield: SerializedObject[] };
-export type SerializedState = Omit<GameState, 'players' | 'stack'> & { version: 1; players: [SerializedPlayer, SerializedPlayer]; stack: SerializedStackItem[] } & Record<string, unknown>;
+export type SerializedState = Omit<GameState, 'players' | 'stack' | 'version'> & { version: 1; stateVersion?: number; players: SerializedPlayer[]; stack: SerializedStackItem[] } & Record<string, unknown>;
 
 function serObject(o: GameObject): SerializedObject {
   const { def, activatedThisTurn, ...rest } = o as GameObject & Record<string, unknown>;
@@ -19,10 +19,10 @@ function serObject(o: GameObject): SerializedObject {
 }
 
 export function serializeState(s: GameState): SerializedState {
-  const players = s.players.map(p => ({ ...p, library: p.library.map(serObject), hand: p.hand.map(serObject), graveyard: p.graveyard.map(serObject), exile: p.exile.map(serObject), battlefield: p.battlefield.map(serObject) })) as [SerializedPlayer, SerializedPlayer];
+  const players = s.players.map(p => ({ ...p, library: p.library.map(serObject), hand: p.hand.map(serObject), graveyard: p.graveyard.map(serObject), exile: p.exile.map(serObject), battlefield: p.battlefield.map(serObject) }));
   const stack = s.stack.map(it => { const { source, targetsByEffect, ability, ...rest } = it as StackItem & Record<string, unknown>; void ability; return { ...(rest as Omit<StackItem, 'source' | 'targetsByEffect'>), source: serObject(source), targetsByEffect: [...targetsByEffect] } as SerializedStackItem; });
-  const { players: _p, stack: _s, ...rest } = s as GameState & Record<string, unknown>; void _p; void _s;
-  return { ...(rest as Omit<GameState, 'players' | 'stack'>), version: 1, players, stack, log: [...s.log] };
+  const { players: _p, stack: _s, version: stateVersion, events: _e, ...rest } = s as GameState & Record<string, unknown>; void _p; void _s; void _e;
+  return { ...(rest as Omit<GameState, 'players' | 'stack' | 'version'>), version: 1, stateVersion: stateVersion as number, players, stack, log: [...s.log] };
 }
 
 function deObject(o: SerializedObject, defs: Map<string, CardDef>): GameObject {
@@ -35,7 +35,7 @@ function deObject(o: SerializedObject, defs: Map<string, CardDef>): GameObject {
 export function deserializeState(ser: SerializedState, defs: Map<string, CardDef>): GameState {
   const byId = new Map<number, GameObject>();
   const de = (o: SerializedObject) => { const g = deObject(o, defs); byId.set(g.id, g); return g; };
-  const players = ser.players.map(p => ({ ...p, library: p.library.map(de), hand: p.hand.map(de), graveyard: p.graveyard.map(de), exile: p.exile.map(de), battlefield: p.battlefield.map(de) })) as [Player, Player];
+  const players = ser.players.map(p => ({ ...p, library: p.library.map(de), hand: p.hand.map(de), graveyard: p.graveyard.map(de), exile: p.exile.map(de), battlefield: p.battlefield.map(de) })) as Player[];
   const stack = ser.stack.map(it => {
     const { source, targetsByEffect, ...rest } = it;
     // abilities/triggers point at a permanent that still exists in a zone: re-link to that instance; spells are only on the stack
@@ -44,9 +44,10 @@ export function deserializeState(ser: SerializedState, defs: Map<string, CardDef
     if (item.abilityIndex !== undefined) { const ab = src.def.abilities[item.abilityIndex]; if (ab) item.ability = ab; }
     return item;
   });
-  const { players: _p, stack: _s, version, ...rest } = ser; void _p; void _s; void version;
-  const out = { ...(rest as Omit<GameState, 'players' | 'stack'>), players, stack } as GameState;
-  if (!out.knowledge) out.knowledge = makeKnowledge();
+  const { players: _p, stack: _s, version, stateVersion, ...rest } = ser; void _p; void _s; void version;
+  const out = { ...(rest as Omit<GameState, 'players' | 'stack' | 'version'>), players, stack, version: stateVersion ?? 0 } as GameState;
+  if (!out.knowledge) out.knowledge = makeKnowledge(players.length);
+  if (!out.turnOrder) out.turnOrder = players.map(p => p.id);
   return out;
 }
 

@@ -3,7 +3,7 @@
 // declarations, and the multi-action card menu. Pure state from @play/targeting; this hook only wires it to the store.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AttackDeclaration, BlockDeclaration, LegalAction, PlayerAction, PlayerId, TargetRef } from '@engine/state';
-import { actionsForCard, assignBlock, beginAction, canConfirm, confirmRequirement, currentRequirement, legalTargets, pickTarget, playableCardIds, setX, toggleAttacker, type Flow, type TargetingState } from '@play/targeting';
+import { actionsForCard, assignBlock, beginAction, canConfirm, confirmRequirement, currentRequirement, legalTargets, pickTarget, playableCardIds, setX, toggleAttacker, type DragMode, type Flow, type TargetingState } from '@play/targeting';
 import type { PlayAnalysis } from '@analysis/types';
 import { useGameStore } from '@/lib/game/store';
 import { involvedIn } from '@/lib/game/ui';
@@ -52,6 +52,12 @@ export function useTableInteraction() {
   }, [answer]);
 
   const beginLegal = useCallback((l: LegalAction) => { setMenuCard(null); applyFlow(beginAction(l)); }, [applyFlow]);
+  /** Begin an action and, when it asks for targets, pick `ref` for the first requirement straight away (drag → drop on a target). */
+  const beginWithPick = useCallback((l: LegalAction, ref: TargetRef) => {
+    setMenuCard(null);
+    const flow = beginAction(l);
+    applyFlow(flow.kind === 'targeting' ? pickTarget(flow.state, ref) : flow);
+  }, [applyFlow]);
 
   /** Card click on the table or in hand: dispatch by mode. */
   const onObjectClick = useCallback((id: number) => {
@@ -106,6 +112,18 @@ export function useTableInteraction() {
   const noAttack = useCallback(() => { setMode(m => { if (m.kind === 'attackers') { queueMicrotask(() => answer({ attackers: [...m.mustAttack] })); return { kind: 'idle' }; } return m; }); }, [answer]);
   const noBlocks = useCallback(() => { setMode(m => { if (m.kind === 'blockers') { queueMicrotask(() => answer({ blocks: [] })); return { kind: 'idle' }; } return m; }); }, [answer]);
   const clearBlock = useCallback((blocker: number) => { setMode(m => m.kind === 'blockers' ? { ...m, decl: assignBlock(m.decl, blocker, null) } : m); }, []);
+  /** Drag helpers: set (rather than toggle) an attacker, and assign a block in one step. */
+  const setAttacking = useCallback((id: number, on: boolean) => {
+    setMode(m => {
+      if (m.kind !== 'attackers') return m;
+      const has = m.decl.attackers.includes(id);
+      if (has === on) return m;
+      return { ...m, decl: toggleAttacker(m.decl, id, m.mustAttack) };
+    });
+  }, []);
+  const setBlock = useCallback((blocker: number, attacker: number) => {
+    setMode(m => m.kind === 'blockers' && m.candidates.includes(blocker) && m.attackers.includes(attacker) ? { ...m, decl: assignBlock(m.decl, blocker, attacker), selected: null } : m);
+  }, []);
   const pass = useCallback(() => { if (isPriority && mode.kind === 'idle') answer({ type: 'pass' }); }, [isPriority, mode.kind, answer]);
   const pickNumbered = useCallback((n: number) => { const l = numbered[n - 1]; if (l && mode.kind === 'idle') beginLegal(l); }, [numbered, mode.kind, beginLegal]);
 
@@ -133,10 +151,22 @@ export function useTableInteraction() {
 
   const setHoverAction = useCallback((action: PlayerAction | null) => { setHover(action ? involvedIn(action) : { objects: EMPTY_IDS, players: EMPTY_PLAYERS }); }, []);
 
+  // The serialisable picture of this mode that the drag planner (@play/targeting planDrag) reads. `x` and `armed`
+  // are not draggable states and read as idle-without-actions.
+  const dragMode = useMemo<DragMode>(() => {
+    switch (mode.kind) {
+      case 'idle': return { kind: 'idle', legal: isPriority ? legal : [] };
+      case 'targeting': return { kind: 'targeting', legal, targeting: mode.st };
+      case 'attackers': return { kind: 'attackers', legal: [], attackers: { decl: mode.decl, candidates: mode.candidates, mustAttack: mode.mustAttack } };
+      case 'blockers': return { kind: 'blockers', legal: [], blockers: { decl: mode.decl, selected: mode.selected, attackers: mode.attackers, candidates: mode.candidates } };
+      default: return { kind: 'idle', legal: [] };
+    }
+  }, [mode, legal, isPriority]);
+
   return {
-    mode, decision, legal, numbered, playable, isPriority, menuCard, setMenuCard,
+    mode, decision, legal, numbered, playable, isPriority, menuCard, setMenuCard, dragMode,
     targets, picked, sourceId, requirement, canConfirmNow, hover, setHoverAction,
-    onObjectClick, onPlayerClick, onStackClick, pickRef, beginLegal, cancel, confirm, chooseX, noAttack, noBlocks, clearBlock, pass, pickNumbered, armPlay, usePlay,
+    onObjectClick, onPlayerClick, onStackClick, pickRef, beginLegal, beginWithPick, cancel, confirm, chooseX, noAttack, noBlocks, clearBlock, setAttacking, setBlock, pass, pickNumbered, armPlay, usePlay,
   };
 }
 

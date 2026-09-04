@@ -3,6 +3,7 @@ import { CardDB } from '../src/cards/db.js';
 import { Game } from '../src/engine/game.js';
 import type { Agent, Decision, GameObject, GameState, PlayerId } from '../src/engine/state.js';
 import type { CardDef } from '../src/cards/types.js';
+import { defaultAnswer } from '../src/engine/agents/defaults.js';
 
 export const db = CardDB.shared();
 export const C = (n: string): CardDef => { const d = db.get(n); if (!d) throw new Error('missing card ' + n); return d; };
@@ -23,6 +24,7 @@ export class Script implements Agent {
       case 'choose-color': return 'R';
       case 'choose-option': return d.options[0];
       case 'order-blockers': return d.blockers;
+      default: return defaultAnswer(s, _me, d);
     }
   }
 }

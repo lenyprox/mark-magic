@@ -1,0 +1,24 @@
+// Runs every scenario file under test/scenarios/ (see dsl.ts). `npm run verify:scenarios` runs only this file.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { basics } from './scenarios/basics.js';
+import { runScenario, type Scenario } from './scenarios/dsl.js';
+
+const hasDb = fs.existsSync('data/master/master.db');
+const suites: { file: string; scenarios: Scenario[] }[] = [{ file: 'basics', scenarios: basics }];
+
+for (const suite of suites) for (const sc of suite.scenarios) {
+  test(`[${suite.file}] ${sc.name}${sc.cr ? ` (CR ${sc.cr})` : ''}`, { skip: !hasDb }, async () => {
+    const run = await runScenario(sc);
+    assert.deepEqual(run.failures, [], `${sc.name}\n${run.game.state.log.join('\n')}`);
+  });
+}
+
+test('scenario inventory is exported for the dashboard', () => {
+  const all = suites.flatMap(s => s.scenarios);
+  assert.ok(all.length >= 10);
+  assert.ok(all.every(s => s.name && s.script.length && s.expect.length));
+  const cited = new Set(all.map(s => s.cr).filter(Boolean));
+  assert.ok(cited.size >= 6, 'scenarios cite distinct rules');
+});

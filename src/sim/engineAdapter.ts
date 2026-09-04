@@ -4,13 +4,13 @@ import type { CardDef } from '../cards/types.js';
 import { Game, type GameOptions } from '../engine/game.js';
 import type { Agent } from '../engine/state.js';
 
-/** Seats the engine supports today. */
-export const MAX_SEATS = 2;
+/** Seats the engine supports. */
+export const MAX_SEATS = 4;
 
 export function createGame(decks: CardDef[][], agents: Agent[], opts: GameOptions): Game {
   if (decks.length !== agents.length) throw new Error(`decks (${decks.length}) and agents (${agents.length}) differ`);
-  if (decks.length !== 2) throw new Error(`the engine plays 2 seats today (asked for ${decks.length}); pods arrive with the N-player milestone`);
-  return new Game([decks[0], decks[1]], [agents[0], agents[1]], opts);
+  if (decks.length < 2 || decks.length > MAX_SEATS) throw new Error(`the engine plays 2 to ${MAX_SEATS} seats (asked for ${decks.length})`);
+  return new Game(decks, agents, opts);
 }
 
 /** Seat index of the winner (null: draw / turn limit). */

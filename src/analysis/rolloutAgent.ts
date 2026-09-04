@@ -5,7 +5,9 @@ import { bestBlocks } from '../ai/combat.js';
 import { autoAgent, chooseCardsHeuristic, defaultYesNo, pickTargetsHeuristic } from '../ai/search.js';
 import { canAttack, canBlock, findObject, hasKeyword, isCreature, power, toughness } from '../engine/characteristics.js';
 import { Game } from '../engine/game.js';
-import { opponentOf, type Agent, type Decision, type GameObject, type GameState, type LegalAction, type PlayerAction, type PlayerId, type TargetRef } from '../engine/state.js';
+import { type Agent, type Decision, type GameObject, type GameState, type LegalAction, type PlayerAction, type PlayerId, type TargetRef } from '../engine/state.js';
+import { opponentsOf, primaryOpponent } from '../engine/players.js';
+import { defaultAnswer } from '../engine/agents/defaults.js';
 import { classify } from './classify.js';
 
 export class RolloutAgent implements Agent {
@@ -20,7 +22,7 @@ export class RolloutAgent implements Agent {
     const tired = ++this.decisions > this.maxDecisions;
     switch (d.kind) {
       case 'priority': return tired ? { type: 'pass' } : this.priority(s, me, d.legal);
-      case 'attackers': return { attackers: tired ? d.mustAttack : this.attackers(s, me, d.candidates, d.mustAttack) };
+      case 'attackers': return tired ? { attackers: d.mustAttack } : this.attackDeclaration(s, me, d.candidates, d.mustAttack, d.defenders);
       case 'blockers': return { blocks: tired ? [] : await this.blocks(s, me, d.attackers, d.candidates) };
       case 'choose-cards': return chooseCardsHeuristic(s, me, d.from, d.count, d.reason);
       case 'yes-no': return defaultYesNo(s, me, d);
@@ -28,6 +30,7 @@ export class RolloutAgent implements Agent {
       case 'choose-color': return this.color(s, me);
       case 'choose-option': return d.options[0];
       case 'order-blockers': return d.blockers;
+      default: return defaultAnswer(s, me, d);
     }
   }
 
@@ -39,11 +42,11 @@ export class RolloutAgent implements Agent {
   }
 
   priority(s: GameState, me: PlayerId, legal: LegalAction[]): PlayerAction {
-    const opp = opponentOf(me); const pl = s.players[me];
+    const opps = opponentsOf(s, me); const pl = s.players[me];
     const top = s.stack[s.stack.length - 1];
     const myTurn = s.activePlayer === me;
     const card = (l: LegalAction) => l.action.type === 'cast' ? findObject(s, l.action.cardId) : undefined;
-    if (top && top.controller === opp) {
+    if (top && opps.includes(top.controller)) {
       // counter the opponent's spell when it is worth a card (MV >= 2) and we hold a counter that can target it
       const worth = top.kind === 'spell' && (top.source.def.manaValue >= 2 || top.source.def.types.includes('Creature'));
       if (worth) for (const l of legal) {
@@ -102,13 +105,27 @@ export class RolloutAgent implements Agent {
         // burn to the face only when it is lethal or nothing else is worth hitting
         if (cls.includes('burn') && !cls.includes('removal') && t.flat().some(r => r.kind === 'player' && r.id === me)) return false;
       }
-      if (cls.includes('sweeper')) { const mine = s.players[me].battlefield.filter(isCreature).length, theirs = s.players[opponentOf(me)].battlefield.filter(isCreature).length; if (mine >= theirs) return false; }
+      if (cls.includes('sweeper')) { const mine = s.players[me].battlefield.filter(isCreature).length, theirs = opponentsOf(s, me).reduce((a, q) => a + s.players[q].battlefield.filter(isCreature).length, 0); if (mine >= theirs) return false; }
     }
     return true;
   }
 
-  attackers(s: GameState, me: PlayerId, candidates: number[], mustAttack: number[]): number[] {
-    const opp = opponentOf(me); const O = s.players[opp], P = s.players[me];
+  /** Multiplayer: attack the opponent that can be killed this turn, else the one with the weakest defence; 2-player: the opponent. */
+  attackDeclaration(s: GameState, me: PlayerId, candidates: number[], mustAttack: number[], defenders?: PlayerId[]): { attackers: number[]; targets?: Record<number, PlayerId> } {
+    const opts = defenders && defenders.length > 1 ? defenders : null;
+    if (!opts) return { attackers: this.attackers(s, me, candidates, mustAttack) };
+    const cands = candidates.map(id => findObject(s, id)!).filter(o => o && canAttack(s, o));
+    const totalPower = cands.reduce((a, o) => a + power(s, o), 0);
+    const defence = (q: PlayerId) => s.players[q].battlefield.filter(o => isCreature(o) && !o.tapped).reduce((a, o) => a + toughness(s, o), 0);
+    const lethal = opts.filter(q => s.players[q].life <= totalPower - defence(q));
+    const target = lethal.sort((a, b) => s.players[a].life - s.players[b].life)[0] ?? [...opts].sort((a, b) => (defence(a) - defence(b)) || (s.players[a].life - s.players[b].life))[0];
+    const attackers = this.attackers(s, me, candidates, mustAttack, target);
+    const targets: Record<number, PlayerId> = {}; for (const id of attackers) targets[id] = target;
+    return { attackers, targets };
+  }
+
+  attackers(s: GameState, me: PlayerId, candidates: number[], mustAttack: number[], against?: PlayerId): number[] {
+    const opp = against ?? primaryOpponent(s, me); const O = s.players[opp], P = s.players[me];
     const cands = candidates.map(id => findObject(s, id)!).filter(o => o && canAttack(s, o));
     const blockers = O.battlefield.filter(o => isCreature(o) && !o.tapped);
     const good = (a: GameObject) => {
@@ -134,7 +151,7 @@ export class RolloutAgent implements Agent {
 
   async blocks(s: GameState, me: PlayerId, attackerIds: number[], candidateIds: number[]): Promise<{ blocker: number; attacker: number }[]> {
     const auto = autoAgent();
-    const g = Game.fromState(s, [auto, auto], { quiet: true, seed: 7, fastMana: true });
+    const g = Game.fromState(s, [auto, auto], { quiet: true, seed: 7, fastMana: true, events: 'none' });
     return bestBlocks(s, me, attackerIds, candidateIds, g, 200);
   }
 }

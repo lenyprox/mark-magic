@@ -4,6 +4,7 @@ import { Kbd } from '@/components/ui/Display';
 import styles from './table.module.css';
 
 const ROWS: [string, string][] = [
+  ['Drag', 'Drag a card onto your battlefield to play it, onto a target to aim it, onto the opponent to attack, onto an attacker to block'],
   ['Space', 'Pass priority / resolve the top of the stack'],
   ['1 – 9', 'Pick the nth legal action (or target, when targeting)'],
   ['Enter', 'Confirm the current declaration or armed play'],

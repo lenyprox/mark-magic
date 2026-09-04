@@ -2,7 +2,7 @@
 // while keeping object ids and zone sizes, so `evaluate`, `legalActions` and `findObject` keep working on the view.
 import type { CardDef } from '../cards/types.js';
 import { cloneState } from './clone.js';
-import { opponentOf, type GameObject, type GameState, type PlayerId } from './state.js';
+import type { GameObject, GameState, PlayerId } from './state.js';
 
 export const HIDDEN_DEF_NAME = '__hidden__';
 
@@ -27,15 +27,15 @@ export function redact(s: GameState, viewer: PlayerId): GameState {
   const vis = visibleHiddenIds(s, viewer);
   const hide = (o: GameObject) => { if (!vis.has(o.id)) o.def = HIDDEN_DEF; };
   for (const p of v.players) { p.library.forEach(hide); if (p.id !== viewer) p.hand.forEach(hide); }
-  // the opponent's private scry knowledge is not ours
-  v.knowledge.knownTop[opponentOf(viewer)] = v.knowledge.knownTop[opponentOf(viewer)].filter(id => v.knowledge.revealed.includes(id));
+  // other players' private scry knowledge is not ours
+  for (const p of v.players) if (p.id !== viewer) v.knowledge.knownTop[p.id] = v.knowledge.knownTop[p.id].filter(id => v.knowledge.revealed.includes(id));
   return v;
 }
 
 export interface ViewInfo {
   viewer: PlayerId;
-  hiddenHand: number;                 // opponent hand cards the viewer cannot identify
-  hiddenLibrary: [number, number];    // per player: library cards the viewer cannot identify
+  hiddenHand: number;                 // opponents' hand cards the viewer cannot identify (all opponents)
+  hiddenLibrary: number[];            // per player: library cards the viewer cannot identify
   knownTop: number[];                 // viewer's own known top cards, in order
   knownInHand: number[];              // opponent hand cards whose identity is public
   revealed: number[];
@@ -43,10 +43,11 @@ export interface ViewInfo {
 
 /** Counts of what is hidden from `viewer` (works on redacted and raw states alike). */
 export function viewInfo(s: GameState, viewer: PlayerId): ViewInfo {
-  const vis = visibleHiddenIds(s, viewer); const opp = opponentOf(viewer);
+  const vis = visibleHiddenIds(s, viewer);
   const unknown = (zone: GameObject[]) => zone.filter(o => !vis.has(o.id)).length;
+  const others = s.players.filter(p => p.id !== viewer);
   return {
-    viewer, hiddenHand: unknown(s.players[opp].hand), hiddenLibrary: [unknown(s.players[0].library), unknown(s.players[1].library)],
-    knownTop: [...s.knowledge.knownTop[viewer]], knownInHand: s.knowledge.knownInHand.filter(id => s.players[opp].hand.some(o => o.id === id)), revealed: [...s.knowledge.revealed],
+    viewer, hiddenHand: others.reduce((a, p) => a + unknown(p.hand), 0), hiddenLibrary: s.players.map(p => unknown(p.library)),
+    knownTop: [...s.knowledge.knownTop[viewer]], knownInHand: s.knowledge.knownInHand.filter(id => others.some(p => p.hand.some(o => o.id === id))), revealed: [...s.knowledge.revealed],
   };
 }

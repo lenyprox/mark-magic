@@ -63,7 +63,8 @@ async function main() {
   const resolved = deckRefs.map(r => resolveDeckRef(r, cards, userDb));
   for (const r of resolved) { const p = r.payload; if (p.missing.length) console.error(`${p.name}: ${p.missing.length} card(s) not found: ${p.missing.slice(0, 5).join(', ')}`); if (p.partial.length) console.error(`${p.name}: ${p.partial.length} card(s) partially simulated`); }
   const format = spec0.format === 'commander' || resolved.some(r => r.payload.commander.length) ? 'commander' : 'freeform';
-  if (!spec0.maxTurns) spec0.maxTurns = format === 'commander' ? 40 : 30;
+  // a turn is one player's turn: pods need proportionally more of them
+  if (!spec0.maxTurns) spec0.maxTurns = Math.round((format === 'commander' ? 40 : 30) * resolved.length / 2);
   const spec: MatchSpec = { ...spec0, format, id: `cli-${seed}-${resolved.map(r => r.payload.name.replace(/\W+/g, '-').toLowerCase()).join('-vs-')}`, decks: resolved.map(r => r.payload) };
   console.log(`${spec.decks.map(d => d.name).join(' vs ')}: ${games} games, seed ${seed}, ${agent}, ${workers} worker(s), ${format}`);
   let result: MatchResult;

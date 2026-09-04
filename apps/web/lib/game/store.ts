@@ -27,10 +27,10 @@ export interface GameStore {
   reruns: Record<string, { identical: boolean; results: TrialResult[] }>;
   winner: PlayerId | null;
   error: string | null;
-  decks: [DeckPayload, DeckPayload] | null;
+  decks: DeckPayload[] | null;
   options: StartOptions | null;
   finished: { log: string[]; actions: RecordedAnswer[]; reasoning: Reasoning[]; turns: number } | null;
-  start(gameId: string, decks: [DeckPayload, DeckPayload], options: StartOptions): Promise<void>;
+  start(gameId: string, decks: DeckPayload[], options: StartOptions): Promise<void>;
   answer(answer: unknown): void;
   concede(): void;
   setStops: GameClient['setStops'];

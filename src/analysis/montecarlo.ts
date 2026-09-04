@@ -23,7 +23,7 @@ export function wilson(successes: number, n: number, z = 1.96): [number, number]
   return [Math.max(0, centre - half), Math.min(1, centre + half)];
 }
 
-function makeAgents(policy: McRequest['policy']): [Agent, Agent] {
+function makeAgents(policy: McRequest['policy']): Agent[] {
   if (policy === 'ai30') return [new AiAgent({ name: 'P0', verbose: false, maxSims: 30 }), new AiAgent({ name: 'P1', verbose: false, maxSims: 30 })];
   return rolloutAgents();
 }
@@ -46,7 +46,7 @@ export async function runTrial(ctx: McContext, req: McRequest, i: number): Promi
   } catch (e) { note = `engine error: ${(e as Error).message}`; }
   const ev = evaluate(s, me);
   const outcome: TrialResult['outcome'] = s.winner === me ? 'win' : s.winner === opp ? 'loss' : s.players[opp].lost ? 'win' : s.players[me].lost ? 'loss' : ev > DECIDED_EVAL ? 'win' : ev < -DECIDED_EVAL ? 'loss' : 'draw';
-  const unsimulated = s.log.filter(l => l.includes('unsimulated text')).length;
+  const unsimulated = s.eventCounts?.unsimulated ?? s.log.filter(l => l.includes('unsimulated text')).length;
   const r: TrialResult = { trial: i, seed, outcome, lifeDelta: (s.players[me].life - s.players[opp].life) - lifeStart, boardDelta: round(ev - evalStart), evalEnd: round(ev), turnsPlayed: s.turn - turnStart, unsimulated };
   if (note) r.note = note;
   return r;

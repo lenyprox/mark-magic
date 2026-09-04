@@ -20,6 +20,9 @@ export interface PlayerPlateProps {
   dimmed?: boolean;
   hovered?: boolean;
   thinking?: boolean;
+  /** Drop-zone highlight while a drag that can land here is in flight. */
+  dropTarget?: boolean;
+  dropOver?: boolean;
   onClick?: (pid: PlayerId) => void;
   onOpenZone: (pid: PlayerId, zone: 'graveyard' | 'exile') => void;
 }
@@ -33,16 +36,18 @@ function CardBacks({ n }: { n: number }) {
   );
 }
 
-export function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, picked, dimmed, hovered, thinking, onClick, onOpenZone }: PlayerPlateProps) {
+export function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, picked, dimmed, hovered, thinking, dropTarget, dropOver, onClick, onOpenZone }: PlayerPlateProps) {
   const clickable = !!onClick && legalTarget;
   const topGy = player.graveyard[player.graveyard.length - 1];
   const topEx = player.exile[player.exile.length - 1];
   const pool = player.manaPool;
   return (
     <div
-      className={clsx(styles.plate, isMe && styles.plateMe, active && styles.plateActive, legalTarget && styles.legalTarget, picked && styles.picked, dimmed && styles.dimmed, hovered && styles.hovered, clickable && styles.plateClickable)}
+      className={clsx(styles.plate, isMe && styles.plateMe, active && styles.plateActive, legalTarget && styles.legalTarget, picked && styles.picked, dimmed && styles.dimmed, hovered && styles.hovered, clickable && styles.plateClickable, dropTarget && styles.dropZone, dropOver && styles.dropZoneOver)}
       data-player-id={player.id}
+      data-testid={isMe ? 'plate-me' : 'plate-opp'}
       data-legal-target={legalTarget ? '' : undefined}
+      data-drop-target={dropTarget ? '' : undefined}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
       aria-label={clickable ? `Target ${player.name}` : undefined}

@@ -5,7 +5,8 @@ import { abilitiesOf, allPermanents, conditionHolds, defOf, isCreature, isLand, 
 import { findPayment as findPaymentFull, manaSources, type ManaSourceOptions } from './mana.js';
 import { costAdjust, exileWindowOpen, extraManaSources, hasModifier, nonManaCostPayable, pickDelve, spellManaCost, ZERO_COST } from './cost.js';
 import type { Game } from './game.js';
-import { opponentOf, type CastZone, type GameObject, type LegalAction, type PlayerAction, type PlayerId, type TargetRef } from './state.js';
+import { type CastZone, type GameObject, type LegalAction, type PlayerAction, type PlayerId, type TargetRef } from './state.js';
+import { alive, opponentsOf } from './players.js';
 
 /** Which effects of a spell/ability take targets, with their spec. */
 export function targetingEffects(effects: Effect[]): { index: number; spec: TargetSpec }[] {
@@ -22,10 +23,10 @@ export function targetingEffects(effects: Effect[]): { index: number; spec: Targ
 }
 
 export function targetOptionsFor(g: Game, controller: PlayerId, spec: TargetSpec, source: GameObject): TargetRef[] {
-  const s = g.state; const opp = opponentOf(controller);
+  const s = g.state; const opps = opponentsOf(s, controller); const everyone = alive(s);
   const out: TargetRef[] = [];
   const perms = allPermanents(s);
-  const ctlOk = (o: GameObject) => !spec.controller || (spec.controller === 'you' ? o.controller === controller : o.controller === opp);
+  const ctlOk = (o: GameObject) => !spec.controller || (spec.controller === 'you' ? o.controller === controller : opps.includes(o.controller));
   const targetable = (o: GameObject) => {
     if (o.zone !== 'battlefield') return false;
     if (!ctlOk(o)) return false;
@@ -52,10 +53,10 @@ export function targetOptionsFor(g: Game, controller: PlayerId, spec: TargetSpec
     case 'artifact-enchantment-or-nonbasic-land': addObjs(o => isType(o, 'Artifact') || isType(o, 'Enchantment') || (isLand(o) && !defOf(o).supertypes.includes('Basic'))); break;
     case 'spell-or-nonland-permanent': addObjs(o => !isLand(o)); for (const it of s.stack) if (it.kind === 'spell' && (!spec.controller || (spec.controller === 'you') === (it.controller === controller))) out.push({ kind: 'stack', id: it.id }); break;
     case 'graveyard-card': for (const pl of s.players) for (const o of pl.graveyard) if (!spec.filter || matchesFilter(s, o, spec.filter, source)) out.push({ kind: 'object', id: o.id }); break;
-    case 'player': addPlayers([0, 1]); break;
-    case 'opponent': addPlayers([opp]); break;
-    case 'any': addObjs(o => isCreature(o) || isType(o, 'Planeswalker')); addPlayers([0, 1]); break;
-    case 'creature-or-player': addObjs(isCreature); addPlayers([0, 1]); break;
+    case 'player': addPlayers(everyone); break;
+    case 'opponent': addPlayers(opps); break;
+    case 'any': addObjs(o => isCreature(o) || isType(o, 'Planeswalker')); addPlayers(everyone); break;
+    case 'creature-or-player': addObjs(isCreature); addPlayers(everyone); break;
     case 'creature-or-planeswalker': addObjs(o => isCreature(o) || isType(o, 'Planeswalker')); break;
     case 'ability': for (const it of s.stack) if (it.kind !== 'spell') out.push({ kind: 'stack', id: it.id }); break;
     case 'spell': case 'creature-spell': case 'noncreature-spell':

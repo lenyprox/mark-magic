@@ -1,14 +1,16 @@
 'use client';
 // One card object on the table: a live Card3D (or a token placeholder), with the interaction states the table needs
 // (castable rim, legal target pulse, dimmed, picked, attacking / blocking, selected) and a `data-obj-id` anchor for
-// the connector overlay. Multi-action cards open a small menu to choose the action.
-import { memo, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+// the connector overlay. Multi-action cards open a small menu to choose the action. Draggable when the table
+// passes drag props (pointer gesture from useDragIntent); drop-zone highlights come through `state`.
+import { memo, type CSSProperties, type ReactNode } from 'react';
 import clsx from 'clsx';
 import type { LegalAction } from '@engine/state';
 import type { CardView, PermanentView } from '@play/view';
 import { Card3D } from '@/components/card/Card3D';
-import { ManaCost } from '@/components/text/ManaSymbol';
 import { printingFor } from '@/lib/game/ui';
+import { ActionsPopover } from './ActionsPopover';
+import type { DragBindProps } from './useDragIntent';
 import styles from './table.module.css';
 
 export interface TableCardProps {
@@ -16,7 +18,7 @@ export interface TableCardProps {
   width?: number;
   live?: 'always' | 'hover' | 'never';
   tapped?: boolean;
-  state?: { castable?: boolean; legalTarget?: boolean; dimmed?: boolean; picked?: boolean; hovered?: boolean; selected?: boolean; attacking?: boolean; blocking?: boolean; source?: boolean; sick?: boolean };
+  state?: { castable?: boolean; legalTarget?: boolean; dimmed?: boolean; picked?: boolean; hovered?: boolean; selected?: boolean; attacking?: boolean; blocking?: boolean; source?: boolean; sick?: boolean; dropTarget?: boolean; dropOver?: boolean; lifted?: boolean };
   badge?: ReactNode;
   count?: number;
   onActivate?: (id: number) => void;
@@ -27,6 +29,8 @@ export interface TableCardProps {
   className?: string;
   style?: CSSProperties;
   tilt?: number;
+  /** From useDragIntent's bind(): makes the card draggable. */
+  dragProps?: DragBindProps;
 }
 
 function TokenFace({ card }: { card: CardView }) {
@@ -39,31 +43,7 @@ function TokenFace({ card }: { card: CardView }) {
   );
 }
 
-function ActionMenu({ card, actions, onPick, onClose }: { card: CardView; actions: LegalAction[]; onPick: (l: LegalAction) => void; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('button')?.focus();
-    const onDoc = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
-    const t = setTimeout(() => document.addEventListener('pointerdown', onDoc), 0);
-    document.addEventListener('keydown', onKey, true);
-    return () => { clearTimeout(t); document.removeEventListener('pointerdown', onDoc); document.removeEventListener('keydown', onKey, true); };
-  }, [onClose]);
-  return (
-    <div ref={ref} className={styles.actionMenu} role="menu" aria-label={`Actions for ${card.name}`} onClick={e => e.stopPropagation()}>
-      <div className={styles.actionMenuTitle}>{card.name}</div>
-      {actions.map((l, i) => (
-        <button key={i} type="button" role="menuitem" className={styles.actionMenuItem} onClick={() => onPick(l)}
-          onKeyDown={e => { const items = [...(ref.current?.querySelectorAll<HTMLElement>('[role=menuitem]') ?? [])]; const j = items.indexOf(e.currentTarget); if (e.key === 'ArrowDown') { e.preventDefault(); items[(j + 1) % items.length]?.focus(); } if (e.key === 'ArrowUp') { e.preventDefault(); items[(j - 1 + items.length) % items.length]?.focus(); } }}>
-          <span>{l.label}</span>
-          {l.action.type === 'cast' && card.manaCost && <ManaCost cost={card.manaCost} size={12} />}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-export const TableCard = memo(function TableCard({ card, width = 92, live = 'hover', tapped, state = {}, badge, count, onActivate, menuActions, menuOpen, onMenuOpenChange, onPickAction, className, style, tilt }: TableCardProps) {
+export const TableCard = memo(function TableCard({ card, width = 92, live = 'hover', tapped, state = {}, badge, count, onActivate, menuActions, menuOpen, onMenuOpenChange, onPickAction, className, style, tilt, dragProps }: TableCardProps) {
   const printing = printingFor(card);
   const perm = 'controller' in card ? (card as PermanentView) : null;
   const pt = perm?.isCreature ? `${perm.curPower}/${perm.curToughness}` : card.power != null ? `${card.power}/${card.toughness}` : null;
@@ -74,13 +54,16 @@ export const TableCard = memo(function TableCard({ card, width = 92, live = 'hov
 
   return (
     <div
-      className={clsx(styles.tcard, tapped && styles.tcardTapped, state.castable && styles.castable, state.legalTarget && styles.legalTarget, state.dimmed && styles.dimmed, state.picked && styles.picked, state.hovered && styles.hovered, state.selected && styles.selected, state.attacking && styles.attacking, state.blocking && styles.blocking, state.source && styles.source, state.sick && styles.sick, className)}
-      style={{ width, ...style }}
+      className={clsx(styles.tcard, tapped && styles.tcardTapped, state.castable && styles.castable, state.legalTarget && styles.legalTarget, state.dimmed && styles.dimmed, state.picked && styles.picked, state.hovered && styles.hovered, state.selected && styles.selected, state.attacking && styles.attacking, state.blocking && styles.blocking, state.source && styles.source, state.sick && styles.sick, state.dropTarget && styles.dropTarget, state.dropOver && styles.dropOver, state.lifted && styles.lifted, dragProps && styles.draggable, className)}
+      style={{ width, ...style, ...dragProps?.style }}
       data-obj-id={card.id}
       data-card-name={card.name}
       data-castable={state.castable ? '' : undefined}
       data-legal-target={state.legalTarget ? '' : undefined}
+      data-drop-target={state.dropTarget ? '' : undefined}
+      data-draggable={dragProps ? '' : undefined}
       onClick={activate}
+      onPointerDown={dragProps?.onPointerDown}
     >
       {printing ? (
         <Card3D printing={printing} face={card.face} live={live} tapped={tapped} size="normal" tilt={tilt ?? 8} onActivate={activate} aria-label={label} />
@@ -95,7 +78,7 @@ export const TableCard = memo(function TableCard({ card, width = 92, live = 'hov
       {perm && Object.keys(perm.counters).length > 0 && (
         <span className={styles.counters} aria-hidden>{Object.entries(perm.counters).map(([k, v]) => `${v > 0 ? '+' : ''}${v} ${k}`).join(' · ')}</span>
       )}
-      {hasMenu && menuOpen && <ActionMenu card={card} actions={menuActions!} onPick={l => { onMenuOpenChange?.(false); onPickAction!(l); }} onClose={() => onMenuOpenChange?.(false)} />}
+      {hasMenu && menuOpen && <ActionsPopover title={card.name} manaCost={card.manaCost} actions={menuActions!} onPick={l => { onMenuOpenChange?.(false); onPickAction!(l); }} onClose={() => onMenuOpenChange?.(false)} />}
     </div>
   );
 });

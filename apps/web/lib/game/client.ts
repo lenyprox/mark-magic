@@ -21,7 +21,7 @@ export class GameClient {
   }
   private send(m: MainToWorker) { this.worker.postMessage(m); }
   subscribe(l: GameListener): () => void { this.listeners.add(l); return () => this.listeners.delete(l); }
-  async start(gameId: string, decks: [DeckPayload, DeckPayload], options: StartOptions) { await this.readyPromise; this.send({ type: 'start', gameId, decks, options }); }
+  async start(gameId: string, decks: DeckPayload[], options: StartOptions) { await this.readyPromise; this.send({ type: 'start', gameId, decks, options }); }
   answer(requestId: number, answer: unknown) { this.send({ type: 'answer', requestId, answer }); }
   setStops(stops: Partial<StopPolicy>) { this.send({ type: 'set-stops', stops }); }
   requestView() { this.send({ type: 'request-view' }); }

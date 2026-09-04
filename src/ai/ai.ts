@@ -8,10 +8,12 @@ import type { ListEntry, OpponentModel } from '../analysis/types.js';
 import { findObject, hasKeyword, isCreature, isLand, name, power } from '../engine/characteristics.js';
 import { cloneState } from '../engine/clone.js';
 import { Game } from '../engine/game.js';
-import { opponentOf, type Agent, type AttackDeclaration, type BlockDeclaration, type Decision, type GameState, type LegalAction, type PlayerAction, type PlayerId } from '../engine/state.js';
+import { type Agent, type AttackDeclaration, type BlockDeclaration, type Decision, type GameState, type LegalAction, type PlayerAction, type PlayerId } from '../engine/state.js';
+import { opponentsOf, primaryOpponent } from '../engine/players.js';
+import { defaultAnswer } from '../engine/agents/defaults.js';
 import { redact } from '../engine/view.js';
 import { bestBlocks, bestBlocksDetailed } from './combat.js';
-import { autoAgent, chooseCardsHeuristic, cloneGame, concreteActions, defaultYesNo, describeAction, evaluate, scoreAction } from './search.js';
+import { autoAgents, chooseCardsHeuristic, cloneGame, concreteActions, defaultYesNo, describeAction, evaluate, scoreAction } from './search.js';
 
 export { evaluate, creatureValue, cloneGame, chooseCardsHeuristic, AutoAgent } from './search.js';
 
@@ -99,6 +101,7 @@ export class AiAgent implements Agent {
       case 'choose-color': return this.chooseColor(s, me);
       case 'choose-option': return d.options[0];
       case 'order-blockers': return d.blockers;
+      default: return defaultAnswer(s, me, d);
     }
   }
 
@@ -118,23 +121,21 @@ export class AiAgent implements Agent {
     for (let i = 0; i < this.determinizations; i++) {
       const seed = hashSeed(this.seed ^ (this.decisions * 7919), i);
       const det = determinize(s, { viewer: me, myList: this.myList, opponent: this.opponentModel, defs: this.defs, seed });
-      const auto = autoAgent();
-      games.push(Game.fromState(det.state, [auto, auto], { quiet: true, seed, fastMana: true })); seeds.push(seed);
+      games.push(Game.fromState(det.state, autoAgents(det.state), { quiet: true, seed, fastMana: true })); seeds.push(seed);
     }
     return { games, seeds };
   }
   /** Combat decisions do not depend on hidden cards (nothing gets cast): one inert world of the view suffices. */
   private combatWorld(s: GameState): Game {
     if (this.cheat) return this.game;
-    const auto = autoAgent();
-    return Game.fromState(cloneState(s), [auto, auto], { quiet: true, seed: 7, fastMana: true });
+    const c = cloneState(s);
+    return Game.fromState(c, autoAgents(c), { quiet: true, seed: 7, fastMana: true });
   }
 
   // ---- priority ---------------------------------------------------------
   private async priority(s: GameState, me: PlayerId, legal: LegalAction[]): Promise<PlayerAction> {
-    const opp = opponentOf(me);
     const stackTop = s.stack[s.stack.length - 1];
-    const responding = !!stackTop && stackTop.controller === opp;
+    const responding = !!stackTop && opponentsOf(s, me).includes(stackTop.controller);
     const myTurn = s.activePlayer === me;
     const mainPhase = myTurn && (s.step === 'main1' || s.step === 'main2') && s.stack.length === 0;
     // Timing policy: act in my main phases; respond to opponent's spells; use instants at the opponent's
@@ -188,7 +189,7 @@ export class AiAgent implements Agent {
 
   // ---- combat -----------------------------------------------------------
   private async attackers(s: GameState, me: PlayerId, candidates: number[], mustAttack: number[]): Promise<AttackDeclaration> {
-    const opp = opponentOf(me);
+    const opp = primaryOpponent(s, me);
     const cands = candidates.map(id => findObject(s, id)!).filter(Boolean);
     // rank by "attack quality" and search subsets (full enumeration up to 7 attackers, otherwise greedy prefix sets)
     const subsets: number[][] = [];

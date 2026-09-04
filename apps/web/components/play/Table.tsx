@@ -5,10 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { FlaskConical, HelpCircle, PanelLeft, ScrollText } from 'lucide-react';
-import type { PlayerId, TargetRef } from '@engine/state';
+import { useReducedMotion } from 'motion/react';
+import type { LegalAction, PlayerId, TargetRef } from '@engine/state';
 import { DEFAULT_STOPS, type StopPolicy } from '@engine/agents/deferred';
 import { DEFAULT_START_OPTIONS, type StartOptions } from '@play/protocol';
-import { describeDecision } from '@play/targeting';
+import { describeDecision, planDrag, sameZone, type DragContext, type DragPlan, type DragSource, type DropEffect, type DropZone, type IllegalReason } from '@play/targeting';
+import type { CardView, PermanentView } from '@play/view';
 import { Button, Callout, EmptyState, IconButton, Skeleton, Drawer } from '@/components/ui';
 import { useGameStore } from '@/lib/game/store';
 import { parseGameId, payloadFor, type DeckRef } from '@/lib/game/api';
@@ -31,8 +33,13 @@ import { LogPanel } from './LogPanel';
 import { ZoneDrawer } from './ZoneDrawer';
 import { GameOver } from './GameOver';
 import { ShortcutsSheet } from './ShortcutsSheet';
+import { useDragIntent } from './useDragIntent';
+import { CastingSlot, DragLayer } from './DragLayer';
+import { ActionsPopover } from './ActionsPopover';
 import type { TableCardProps } from './TableCard';
 import styles from './table.module.css';
+
+const sourceIdOf = (s: DragSource) => (s.kind === 'hand' ? s.cardId : s.id);
 
 const STOPS_KEY = 'vault.play.stops';
 const PANELS_KEY = 'vault.play.panels';
@@ -112,6 +119,52 @@ export function Table({ gameId }: { gameId: string }) {
   const decisionText = decision ? describeDecision(decision.decision) : '';
   const nonPriorityDecision = decision && decision.decision.kind !== 'priority' && decision.decision.kind !== 'attackers' && decision.decision.kind !== 'blockers' ? decision.decision : null;
 
+  // ---- drag and drop: plans come from @play/targeting, effects go back into the interaction hook
+  const reducedMotion = !!useReducedMotion();
+  const [choice, setChoice] = useState<{ card: CardView; actions: LegalAction[]; at: { x: number; y: number } } | null>(null);
+  useEffect(() => { setChoice(null); }, [decision]);
+  const dragCtx = useMemo<DragContext | null>(() => (view ? { mode: ix.dragMode, view, me: myId } : null), [ix.dragMode, view, myId]);
+  const dragRef = useRef({ ctx: dragCtx, mode: ix.mode.kind, status, blocked: !!nonPriorityDecision, objects });
+  dragRef.current = { ctx: dragCtx, mode: ix.mode.kind, status, blocked: !!nonPriorityDecision, objects };
+  const planFor = useCallback((source: DragSource): DragPlan | null => {
+    const { ctx, mode: mk, status: st, blocked, objects: objs } = dragRef.current;
+    if (!ctx || st !== 'running' || blocked || mk === 'x' || mk === 'armed') return null;
+    if (source.kind === 'permanent') { const p = objs.get(source.id) as PermanentView | undefined; if (!p || !('controller' in p) || p.controller !== ctx.me) return null; }
+    return planDrag(source, ctx);
+  }, []);
+  const onDrop = useCallback((plan: DragPlan, _zone: DropZone, effect: Exclude<DropEffect, { kind: 'none' }>, point: { x: number; y: number }) => {
+    switch (effect.kind) {
+      case 'begin': {
+        if (plan.choices && plan.choices.length > 1) { const card = objects.get(sourceIdOf(plan.source)); if (card) { setChoice({ card, actions: plan.choices, at: point }); return; } }
+        if (effect.pick) ix.beginWithPick(effect.legal, effect.pick); else ix.beginLegal(effect.legal);
+        return;
+      }
+      case 'pick': ix.pickRef(effect.ref); return;
+      case 'attack': ix.setAttacking(effect.id, true); return;
+      case 'unattack': ix.setAttacking(effect.id, false); return;
+      case 'block': ix.setBlock(effect.blocker, effect.attacker); return;
+      case 'unblock': ix.clearBlock(effect.blocker); return;
+    }
+  }, [ix, objects]);
+  const onIllegal = useCallback((_plan: DragPlan, _zone: DropZone, reason: IllegalReason) => { toast({ title: reason.text, kind: 'warn', ttl: 4500 }); }, []);
+  const drag = useDragIntent({ planFor, onDrop, onIllegal, reducedMotion });
+  const drops = useMemo(() => {
+    const out = { bf: new Set<PlayerId>(), players: new Set<PlayerId>(), objects: new Set<number>(), stack: new Set<number>() };
+    if (drag.phase !== 'dragging' || !drag.plan) return out;
+    for (const { zone } of drag.plan.zones) {
+      if (zone.kind === 'battlefield') out.bf.add(zone.player); else if (zone.kind === 'player') out.players.add(zone.id); else if (zone.kind === 'object') out.objects.add(zone.id); else if (zone.kind === 'stack') out.stack.add(zone.id);
+    }
+    return out;
+  }, [drag.phase, drag.plan]);
+  const overIs = useCallback((z: DropZone) => !!drag.over && sameZone(drag.over, z), [drag.over]);
+  const liftedId = drag.phase !== 'idle' && drag.phase !== 'pending' && drag.ghost ? sourceIdOf(drag.ghost.source) : null;
+  // The spell being cast from hand sits in the casting slot while its targets are chosen; a tether runs from there.
+  const slotCard = useMemo<CardView | null>(() => {
+    if (ix.mode.kind !== 'targeting' || ix.sourceId == null || ix.mode.st.legal.action.type !== 'cast') return null;
+    return me?.hand?.find(c => c.id === ix.sourceId) ?? null;
+  }, [ix.mode, ix.sourceId, me]);
+  const tether = useMemo(() => (ix.mode.kind === 'targeting' && ix.sourceId != null ? { from: slotCard ? '[data-cast-slot]' : `[data-obj-id="${ix.sourceId}"]`, rootRef, tone: 'brass' as const } : null), [ix.mode.kind, ix.sourceId, slotCard]);
+
   // ---- keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -149,8 +202,9 @@ export function Table({ gameId }: { gameId: string }) {
       dimmed: (m.kind === 'targeting' && !legal && id !== ix.sourceId && !ix.picked.objects.has(id)) || (m.kind === 'armed' && !ix.picked.objects.has(id)),
       picked: pickedNow, hovered: ix.hover.objects.has(id), selected: m.kind === 'blockers' && m.selected === id, source: ix.sourceId === id,
       attacking: attacking || (m.kind === 'attackers' && m.decl.attackers.includes(id)), blocking,
+      dropTarget: drops.objects.has(id), dropOver: overIs({ kind: 'object', id }), lifted: liftedId === id || slotCard?.id === id,
     };
-  }, [ix, objects]);
+  }, [ix, objects, drops, overIs, liftedId, slotCard]);
   const actionsFor = useCallback((id: number) => ix.legal.filter(l => (l.action.type === 'play-land' && l.action.cardId === id) || (l.action.type === 'cast' && l.action.cardId === id) || (l.action.type === 'activate' && l.action.objectId === id)), [ix.legal]);
   const onMenuOpenChange = useCallback((id: number, open: boolean) => ix.setMenuCard(open ? id : null), [ix]);
 
@@ -206,14 +260,15 @@ export function Table({ gameId }: { gameId: string }) {
         <TargetArrows rootRef={rootRef} connectors={connectors} version={view.logLength} />
 
         <section className={styles.oppZone} aria-label={`${opp.name}'s side`}>
-          <PlayerPlate player={opp} isMe={false} active={!myTurn} hasPriority={view.priority === opp.id} thinking={thinking && status === 'running'} legalTarget={!!legalPlayers?.has(opp.id)} picked={ix.picked.players.has(opp.id)} hovered={ix.hover.players.has(opp.id)} dimmed={ix.mode.kind === 'targeting' && !legalPlayers?.has(opp.id)} onClick={ix.onPlayerClick} onOpenZone={(pid, z) => setZone({ pid, zone: z })} />
-          <Battlefield permanents={opp.battlefield} mine={false} cardWidth={isMobile ? 60 : 78} cardState={cardState} onActivate={ix.onObjectClick} />
+          <PlayerPlate player={opp} isMe={false} active={!myTurn} hasPriority={view.priority === opp.id} thinking={thinking && status === 'running'} legalTarget={!!legalPlayers?.has(opp.id)} picked={ix.picked.players.has(opp.id)} hovered={ix.hover.players.has(opp.id)} dimmed={ix.mode.kind === 'targeting' && !legalPlayers?.has(opp.id)} onClick={ix.onPlayerClick} onOpenZone={(pid, z) => setZone({ pid, zone: z })}
+            dropTarget={drops.players.has(opp.id)} dropOver={overIs({ kind: 'player', id: opp.id })} />
+          <Battlefield permanents={opp.battlefield} mine={false} player={opp.id} cardWidth={isMobile ? 60 : 78} cardState={cardState} onActivate={ix.onObjectClick} dropTarget={drops.bf.has(opp.id)} dropOver={overIs({ kind: 'battlefield', player: opp.id })} />
         </section>
 
         <section className={styles.mid} aria-label="Turn, stack and priority">
           <PhaseStrip step={view.step} turn={view.turn} myTurn={myTurn} stops={stops} onToggleStop={toggleStop} />
           <div className={styles.midRow}>
-            <StackPanel stack={view.stack} viewer={myId} legalStack={ix.targets?.stack ?? null} dimOthers={ix.mode.kind === 'targeting'} onClick={ix.onStackClick} />
+            <StackPanel stack={view.stack} viewer={myId} legalStack={ix.targets?.stack ?? null} dimOthers={ix.mode.kind === 'targeting'} onClick={ix.onStackClick} dropStack={drops.stack} dropOver={drag.over?.kind === 'stack' ? drag.over.id : null} />
             <div className={styles.midRight}>
               <PriorityBar hasDecision={!!decision} decisionText={decisionText} thinking={thinking} narration={narration} numbered={ix.isPriority && ix.mode.kind === 'idle' ? ix.numbered : []} onPick={ix.beginLegal} onPass={ix.pass} onConcede={concede} canPass={ix.isPriority && ix.mode.kind === 'idle'} stackSize={view.stack.length} finished={status === 'finished'} />
               <ActionBar ix={ix} view={view} objects={objects} />
@@ -222,10 +277,13 @@ export function Table({ gameId }: { gameId: string }) {
         </section>
 
         <section className={styles.myZone} aria-label="Your side">
-          <Battlefield permanents={me.battlefield} mine cardWidth={isMobile ? 64 : 84} cardState={cardState} onActivate={ix.onObjectClick} actionsFor={actionsFor} menuCard={ix.menuCard} onMenuOpenChange={onMenuOpenChange} onPickAction={ix.beginLegal} />
+          <Battlefield permanents={me.battlefield} mine player={myId} cardWidth={isMobile ? 64 : 84} cardState={cardState} onActivate={ix.onObjectClick} actionsFor={actionsFor} menuCard={ix.menuCard} onMenuOpenChange={onMenuOpenChange} onPickAction={ix.beginLegal}
+            bindDrag={drag.bind} dropTarget={drops.bf.has(myId)} dropOver={overIs({ kind: 'battlefield', player: myId })} />
+          {slotCard && <CastingSlot card={slotCard} label={ix.requirement ? `choose ${ix.requirement.optional ? 'up to ' : ''}${ix.requirement.count} ${ix.requirement.spec}` : 'choose targets'} bind={drag.bind} onCancel={ix.cancel} width={isMobile ? 72 : 96} />}
           <div className={styles.myBottom}>
-            <PlayerPlate player={me} isMe active={myTurn} hasPriority={view.priority === myId} legalTarget={!!legalPlayers?.has(myId)} picked={ix.picked.players.has(myId)} hovered={ix.hover.players.has(myId)} dimmed={ix.mode.kind === 'targeting' && !legalPlayers?.has(myId)} onClick={ix.onPlayerClick} onOpenZone={(pid, z) => setZone({ pid, zone: z })} />
-            <Hand cards={me.hand ?? []} cardState={cardState} onActivate={ix.onObjectClick} actionsFor={actionsFor} menuCard={ix.menuCard} onMenuOpenChange={onMenuOpenChange} onPickAction={ix.beginLegal} compact={isMobile} />
+            <PlayerPlate player={me} isMe active={myTurn} hasPriority={view.priority === myId} legalTarget={!!legalPlayers?.has(myId)} picked={ix.picked.players.has(myId)} hovered={ix.hover.players.has(myId)} dimmed={ix.mode.kind === 'targeting' && !legalPlayers?.has(myId)} onClick={ix.onPlayerClick} onOpenZone={(pid, z) => setZone({ pid, zone: z })}
+              dropTarget={drops.players.has(myId)} dropOver={overIs({ kind: 'player', id: myId })} />
+            <Hand cards={me.hand ?? []} cardState={cardState} onActivate={ix.onObjectClick} actionsFor={actionsFor} menuCard={ix.menuCard} onMenuOpenChange={onMenuOpenChange} onPickAction={ix.beginLegal} compact={isMobile} bindDrag={drag.bind} />
             <div className={styles.tableTools}>
               {isMobile ? (
                 <>
@@ -253,6 +311,8 @@ export function Table({ gameId }: { gameId: string }) {
 
       <ZoneDrawer open={!!zone} onClose={() => setZone(null)} title={zone ? `${view.players[zone.pid].name} · ${zone.zone}` : ''} cards={zone ? view.players[zone.pid][zone.zone] : []} />
       <ShortcutsSheet open={help} onClose={() => setHelp(false)} />
+      {choice && <ActionsPopover title={choice.card.name} manaCost={choice.card.manaCost} actions={choice.actions} at={choice.at} onPick={l => { setChoice(null); ix.beginLegal(l); }} onClose={() => setChoice(null)} testId="drop-choice" />}
+      <DragLayer drag={drag} tether={tether} reducedMotion={reducedMotion} />
     </div>
   );
 }

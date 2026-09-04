@@ -4,7 +4,9 @@ import type { Keyword } from '../cards/types.js';
 import { findObject, isCreature, isLand, isType, keywords, name, power, toughness } from '../engine/characteristics.js';
 import { cloneState } from '../engine/clone.js';
 import { Game } from '../engine/game.js';
-import { opponentOf, type Agent, type AttackDeclaration, type BlockDeclaration, type Decision, type GameObject, type GameState, type LegalAction, type PlayerAction, type PlayerId, type TargetRef } from '../engine/state.js';
+import { type Agent, type AttackDeclaration, type BlockDeclaration, type Decision, type GameObject, type GameState, type LegalAction, type PlayerAction, type PlayerId, type Player, type TargetRef } from '../engine/state.js';
+import { opponentsOf, primaryOpponent } from '../engine/players.js';
+import { defaultAnswer } from '../engine/agents/defaults.js';
 
 // ---------------------------------------------------------------------------
 // Evaluation
@@ -32,20 +34,37 @@ export function boardValue(s: GameState, p: PlayerId): number {
   return b;
 }
 
+/**
+ * Board evaluation from `me`'s seat: own standing minus the opponents'. With one opponent this is the classic
+ * difference; with several it is own − mean(opponents) − ¼·(strongest − mean), so the biggest threat weighs extra.
+ */
 export function evaluate(s: GameState, me: PlayerId): number {
-  const opp = opponentOf(me);
-  const P = s.players[me], O = s.players[opp];
+  const P = s.players[me];
   if (s.winner === me) return 10000;
-  if (s.winner === opp) return -10000;
-  if (O.life <= 0 || O.lost) return 10000; if (P.life <= 0 || P.lost) return -10000;
-  const lifeTerm = (l: number) => (l <= 0 ? -100 : l < 6 ? l * 2.5 : 15 + (l - 6) * 0.9);
-  let v = lifeTerm(P.life) - lifeTerm(O.life);
-  v += boardValue(s, me) - boardValue(s, opp);
-  v += P.hand.length * 0.7 - O.hand.length * 0.7;
-  v += Math.min(P.library.length, 10) * 0.05 - Math.min(O.library.length, 10) * 0.05;
-  v -= P.poison * 1.5 - O.poison * 1.5;
-  return v;
+  if (s.winner !== null && s.winner !== me) return -10000;
+  const opps = s.players.filter(q => q.id !== me);
+  if (opps.every(O => O.life <= 0 || O.lost)) return 10000; if (P.life <= 0 || P.lost) return -10000;
+  const live = opps.filter(O => !(O.life <= 0 || O.lost));
+  if (live.length === 1) { // the classic two-player difference, summed in the original order so seeded games replay bit for bit
+    const O = live[0];
+    let v = lifeTerm(P.life) - lifeTerm(O.life);
+    v += boardValue(s, me) - boardValue(s, O.id);
+    v += P.hand.length * 0.7 - O.hand.length * 0.7;
+    v += Math.min(P.library.length, 10) * 0.05 - Math.min(O.library.length, 10) * 0.05;
+    v -= P.poison * 1.5 - O.poison * 1.5;
+    return v;
+  }
+  const mine = standing(s, P); const theirs = live.map(O => standing(s, O));
+  const mean = theirs.reduce((a, b) => a + b, 0) / theirs.length;
+  return mine - mean - 0.25 * (Math.max(...theirs) - mean);
 }
+const lifeTerm = (l: number) => (l <= 0 ? -100 : l < 6 ? l * 2.5 : 15 + (l - 6) * 0.9);
+/** One player's standing: life, board, hand, library, poison. */
+export function standing(s: GameState, P: Player): number {
+  return lifeTerm(P.life) + boardValue(s, P.id) + P.hand.length * 0.7 + Math.min(P.library.length, 10) * 0.05 - P.poison * 1.5;
+}
+/** Agents for a simulated game: one inert AutoAgent per seat. */
+export function autoAgents(s: GameState): Agent[] { const a = autoAgent(); return s.players.map(() => a); }
 
 // ---------------------------------------------------------------------------
 // Simulation helpers
@@ -64,6 +83,7 @@ export class AutoAgent implements Agent {
       case 'choose-color': return 'G';
       case 'choose-option': return d.options[0];
       case 'order-blockers': return d.blockers;
+      default: return defaultAnswer(s, me, d);
     }
   }
 }
@@ -95,8 +115,7 @@ export function autoAgent(): AutoAgent { return new AutoAgent('sim', chooseCards
 
 export function cloneGame(g: Game): Game {
   const state = cloneState(g.state);
-  const auto = autoAgent();
-  return Game.fromState(state, [auto, auto], { quiet: true, seed: 7, fastMana: g.opts.fastMana });
+  return Game.fromState(state, autoAgents(state), { quiet: true, seed: 7, fastMana: g.opts.fastMana });
 }
 
 /** Choose N cards from ids: when discarding/sacrificing pick the least valuable; when searching/keeping pick the most useful. */
@@ -157,11 +176,11 @@ export function concreteActions(s: GameState, me: PlayerId, l: LegalAction, topT
 export function pickTargetsHeuristic(s: GameState, me: PlayerId, l: LegalAction): PlayerAction {
   const reqs = l.targetOptions ?? [];
   if (!reqs.length) return l.action;
-  const opp = opponentOf(me);
+  const opps = opponentsOf(s, me);
   const src = l.action.type === 'cast' ? findObject(s, l.action.cardId) : l.action.type === 'activate' ? findObject(s, l.action.objectId) : undefined;
   const hostile = isHostile(src?.def.abilities.flatMap(a => 'effects' in a ? a.effects : []) ?? []);
   const targets = reqs.map(r => {
-    const side = (t: TargetRef) => t.kind === 'stack' ? 1 : (t.kind === 'player' ? t.id : findObject(s, t.id)?.controller) === opp ? 1 : -1;
+    const side = (t: TargetRef) => t.kind === 'stack' ? 1 : opps.includes((t.kind === 'player' ? t.id : findObject(s, t.id)?.controller) as number) ? 1 : -1;
     const sign = hostile ? 1 : -1;
     const ranked = [...r.options].sort((a, b) => (side(b) * sign * 100 + targetPriority(s, me, b)) - (side(a) * sign * 100 + targetPriority(s, me, a)));
     const pick = ranked.slice(0, r.count);

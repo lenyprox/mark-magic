@@ -2,6 +2,7 @@
 // (readline in the CLI, postMessage in the web worker) and the engine awaits the answer. Priority decisions
 // outside the configured "stops" are auto-passed, mirroring the original terminal client's behaviour.
 import type { Agent, Decision, GameState, PlayerAction, PlayerId } from '../state.js';
+import { defaultAnswer } from './defaults.js';
 
 export interface StopPolicy {
   ownMain: boolean;        // stop in my main phases
@@ -100,6 +101,7 @@ export class ReplayAgent implements Agent {
       case 'choose-color': return 'G';
       case 'choose-option': return d.options[0];
       case 'order-blockers': return d.blockers;
+      default: return defaultAnswer(s, me, d);
     }
   }
 }

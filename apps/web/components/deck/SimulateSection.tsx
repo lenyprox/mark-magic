@@ -72,7 +72,7 @@ export function SimulateSection({ deckId }: { deckId: string }) {
     try {
       const pool = getBatchPool(); await pool.ready();
       const again = await pool.run({ ...spec, games: r.games.length }).result;
-      const d = again.aggregate.byDeck[0]; const successes = d.wins + d.draws / 2;
+      const d = again.aggregate.byDeck[0]; const successes = d.wins + d.draws / spec.decks.length;
       setVerify({ state: 'done', identical: Math.abs(successes - (r.derivation.sim?.successes ?? -1)) < 1e-9 && d.games === r.derivation.sim?.n, successes });
     } catch (e) { setError((e as Error).message); setVerify(null); }
   }

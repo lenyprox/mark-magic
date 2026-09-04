@@ -1,7 +1,9 @@
 // Game state types shared by the engine, the AI and the CLI.
 import type { Amount, CardDef, Color, Effect, Keyword, ManaSymbol, Ability, ActivatedAbility, TriggeredAbility } from '../cards/types.js';
+import type { GameEvent, GameEventType } from './events.js';
 
-export type PlayerId = 0 | 1;
+/** A seat index (0..3). Two-player code that assumed 0 | 1 should use the helpers in players.ts. */
+export type PlayerId = number;
 export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'stack';
 export type Step = 'untap' | 'upkeep' | 'draw' | 'main1' | 'combat-begin' | 'declare-attackers' | 'declare-blockers' | 'first-strike-damage' | 'combat-damage' | 'combat-end' | 'main2' | 'end' | 'cleanup';
 
@@ -101,15 +103,17 @@ export type TargetRef = { kind: 'object'; id: number } | { kind: 'player'; id: P
  * lists hand cards whose identity is public (returned from a public zone, fetched by a search). `revealed` lists
  * ids whose identity is public regardless of zone.
  */
-export interface PublicKnowledge { knownTop: [number[], number[]]; knownInHand: number[]; revealed: number[] }
-export function makeKnowledge(): PublicKnowledge { return { knownTop: [[], []], knownInHand: [], revealed: [] }; }
+export interface PublicKnowledge { knownTop: number[][]; knownInHand: number[]; revealed: number[] }
+export function makeKnowledge(players = 2): PublicKnowledge { return { knownTop: Array.from({ length: players }, () => []), knownInHand: [], revealed: [] }; }
 
 export interface GameState {
   turn: number;
   activePlayer: PlayerId;
   step: Step;
   priority: PlayerId;
-  players: [Player, Player];
+  players: Player[];
+  /** Seats in turn order (eliminated players stay listed; `alive()` filters them). */
+  turnOrder: PlayerId[];
   stack: StackItem[];
   nextId: number;
   log: string[];
@@ -119,6 +123,12 @@ export interface GameState {
   passesInRow: number;
   knowledge: PublicKnowledge;
   delayed?: DelayedTrigger[];
+  /** Bumped on every emitted event; memoised derived data keys on it. */
+  version: number;
+  /** The typed event stream (only with GameOptions.events = 'full'). */
+  events?: GameEvent[];
+  /** Per-type event counts (GameOptions.events = 'counts' or 'full'). */
+  eventCounts?: Partial<Record<GameEventType, number>>;
 }
 
 export const STEPS: Step[] = ['untap', 'upkeep', 'draw', 'main1', 'combat-begin', 'declare-attackers', 'declare-blockers', 'first-strike-damage', 'combat-damage', 'combat-end', 'main2', 'end', 'cleanup'];
@@ -135,20 +145,24 @@ export type PlayerAction =
   | { type: 'activate'; objectId: number; abilityIndex: number; targets?: TargetRef[][]; x?: number; modes?: number[] }
   | { type: 'concede' };
 
-export interface AttackDeclaration { attackers: number[] }
+/** `targets`: defending player per attacker id (default: the primary opponent). */
+export interface AttackDeclaration { attackers: number[]; targets?: Record<number, PlayerId> }
 export interface BlockDeclaration { blocks: { blocker: number; attacker: number }[] }
 
 /** Something the engine needs a player to decide. */
 export type Decision =
   | { kind: 'priority'; legal: LegalAction[] }
-  | { kind: 'attackers'; candidates: number[]; mustAttack: number[] }
+  | { kind: 'attackers'; candidates: number[]; mustAttack: number[]; /** Players that can be attacked (multiplayer). */ defenders?: PlayerId[] }
   | { kind: 'blockers'; attackers: number[]; candidates: number[] }
   | { kind: 'choose-cards'; from: number[]; count: number; reason: string; exact: boolean }
   | { kind: 'yes-no'; prompt: string; tag?: 'mulligan' | 'shock' | 'unless-pay' | 'dredge' | 'optional' }
   | { kind: 'choose-mode'; modes: string[]; count: number }
   | { kind: 'choose-color'; reason: string }
   | { kind: 'choose-option'; options: string[]; reason: string }
-  | { kind: 'order-blockers'; attacker: number; blockers: number[] };
+  | { kind: 'order-blockers'; attacker: number; blockers: number[] }
+  | { kind: 'choose-player'; options: PlayerId[]; reason: string }
+  | { kind: 'choose-number'; min: number; max: number; reason: string }
+  | { kind: 'order-triggers'; items: number[]; labels: string[] };
 
 export interface LegalAction {
   action: PlayerAction;
@@ -175,6 +189,7 @@ export function makeObject(id: number, def: CardDef, owner: PlayerId, zone: Zone
   return { id, def, owner, controller: owner, zone, tapped: false, damage: 0, counters: {}, enteredTurn: turn, attachedTo: null, token: null, eotPower: 0, eotToughness: 0, eotKeywords: [], eotFlags: {}, noUntapNext: false, attacking: null, blocking: [], blockedBy: [], activatedThisTurn: new Set(), transformed: false };
 }
 
+/** @deprecated two-player helper kept for the analysis layer; engine and AI code use players.ts (opponentsOf / primaryOpponent). */
 export function opponentOf(p: PlayerId): PlayerId { return p === 0 ? 1 : 0; }
 
 export function isTriggered(a: Ability): a is TriggeredAbility { return a.kind === 'triggered'; }

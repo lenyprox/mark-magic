@@ -2,8 +2,9 @@
 // auras, equipment and static anthems (a simplified version of the CR 613 layer system).
 import type { Ability, Amount, CardDef, CardType, Color, Filter, Keyword, StaticEffect } from '../cards/types.js';
 import type { GameObject, GameState, PlayerId } from './state.js';
+import { opponentsOf } from './players.js';
 
-export function allPermanents(s: GameState): GameObject[] { return [...s.players[0].battlefield, ...s.players[1].battlefield]; }
+export function allPermanents(s: GameState): GameObject[] { return s.players.length === 2 ? [...s.players[0].battlefield, ...s.players[1].battlefield] : s.players.flatMap(p => p.battlefield); }
 export function findObject(s: GameState, id: number): GameObject | undefined {
   for (const p of s.players) for (const z of [p.battlefield, p.hand, p.graveyard, p.exile, p.library]) { const o = z.find(x => x.id === id); if (o) return o; }
   for (const it of s.stack) if (it.source.id === id) return it.source;
@@ -54,13 +55,13 @@ export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, sourc
     case 'lands-you-control': n = me.battlefield.filter(isLand).length; break;
     case 'power-of-source': n = source ? power(s, source) : 0; break;
     case 'creatures-attacking': n = me.battlefield.filter(o => o.attacking !== null).length; break;
-    case 'opponent-creatures': n = s.players[ctrl === 0 ? 1 : 0].battlefield.filter(isCreature).length; break;
-    case 'life-lost-this-turn': n = s.players[ctrl === 0 ? 1 : 0].lifeLostThisTurn; break;
+    case 'opponent-creatures': n = opponentsOf(s, ctrl).reduce((a, q) => a + s.players[q].battlefield.filter(isCreature).length, 0); break;
+    case 'life-lost-this-turn': n = opponentsOf(s, ctrl).reduce((a, q) => a + s.players[q].lifeLostThisTurn, 0); break;
     case 'domain': n = new Set(me.battlefield.filter(isLand).flatMap(o => subtypes(o)).filter(t => BASIC_TYPES.has(t))).size; break;
     case 'exiled-with': n = (source?.exiledWith ?? []).map(id => findObject(s, id)).filter(o => o && (!a.filter || matchesFilter(s, o, a.filter, source))).length; break;
     case 'cards-in-graveyard': n = me.graveyard.filter(o => !a.filter || matchesFilter(s, o, a.filter, source)).length; break;
     case 'card-types-in-graveyard': n = new Set(me.graveyard.flatMap(o => o.def.types.filter(t => t !== 'Kindred' && t !== 'Tribal'))).size; break;
-    case 'card-types-in-all-graveyards': n = new Set([...s.players[0].graveyard, ...s.players[1].graveyard].flatMap(o => o.def.types.filter(t => t !== 'Kindred' && t !== 'Tribal'))).size; break;
+    case 'card-types-in-all-graveyards': n = new Set(s.players.flatMap(p => p.graveyard).flatMap(o => o.def.types.filter(t => t !== 'Kindred' && t !== 'Tribal'))).size; break;
     case 'counters-on-source': n = source?.counters[a.counter ?? '+1/+1'] ?? 0; break;
     case 'power-of-that': n = ctx?.that?.power ?? 0; break;
     case 'mv-of-that': n = ctx?.that?.manaValue ?? 0; break;
@@ -141,18 +142,19 @@ function staticMods(s: GameState, o: GameObject): Mods {
 export function conditionHolds(s: GameState, src: GameObject, c: unknown): boolean {
   if (!c) return true;
   const cond = c as import('../cards/types.js').Condition;
-  const me = s.players[src.controller], opp = s.players[src.controller === 0 ? 1 : 0];
+  const me = s.players[src.controller]; const opps = opponentsOf(s, src.controller).map(q => s.players[q]);
+  const side = (who: string | undefined, pred: (pl: typeof me) => boolean) => who === 'you' ? pred(me) : opps.some(pred);
   switch (cond.kind) {
-    case 'life-le': return (cond.who === 'you' ? me : opp).life <= cond.value;
-    case 'controls': return (cond.who === 'you' ? me : opp).battlefield.filter(o => matchesFilter(s, o, cond.filter, src)).length >= cond.atLeast;
-    case 'cards-in-hand-ge': return (cond.who === 'you' ? me : opp).hand.length >= cond.value;
+    case 'life-le': return side(cond.who, pl => pl.life <= cond.value);
+    case 'controls': return side(cond.who, pl => pl.battlefield.filter(o => matchesFilter(s, o, cond.filter, src)).length >= cond.atLeast);
+    case 'cards-in-hand-ge': return side(cond.who, pl => pl.hand.length >= cond.value);
     case 'threshold': return me.graveyard.length >= 7;
     case 'metalcraft': return me.battlefield.filter(o => isType(o, 'Artifact')).length >= 3;
     case 'hellbent': return me.hand.length === 0;
     case 'ferocious': return me.battlefield.some(o => isCreature(o) && power(s, o) >= 4);
     case 'formidable': return me.battlefield.filter(isCreature).reduce((a, o) => a + power(s, o), 0) >= 8;
     case 'raid': return me.attackedThisTurn;
-    case 'morbid': return s.players[0].creaturesDiedThisTurn + s.players[1].creaturesDiedThisTurn > 0;
+    case 'morbid': return s.players.some(p => p.creaturesDiedThisTurn > 0);
     case 'delirium': return evalAmount(s, { count: 'card-types-in-graveyard' }, src.controller) >= 4;
     case 'domain-ge': return evalAmount(s, { count: 'domain' }, src.controller) >= cond.value;
     case 'kicked': return !!src.castWith?.kicked;

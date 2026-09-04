@@ -43,11 +43,12 @@ function cloneStackItem(it: StackItem, cl: (o: GameObject) => GameObject): Stack
 export function cloneState(s: GameState): GameState {
   const seen = new Map<number, GameObject>();
   const cl = (o: GameObject): GameObject => { let c = seen.get(o.id); if (!c || c === o) { c = cloneObject(o); seen.set(o.id, c); } return c; };
-  const players = [clonePlayer(s.players[0], cl), clonePlayer(s.players[1], cl)] as [Player, Player];
+  const players = s.players.map(p => clonePlayer(p, cl));
   const stack = s.stack.map(it => cloneStackItem(it, cl));
-  const out = { ...s, players, stack, log: [], attackers: [...s.attackers], extraTurns: [...s.extraTurns] } as GameState & Record<string, unknown>;
+  const out = { ...s, players, stack, log: [], attackers: [...s.attackers], extraTurns: [...s.extraTurns], turnOrder: [...(s.turnOrder ?? s.players.map(p => p.id))], version: s.version ?? 0 } as GameState & Record<string, unknown>;
+  if (s.events) out.events = []; if (s.eventCounts) out.eventCounts = { ...s.eventCounts };
   const k = s.knowledge;
-  out.knowledge = k ? { knownTop: [[...k.knownTop[0]], [...k.knownTop[1]]], knownInHand: [...k.knownInHand], revealed: [...k.revealed] } : makeKnowledge();
+  out.knowledge = k ? { knownTop: k.knownTop.map(a => [...a]), knownInHand: [...k.knownInHand], revealed: [...k.revealed] } : makeKnowledge(players.length);
   if (s.delayed) out.delayed = s.delayed.map(d => ({ ...d, affected: d.affected?.map(a => ({ id: a.id, lastKnown: { ...a.lastKnown } })) }));
   return out as GameState;
 }

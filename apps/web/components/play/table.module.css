@@ -281,3 +281,37 @@
   .handCard, .slot, .stackItem, .sheet, .actionBar, .gameOverPanel { animation: fade-in 1ms linear; }
   .legalTarget::after { animation: none; }
 }
+
+/* ---- drag and drop ----------------------------------------------------------------------------- */
+.draggable { cursor: grab; }
+.draggable:active { cursor: grabbing; }
+.lifted { opacity: 0.3; filter: saturate(0.6); }
+.bfMine { flex: 1 1 auto; }
+.dropZone { position: relative; }
+.dropZone::before { content: ''; position: absolute; inset: 2px; border-radius: var(--r-2); border: 1.5px dashed var(--brass-2); background: rgba(232, 211, 154, 0.05); opacity: 0.7; pointer-events: none; z-index: 1; animation: fade-in var(--d-2) var(--ease); }
+.dropZoneOver::before { opacity: 1; border-style: solid; background: rgba(232, 211, 154, 0.12); box-shadow: inset 0 0 24px rgba(232, 211, 154, 0.18); }
+.plate.dropZone::before { inset: -3px; border-radius: 14px; }
+.tcard.dropTarget::after { opacity: 1; box-shadow: 0 0 0 2px var(--brass-2), 0 0 0 6px var(--brass-glow); animation: pulse-target 1.1s var(--ease) infinite; }
+.tcard.dropOver::after { opacity: 1; box-shadow: 0 0 0 3px var(--brass-1), 0 0 22px var(--brass-glow); animation: none; }
+.tcard.dropOver { transform: scale(1.05); }
+.stackItem.dropTarget { box-shadow: 0 0 0 2px var(--brass-2), 0 0 0 5px var(--brass-glow); }
+.stackItem.dropOver { box-shadow: 0 0 0 3px var(--brass-1), 0 0 18px var(--brass-glow); }
+.ghost { position: fixed; top: 0; left: 0; z-index: 1100; pointer-events: none; border-radius: 4.6% / 3.3%; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08); will-change: transform; transform-origin: 50% 60%; overflow: hidden; background: var(--bg-2); }
+.ghostImg { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ghostToken { height: 100%; }
+.tetherSvg { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1090; overflow: visible; }
+.castSlot { position: absolute; left: 50%; bottom: calc(var(--hand-w, 116px) * 1.32 + 24px); transform: translateX(-50%); z-index: 45; display: flex; align-items: center; gap: 12px; padding: 8px 12px 8px 8px; border-radius: var(--r-3); background: color-mix(in srgb, var(--bg-2) 92%, transparent); backdrop-filter: blur(8px); box-shadow: var(--catch), 0 0 0 1px var(--brass-line), var(--shadow-pop); animation: rise-in var(--d-3) var(--ease); }
+.castSlotCard { flex: none; aspect-ratio: 488 / 680; border-radius: 4.6% / 3.3%; overflow: hidden; cursor: grab; box-shadow: 0 0 0 2px var(--brass-1), 0 0 18px var(--brass-glow); background: var(--bg-3); }
+.castSlotCard:active { cursor: grabbing; }
+.castSlotText { display: flex; flex-direction: column; gap: 2px; font-size: var(--t-sm); color: var(--ink-2); min-width: 140px; }
+.castSlotText b { color: var(--ink-1); font-weight: 500; font-family: var(--font-display); font-size: var(--t-md); }
+.castSlotCancel { align-self: flex-start; margin-top: 6px; display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--r-1); font-size: var(--t-xs); color: var(--ink-2); background: var(--bg-3); box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; }
+.castSlotCancel:hover { color: var(--ink-1); box-shadow: inset 0 0 0 1px var(--brass-2); }
+.prioActionsWrap { position: relative; }
+.actionMenuFixed { position: fixed; bottom: auto; transform: none; z-index: 1110; }
+.prioActionsWrap .actionMenu { left: 0; bottom: auto; top: calc(100% + 6px); transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .dropZone::before, .castSlot { animation: none; }
+  .tcard.dropTarget::after { animation: none; }
+  .tcard.dropOver { transform: none; }
+}

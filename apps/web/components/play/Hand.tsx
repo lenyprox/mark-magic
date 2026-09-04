@@ -5,7 +5,9 @@ import { useState } from 'react';
 import clsx from 'clsx';
 import type { LegalAction } from '@engine/state';
 import type { CardView } from '@play/view';
+import type { DragSource } from '@play/targeting';
 import { TableCard, type TableCardProps } from './TableCard';
+import type { DragBindProps } from './useDragIntent';
 import styles from './table.module.css';
 
 export interface HandProps {
@@ -17,9 +19,11 @@ export interface HandProps {
   onMenuOpenChange: (id: number, open: boolean) => void;
   onPickAction: (l: LegalAction) => void;
   compact?: boolean;
+  /** Drag binding from useDragIntent; when absent the hand is click-only. */
+  bindDrag?: (source: DragSource, card: CardView) => DragBindProps;
 }
 
-export function Hand({ cards, cardState, onActivate, actionsFor, menuCard, onMenuOpenChange, onPickAction, compact }: HandProps) {
+export function Hand({ cards, cardState, onActivate, actionsFor, menuCard, onMenuOpenChange, onPickAction, compact, bindDrag }: HandProps) {
   const [hovered, setHovered] = useState<number | null>(null);
   const n = cards.length;
   const width = compact ? 88 : 116;
@@ -29,7 +33,7 @@ export function Hand({ cards, cardState, onActivate, actionsFor, menuCard, onMen
   const step = n > 1 ? (spread * 2) / (n - 1) : 0;
   const overlap = n > 1 ? Math.max(width * 0.45, Math.min(width * 0.86, (maxFan - width) / (n - 1))) : width;
   return (
-    <div className={clsx(styles.hand, compact && styles.handCompact)} role="group" aria-label={`Your hand, ${n} cards`} style={{ '--hand-w': `${width}px` } as React.CSSProperties}>
+    <div className={clsx(styles.hand, compact && styles.handCompact)} role="group" aria-label={`Your hand, ${n} cards`} style={{ '--hand-w': `${width}px` } as React.CSSProperties} data-drop-zone="void" data-testid="hand">
       <div className={styles.fan} style={{ width: n ? overlap * (n - 1) + width : 0 }}>
         {cards.map((c, i) => {
           const angle = -spread + step * i;
@@ -46,7 +50,8 @@ export function Hand({ cards, cardState, onActivate, actionsFor, menuCard, onMen
               onBlurCapture={() => setHovered(h => (h === c.id ? null : h))}
             >
               <TableCard card={c} width={width} live="always" tilt={10} state={cardState(c.id)} onActivate={onActivate}
-                menuActions={actionsFor(c.id)} menuOpen={menuCard === c.id} onMenuOpenChange={open => onMenuOpenChange(c.id, open)} onPickAction={onPickAction} className={styles.handCard} />
+                menuActions={actionsFor(c.id)} menuOpen={menuCard === c.id} onMenuOpenChange={open => onMenuOpenChange(c.id, open)} onPickAction={onPickAction} className={styles.handCard}
+                dragProps={bindDrag?.({ kind: 'hand', cardId: c.id }, c)} />
             </div>
           );
         })}

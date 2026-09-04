@@ -26,6 +26,7 @@
     "analysis:selftest": "tsx scripts/analysis-selftest.ts",
     "sim:batch": "tsx scripts/sim-batch.ts",
     "bench:games": "tsx scripts/bench-games.ts",
+    "verify:scenarios": "node --test --import tsx test/scenarios.test.ts",
     "test:e2e": "npm run test:e2e -w apps/web",
     "typecheck:all": "npm run typecheck && npm run web:typecheck",
     "demo:pack": "node demo/pack.mjs",

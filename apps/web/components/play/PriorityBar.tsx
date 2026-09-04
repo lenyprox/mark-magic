@@ -1,10 +1,12 @@
 'use client';
-// "You have priority" / "Opponent is thinking…" with the AI's latest narration, the numbered legal actions,
-// Pass (Space) and Concede.
+// "You have priority" / "Opponent is thinking…" with the AI's latest narration, an "Actions" button that opens the
+// legal actions as a popover (the number keys 1–9 still pick them directly), Pass (Space) and Concede.
+import { useState } from 'react';
 import clsx from 'clsx';
-import { Flag } from 'lucide-react';
+import { ChevronDown, Flag } from 'lucide-react';
 import type { LegalAction } from '@engine/state';
 import { Button, Kbd } from '@/components/ui';
+import { ActionsPopover } from './ActionsPopover';
 import styles from './table.module.css';
 
 export interface PriorityBarProps {
@@ -23,6 +25,8 @@ export interface PriorityBarProps {
 
 export function PriorityBar({ hasDecision, decisionText, thinking, narration, numbered, onPick, onPass, onConcede, canPass, stackSize, finished }: PriorityBarProps) {
   const status = finished ? 'Game over' : hasDecision ? decisionText : thinking ? 'Opponent is thinking…' : 'Resolving…';
+  const [open, setOpen] = useState(false);
+  const showActions = hasDecision && numbered.length > 0;
   return (
     <div className={clsx(styles.prio, hasDecision && styles.prioMine, thinking && styles.prioThinking)} data-testid="priority-bar" data-state={finished ? 'finished' : hasDecision ? 'mine' : thinking ? 'thinking' : 'resolving'}>
       <div className={styles.prioStatus}>
@@ -30,16 +34,13 @@ export function PriorityBar({ hasDecision, decisionText, thinking, narration, nu
         <span className={styles.prioText} role="status" aria-live="polite">{status}</span>
         {narration && !hasDecision && <span className={styles.prioNarration} title={narration}>{narration}</span>}
       </div>
-      {hasDecision && numbered.length > 0 && (
-        <div className={styles.prioActions} role="group" aria-label="Legal actions">
-          {numbered.slice(0, 9).map((l, i) => (
-            <button key={i} type="button" className={styles.prioAction} onClick={() => onPick(l)} title={l.label}>
-              <Kbd>{i + 1}</Kbd>
-              <span className="truncate">{l.label}</span>
-              {l.manaValue != null && l.action.type === 'cast' && <span className={styles.prioMv}>{l.manaValue}</span>}
-            </button>
-          ))}
-          {numbered.length > 9 && <span className="faint small">+{numbered.length - 9} more</span>}
+      {showActions && (
+        <div className={styles.prioActionsWrap}>
+          <button type="button" className={styles.prioAction} onClick={() => setOpen(o => !o)} aria-haspopup="menu" aria-expanded={open} data-testid="actions-button" title="Legal actions (1–9)">
+            <span>{numbered.length} {numbered.length === 1 ? 'action' : 'actions'}</span>
+            <ChevronDown size={12} aria-hidden />
+          </button>
+          {open && <ActionsPopover title="Legal actions" actions={numbered} numbered onPick={l => { setOpen(false); onPick(l); }} onClose={() => setOpen(false)} testId="actions-menu" />}
         </div>
       )}
       <div className={styles.prioButtons}>

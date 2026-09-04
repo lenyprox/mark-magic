@@ -126,3 +126,7 @@ export function describeDecision(d: { kind: string; reason?: string; prompt?: st
     default: return d.kind;
   }
 }
+
+// ---- drag-and-drop planning (pure additions; see drag.ts) -------------------------------------
+export { planDrag, resolveDrop, canPickUp, whyNotPlayable, attackTargetsFor, availableMana, sameZone } from './drag.js';
+export type { DragSource, DropZone, DropEffect, IllegalReason, IllegalCode, DragContext, DragMode, DragPlan } from './drag.js';

@@ -5,13 +5,18 @@ import { useMemo } from 'react';
 import clsx from 'clsx';
 import type { LegalAction } from '@engine/state';
 import type { PermanentView } from '@play/view';
+import type { PlayerId } from '@engine/state';
+import type { DragSource } from '@play/targeting';
 import { groupByName } from '@/lib/game/ui';
 import { TableCard, type TableCardProps } from './TableCard';
+import type { DragBindProps } from './useDragIntent';
 import styles from './table.module.css';
 
 export interface BattlefieldProps {
   permanents: PermanentView[];
   mine: boolean;
+  /** Whose battlefield this is (the drop zone id). */
+  player?: PlayerId;
   cardWidth?: number;
   cardState: (id: number) => TableCardProps['state'];
   onActivate: (id: number) => void;
@@ -20,9 +25,13 @@ export interface BattlefieldProps {
   onMenuOpenChange?: (id: number, open: boolean) => void;
   onPickAction?: (l: LegalAction) => void;
   blockedLabel?: (p: PermanentView) => string | null;
+  bindDrag?: (source: DragSource, card: PermanentView) => DragBindProps;
+  /** Drop-zone highlight for the whole battlefield (a drag is in flight and this zone has an effect / is hovered). */
+  dropTarget?: boolean;
+  dropOver?: boolean;
 }
 
-export function Battlefield({ permanents, mine, cardWidth = 88, cardState, onActivate, actionsFor, menuCard, onMenuOpenChange, onPickAction }: BattlefieldProps) {
+export function Battlefield({ permanents, mine, player, cardWidth = 88, cardState, onActivate, actionsFor, menuCard, onMenuOpenChange, onPickAction, bindDrag, dropTarget, dropOver }: BattlefieldProps) {
   const { lands, creatures, others } = useMemo(() => {
     const lands: PermanentView[] = []; const creatures: PermanentView[] = []; const others: PermanentView[] = [];
     for (const p of permanents) { if (p.isCreature) creatures.push(p); else if (p.isLand) lands.push(p); else others.push(p); }
@@ -35,7 +44,7 @@ export function Battlefield({ permanents, mine, cardWidth = 88, cardState, onAct
     return (
       <div key={p.id} className={clsx(styles.slot, p.attacking !== null && styles.slotAttacking, p.blocking.length > 0 && styles.slotBlocking)}>
         <TableCard card={p} width={cardWidth} tapped={p.tapped} state={{ ...cardState(p.id), sick: p.summoningSick && mine && p.isCreature }} onActivate={onActivate}
-          menuActions={acts} menuOpen={menuCard === p.id} onMenuOpenChange={open => onMenuOpenChange?.(p.id, open)} onPickAction={onPickAction} {...extra} />
+          menuActions={acts} menuOpen={menuCard === p.id} onMenuOpenChange={open => onMenuOpenChange?.(p.id, open)} onPickAction={onPickAction} dragProps={bindDrag?.({ kind: 'permanent', id: p.id }, p)} {...extra} />
       </div>
     );
   };
@@ -51,7 +60,7 @@ export function Battlefield({ permanents, mine, cardWidth = 88, cardState, onAct
       <div key={g.name} className={styles.landGroup}>
         {untapped.length > 0 && (
           <TableCard card={untapped[0]} width={Math.round(cardWidth * 0.7)} count={untapped.length} state={cardState(untapped[0].id)} onActivate={onActivate} live="hover"
-            menuActions={acts} menuOpen={menuCard === untapped[0].id} onMenuOpenChange={open => onMenuOpenChange?.(untapped[0].id, open)} onPickAction={onPickAction} tilt={4} />
+            menuActions={acts} menuOpen={menuCard === untapped[0].id} onMenuOpenChange={open => onMenuOpenChange?.(untapped[0].id, open)} onPickAction={onPickAction} tilt={4} dragProps={bindDrag?.({ kind: 'permanent', id: untapped[0].id }, untapped[0])} />
         )}
         {tapped.length > 0 && <TableCard card={tapped[0]} width={Math.round(cardWidth * 0.7)} count={tapped.length} tapped state={cardState(tapped[0].id)} onActivate={onActivate} live="hover" tilt={4} />}
         {/* Hidden anchors so connector lines can find any land in the group. */}
@@ -63,7 +72,8 @@ export function Battlefield({ permanents, mine, cardWidth = 88, cardState, onAct
   // Order: for the opponent, lands nearest the middle would be far; keep creatures nearest the centre strip.
   const ordered = mine ? rows : [...rows].reverse();
   return (
-    <div className={clsx(styles.battlefield, mine ? styles.bfMine : styles.bfOpp)} aria-label={mine ? 'Your battlefield' : "Opponent's battlefield"}>
+    <div className={clsx(styles.battlefield, mine ? styles.bfMine : styles.bfOpp, dropTarget && styles.dropZone, dropOver && styles.dropZoneOver)} aria-label={mine ? 'Your battlefield' : "Opponent's battlefield"}
+      data-drop-zone={player !== undefined ? `battlefield:${player}` : undefined} data-testid={mine ? 'battlefield-me' : 'battlefield-opp'} data-drop-target={dropTarget ? '' : undefined}>
       {ordered.length === 0 && <div className={styles.bfEmpty} aria-hidden />}
       {ordered.map(r => (
         <div key={r.key} className={clsx(styles.bfRow, styles[`row_${r.key}` as keyof typeof styles])} role="group" aria-label={r.label}>{r.node}</div>
