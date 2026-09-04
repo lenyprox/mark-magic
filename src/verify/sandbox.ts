@@ -23,7 +23,13 @@ export class Sandbox implements Agent {
 }
 
 export type Verdict = 'sandbox-ok' | 'sandbox-throws' | 'invariant-violation' | 'unreachable' | 'skipped';
-export interface Row { name: string; oracleId: string; verdict: Verdict; detail?: string; actions: number }
+export interface Row {
+  name: string; oracleId: string; verdict: Verdict; detail?: string; actions: number;
+  /** Activated abilities the parser gave the card (the ones the sandbox could in principle reach). */
+  abilities: number;
+  /** How many of those the sandbox actually performed — `abilities - reached` is the card's unreached ability count. */
+  reached: number;
+}
 export type Seats = 2 | 4;
 export interface TrialOptions { seats: Seats; maxTurns?: number }
 
@@ -37,12 +43,21 @@ function withFirstTargets(l: ReturnType<typeof legalActions>[number]) {
   return { ...l.action, targets: reqs.map(r => r.options.slice(0, r.count)) } as typeof l.action;
 }
 
+/** Indexes into `def.abilities` that the sandbox could reach by activating them (`legalActions` keys off the index). */
+const activatedIndexes = (def: CardDef): number[] => def.abilities.flatMap((a, i) => (a.kind === 'activated' ? [i] : []));
+
 /**
  * Put `def` in seat 0's hand in a sandbox of `opts.seats` players, try up to six of its legal actions (each on a
  * fresh clone), resolve, run its activated abilities and a full turn, and check the invariants after each stage.
+ * Every activated ability the trial performs is recorded, so the report can say which abilities stayed unreached.
  */
 export async function trialCard(cards: CardDB, def: CardDef, opts: TrialOptions): Promise<Row> {
   const seats = opts.seats; const maxTurns = opts.maxTurns ?? 4;
+  const activatable = new Set(activatedIndexes(def));
+  const reached = new Set<number>();
+  const record = (a: { type: string; abilityIndex?: number }) => { if (a.type === 'activate' && a.abilityIndex !== undefined && activatable.has(a.abilityIndex)) reached.add(a.abilityIndex); };
+  const row = (verdict: Verdict, actions: number, detail?: string): Row =>
+    ({ name: def.name, oracleId: def.oracleId, verdict, ...(detail === undefined ? {} : { detail }), actions, abilities: activatable.size, reached: reached.size });
   const lands = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'].map(n => cards.get(n)!);
   const filler = Array(10).fill(cards.get('Forest')!);
   const g = new Game(Array.from({ length: seats }, () => filler), agentsFor(seats), { seed: 1, quiet: true, mulligans: false, events: 'counts', maxTurns });
@@ -60,16 +75,16 @@ export async function trialCard(cards: CardDB, def: CardDef, opts: TrialOptions)
       const concrete = withFirstTargets(l);
       const ok = await g2.performAction(0, concrete);
       if (!ok) continue;
-      actions++;
+      actions++; record(concrete);
       await g2.resolveStackFully();
-      const v = assertInvariants(g2.state); if (v) return { name: def.name, oracleId: def.oracleId, verdict: 'invariant-violation', detail: `after ${l.label}: ${v}`, actions };
+      const v = assertInvariants(g2.state); if (v) return row('invariant-violation', actions, `after ${l.label}: ${v}`);
       // permanents: try each activated ability once it is on the battlefield, then attack, then a full turn
       const perm = findObject(g2.state, card.id);
       if (perm && perm.zone === 'battlefield') {
-        for (const a of legalActions(g2, 0).filter(x => x.action.type === 'activate' && x.action.objectId === card.id).slice(0, 4)) { const ok2 = await g2.performAction(0, withFirstTargets(a)); if (ok2) { actions++; await g2.resolveStackFully(); } }
-        const v2 = assertInvariants(g2.state); if (v2) return { name: def.name, oracleId: def.oracleId, verdict: 'invariant-violation', detail: `after abilities: ${v2}`, actions };
+        for (const a of legalActions(g2, 0).filter(x => x.action.type === 'activate' && x.action.objectId === card.id).slice(0, 4)) { const act = withFirstTargets(a); const ok2 = await g2.performAction(0, act); if (ok2) { actions++; record(act); await g2.resolveStackFully(); } }
+        const v2 = assertInvariants(g2.state); if (v2) return row('invariant-violation', actions, `after abilities: ${v2}`);
         await g2.resumeTurn(); await g2.playTurns(1);
-        const v3 = assertInvariants(g2.state); if (v3) return { name: def.name, oracleId: def.oracleId, verdict: 'invariant-violation', detail: `after a turn: ${v3}`, actions };
+        const v3 = assertInvariants(g2.state); if (v3) return row('invariant-violation', actions, `after a turn: ${v3}`);
       }
     }
     if (!actions && isPermanent && !def.types.includes('Land')) {
@@ -78,11 +93,11 @@ export async function trialCard(cards: CardDB, def: CardDef, opts: TrialOptions)
       const hand = g3.state.players[0].hand.find(o => o.id === card.id)!; g3.state.players[0].hand.splice(g3.state.players[0].hand.indexOf(hand), 1);
       hand.zone = 'battlefield'; hand.enteredTurn = 1; g3.state.players[0].battlefield.push(hand);
       g3.checkSBA(); await g3.resumeTurn(); await g3.playTurns(1);
-      const v = assertInvariants(g3.state); if (v) return { name: def.name, oracleId: def.oracleId, verdict: 'invariant-violation', detail: `on battlefield: ${v}`, actions };
-      return { name: def.name, oracleId: def.oracleId, verdict: 'unreachable', detail: 'no castable action in the sandbox (played on the battlefield instead)', actions };
+      const v = assertInvariants(g3.state); if (v) return row('invariant-violation', actions, `on battlefield: ${v}`);
+      return row('unreachable', actions, 'no castable action in the sandbox (played on the battlefield instead)');
     }
-    return { name: def.name, oracleId: def.oracleId, verdict: actions ? 'sandbox-ok' : 'unreachable', actions };
+    return row(actions ? 'sandbox-ok' : 'unreachable', actions);
   } catch (e) {
-    return { name: def.name, oracleId: def.oracleId, verdict: 'sandbox-throws', detail: (e as Error).message, actions };
+    return row('sandbox-throws', actions, (e as Error).message);
   }
 }

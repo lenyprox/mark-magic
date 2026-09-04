@@ -2,7 +2,6 @@
 // (src/verify/sandbox.ts) runs them after every resolved action so engine bugs surface as a named violation
 // instead of a silent wrong board. Pure and node-free: the engine also runs inside a web worker.
 import { allPermanents, findObject } from './characteristics.js';
-import { alive } from './players.js';
 import type { GameObject, GameState } from './state.js';
 
 /** The per-player zone lists, in the order the checks walk them. */
@@ -62,12 +61,9 @@ export function assertInvariants(s: GameState): string | null {
   for (const { o, list, owner } of everyObject(s)) if (o.tapped && list !== 'battlefield') return `${o.def.name} is tapped in ${owner}'s ${list}`;
   // tokens cease to exist as a state-based action (CR 704.5d); only meaningful once the stack has drained
   if (!s.stack.length) for (const { o, list, owner } of everyObject(s)) if (o.token && list !== 'battlefield') return `token ${o.def.name} is still in ${owner}'s ${list}`;
-  // the seats the engine is about to ask are still in the game; a finished game (a winner, or a draw with everyone
-  // decked out at once) holds no priority, so only an ongoing game is checked
-  const live = alive(s);
-  if (s.winner === null && live.length > 1) {
-    if (!live.includes(s.activePlayer)) return `active player ${s.players[s.activePlayer]?.name ?? s.activePlayer} is out of the game`;
-    if (!live.includes(s.priority)) return `priority is with ${s.players[s.priority]?.name ?? s.priority}, who is out of the game`;
-  }
+  // No liveness check on s.activePlayer / s.priority: an eliminated active player finishing its own turn is a state
+  // the engine deliberately produces (CR 800.4a leaves the turn structure alone; game.ts skips its priority rounds and
+  // only hands the turn on with nextInTurnOrder at cleanup). A draw-X spell that decks its controller out in a pod
+  // reaches it on every trial, so asserting it here reports the engine's own design as a bug.
   return null;
 }
