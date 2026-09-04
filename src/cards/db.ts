@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import { MASTER_DB } from '../config/paths.js';
 import { parseCard, type OracleRow } from './parse.js';
+import { tierFilter, tierOf, type PoolRow, type PoolTier } from './pool.js';
 import { applyScript, scriptStore } from './scripts.js';
 import type { CardDef } from './types.js';
 
@@ -26,8 +27,9 @@ export class CardDB {
     return CardDB.instance;
   }
 
-  private rowToOracle(json: string): OracleRow {
-    const o = JSON.parse(json);
+  private rowToOracle(json: string): OracleRow { return this.oracleOf(JSON.parse(json)); }
+
+  private oracleOf(o: Record<string, any>): OracleRow {
     return {
       name: o.name, oracle_id: o.oracle_id, mana_cost: o.mana_cost, mana_value: o.mana_value, colors: o.colors, color_identity: o.color_identity,
       types: o.types, supertypes: o.supertypes, subtypes: o.subtypes, type_line: o.type_line, oracle_text: o.oracle_text, power: o.power, toughness: o.toughness,
@@ -72,10 +74,30 @@ export class CardDB {
     return this.db.prepare("SELECT name, type_line, mana_cost FROM oracle_cards WHERE name LIKE ? COLLATE NOCASE AND layout NOT IN ('art_series','token','double_faced_token','emblem') ORDER BY name LIMIT ?").all(`%${pattern}%`, limit) as { name: string; type_line: string; mana_cost: string | null }[];
   }
 
-  /** Iterate every playable oracle card (used by the coverage report). */
-  *all(): Generator<CardDef> {
+  /**
+   * Iterate every playable oracle card, optionally restricted to one or more pool tiers (see src/cards/pool.ts).
+   * Filtering happens on the parsed row's own fields — master.db needs no extra column.
+   */
+  *all(opts: { tier?: PoolTier | PoolTier[] } = {}): Generator<CardDef> {
+    for (const { def } of this.allWithTier(opts)) yield def;
+  }
+
+  /** Same as `all()` but also reports each card's pool tier (the coverage report groups by it). */
+  *allWithTier(opts: { tier?: PoolTier | PoolTier[] } = {}): Generator<{ def: CardDef; tier: PoolTier }> {
+    const want = tierFilter(opts.tier);
     const stmt = this.db.prepare(`SELECT json FROM oracle_cards WHERE ${NON_PLAYABLE}`);
-    for (const r of stmt.iterate() as Iterable<{ json: string }>) yield this.parse(this.rowToOracle(r.json));
+    for (const r of stmt.iterate() as Iterable<{ json: string }>) {
+      const raw = JSON.parse(r.json) as PoolRow & Record<string, unknown>;
+      const tier = tierOf(raw);
+      if (want && !want.has(tier)) continue;
+      yield { def: this.parse(this.oracleOf(raw)), tier };
+    }
+  }
+
+  /** The pool tier of one oracle card, or null when master.db has no such row. */
+  tierOf(oracleId: string): PoolTier | null {
+    const row = this.stmt('tier', 'SELECT json FROM oracle_cards WHERE oracle_id = ?').get(oracleId) as { json: string } | undefined;
+    return row ? tierOf(JSON.parse(row.json) as PoolRow) : null;
   }
 
   rulings(oracleId: string): { published_at: string; comment: string }[] {

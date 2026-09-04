@@ -22,6 +22,9 @@ apps/web/playwright-report/
 data/bench/
 data/optimizer/
 data/scripts/drafts/
+data/scripts/reports/
+data/scripts/batches/
+data/scripts/_quarantine/
 
 # TypeScript incremental build cache
 *.tsbuildinfo

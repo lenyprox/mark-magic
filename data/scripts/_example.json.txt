@@ -3,12 +3,23 @@
   "name": "Example Card",
   "oracleHash": "deadbeef",
   "source": "hand",
+  "confidence": 1,
   "mode": "extend",
   "covers": ["Whenever ~ attacks, you gain 1 life."],
+  "keywords": ["flying"],
   "abilities": [
     { "kind": "triggered", "event": { "on": "attacks", "self": true }, "effects": [{ "op": "gain-life", "amount": 1, "who": "you" }], "text": "Whenever this creature attacks, you gain 1 life." }
   ],
+  "ignore": [
+    { "line": "Draft ~ face up.", "reason": "draft-matters" }
+  ],
+  "backFace": {
+    "abilities": [
+      { "kind": "static", "effect": { "kind": "self-keywords", "keywords": ["trample"] }, "text": "Trample" }
+    ],
+    "covers": ["Trample"]
+  },
   "scenarios": ["Example Card gains life on attack"],
-  "aiHints": { "role": "creature", "timing": "main" },
-  "notes": "Rename to <oracle_id>.json and set oracleHash to oracleHash(def.oracleText) to activate."
+  "aiHints": { "role": "creature", "value": 3, "timing": "main" },
+  "notes": "Rename to <2-hex>/<oracle_id>.json and set oracleHash to oracleHash(def.oracleText) to activate. The 'verification' block is written by scripts:verify — never by hand."
 }

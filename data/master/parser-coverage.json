@@ -1,9 +1,36 @@
 {
-  "generated_at": "2026-09-04T20:12:17.326Z",
+  "generated_at": "2026-09-04T22:13:50.672Z",
   "playable_oracle_cards": 34513,
   "fully_parsed": 11541,
   "fully_parsed_pct": 33.44,
   "of_which_vanilla_or_keyword_only": 1540,
+  "headline": {
+    "total": 32080,
+    "fully_parsed": 11390,
+    "pct": 35.5
+  },
+  "tiers": {
+    "paper": {
+      "total": 32080,
+      "fully_parsed": 11390,
+      "pct": 35.5
+    },
+    "digital": {
+      "total": 1001,
+      "fully_parsed": 54,
+      "pct": 5.39
+    },
+    "un": {
+      "total": 1423,
+      "fully_parsed": 97,
+      "pct": 6.82
+    },
+    "ante": {
+      "total": 9,
+      "fully_parsed": 0,
+      "pct": 0
+    }
+  },
   "by_primary_type": {
     "Creature": {
       "total": 19233,

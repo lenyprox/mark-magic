@@ -1,0 +1,6110 @@
+{
+  "$id": "https://mark-magic.local/schemas/card-script-v2.json",
+  "title": "Card script (v2)",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "keywords": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "abilities": {
+      "$ref": "#/$defs/__schema2"
+    },
+    "altCosts": {
+      "$ref": "#/$defs/__schema22"
+    },
+    "asEnters": {
+      "$ref": "#/$defs/__schema23"
+    },
+    "costModifiers": {
+      "$ref": "#/$defs/__schema24"
+    },
+    "covers": {
+      "$ref": "#/$defs/__schema25"
+    },
+    "oracleId": {
+      "$ref": "#/$defs/__schema8"
+    },
+    "name": {
+      "$ref": "#/$defs/__schema8"
+    },
+    "oracleHash": {
+      "$ref": "#/$defs/__schema8"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "generated",
+        "llm",
+        "reviewed",
+        "hand"
+      ]
+    },
+    "confidence": {
+      "$ref": "#/$defs/__schema10"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "replace",
+        "extend"
+      ]
+    },
+    "backFace": {
+      "type": "object",
+      "properties": {
+        "keywords": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "abilities": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "altCosts": {
+          "$ref": "#/$defs/__schema22"
+        },
+        "asEnters": {
+          "$ref": "#/$defs/__schema23"
+        },
+        "costModifiers": {
+          "$ref": "#/$defs/__schema24"
+        },
+        "covers": {
+          "$ref": "#/$defs/__schema25"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ignore": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "$ref": "#/$defs/__schema8"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "draft-matters",
+              "ante",
+              "outside-the-game",
+              "deck-construction",
+              "reminder-only",
+              "un-physical",
+              "digital-only"
+            ]
+          }
+        },
+        "required": [
+          "line",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema8"
+      }
+    },
+    "aiHints": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "value": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "timing": {
+          "type": "string",
+          "enum": [
+            "main",
+            "instant",
+            "end-step",
+            "response"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "notes": {
+      "$ref": "#/$defs/__schema8"
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "parserVersion": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "registryHash": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "oracleHash": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "scriptHash": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "schema": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail"
+          ]
+        },
+        "lint": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "warn",
+            "fail"
+          ]
+        },
+        "sandbox": {
+          "type": "object",
+          "properties": {
+            "seats2": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "throws",
+                "invariant",
+                "unreachable"
+              ]
+            },
+            "seats4": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "throws",
+                "invariant",
+                "unreachable"
+              ]
+            },
+            "abilities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "$ref": "#/$defs/__schema10"
+                  },
+                  "reached": {
+                    "$ref": "#/$defs/__schema5"
+                  },
+                  "how": {
+                    "$ref": "#/$defs/__schema8"
+                  }
+                },
+                "required": [
+                  "index",
+                  "reached"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "seats2",
+            "seats4",
+            "abilities"
+          ],
+          "additionalProperties": false
+        },
+        "roundTrip": {
+          "type": "object",
+          "properties": {
+            "score": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "lowest": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "$ref": "#/$defs/__schema8"
+                  },
+                  "rendered": {
+                    "$ref": "#/$defs/__schema8"
+                  },
+                  "score": {
+                    "$ref": "#/$defs/__schema10"
+                  }
+                },
+                "required": [
+                  "text",
+                  "rendered",
+                  "score"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "score",
+            "lowest"
+          ],
+          "additionalProperties": false
+        },
+        "scenarios": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "passed": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "failed": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "names": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema8"
+              }
+            }
+          },
+          "required": [
+            "file",
+            "passed",
+            "failed",
+            "names"
+          ],
+          "additionalProperties": false
+        },
+        "judge": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "$ref": "#/$defs/__schema8"
+              },
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "faithful",
+                  "unfaithful",
+                  "uncertain"
+                ]
+              },
+              "issues": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema8"
+                }
+              },
+              "at": {
+                "$ref": "#/$defs/__schema8"
+              }
+            },
+            "required": [
+              "model",
+              "verdict",
+              "issues",
+              "at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "scripted",
+            "verified",
+            "tested",
+            "judged"
+          ]
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema8"
+          }
+        }
+      },
+      "required": [
+        "at",
+        "parserVersion",
+        "registryHash",
+        "oracleHash",
+        "scriptHash",
+        "schema",
+        "lint",
+        "sandbox",
+        "roundTrip",
+        "scenarios",
+        "status",
+        "problems"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "oracleId",
+    "name",
+    "oracleHash",
+    "source"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "__schema0": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema1"
+      }
+    },
+    "__schema1": {
+      "type": "string",
+      "enum": [
+        "flying",
+        "first strike",
+        "double strike",
+        "deathtouch",
+        "lifelink",
+        "trample",
+        "haste",
+        "vigilance",
+        "reach",
+        "defender",
+        "flash",
+        "hexproof",
+        "indestructible",
+        "menace",
+        "unblockable",
+        "cant block",
+        "shroud",
+        "protection",
+        "prowess",
+        "ward",
+        "fear",
+        "intimidate",
+        "skulk",
+        "cant attack",
+        "shadow",
+        "horsemanship",
+        "flanking",
+        "exalted",
+        "infect",
+        "wither",
+        "toxic",
+        "bushido",
+        "landwalk",
+        "rampage",
+        "firebending"
+      ]
+    },
+    "__schema2": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema3"
+      }
+    },
+    "__schema3": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "triggered"
+            },
+            "event": {
+              "$ref": "#/$defs/__schema4"
+            },
+            "effects": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            },
+            "condition": {
+              "$ref": "#/$defs/__schema15"
+            },
+            "optional": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "intervening": {
+              "$ref": "#/$defs/__schema15"
+            },
+            "oncePerTurn": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "kind",
+            "event",
+            "effects",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "activated"
+            },
+            "cost": {
+              "$ref": "#/$defs/__schema21"
+            },
+            "effects": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "sorcerySpeed": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "loyalty": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "oncePerTurn": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "manaAbility": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "activateOnlyIf": {
+              "$ref": "#/$defs/__schema15"
+            },
+            "instantSpeed": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "fromGraveyard": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "kind",
+            "cost",
+            "effects",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "static"
+            },
+            "effect": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "anthem"
+                    },
+                    "power": {
+                      "$ref": "#/$defs/__schema10"
+                    },
+                    "toughness": {
+                      "$ref": "#/$defs/__schema10"
+                    },
+                    "filter": {
+                      "$ref": "#/$defs/__schema6"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "you-control",
+                        "all",
+                        "other-you-control"
+                      ]
+                    },
+                    "keywords": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema1"
+                      }
+                    },
+                    "condition": {
+                      "$ref": "#/$defs/__schema15"
+                    },
+                    "anyPermanent": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "whileInGraveyard": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "landwalk": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema8"
+                      }
+                    },
+                    "opponentsOnly": {
+                      "$ref": "#/$defs/__schema5"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "power",
+                    "toughness",
+                    "filter",
+                    "scope"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "damage-by-toughness"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "self",
+                        "you-control"
+                      ]
+                    },
+                    "onlyWhenGreater": {
+                      "$ref": "#/$defs/__schema5"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "scope"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "flash-for"
+                    },
+                    "filter": {
+                      "$ref": "#/$defs/__schema6"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "filter"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "trigger-twice"
+                    },
+                    "equipped": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "etb",
+                        "dies",
+                        "land-etb",
+                        "cast"
+                      ]
+                    },
+                    "filter": {
+                      "$ref": "#/$defs/__schema6"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "counters-replacement"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "double",
+                        "plus-one"
+                      ]
+                    },
+                    "filter": {
+                      "$ref": "#/$defs/__schema6"
+                    },
+                    "counter": {
+                      "$ref": "#/$defs/__schema8"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "mode"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "tokens-replacement"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "const": "double"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "mode"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "extra-mana-on-tap"
+                    },
+                    "filter": {
+                      "$ref": "#/$defs/__schema6"
+                    },
+                    "enchanted": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "mana": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/__schema18"
+                          }
+                        },
+                        {
+                          "type": "string",
+                          "const": "chosen-color"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "mana"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "grant-mana-ability"
+                    },
+                    "filter": {
+                      "$ref": "#/$defs/__schema6"
+                    },
+                    "enchanted": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "effect": {
+                      "$ref": "#/$defs/__schema13"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "effect"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "grant-ability"
+                    },
+                    "filter": {
+                      "$ref": "#/$defs/__schema6"
+                    },
+                    "enchanted": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "you-control",
+                        "all"
+                      ]
+                    },
+                    "ability": {
+                      "$ref": "#/$defs/__schema3"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "scope",
+                    "ability"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "opponents-cant-cast"
+                    },
+                    "during": {
+                      "type": "string",
+                      "const": "your-turn"
+                    },
+                    "filter": {
+                      "$ref": "#/$defs/__schema6"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "during"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "play-lands-from"
+                    },
+                    "zone": {
+                      "type": "string",
+                      "enum": [
+                        "graveyard",
+                        "library-top"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "zone"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "unspent-mana-becomes-red"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "self-pt"
+                    },
+                    "power": {
+                      "$ref": "#/$defs/__schema11"
+                    },
+                    "toughness": {
+                      "$ref": "#/$defs/__schema11"
+                    },
+                    "condition": {
+                      "$ref": "#/$defs/__schema15"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "power",
+                    "toughness"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "self-keywords"
+                    },
+                    "keywords": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema1"
+                      }
+                    },
+                    "condition": {
+                      "$ref": "#/$defs/__schema15"
+                    },
+                    "cantBlock": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "mustAttack": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "doesntUntap": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "blockOnlyFlying": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "evasion": {
+                      "$ref": "#/$defs/__schema6"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "keywords"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "can-be-commander"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "look-top-anytime"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "may-not-untap"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "no-max-hand-size"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "cant-attack-unless-defender-controls"
+                    },
+                    "filter": {
+                      "$ref": "#/$defs/__schema6"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "filter"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "extra-blocks"
+                    },
+                    "amount": {
+                      "$ref": "#/$defs/__schema10"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "amount"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "cant-be-blocked-by-more-than-one"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "aura"
+                    },
+                    "power": {
+                      "$ref": "#/$defs/__schema10"
+                    },
+                    "toughness": {
+                      "$ref": "#/$defs/__schema10"
+                    },
+                    "keywords": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema1"
+                      }
+                    },
+                    "cantAttackOrBlock": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "cantAttack": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "cantBlock": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "doesntUntap": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "enchant": {
+                      "$ref": "#/$defs/__schema14"
+                    },
+                    "controlEnchanted": {
+                      "$ref": "#/$defs/__schema5"
+                    },
+                    "text": {
+                      "$ref": "#/$defs/__schema8"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "power",
+                    "toughness",
+                    "enchant"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "equipment"
+                    },
+                    "power": {
+                      "$ref": "#/$defs/__schema10"
+                    },
+                    "toughness": {
+                      "$ref": "#/$defs/__schema10"
+                    },
+                    "keywords": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema1"
+                      }
+                    },
+                    "equipCost": {
+                      "$ref": "#/$defs/__schema17"
+                    },
+                    "equipFilter": {
+                      "$ref": "#/$defs/__schema6"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "power",
+                    "toughness",
+                    "equipCost"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "cost-adjust"
+                    },
+                    "filter": {
+                      "$ref": "#/$defs/__schema6"
+                    },
+                    "amount": {
+                      "$ref": "#/$defs/__schema10"
+                    },
+                    "who": {
+                      "type": "string",
+                      "enum": [
+                        "you",
+                        "opponent",
+                        "any"
+                      ]
+                    },
+                    "from": {
+                      "type": "string",
+                      "const": "non-hand"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "filter",
+                    "amount",
+                    "who"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "opponent-creatures-etb-tapped"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "extra-land"
+                    },
+                    "amount": {
+                      "$ref": "#/$defs/__schema10"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "amount"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "cant-be-countered"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "lifegain-multiplier"
+                    },
+                    "plus": {
+                      "$ref": "#/$defs/__schema10"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "unknown"
+                    },
+                    "text": {
+                      "$ref": "#/$defs/__schema8"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "text"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "kind",
+            "effect",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "spell"
+            },
+            "effects": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "kind",
+            "effects",
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema4": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "etb"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "controller": {
+              "type": "string",
+              "enum": [
+                "you",
+                "any"
+              ]
+            }
+          },
+          "required": [
+            "on",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "dies"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "controller": {
+              "type": "string",
+              "enum": [
+                "you",
+                "any"
+              ]
+            }
+          },
+          "required": [
+            "on",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "ltb"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "on",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "attacks"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            }
+          },
+          "required": [
+            "on",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "you-attack"
+            }
+          },
+          "required": [
+            "on"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "turned-face-up"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "on",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "blocks"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "on",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "becomes-blocked"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "on",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "combat-damage-player"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            }
+          },
+          "required": [
+            "on",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "deals-damage"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "on",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "upkeep"
+            },
+            "whose": {
+              "type": "string",
+              "enum": [
+                "your",
+                "each",
+                "opponent"
+              ]
+            }
+          },
+          "required": [
+            "on",
+            "whose"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "end-step"
+            },
+            "whose": {
+              "type": "string",
+              "enum": [
+                "your",
+                "each"
+              ]
+            }
+          },
+          "required": [
+            "on",
+            "whose"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "draw-step"
+            },
+            "whose": {
+              "type": "string",
+              "const": "your"
+            }
+          },
+          "required": [
+            "on",
+            "whose"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "combat-begin"
+            },
+            "whose": {
+              "type": "string",
+              "const": "your"
+            }
+          },
+          "required": [
+            "on",
+            "whose"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "cast"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "you",
+                "opponent",
+                "any"
+              ]
+            },
+            "nth": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "mvEqualsCounter": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "on",
+            "filter",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "landfall"
+            },
+            "played": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "other": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "on"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "draw"
+            },
+            "who": {
+              "$ref": "#/$defs/__schema12"
+            },
+            "exceptFirstInDrawStep": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "nth": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "on",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "chapter"
+            },
+            "chapters": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema10"
+              }
+            }
+          },
+          "required": [
+            "on",
+            "chapters"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "leaves-graveyard"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            }
+          },
+          "required": [
+            "on"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "or"
+            },
+            "events": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema4"
+              }
+            }
+          },
+          "required": [
+            "on",
+            "events"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "life-gain"
+            }
+          },
+          "required": [
+            "on"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "life-loss-opponent"
+            }
+          },
+          "required": [
+            "on"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "sacrifice"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            }
+          },
+          "required": [
+            "on"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "tapped"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "on",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "targeted"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "bySpellYouCast": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            }
+          },
+          "required": [
+            "on",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "discard"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            }
+          },
+          "required": [
+            "on"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "end-of-turn"
+            }
+          },
+          "required": [
+            "on"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string",
+              "const": "unknown"
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "on",
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema5": {
+      "type": "boolean"
+    },
+    "__schema6": {
+      "type": "object",
+      "properties": {
+        "types": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema7"
+          }
+        },
+        "notTypes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema7"
+          }
+        },
+        "subtypes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema8"
+          }
+        },
+        "colors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema9"
+          }
+        },
+        "notColors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema9"
+          }
+        },
+        "colorless": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "powerLE": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "powerGE": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "toughnessLE": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "mvLE": {
+          "$ref": "#/$defs/__schema11"
+        },
+        "mvGE": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "mvEQ": {
+          "$ref": "#/$defs/__schema11"
+        },
+        "tapped": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "untapped": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "token": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "nontoken": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "attacking": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "blocking": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "flying": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "nonbasic": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "basic": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "other": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "withCounters": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "withCounter": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "toughnessGtPower": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "chosenType": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "withKeyword": {
+          "$ref": "#/$defs/__schema1"
+        }
+      },
+      "additionalProperties": false
+    },
+    "__schema7": {
+      "type": "string",
+      "enum": [
+        "Creature",
+        "Instant",
+        "Sorcery",
+        "Artifact",
+        "Enchantment",
+        "Land",
+        "Planeswalker",
+        "Battle",
+        "Kindred",
+        "Tribal"
+      ]
+    },
+    "__schema8": {
+      "type": "string"
+    },
+    "__schema9": {
+      "type": "string",
+      "enum": [
+        "W",
+        "U",
+        "B",
+        "R",
+        "G"
+      ]
+    },
+    "__schema10": {
+      "type": "number"
+    },
+    "__schema11": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/__schema10"
+        },
+        {
+          "type": "string",
+          "const": "X"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "string",
+              "enum": [
+                "creatures-you-control",
+                "cards-in-hand",
+                "lands-you-control",
+                "power-of-source",
+                "creatures-attacking",
+                "opponent-creatures",
+                "life-lost-this-turn",
+                "permanents-you-control",
+                "domain",
+                "exiled-with",
+                "cards-in-graveyard",
+                "power-of-that",
+                "mv-of-that",
+                "colors-spent",
+                "card-types-in-graveyard",
+                "card-types-in-all-graveyards",
+                "counters-on-source",
+                "counters-on-permanents",
+                "that-many",
+                "commander-casts",
+                "opponents",
+                "player-counters",
+                "cards-drawn-this-turn",
+                "permanents-on-battlefield",
+                "creatures-died-this-turn",
+                "attached-to-source",
+                "blocking-source",
+                "cards-in-all-hands",
+                "spells-cast-this-turn"
+              ]
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "plus": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "times": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "counter": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "count"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema12": {
+      "type": "string",
+      "enum": [
+        "you",
+        "opponent"
+      ]
+    },
+    "__schema13": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "damage"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "each-opponent",
+                    "each-player",
+                    "each-creature",
+                    "each-other-creature",
+                    "each-opponent-creature",
+                    "each-creature-and-player",
+                    "each-flying-creature",
+                    "each-nonflying-creature",
+                    "each-creature-you-dont-control"
+                  ]
+                }
+              ]
+            },
+            "divided": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "kickedAmount": {
+              "$ref": "#/$defs/__schema11"
+            }
+          },
+          "required": [
+            "op",
+            "amount",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "destroy"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "all-creatures",
+                    "all-artifacts",
+                    "all-enchantments",
+                    "all-lands",
+                    "all-nonland",
+                    "all-opponent-creatures",
+                    "all-tapped-creatures",
+                    "enchanted"
+                  ]
+                }
+              ]
+            },
+            "noRegenerate": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "ifTarget": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "ifTargetAlt": {
+              "type": "object",
+              "properties": {
+                "condition": {
+                  "$ref": "#/$defs/__schema15"
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                }
+              },
+              "required": [
+                "condition",
+                "filter"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "exile"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "all-creatures"
+                  ]
+                }
+              ]
+            },
+            "from": {
+              "type": "string",
+              "enum": [
+                "graveyard",
+                "battlefield"
+              ]
+            },
+            "until": {
+              "type": "string",
+              "const": "leaves"
+            },
+            "ifTarget": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "ifTargetAlt": {
+              "type": "object",
+              "properties": {
+                "condition": {
+                  "$ref": "#/$defs/__schema15"
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                }
+              },
+              "required": [
+                "condition",
+                "filter"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "counter"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            },
+            "unlessPay": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "toExile": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "draw"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "you",
+                "target-player",
+                "each-player",
+                "opponent",
+                "controller",
+                "that-player"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "amount",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "discard"
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema11"
+                },
+                {
+                  "type": "string",
+                  "const": "hand"
+                }
+              ]
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "you",
+                "target-player",
+                "each-opponent",
+                "each-player",
+                "that-player"
+              ]
+            },
+            "random": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "amount",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "gain-life"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "you",
+                "target-player",
+                "each-player",
+                "that-controller",
+                "that-player"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "amount",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "lose-life"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "you",
+                "target-player",
+                "each-opponent",
+                "each-player",
+                "opponent",
+                "that-controller",
+                "defending-player",
+                "that-player"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "amount",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "dig"
+            },
+            "look": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "take": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "rest": {
+              "type": "string",
+              "enum": [
+                "bottom",
+                "top",
+                "graveyard"
+              ]
+            },
+            "order": {
+              "type": "string",
+              "enum": [
+                "any",
+                "random"
+              ]
+            },
+            "reveal": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "optional": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "altTake": {
+              "type": "object",
+              "properties": {
+                "condition": {
+                  "$ref": "#/$defs/__schema15"
+                },
+                "take": {
+                  "$ref": "#/$defs/__schema10"
+                }
+              },
+              "required": [
+                "condition",
+                "take"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "op",
+            "look",
+            "take",
+            "rest",
+            "order"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "put-from-hand"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "to": {
+              "type": "string",
+              "enum": [
+                "library-top",
+                "library-bottom",
+                "battlefield"
+              ]
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "optional": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "you",
+                "each-player"
+              ]
+            },
+            "tapped": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "amount",
+            "to"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "shuffle"
+            },
+            "optional": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "that-player",
+                "target-player"
+              ]
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "reveal-hand"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "target-player",
+                "target-opponent"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "become-monarch"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "return-self-to-battlefield"
+            },
+            "counters": {
+              "type": "object",
+              "properties": {
+                "counter": {
+                  "$ref": "#/$defs/__schema8"
+                },
+                "amount": {
+                  "$ref": "#/$defs/__schema10"
+                }
+              },
+              "required": [
+                "counter",
+                "amount"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "evolve"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "move-counters"
+            },
+            "counter": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            }
+          },
+          "required": [
+            "op",
+            "counter",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "renown"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "op",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "sacrifice-unless-pay"
+            },
+            "mana": {
+              "$ref": "#/$defs/__schema17"
+            },
+            "once": {
+              "type": "string",
+              "const": "echo"
+            },
+            "perCounter": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "op",
+            "mana"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "unearth"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "cascade"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "explore"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "optional-pay"
+            },
+            "mana": {
+              "$ref": "#/$defs/__schema17"
+            },
+            "then": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            }
+          },
+          "required": [
+            "op",
+            "mana",
+            "then"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "optional-then"
+            },
+            "first": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            },
+            "then": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            }
+          },
+          "required": [
+            "op",
+            "first",
+            "then"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "impulse"
+            },
+            "count": {
+              "$ref": "#/$defs/__schema19"
+            },
+            "until": {
+              "type": "string",
+              "enum": [
+                "eot",
+                "next-turn"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "count",
+            "until"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "return-own"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "count": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "to": {
+              "type": "string",
+              "const": "hand"
+            }
+          },
+          "required": [
+            "op",
+            "filter",
+            "count",
+            "to"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "cant-block"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            },
+            "duration": {
+              "type": "string",
+              "const": "eot"
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "duration"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "no-untap-self"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "no-untap-that"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "energy"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            }
+          },
+          "required": [
+            "op",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "poison"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "target-player",
+                "each-opponent",
+                "that-player"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "amount",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "shuffle-self-into-library"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "reveal-hand-discard"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "target-player",
+                "target-opponent"
+              ]
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "count": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "const": 1
+                },
+                {
+                  "type": "string",
+                  "const": "all-named"
+                }
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "who",
+            "filter",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "look-top"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "target-player",
+                "you"
+              ]
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "op",
+            "who",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "search"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "to": {
+              "type": "string",
+              "enum": [
+                "hand",
+                "battlefield",
+                "graveyard",
+                "top"
+              ]
+            },
+            "tapped": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "count": {
+              "$ref": "#/$defs/__schema19"
+            },
+            "optional": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "you",
+                "that-controller"
+              ]
+            },
+            "reveal": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "mvLE": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "split": {
+              "type": "string",
+              "const": "one-battlefield-rest-hand"
+            }
+          },
+          "required": [
+            "op",
+            "filter",
+            "to",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "delayed-trigger"
+            },
+            "at": {
+              "type": "string",
+              "enum": [
+                "next-upkeep",
+                "next-end-step",
+                "your-next-end-step",
+                "end-of-combat"
+              ]
+            },
+            "effects": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            },
+            "bind": {
+              "type": "string",
+              "const": "that"
+            }
+          },
+          "required": [
+            "op",
+            "at",
+            "effects"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "return-to-battlefield"
+            },
+            "target": {
+              "type": "string",
+              "const": "that"
+            },
+            "underControlOf": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "you"
+              ]
+            },
+            "counterIfYours": {
+              "type": "string",
+              "enum": [
+                "that",
+                "self"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "underControlOf"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "amass"
+            },
+            "subtype": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            }
+          },
+          "required": [
+            "op",
+            "subtype",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "gain-ability"
+            },
+            "ability": {
+              "$ref": "#/$defs/__schema3"
+            }
+          },
+          "required": [
+            "op",
+            "ability"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "crew-self"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "saddle-self"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "damage-you"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            }
+          },
+          "required": [
+            "op",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "alt-if-target"
+            },
+            "condition": {
+              "$ref": "#/$defs/__schema15"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            }
+          },
+          "required": [
+            "op",
+            "condition",
+            "filter"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "alt-take"
+            },
+            "condition": {
+              "$ref": "#/$defs/__schema15"
+            },
+            "take": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "op",
+            "condition",
+            "take"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "fold-counter-if-yours"
+            },
+            "on": {
+              "type": "string",
+              "enum": [
+                "that",
+                "self"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "on"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "alt-kicked-amount"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "op",
+            "amount",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "fold-restriction"
+            },
+            "restriction": {
+              "type": "string",
+              "enum": [
+                "creature-spell",
+                "instant-sorcery",
+                "chosen-type-creature",
+                "colorless-eldrazi"
+              ]
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "op",
+            "restriction",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "fold-alt-mana"
+            },
+            "condition": {
+              "$ref": "#/$defs/__schema15"
+            },
+            "mana": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema18"
+              }
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "op",
+            "condition",
+            "mana",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "exile-from-hand"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "imprint": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "filter"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "exile-graveyard"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "target-player",
+                "each-opponent",
+                "each-player"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "attach-to-that"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "counter-triggering"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "pump"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "creatures-you-control",
+                    "self",
+                    "all-creatures",
+                    "other-creatures-you-control",
+                    "attacking-creatures",
+                    "other-attacking-creatures",
+                    "enchanted",
+                    "all-opponent-creatures"
+                  ]
+                }
+              ]
+            },
+            "power": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "toughness": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "keywords": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              }
+            },
+            "duration": {
+              "$ref": "#/$defs/__schema20"
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "power",
+            "toughness",
+            "duration"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "grant-keyword"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "self",
+                    "creatures-you-control",
+                    "permanents-you-control"
+                  ]
+                }
+              ]
+            },
+            "keywords": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              }
+            },
+            "duration": {
+              "$ref": "#/$defs/__schema20"
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "keywords",
+            "duration"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "bounce"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "all-creatures",
+                    "all-nonland",
+                    "self"
+                  ]
+                }
+              ]
+            },
+            "to": {
+              "type": "string",
+              "enum": [
+                "hand",
+                "library-top",
+                "library-bottom"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "to"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "token"
+            },
+            "count": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "power": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "toughness": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "colors": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema9"
+              }
+            },
+            "types": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema7"
+              }
+            },
+            "subtypes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema8"
+              }
+            },
+            "keywords": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              }
+            },
+            "tapped": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "attacking": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "name": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "treasure": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "clue": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "spawn": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "food": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "dynamicPT": {
+              "$ref": "#/$defs/__schema11"
+            }
+          },
+          "required": [
+            "op",
+            "count",
+            "power",
+            "toughness",
+            "colors",
+            "types",
+            "subtypes",
+            "keywords"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "counters"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "self",
+                    "creatures-you-control",
+                    "each-other-creature-you-control"
+                  ]
+                }
+              ]
+            },
+            "counter": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "optional": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "counter",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "tap"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "all-opponent-creatures",
+                    "all-creatures",
+                    "enchanted",
+                    "self"
+                  ]
+                }
+              ]
+            },
+            "noUntap": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "untap"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "self",
+                    "all-you-control",
+                    "lands-you-control",
+                    "that",
+                    "enchanted"
+                  ]
+                }
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "sacrifice"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "you",
+                "target-player",
+                "each-opponent",
+                "each-player"
+              ]
+            },
+            "what": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema19"
+            }
+          },
+          "required": [
+            "op",
+            "who",
+            "what",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "sacrifice-self"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "mill"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "you",
+                "target-player",
+                "each-opponent",
+                "that-player"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "amount",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "search-land"
+            },
+            "toBattlefield": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "tapped": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "basic": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "count": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "subtypes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema8"
+              }
+            }
+          },
+          "required": [
+            "op",
+            "toBattlefield",
+            "tapped",
+            "basic",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "add-mana"
+            },
+            "mana": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema18"
+                  }
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "any",
+                    "any-one",
+                    "commander-identity",
+                    "opponent-lands"
+                  ]
+                }
+              ]
+            },
+            "choices": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema18"
+                }
+              }
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "perEach": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "sticky": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "options": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema18"
+                  }
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "exiled-with-colors",
+                    "chosen-color",
+                    "permanent-colors"
+                  ]
+                }
+              ]
+            },
+            "restriction": {
+              "type": "string",
+              "enum": [
+                "creature-spell",
+                "instant-sorcery",
+                "chosen-type-creature",
+                "colorless-eldrazi"
+              ]
+            },
+            "altIf": {
+              "type": "object",
+              "properties": {
+                "condition": {
+                  "$ref": "#/$defs/__schema15"
+                },
+                "mana": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema18"
+                  }
+                }
+              },
+              "required": [
+                "condition",
+                "mana"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "op",
+            "mana"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "scry"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "op",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "surveil"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "op",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "return-from-graveyard"
+            },
+            "what": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "to": {
+              "type": "string",
+              "enum": [
+                "hand",
+                "battlefield",
+                "library-top",
+                "library-bottom"
+              ]
+            },
+            "target": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "anyGraveyard": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "tapped": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "what",
+            "to"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "fight"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            },
+            "self": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "self"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "bite"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "set-life"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "you",
+                "each-player"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "amount",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "gain-control"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            },
+            "duration": {
+              "$ref": "#/$defs/__schema20"
+            },
+            "untapHaste": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "duration"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "copy-spell"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            },
+            "newTargets": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "token-copy"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "that",
+                    "self"
+                  ]
+                }
+              ]
+            },
+            "count": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "extraTypes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema7"
+              }
+            },
+            "extraSubtypes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema8"
+              }
+            },
+            "extraKeywords": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              }
+            },
+            "tapped": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "attacking": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "each-other-opponent"
+                },
+                {
+                  "$ref": "#/$defs/__schema5"
+                }
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "remove-those"
+            },
+            "how": {
+              "type": "string",
+              "enum": [
+                "exile",
+                "sacrifice"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "how"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "remove-from-combat"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            },
+            "untap": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "play-exiled"
+            },
+            "until": {
+              "type": "string",
+              "enum": [
+                "eot",
+                "next-turn"
+              ]
+            },
+            "free": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "until"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "extra-land"
+            },
+            "count": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "op",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "exile-if-dies"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "that",
+                "affected",
+                "self",
+                "all-creatures",
+                "opponent-creatures"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "proliferate"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "storm-copies"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "player-counter"
+            },
+            "counter": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "you",
+                "target-player",
+                "each-opponent"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "counter",
+            "amount",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "fold-new-targets"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "earthbend"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            }
+          },
+          "required": [
+            "op",
+            "amount",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "animate"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "self"
+                  ]
+                }
+              ]
+            },
+            "power": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "toughness": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "colors": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema9"
+              }
+            },
+            "types": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema7"
+              }
+            },
+            "subtypes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema8"
+              }
+            },
+            "keywords": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              }
+            },
+            "duration": {
+              "$ref": "#/$defs/__schema20"
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "power",
+            "toughness",
+            "colors",
+            "types",
+            "subtypes",
+            "keywords",
+            "duration"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "untap-all"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            }
+          },
+          "required": [
+            "op",
+            "filter"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "untap-choose"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "count": {
+              "$ref": "#/$defs/__schema19"
+            }
+          },
+          "required": [
+            "op",
+            "filter",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "double-power"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "shuffle-into-library"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "each-self-damage"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "multi-counters"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            },
+            "counters": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema8"
+              }
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "counters"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "transform-self"
+            },
+            "viaExile": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "choose-mode"
+            },
+            "modes": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema13"
+                }
+              }
+            },
+            "count": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "op",
+            "modes",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "conditional"
+            },
+            "condition": {
+              "$ref": "#/$defs/__schema15"
+            },
+            "then": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            },
+            "else": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            }
+          },
+          "required": [
+            "op",
+            "condition",
+            "then"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "attach-self"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "regenerate"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "self"
+                  ]
+                }
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "prevent-damage"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema14"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "self",
+                    "you"
+                  ]
+                }
+              ]
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema11"
+                },
+                {
+                  "type": "string",
+                  "const": "all"
+                }
+              ]
+            },
+            "duration": {
+              "type": "string",
+              "const": "eot"
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "amount",
+            "duration"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "cant-attack-or-block"
+            },
+            "target": {
+              "$ref": "#/$defs/__schema14"
+            },
+            "duration": {
+              "type": "string",
+              "const": "eot"
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "duration"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "extra-turn"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "loot"
+            },
+            "draw": {
+              "$ref": "#/$defs/__schema19"
+            },
+            "discard": {
+              "$ref": "#/$defs/__schema19"
+            },
+            "discardFirst": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "optional": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "op",
+            "draw",
+            "discard"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "unknown"
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "op",
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema14": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "creature",
+            "player",
+            "any",
+            "permanent",
+            "spell",
+            "creature-or-player",
+            "creature-or-planeswalker",
+            "planeswalker",
+            "opponent",
+            "artifact",
+            "enchantment",
+            "land",
+            "nonland-permanent",
+            "artifact-or-enchantment",
+            "creature-spell",
+            "noncreature-spell",
+            "attacking-creature",
+            "blocking-creature",
+            "tapped-creature",
+            "ability",
+            "artifact-enchantment-or-nonbasic-land",
+            "spell-or-nonland-permanent",
+            "graveyard-card"
+          ]
+        },
+        "controller": {
+          "type": "string",
+          "enum": [
+            "you",
+            "opponent"
+          ]
+        },
+        "filter": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "optional": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "count": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "self": {
+          "$ref": "#/$defs/__schema5"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "__schema15": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "or"
+            },
+            "conditions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema15"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "conditions"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "self-entered-this-turn"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "total-toughness-ge"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "hand-has"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            }
+          },
+          "required": [
+            "kind",
+            "filter"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "opponents-lands-ge"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "opponent-more-lands"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "spells-cast-last-turn"
+            },
+            "who": {
+              "type": "string",
+              "enum": [
+                "none",
+                "any-player-ge"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "who"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "self-was-cast"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "self-is-type"
+            },
+            "type": {
+              "$ref": "#/$defs/__schema7"
+            }
+          },
+          "required": [
+            "kind",
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "self-in-graveyard"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "self-had-counters"
+            },
+            "counter": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "kind",
+            "counter"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "life-gained-ge"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "descended-this-turn"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unspent-mana-ge"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "life-le"
+            },
+            "who": {
+              "$ref": "#/$defs/__schema16"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "who",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "opponents-ge"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "controls"
+            },
+            "who": {
+              "$ref": "#/$defs/__schema12"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "atLeast": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "who",
+            "filter",
+            "atLeast"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cards-in-hand-ge"
+            },
+            "who": {
+              "$ref": "#/$defs/__schema12"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "who",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "threshold"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "metalcraft"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "delirium"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "kicked"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "raid"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "morbid"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "revolt"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "spell-mastery"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "ferocious"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "formidable"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "hellbent"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "landfall-this-turn"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "domain-ge"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "not-your-turn"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "your-turn"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "lands-le"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "other": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "lands-ge"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "other": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "turn-le"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "escaped"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "evoked"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cast-from-hand"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "graveyard-has-each"
+            },
+            "filters": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema6"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "filters"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "controls-each"
+            },
+            "filters": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema6"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "filters"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "self-no-counters"
+            },
+            "counter": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "kind",
+            "counter"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "self-not-renowned"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "self-attacking"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "self-tapped"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "self-untapped"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "self-has-counters"
+            },
+            "counter": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "kind",
+            "counter"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "controls-le"
+            },
+            "who": {
+              "$ref": "#/$defs/__schema12"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "atMost": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "who",
+            "filter",
+            "atMost"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "life-ge"
+            },
+            "who": {
+              "$ref": "#/$defs/__schema16"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "who",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "more-life-than-opponent"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "opponent-more-life"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "attacked-with-ge"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "you-lost-life-this-turn"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "spells-cast-this-turn-ge"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cards-in-hand-le"
+            },
+            "who": {
+              "$ref": "#/$defs/__schema12"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "who",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "opponent-hellbent"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "graveyard-ge"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "controls-commander"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cards-drawn-ge"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "opponent-lost-life-this-turn"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "life-gained-this-turn"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unknown"
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema16": {
+      "type": "string",
+      "enum": [
+        "you",
+        "opponent",
+        "any"
+      ]
+    },
+    "__schema17": {
+      "type": "object",
+      "properties": {
+        "generic": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "x": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "pips": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema18"
+          }
+        },
+        "hybrid": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/__schema18"
+            }
+          }
+        },
+        "phyrexian": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema9"
+          }
+        },
+        "raw": {
+          "$ref": "#/$defs/__schema8"
+        }
+      },
+      "required": [
+        "generic",
+        "x",
+        "pips",
+        "hybrid",
+        "phyrexian",
+        "raw"
+      ],
+      "additionalProperties": false
+    },
+    "__schema18": {
+      "type": "string",
+      "enum": [
+        "W",
+        "U",
+        "B",
+        "R",
+        "G",
+        "C"
+      ]
+    },
+    "__schema19": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "const": "X"
+        }
+      ],
+      "description": "a number, or the parser literal \"X\""
+    },
+    "__schema20": {
+      "type": "string",
+      "enum": [
+        "eot",
+        "permanent"
+      ]
+    },
+    "__schema21": {
+      "type": "object",
+      "properties": {
+        "mana": {
+          "$ref": "#/$defs/__schema17"
+        },
+        "tap": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "untap": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "sacrificeSelf": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "sacrifice": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "discard": {
+          "$ref": "#/$defs/__schema19"
+        },
+        "discardSelf": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "energy": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "discardHand": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "payLife": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "removeCounters": {
+          "type": "object",
+          "properties": {
+            "counter": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "amount": {
+              "$ref": "#/$defs/__schema19"
+            }
+          },
+          "required": [
+            "counter",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        "exileFromGraveyard": {
+          "$ref": "#/$defs/__schema19"
+        },
+        "exileOtherFromGraveyard": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema10"
+                },
+                {
+                  "type": "string",
+                  "const": "any"
+                }
+              ]
+            },
+            "minCardTypes": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        "exileFromHand": {
+          "type": "object",
+          "properties": {
+            "filter": {
+              "$ref": "#/$defs/__schema6"
+            },
+            "count": {
+              "$ref": "#/$defs/__schema10"
+            }
+          },
+          "required": [
+            "filter",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        "returnToHand": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "tapUntappedCreature": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "tapCreaturesTotalPower": {
+          "type": "object",
+          "properties": {
+            "power": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "other": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "power"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "__schema22": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "pitch",
+              "life",
+              "evoke",
+              "warp",
+              "impending",
+              "flashback",
+              "escape",
+              "jump-start",
+              "from-graveyard",
+              "buyback",
+              "dash",
+              "morph"
+            ]
+          },
+          "label": {
+            "$ref": "#/$defs/__schema8"
+          },
+          "cost": {
+            "$ref": "#/$defs/__schema21"
+          },
+          "condition": {
+            "$ref": "#/$defs/__schema15"
+          },
+          "from": {
+            "type": "string",
+            "enum": [
+              "hand",
+              "graveyard"
+            ]
+          },
+          "exileAfter": {
+            "$ref": "#/$defs/__schema5"
+          },
+          "returnToHand": {
+            "$ref": "#/$defs/__schema5"
+          },
+          "timeCounters": {
+            "$ref": "#/$defs/__schema10"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "cost",
+          "from"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "__schema23": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "tapped"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "tapped-unless"
+              },
+              "condition": {
+                "$ref": "#/$defs/__schema15"
+              }
+            },
+            "required": [
+              "kind",
+              "condition"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "pay-life-or-tapped"
+              },
+              "life": {
+                "$ref": "#/$defs/__schema10"
+              }
+            },
+            "required": [
+              "kind",
+              "life"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "counters"
+              },
+              "counter": {
+                "$ref": "#/$defs/__schema8"
+              },
+              "amount": {
+                "$ref": "#/$defs/__schema11"
+              },
+              "condition": {
+                "$ref": "#/$defs/__schema15"
+              }
+            },
+            "required": [
+              "kind",
+              "counter",
+              "amount"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "choose"
+              },
+              "what": {
+                "type": "string",
+                "enum": [
+                  "creature-type",
+                  "color"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "what"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "discard-or-graveyard"
+              },
+              "filter": {
+                "$ref": "#/$defs/__schema6"
+              }
+            },
+            "required": [
+              "kind",
+              "filter"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "__schema24": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "delve"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "convoke"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "improvise"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "reduce"
+              },
+              "amount": {
+                "$ref": "#/$defs/__schema11"
+              }
+            },
+            "required": [
+              "kind",
+              "amount"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "__schema25": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema8"
+      }
+    }
+  }
+}
