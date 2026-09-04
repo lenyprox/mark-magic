@@ -123,6 +123,9 @@ export function describeDecision(d: { kind: string; reason?: string; prompt?: st
     case 'choose-color': return `Choose a colour${d.reason ? ` for ${d.reason}` : ''}`;
     case 'choose-option': return d.reason ?? 'Choose an option';
     case 'order-blockers': return 'Order blockers';
+    case 'order-triggers': return 'Order triggers';
+    case 'choose-player': return d.reason ?? 'Choose a player';
+    case 'choose-number': return d.reason ?? 'Choose a number';
     default: return d.kind;
   }
 }

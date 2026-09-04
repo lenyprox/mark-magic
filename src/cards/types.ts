@@ -279,7 +279,7 @@ export interface SpellAbility { kind: 'spell'; effects: Effect[]; text: string }
 export type Ability = TriggeredAbility | ActivatedAbility | StaticAbility | SpellAbility;
 
 export type StaticEffect =
-  | { kind: 'anthem'; power: number; toughness: number; filter: Filter; scope: 'you-control' | 'all' | 'other-you-control'; keywords?: Keyword[]; condition?: Condition; anyPermanent?: boolean; whileInGraveyard?: boolean }
+  | { kind: 'anthem'; power: number; toughness: number; filter: Filter; scope: 'you-control' | 'all' | 'other-you-control'; keywords?: Keyword[]; condition?: Condition; anyPermanent?: boolean; whileInGraveyard?: boolean; landwalk?: string[] }
   | { kind: 'damage-by-toughness'; scope: 'self' | 'you-control'; onlyWhenGreater?: boolean }   // Doran: assigns combat damage equal to its toughness
   | { kind: 'flash-for'; filter: Filter }                                                       // "you may cast X spells as though they had flash"
   | { kind: 'trigger-twice'; equipped?: boolean; event?: 'etb' | 'dies' | 'land-etb' | 'cast'; filter?: Filter }  // "...triggers an additional time"
@@ -287,6 +287,7 @@ export type StaticEffect =
   | { kind: 'tokens-replacement'; mode: 'double' }                                              // Doubling Season / Exalted Sunborn
   | { kind: 'extra-mana-on-tap'; filter?: Filter; enchanted?: boolean; mana: ManaSymbol[] | 'chosen-color' }     // "whenever you tap a Forest for mana, add an additional {G}"
   | { kind: 'grant-mana-ability'; filter?: Filter; enchanted?: boolean; effect: Effect }
+  | { kind: 'grant-ability'; filter?: Filter; enchanted?: boolean; scope: 'you-control' | 'all'; ability: Ability }   // 'Creatures you control have "..."'
   | { kind: 'opponents-cant-cast'; during: 'your-turn'; filter?: Filter }                       // Grand Abolisher
   | { kind: 'play-lands-from'; zone: 'graveyard' | 'library-top' }                              // Ancient Greenwarden / Oracle of Mul Daya
   | { kind: 'unspent-mana-becomes-red' }                                                         // Ozai, the Phoenix King

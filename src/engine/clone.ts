@@ -24,6 +24,7 @@ export function cloneObject(o: GameObject): GameObject {
   if (o.chosen) c.chosen = { ...o.chosen };
   if (o.castableFromExile) c.castableFromExile = { ...o.castableFromExile };
   if (o.grantedAbilities) c.grantedAbilities = [...o.grantedAbilities];
+  if (o.staticGranted) c.staticGranted = [...o.staticGranted];
   return c as GameObject;
 }
 

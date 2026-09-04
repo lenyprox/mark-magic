@@ -14,9 +14,14 @@ export function findObject(s: GameState, id: number): GameObject | undefined {
 /** The card definition currently in effect for an object: the back face while a double-faced card is flipped. */
 export function defOf(o: GameObject): CardDef { return o.activeFace === 1 && o.def.backFace ? o.def.backFace : o.def; }
 /** The object's abilities: its (active face's) printed abilities followed by any granted ones (Saga chapters). */
+/** Printed abilities only — used when scanning for the statics that hand out abilities (no recursion). */
+export function printedAbilities(o: GameObject): Ability[] { return o.token ? (o.grantedAbilities ?? EMPTY_ABILITIES) : defOf(o).abilities; }
 export function abilitiesOf(o: GameObject): Ability[] {
-  if (o.token) return o.grantedAbilities ?? EMPTY_ABILITIES; // a token's def is only its creator's card; its own text is in the TokenSpec
-  const g = o.grantedAbilities; const d = defOf(o).abilities; return g && g.length ? [...d, ...g] : d;
+  const sg = o.staticGranted;
+  if (o.token) { const t = o.grantedAbilities ?? EMPTY_ABILITIES; return sg && sg.length ? [...t, ...sg] : t; } // a token's def is only its creator's card
+  const g = o.grantedAbilities; const d = defOf(o).abilities;
+  if ((!g || !g.length) && (!sg || !sg.length)) return d;
+  return [...d, ...(g ?? []), ...(sg ?? [])];
 }
 const EMPTY_ABILITIES: Ability[] = [];
 
@@ -117,7 +122,7 @@ export function matchesFilter(s: GameState, o: GameObject, f: Filter | undefined
   return true;
 }
 
-interface Mods { p: number; t: number; kw: Keyword[]; flags: { cantAttack?: boolean; cantBlock?: boolean; cantAttackOrBlock?: boolean; doesntUntap?: boolean } }
+interface Mods { p: number; t: number; kw: Keyword[]; landwalk?: string[]; flags: { cantAttack?: boolean; cantBlock?: boolean; cantAttackOrBlock?: boolean; doesntUntap?: boolean } }
 
 /** Collect static modifications applying to `o` from all permanents on the battlefield. */
 function staticMods(s: GameState, o: GameObject): Mods {
@@ -143,7 +148,7 @@ function staticMods(s: GameState, o: GameObject): Mods {
         if (e.scope === 'other-you-control' && (!sameCtl || src.id === o.id)) continue;
         if (e.opponentsOnly && sameCtl) continue;
         if (!matchesFilter(s, o, e.filter, src)) continue;
-        m.p += e.power; m.t += e.toughness; if (e.keywords) m.kw.push(...e.keywords);
+        m.p += e.power; m.t += e.toughness; if (e.keywords) m.kw.push(...e.keywords); if (e.landwalk) (m.landwalk ??= []).push(...e.landwalk);
       }
       if (src.id === o.id) {
         if (e.kind === 'self-pt' && conditionHolds(s, src, (e as { condition?: unknown }).condition)) { m.p += evalAmount(s, e.power, src.controller, 0, src); m.t += evalAmount(s, e.toughness, src.controller, 0, src); }
@@ -294,7 +299,8 @@ export function canBlock(s: GameState, blocker: GameObject, attacker: GameObject
   // shadow and horsemanship: only creatures with the same keyword can block or be blocked (CR 702.28, 702.31)
   if (ak.includes('shadow') !== bk.includes('shadow')) return false;
   if (ak.includes('horsemanship') !== bk.includes('horsemanship')) return false;
-  if (ak.includes('landwalk') && attacker.def.landwalk?.some(t => s.players[blocker.controller].battlefield.some(l => isLand(l) && subtypes(l).includes(t)))) return false;
+  const walkTypes = [...(attacker.def.landwalk ?? []), ...(staticMods(s, attacker).landwalk ?? [])];
+  if (ak.includes('landwalk') && walkTypes.some(t => s.players[blocker.controller].battlefield.some(l => isLand(l) && subtypes(l).includes(t)))) return false;
   if (ak.includes('fear') && !(colors(blocker).includes('B') || isType(blocker, 'Artifact'))) return false;
   if (ak.includes('intimidate') && !(isType(blocker, 'Artifact') || colors(attacker).some(c => colors(blocker).includes(c)))) return false;
   if (ak.includes('skulk') && power(s, blocker) > power(s, attacker)) return false;

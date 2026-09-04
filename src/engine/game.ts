@@ -2,7 +2,7 @@
 // combat (CR 506-510), state-based actions (CR 704), triggered abilities (CR 603) and a broad set of effects.
 import type { Ability, AbilityCost, ActivatedAbility, CardDef, Color, Effect, Keyword, ManaCost, ManaSymbol, TargetSpec, TriggeredAbility } from '../cards/types.js';
 import { manaValue } from '../cards/parse.js';
-import { abilitiesOf, allPermanents, canAttack, canBlock, colors, conditionHolds, defOf, evalAmount, findObject, hasKeyword, isCreature, isLand, isType, manaValueOf, matchesFilter, name, power, protectedFrom, subtypes, toughness, types, flags, type AmountCtx, damageByToughness } from './characteristics.js';
+import { abilitiesOf, allPermanents, canAttack, canBlock, colors, conditionHolds, defOf, evalAmount, findObject, hasKeyword, isCreature, isLand, isType, manaValueOf, matchesFilter, name, power, protectedFrom, subtypes, toughness, types, flags, type AmountCtx, damageByToughness, printedAbilities } from './characteristics.js';
 import { FAST_MANA_LIMIT, MANA_COMBO_LIMIT, findPayment as findPaymentFull, manaSources, type ManaSourceOptions, type Payment } from './mana.js';
 import { costAdjust, exileWindowOpen, extraManaSources, hasModifier, nonManaCostPayable, pickCrew, pickDelve, pickEscapeExile, spellManaCost, ZERO_COST } from './cost.js';
 import { makeKnowledge, makeObject, makePlayer, opponentOf, STEPS, type Agent, type AttackDeclaration, type AttackTarget, type BlockDeclaration, type CastZone, type Decision, type DelayedTrigger, type GameObject, type GameState, type LegalAction, type Player, type PlayerAction, type PlayerId, type StackItem, type Step, type TargetRef } from './state.js';
@@ -1543,7 +1543,11 @@ export class Game {
   /** Bumped whenever the set of abilities on the battlefield can change (zone moves, granted abilities, transforms). */
   private bfGen = 0;
   /** Trigger event names present on any permanent (memoised on the battlefield generation + permanent count). */
+  private lastGrantGen = -1;
+  /** Refresh the static grants when the battlefield generation moved (the trigger-kind cache shares the same generation counter). */
+  private syncGrants() { if (this.lastGrantGen !== this.bfGen) { this.lastGrantGen = this.bfGen; this.refreshStaticGrants(); } }
   private triggerKinds(): Set<string> {
+    this.syncGrants();
     const s = this.state; const perms = allPermanents(s);
     const c = this.triggerKindsCache;
     if (c && c.gen === this.bfGen && c.count === perms.length) return c.kinds;
@@ -1566,6 +1570,22 @@ export class Game {
     }
     return extra;
   }
+  /** Recompute abilities handed out by statics ('Creatures you control have "..."'); cheap because it only runs when the battlefield changes. */
+  refreshStaticGrants() {
+    const s = this.state;
+    const grants: { src: GameObject; e: Extract<import('../cards/types.js').StaticEffect, { kind: 'grant-ability' }> }[] = [];
+    for (const src of allPermanents(s)) for (const ab of printedAbilities(src)) if (ab.kind === 'static' && ab.effect.kind === 'grant-ability') grants.push({ src, e: ab.effect });
+    for (const o of allPermanents(s)) {
+      if (!grants.length) { if (o.staticGranted) delete o.staticGranted; continue; }
+      const list: Ability[] = [];
+      for (const g of grants) {
+        const hit = g.e.enchanted ? g.src.attachedTo === o.id : (g.e.scope === 'all' || g.src.controller === o.controller) && matchesFilter(s, o, g.e.filter, g.src);
+        if (hit) list.push(g.e.ability);
+      }
+      if (list.length) o.staticGranted = list; else if (o.staticGranted) delete o.staticGranted;
+    }
+  }
+
   queueTriggers(event: string, ctx: TriggerCtx) {
     const s = this.state;
     const selfLeaving = (event === 'dies' || event === 'ltb') && !!ctx.obj;

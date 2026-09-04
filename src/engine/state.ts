@@ -54,6 +54,8 @@ export interface GameObject {
   activeFace?: 0 | 1;
   /** Abilities granted by effects (Saga chapters); indexed after def.abilities. */
   grantedAbilities?: Ability[];
+  /** Abilities granted by another permanent's static ability; recomputed whenever the battlefield changes. */
+  staticGranted?: Ability[];
   /** This card is one of its owner's commanders (CR 903.3): it may return to the command zone when it would change zones. */
   commander?: boolean;
 }

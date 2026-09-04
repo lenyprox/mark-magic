@@ -259,6 +259,7 @@ export function Table({ gameId }: { gameId: string }) {
     const hint = dragRef.current.hints?.find(h => h.id === sourceIdOf(plan.source));
     const r = hint?.reasons[0];
     const text = r && plan.illegal ? `${r.text.replace(/\.$/, '')} (CR ${r.rule})` : reason.text;
+    playSfx('error');
     toast({ title: text, kind: 'warn', ttl: 4500 });
   }, []);
   const drag = useDragIntent({ planFor, onDrop, onIllegal, reducedMotion });

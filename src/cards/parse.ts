@@ -904,10 +904,32 @@ function spellTypeFilter(word: string): Filter {
   return w in TYPE_WORDS ? { types: [TYPE_WORDS[w]] } : { subtypes: [word] };
 }
 
+/** Parse the text inside quotes on a granting static ('Creatures you control have "When this creature dies, draw a card."'). */
+function parseGrantedAbility(text: string): Ability | null {
+  const body = text.trim().replace(/\.$/, '');
+  const act = parseActivatedLine(body + '.');
+  if (act && act.effects.every(e => e.op !== 'unknown')) return act;
+  const tm = body.match(/^(When|Whenever|At) (.+?), (.+)$/i);
+  if (tm) {
+    const ev = parseTrigger(`${tm[1]} ${tm[2]}`);
+    if (ev.on === 'unknown') return null;
+    let inner = tm[3]; const optional = /^you may /i.test(inner);
+    if (optional) inner = inner.replace(/^you may /i, '');
+    inner = inner.replace(/this creature|this permanent/gi, '~');
+    const effs = parseEffects(inner);
+    if (effs.some(e => e.op === 'unknown')) return null;
+    return { kind: 'triggered', event: ev, effects: effs, text, ...(optional ? { optional: true } : {}) };
+  }
+  return null;
+}
 function parseStatic(line: string, card: { types: CardType[]; subtypes: string[] }): StaticEffect | StaticEffect[] | null {
   const t = line.trim().replace(/\.$/, '');
   let m: RegExpMatchArray | null;
   // anthems
+  if ((m = t.match(/^(other )?(?:creatures|zombies|creature) ?(?:you control )?have (plains|island|swamp|mountain|forest|desert)walk$/i))) return { kind: 'anthem', power: 0, toughness: 0, filter: { types: ['Creature'] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: ['landwalk'], landwalk: [m[2][0].toUpperCase() + m[2].slice(1).toLowerCase()] };
+  if ((m = t.match(/^([Oo]ther )?([A-Z][a-z]+) creatures have (plains|island|swamp|mountain|forest|desert)walk$/))) return { kind: 'anthem', power: 0, toughness: 0, filter: { subtypes: [m[2]], ...(m[1] ? { other: true } : {}) }, scope: 'all', keywords: ['landwalk'], landwalk: [m[3][0].toUpperCase() + m[3].slice(1).toLowerCase()] };
+  if ((m = t.match(/^as long as ~ is in your graveyard and you control an? (\w+), creatures you control have (plains|island|swamp|mountain|forest|desert)walk$/i))) { const f = parseFilterWords(m[1]); if (f) return { kind: 'anthem', power: 0, toughness: 0, filter: { types: ['Creature'] }, scope: 'you-control', keywords: ['landwalk'], landwalk: [m[2][0].toUpperCase() + m[2].slice(1).toLowerCase()], whileInGraveyard: true, condition: { kind: 'controls', who: 'you', filter: f, atLeast: 1 } }; }
+  if ((m = t.match(/^([Oo]ther )?([A-Z][a-z]+) (?:creatures )?get ([+-]\d+)\/([+-]\d+) and have (plains|island|swamp|mountain|forest|desert)walk$/))) return { kind: 'anthem', power: Number(m[3]), toughness: Number(m[4]), filter: { subtypes: [m[2]], ...(m[1] ? { other: true } : {}) }, scope: 'all', keywords: ['landwalk'], landwalk: [m[5][0].toUpperCase() + m[5].slice(1).toLowerCase()] };
   if ((m = t.match(/^(other )?creatures you control get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?$/i))) {
     const kw = m[4] ? kwList(m[4]) : []; if (kw === null) return null;
     return { kind: 'anthem', power: Number(m[2]), toughness: Number(m[3]), filter: { types: ['Creature'] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw };
@@ -929,6 +951,19 @@ function parseStatic(line: string, card: { types: CardType[]; subtypes: string[]
     const f = parseFilterWords(m[1].replace(/ and /g, ' ')) ?? subtypeFilter(m[1]);
     const eff = parseEffects(m[2]);
     if (f && eff.length === 1 && eff[0].op === 'add-mana') { const e0 = { ...eff[0] }; if (m[3]) e0.restriction = m[3].toLowerCase() === 'instant and sorcery' ? 'instant-sorcery' : m[3].toLowerCase() === 'creature' ? 'creature-spell' : undefined; return { kind: 'grant-mana-ability', filter: singularSubtypes(f), effect: e0 }; }
+  }
+  if ((m = line.match(/^(?:Each |All )?(.+?) you control (?:has|have) "(.+)"$/i)) && !/^\{T\}: Add /i.test(m[2])) {
+    const f = parseFilterWords(m[1].replace(/ and /g, ' ')) ?? subtypeFilter(m[1]);
+    const inner = f ? parseGrantedAbility(m[2]) : null;
+    if (f && inner) return { kind: 'grant-ability', filter: singularSubtypes(f), scope: 'you-control', ability: inner };
+  }
+  if ((m = line.match(/^(?:Each |All )?(Other )?([A-Z][a-z]+)s?(?: creatures| permanents)? have "(.+)"$/)) && !/^\{T\}: Add /i.test(m[3])) {
+    const inner = parseGrantedAbility(m[3]);
+    if (inner) return { kind: 'grant-ability', filter: { subtypes: [m[2]], ...(m[1] ? { other: true } : {}) }, scope: 'all', ability: inner };
+  }
+  if ((m = line.match(/^Enchanted (?:land|creature|permanent) has "(.+)"$/i)) && !/^\{T\}: Add /i.test(m[1])) {
+    const inner = parseGrantedAbility(m[1]);
+    if (inner) return { kind: 'grant-ability', enchanted: true, scope: 'you-control', ability: inner };
   }
   if ((m = line.match(/^Enchanted (?:land|creature|permanent) has "\{T\}: (Add [^"]+?)\."$/i))) {
     const eff = parseEffects(m[1]);
