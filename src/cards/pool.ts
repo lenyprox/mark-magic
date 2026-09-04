@@ -41,8 +41,10 @@ export function cardTypeWords(typeLine: string): string[] {
 export function tierOf(row: PoolRow): PoolTier {
   if (row.set_type === 'funny' || cardTypeWords(row.type_line ?? '').some(w => UN_CARD_TYPES.has(w))) return 'un';
   if (ANTE_RE.test(row.oracle_text ?? '')) return 'ante';
+  // An EMPTY games array is 'no printing information', not 'Arena-only': one oracle row carries it and the card
+  // is a paper card. Only a row that lists games and lists neither paper nor mtgo is digital.
   const games = row.games ?? [];
-  if (!games.includes('paper') && !games.includes('mtgo')) return 'digital';
+  if (games.length && !games.includes('paper') && !games.includes('mtgo')) return 'digital';
   return 'paper';
 }
 

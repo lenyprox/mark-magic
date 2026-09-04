@@ -32,319 +32,31 @@
       "$ref": "#/$defs/__schema8"
     },
     "source": {
-      "type": "string",
-      "enum": [
-        "generated",
-        "llm",
-        "reviewed",
-        "hand"
-      ]
+      "$ref": "#/$defs/__schema27"
     },
     "confidence": {
-      "$ref": "#/$defs/__schema10"
+      "$ref": "#/$defs/__schema28"
     },
     "mode": {
-      "type": "string",
-      "enum": [
-        "replace",
-        "extend"
-      ]
+      "$ref": "#/$defs/__schema29"
     },
     "backFace": {
-      "type": "object",
-      "properties": {
-        "keywords": {
-          "$ref": "#/$defs/__schema0"
-        },
-        "abilities": {
-          "$ref": "#/$defs/__schema2"
-        },
-        "altCosts": {
-          "$ref": "#/$defs/__schema22"
-        },
-        "asEnters": {
-          "$ref": "#/$defs/__schema23"
-        },
-        "costModifiers": {
-          "$ref": "#/$defs/__schema24"
-        },
-        "covers": {
-          "$ref": "#/$defs/__schema25"
-        }
-      },
-      "additionalProperties": false
+      "$ref": "#/$defs/__schema30"
     },
     "ignore": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "line": {
-            "$ref": "#/$defs/__schema8"
-          },
-          "reason": {
-            "type": "string",
-            "enum": [
-              "draft-matters",
-              "ante",
-              "outside-the-game",
-              "deck-construction",
-              "reminder-only",
-              "un-physical",
-              "digital-only"
-            ]
-          }
-        },
-        "required": [
-          "line",
-          "reason"
-        ],
-        "additionalProperties": false
-      }
+      "$ref": "#/$defs/__schema31"
     },
     "scenarios": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/__schema8"
-      }
+      "$ref": "#/$defs/__schema32"
     },
     "aiHints": {
-      "type": "object",
-      "properties": {
-        "role": {
-          "$ref": "#/$defs/__schema8"
-        },
-        "value": {
-          "$ref": "#/$defs/__schema10"
-        },
-        "timing": {
-          "type": "string",
-          "enum": [
-            "main",
-            "instant",
-            "end-step",
-            "response"
-          ]
-        }
-      },
-      "additionalProperties": false
+      "$ref": "#/$defs/__schema33"
     },
     "notes": {
-      "$ref": "#/$defs/__schema8"
+      "$ref": "#/$defs/__schema34"
     },
     "verification": {
-      "type": "object",
-      "properties": {
-        "at": {
-          "$ref": "#/$defs/__schema8"
-        },
-        "parserVersion": {
-          "$ref": "#/$defs/__schema10"
-        },
-        "registryHash": {
-          "$ref": "#/$defs/__schema8"
-        },
-        "oracleHash": {
-          "$ref": "#/$defs/__schema8"
-        },
-        "scriptHash": {
-          "$ref": "#/$defs/__schema8"
-        },
-        "schema": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "fail"
-          ]
-        },
-        "lint": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "warn",
-            "fail"
-          ]
-        },
-        "sandbox": {
-          "type": "object",
-          "properties": {
-            "seats2": {
-              "type": "string",
-              "enum": [
-                "ok",
-                "throws",
-                "invariant",
-                "unreachable"
-              ]
-            },
-            "seats4": {
-              "type": "string",
-              "enum": [
-                "ok",
-                "throws",
-                "invariant",
-                "unreachable"
-              ]
-            },
-            "abilities": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "index": {
-                    "$ref": "#/$defs/__schema10"
-                  },
-                  "reached": {
-                    "$ref": "#/$defs/__schema5"
-                  },
-                  "how": {
-                    "$ref": "#/$defs/__schema8"
-                  }
-                },
-                "required": [
-                  "index",
-                  "reached"
-                ],
-                "additionalProperties": false
-              }
-            }
-          },
-          "required": [
-            "seats2",
-            "seats4",
-            "abilities"
-          ],
-          "additionalProperties": false
-        },
-        "roundTrip": {
-          "type": "object",
-          "properties": {
-            "score": {
-              "$ref": "#/$defs/__schema10"
-            },
-            "lowest": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "text": {
-                    "$ref": "#/$defs/__schema8"
-                  },
-                  "rendered": {
-                    "$ref": "#/$defs/__schema8"
-                  },
-                  "score": {
-                    "$ref": "#/$defs/__schema10"
-                  }
-                },
-                "required": [
-                  "text",
-                  "rendered",
-                  "score"
-                ],
-                "additionalProperties": false
-              }
-            }
-          },
-          "required": [
-            "score",
-            "lowest"
-          ],
-          "additionalProperties": false
-        },
-        "scenarios": {
-          "type": "object",
-          "properties": {
-            "file": {
-              "$ref": "#/$defs/__schema8"
-            },
-            "passed": {
-              "$ref": "#/$defs/__schema10"
-            },
-            "failed": {
-              "$ref": "#/$defs/__schema10"
-            },
-            "names": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/__schema8"
-              }
-            }
-          },
-          "required": [
-            "file",
-            "passed",
-            "failed",
-            "names"
-          ],
-          "additionalProperties": false
-        },
-        "judge": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "model": {
-                "$ref": "#/$defs/__schema8"
-              },
-              "verdict": {
-                "type": "string",
-                "enum": [
-                  "faithful",
-                  "unfaithful",
-                  "uncertain"
-                ]
-              },
-              "issues": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/$defs/__schema8"
-                }
-              },
-              "at": {
-                "$ref": "#/$defs/__schema8"
-              }
-            },
-            "required": [
-              "model",
-              "verdict",
-              "issues",
-              "at"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "scripted",
-            "verified",
-            "tested",
-            "judged"
-          ]
-        },
-        "problems": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema8"
-          }
-        }
-      },
-      "required": [
-        "at",
-        "parserVersion",
-        "registryHash",
-        "oracleHash",
-        "scriptHash",
-        "schema",
-        "lint",
-        "sandbox",
-        "roundTrip",
-        "scenarios",
-        "status",
-        "problems"
-      ],
-      "additionalProperties": false
+      "$ref": "#/$defs/__schema35"
     }
   },
   "required": [
@@ -6103,8 +5815,328 @@
     "__schema25": {
       "type": "array",
       "items": {
+        "$ref": "#/$defs/__schema26"
+      }
+    },
+    "__schema26": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\*$)"
+    },
+    "__schema27": {
+      "type": "string",
+      "enum": [
+        "generated",
+        "llm",
+        "reviewed",
+        "hand"
+      ]
+    },
+    "__schema28": {
+      "$ref": "#/$defs/__schema10"
+    },
+    "__schema29": {
+      "type": "string",
+      "enum": [
+        "replace",
+        "extend"
+      ]
+    },
+    "__schema30": {
+      "type": "object",
+      "properties": {
+        "keywords": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "abilities": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "altCosts": {
+          "$ref": "#/$defs/__schema22"
+        },
+        "asEnters": {
+          "$ref": "#/$defs/__schema23"
+        },
+        "costModifiers": {
+          "$ref": "#/$defs/__schema24"
+        },
+        "covers": {
+          "$ref": "#/$defs/__schema25"
+        }
+      },
+      "additionalProperties": false
+    },
+    "__schema31": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "$ref": "#/$defs/__schema26"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "draft-matters",
+              "ante",
+              "outside-the-game",
+              "deck-construction",
+              "reminder-only",
+              "un-physical",
+              "digital-only"
+            ]
+          }
+        },
+        "required": [
+          "line",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "__schema32": {
+      "type": "array",
+      "items": {
         "$ref": "#/$defs/__schema8"
       }
+    },
+    "__schema33": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "value": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "timing": {
+          "type": "string",
+          "enum": [
+            "main",
+            "instant",
+            "end-step",
+            "response"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "__schema34": {
+      "$ref": "#/$defs/__schema8"
+    },
+    "__schema35": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "parserVersion": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "registryHash": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "oracleHash": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "scriptHash": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "schema": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail"
+          ]
+        },
+        "lint": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "warn",
+            "fail"
+          ]
+        },
+        "sandbox": {
+          "type": "object",
+          "properties": {
+            "seats2": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "throws",
+                "invariant",
+                "unreachable"
+              ]
+            },
+            "seats4": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "throws",
+                "invariant",
+                "unreachable"
+              ]
+            },
+            "abilities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "$ref": "#/$defs/__schema10"
+                  },
+                  "reached": {
+                    "$ref": "#/$defs/__schema5"
+                  },
+                  "how": {
+                    "$ref": "#/$defs/__schema8"
+                  }
+                },
+                "required": [
+                  "index",
+                  "reached"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "seats2",
+            "seats4",
+            "abilities"
+          ],
+          "additionalProperties": false
+        },
+        "roundTrip": {
+          "type": "object",
+          "properties": {
+            "score": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "lowest": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "$ref": "#/$defs/__schema8"
+                  },
+                  "rendered": {
+                    "$ref": "#/$defs/__schema8"
+                  },
+                  "score": {
+                    "$ref": "#/$defs/__schema10"
+                  }
+                },
+                "required": [
+                  "text",
+                  "rendered",
+                  "score"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "score",
+            "lowest"
+          ],
+          "additionalProperties": false
+        },
+        "scenarios": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "passed": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "failed": {
+              "$ref": "#/$defs/__schema10"
+            },
+            "names": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema8"
+              }
+            }
+          },
+          "required": [
+            "file",
+            "passed",
+            "failed",
+            "names"
+          ],
+          "additionalProperties": false
+        },
+        "judge": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "$ref": "#/$defs/__schema8"
+              },
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "faithful",
+                  "unfaithful",
+                  "uncertain"
+                ]
+              },
+              "issues": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema8"
+                }
+              },
+              "at": {
+                "$ref": "#/$defs/__schema8"
+              }
+            },
+            "required": [
+              "model",
+              "verdict",
+              "issues",
+              "at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "scripted",
+            "verified",
+            "tested",
+            "judged"
+          ]
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema8"
+          }
+        }
+      },
+      "required": [
+        "at",
+        "parserVersion",
+        "registryHash",
+        "oracleHash",
+        "scriptHash",
+        "schema",
+        "lint",
+        "sandbox",
+        "roundTrip",
+        "scenarios",
+        "status",
+        "problems"
+      ],
+      "additionalProperties": false
     }
   }
 }

@@ -5,9 +5,16 @@
 //
 // Layout (format v2, plan 1.5): data/scripts/<first two hex chars of the oracle id>/<oracle_id>.json — 256 shards so
 // the directory stays usable at ~34k files. Flat files at the root are still read (and `scripts:shard` migrates them).
+//
+// A script never asserts that a card is finished. It CLAIMS the card's oracle lines one at a time — by an ability
+// whose `text` is the line, by the face's keywords, by a justified `covers` entry or by an `ignore` entry — and
+// `applyScript` re-derives `unparsed` from what is left over. `fullyParsed` is "nothing unclaimed AND nothing
+// `unknown` anywhere in the face", for both faces of a double-faced card and in both modes. See `claimedLines`.
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot } from '../config/paths.js';
+import { keywordFromText } from './parse.js';
+import type { PoolTier } from './pool.js';
 import type { Ability, AltCost, AsEnters, CardDef, CostModifier, Keyword } from './types.js';
 
 /** Where a script came from. Precedence for `put()`: hand > reviewed > llm > generated. */
@@ -35,36 +42,47 @@ export interface IgnoredLine {
   reason: IgnoreReason;
 }
 
-/** A verb the engine can already model. A line an author calls unsimulable is suspect when it contains one. */
-const SIMULABLE_VERB = /\b(deal|deals|dealt|draw|draws|drawn|destroy|destroys|exile|exiles|exiled|counter|counters|create|creates|sacrifice|sacrifices|gain|gains|lose|loses|put|puts|return|returns|search|searches|tap|taps|untap|untaps|discard|discards|mill|mills)\b/i;
-
 /**
- * …but ante, drafting, wish and deck-construction clauses talk about putting, drawing and exiling cards in zones that
- * do not exist during a game. Contract from Below is "Discard your hand, ante the top card of your library, then draw
- * seven cards." and `ante` is a reason that exists for exactly those nine cards, so the verb alone proves nothing
- * there — the marker below is what makes the line unsimulable. `reminder-only` has no marker and never gets the
- * exemption, and a line matching no marker still faces the verb gate, so "Destroy target creature." can never be
- * ignored as `draft-matters`.
+ * A WHITELIST, not a denylist: a line may be ignored only when it matches the pattern of the reason given (matched
+ * case-insensitively against the normalised line, back-face `// ` marker stripped). A denylist of "simulable verbs"
+ * was the previous rule and it failed in both directions — it passed anything without a listed verb ("Destroy target
+ * creature." was the only class it caught) while its per-reason exemptions were broad enough that a
+ * deck-construction marker excused ordinary game text. Every entry below is a phrase that can only appear in text
+ * outside the game.
+ *
+ * `un-physical` and `digital-only` additionally require the card's pool tier (`tierOf(row)`): un-set physical
+ * mechanics are ignorable only on an `un` card, Alchemy keywords only on a `digital` one, so a paper card can never
+ * be waved through by claiming its text is an un-card's.
  */
-const REASON_MARKER: Record<IgnoreReason, RegExp | null> = {
-  'draft-matters': /\b(draft|drafts|drafted|drafting|booster pack|draft round)\b/i,
-  'ante': /\bante[sd]?\b/i,
-  'outside-the-game': /\b(outside the game|sideboard|your collection|owns? outside)\b/i,
-  'deck-construction': /\b(any number of cards named|starting deck|your opening hand|deck can have|companion)\b/i,
-  'reminder-only': null,
-  'un-physical': /\b(assemble|assembling|contraption|sticker|dexterity|physically|the table|behind your back|die roll|roll a six-sided)\b/i,
-  'digital-only': /\b(conjure|conjures|conjured|perpetually|seek|seeks|spellbook)\b/i,
+const REASON_RULE: Record<IgnoreReason, RegExp | null> = {
+  // "Draft ~ face up.", "Reveal ~ as you draft it.", conspiracies and the "as you draft a card" clauses
+  'draft-matters': /^(draft ~ face up|reveal ~ as you draft|.*\byou drafted\b|.*\bdraft(ed)? (a |this )?card\b|.*\bconspiracy\b)/i,
+  'ante': /\bante\b/i,
+  'outside-the-game': /\bfrom outside the game\b/i,
+  // whole-line phrases only: these are the printed deck-building keywords, never a clause inside game text
+  'deck-construction': /^(partner(\b.*)?|choose a background|doctor's companion|friends forever|companion — .*|a deck can have any number of cards named ~\.?|commander enchantment|spell commander|legendary landwalk)$/i,
+  // the parser strips parentheses, so a line that is nothing but a parenthetical almost never survives to a script
+  'reminder-only': /^\([^)]*\)$/,
+  'un-physical': null,      // gated on tier === 'un' alone
+  'digital-only': /\b(conjure|seek|perpetual|spellbook|draft a card from)/i,
 };
 
+/** Reasons that are only available to one pool tier, whatever the line says. */
+const REASON_TIER: Partial<Record<IgnoreReason, PoolTier>> = { 'un-physical': 'un', 'digital-only': 'digital' };
+
 /**
- * Whether a line may be ignored for the reason given: `null` when it may, otherwise the reason it may not.
- * `scripts:check` turns a non-null result into a problem.
+ * Whether a line may be ignored for the reason given: `null` when it may, otherwise why it may not.
+ * `scripts:check` turns a non-null result into a problem and passes the card's pool tier.
  */
-export function ignoreLineProblem(line: string, reason: IgnoreReason): string | null {
-  const marker = REASON_MARKER[reason];
-  if (marker && marker.test(line)) return null;   // the line proves its own reason
-  const m = line.match(SIMULABLE_VERB);
-  return m ? `hides a simulable verb "${m[0]}" and carries no ${reason} marker` : null;
+export function ignoreLineProblem(line: string, reason: IgnoreReason, tier?: PoolTier): string | null {
+  const norm = normalizeOracleLine(line.trim().replace(/^\/\/ /, ''));
+  const needTier = REASON_TIER[reason];
+  if (needTier && tier !== needTier) {
+    return `is only available to a card in the '${needTier}' pool tier (this card is ${tier ? `'${tier}'` : 'of an unknown tier'})`;
+  }
+  const rule = REASON_RULE[reason];
+  if (!rule || rule.test(norm)) return null;
+  return `does not match the '${reason}' rule ${rule.source} — script the line instead of ignoring it`;
 }
 
 /**
@@ -100,9 +118,10 @@ export interface ScriptFace {
   asEnters?: AsEnters[];
   costModifiers?: CostModifier[];
   /**
-   * Lines (as `scriptableLines(def)` names them) this face accounts for; with mode 'extend' they are removed from
-   * `unparsed`. The single entry `'*'` means "every remaining unparsed line"; it is read only in mode 'extend' and
-   * `CardScriptChecked` rejects it in mode 'replace', where every line is cleared anyway.
+   * Oracle lines (as `scriptableLines(def)` names them) this face claims WITHOUT an ability of its own — the only way
+   * a `keywords` / `altCosts` / `asEnters` / `costModifiers` declaration can account for a line. There is no wildcard:
+   * every claimed line is written out, and `CardScriptChecked` caps the number of covers entries that are not simply
+   * an ability's own text at the number of such declarations on the face.
    */
   covers?: string[];
 }
@@ -115,7 +134,7 @@ export interface CardScript extends ScriptFace {
   source: ScriptSource;
   /** 0..1 confidence for generated/llm scripts; reviewed/hand scripts are 1. */
   confidence?: number;
-  /** 'replace' (default): the script's abilities replace the parser's; 'extend': they are appended and unparsed lines it covers are cleared. */
+  /** 'replace' (default): the script's declarations stand in for the parser's, and only they claim lines; 'extend': they are appended to the parser's and both sets of claims count. */
   mode?: 'replace' | 'extend';
   /** Back face of a transforming / modal double-faced card; applied to `def.backFace` with the same semantics. */
   backFace?: ScriptFace;
@@ -329,49 +348,167 @@ let shared: ScriptStore | null = null;
 export function scriptStore(): ScriptStore { return (shared ??= new ScriptStore()); }
 export function useScriptStore(store: ScriptStore | null) { shared = store; }
 
-const hasUnknownEffect = (abilities: Ability[]) => abilities.some(a => 'effects' in a && a.effects.some(e => e.op === 'unknown'));
+// ---------------------------------------------------------------------------
+// Line-claim accounting
+//
+// A face is finished when every oracle LINE of that face is claimed and nothing in it is `unknown`. Nothing else
+// counts: a script that lists `covers` entries but declares no behaviour, or one whose declarations still contain an
+// `unknown` marker, leaves the card unfinished however it is written.
+// ---------------------------------------------------------------------------
 
-/** How much of a face a script actually declares. Zero means the script says nothing about this face. */
-function declarationCount(face: ScriptFace | null | undefined): number {
-  if (!face) return 0;
-  return (face.abilities?.length ?? 0) + (face.keywords?.length ?? 0) + (face.altCosts?.length ?? 0)
-    + (face.asEnters?.length ?? 0) + (face.costModifiers?.length ?? 0) + (face.covers?.length ?? 0);
+/**
+ * True when the value (an ability, effect, condition, static effect or trigger event, at any depth) contains an
+ * `unknown` variant. A generic walk rather than a hand-written recursion over `conditional` / `optional-then` /
+ * `optional-pay` / `choose-mode` / `delayed-trigger` / `gain-ability`: those are exactly the nested carriers, and a
+ * new one added to `types.ts` is covered the day it is added. `{ op: 'unknown' }`, `{ kind: 'unknown' }` and
+ * `{ on: 'unknown' }` are the only shapes in the AST that use the word.
+ */
+export function hasUnknown(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasUnknown);
+  if (!value || typeof value !== 'object') return false;
+  const o = value as Record<string, unknown>;
+  if (o.op === 'unknown' || o.kind === 'unknown' || o.on === 'unknown') return true;
+  return Object.values(o).some(hasUnknown);
+}
+
+/** Everything about one face that must be free of `unknown` for the face to count as simulated. */
+function faceHasUnknown(def: CardDef): boolean {
+  return hasUnknown(def.abilities) || hasUnknown(def.altCosts) || hasUnknown(def.asEnters)
+    || hasUnknown(def.costModifiers) || hasUnknown(def.additionalCosts) || hasUnknown(def.entersTapped);
+}
+
+/** Parameterised keyword lines the parser recognises ("Ward {2}", "Toxic 1", "Islandwalk", "Protection from red"). */
+const PARAMETERISED_KEYWORD: [RegExp, Keyword][] = [
+  [/^protection from .+$/i, 'protection'],
+  [/^ward\b.*$/i, 'ward'],
+  [/^toxic \d+$/i, 'toxic'],
+  [/^bushido \d+$/i, 'bushido'],
+  [/^rampage \d+$/i, 'rampage'],
+  [/^firebending \d+$/i, 'firebending'],
+  [/^(plains|island|swamp|mountain|forest|desert)walk$/i, 'landwalk'],
+];
+
+/** The keyword one comma-separated part of a keyword line names, or null when the part is not a keyword at all. */
+export function keywordOfLinePart(part: string): Keyword | null {
+  const p = part.trim().replace(/\.$/, '');
+  if (!p) return null;
+  for (const [re, kw] of PARAMETERISED_KEYWORD) if (re.test(p)) return kw;
+  return keywordFromText(p);
+}
+
+/**
+ * Whether a whole oracle line is nothing but keywords the face has. The parser splits keyword lines on commas
+ * (parse.ts:1212), so "Flying, first strike" is claimed by `['flying', 'first strike']` and a parameterised keyword
+ * ("Ward {2}", "Toxic 1") is claimed by the bare keyword the parser records for it.
+ */
+export function keywordLineClaimed(line: string, keywords: readonly Keyword[]): boolean {
+  const parts = line.trim().replace(/\.$/, '').split(/,\s*/).map(p => p.trim()).filter(Boolean);
+  if (!parts.length) return false;
+  return parts.every(p => { const k = keywordOfLinePart(p); return !!k && keywords.includes(k); });
+}
+
+/**
+ * The oracle lines an ability's `text` claims. Usually one — the parser writes the normalised line it came from —
+ * but an instant/sorcery's single `spell` ability carries the WHOLE face text (parse.ts:1358), so each of its lines
+ * is claimed. That is safe: a line the parser did not understand leaves an `unknown` effect behind, and `unknown`
+ * fails the face independently of who claimed the line.
+ */
+export function abilityClaimLines(text: string, cardName: string): string[] {
+  const out: string[] = [];
+  for (const raw of normalizeOracleText(text, cardName).split('\n')) {
+    const l = normalizeOracleLine(raw);
+    if (l && !out.includes(l)) out.push(l);
+  }
+  return out;
+}
+
+/**
+ * The lines of ONE face that a script must account for: `normalizeOracleLines` without the back face's `// …`
+ * entries and without modal bullets. A `• …` bullet is not an independent line — it is part of the "Choose one —"
+ * clause above it, and the parser folds it into that line's `choose-mode` effect (parse.ts:1199-1208), so the
+ * ability that claims the parent claims the bullets with it. A bullet the parser did not understand still leaves an
+ * `unknown` inside `choose-mode`, which fails the face on its own. `scriptableLines` keeps the bullets, so a
+ * `covers` / `ignore` entry may still name one.
+ */
+export function faceLines(def: Pick<CardDef, 'name' | 'oracleText' | 'layout' | 'faces' | 'backFace'>): string[] {
+  return normalizeOracleLines({ ...def, backFace: undefined }).filter(l => !l.startsWith('• '));
+}
+
+/** The structural part of a script face the `covers` budget is computed from (also used by `CardScriptChecked`). */
+export interface CoverableFace {
+  covers?: string[];
+  abilities?: { text: string }[];
+  keywords?: unknown[];
+  altCosts?: unknown[];
+  asEnters?: unknown[];
+  costModifiers?: unknown[];
+}
+
+/**
+ * How many lines a face may claim through `covers` alone: one per keyword / altCost / asEnters / costModifier
+ * declaration, because `covers` is the only way those declarations can account for a line. A `covers` entry that
+ * simply repeats one of the face's own ability texts is free — the ability already claims that line.
+ */
+export function coversBudget(face: CoverableFace | null | undefined): number {
+  return (face?.keywords?.length ?? 0) + (face?.altCosts?.length ?? 0) + (face?.asEnters?.length ?? 0) + (face?.costModifiers?.length ?? 0);
+}
+
+/** The `covers` entries that are backed by a declaration — the only ones that claim a line. */
+export function justifiedCovers(face: CoverableFace | null | undefined): string[] {
+  const covers = (face?.covers ?? []).map(c => c.trim());
+  if (!covers.length) return [];
+  const abilityTexts = new Set((face?.abilities ?? []).map(a => a.text.trim()));
+  const budget = coversBudget(face);
+  let spent = 0;
+  return covers.filter(c => abilityTexts.has(c) || spent++ < budget);
+}
+
+/** Whether every `covers` entry of this face is justified — the rule `CardScriptChecked` enforces on the file. */
+export function coversWithinBudget(face: CoverableFace | null | undefined): boolean {
+  return justifiedCovers(face).length === (face?.covers ?? []).length;
+}
+
+/**
+ * Every line the resulting face claims: the normalised `text` of each of its abilities, each line that is wholly
+ * made of keywords it has, the face's justified `covers` entries and the script's `ignore` lines. In mode 'replace'
+ * `def` holds only the script's declarations, so only the script claims; in mode 'extend' it holds the parser's plus
+ * the script's, so both do. An unjustified `covers` entry claims nothing here as well as failing the schema, so a
+ * script that lists lines under `covers` without a declaration behind them can never read as fully simulated.
+ */
+export function claimedLines(def: CardDef, face: ScriptFace | null | undefined, ignored: Set<string>): Set<string> {
+  const claimed = new Set<string>(ignored);
+  for (const a of def.abilities) for (const l of abilityClaimLines(a.text, def.name)) claimed.add(l);
+  for (const c of justifiedCovers(face)) claimed.add(c);
+  return claimed;
 }
 
 /**
  * Apply one face's declarations to a def (front face or `def.backFace`); returns a copy, the input is untouched.
  *
- * `mode: 'replace'` means "this face's declarations stand in for the parser's", so it clears `unparsed`. That is only
- * true of a face that declares SOMETHING: a script with no abilities, keywords, alt costs, as-enters, cost modifiers
- * or covers accounts for nothing, and clearing `unparsed` for it would silently mark the card simulated (and inflate
- * coverage) without a line of behaviour behind it. Such a face — including the missing `backFace` of a script that
- * only covers the front — falls through to the additive branch, where the parser's own output stands and only
- * covered / ignored lines are dropped. That is what makes an `ignore`-only script (the ante cards) do the right
- * thing in either mode.
+ * `mode: 'replace'` means "this face's declarations stand in for the parser's": the parser's abilities, keywords and
+ * costs are dropped and the script's take their place. It does NOT mean "every line is accounted for" — `unparsed`
+ * is recomputed the same way in both modes, from the face's own oracle lines minus the ones the resulting face
+ * claims, so a `replace` script that declares nothing (or only `covers`, with no behaviour behind it) leaves every
+ * line unparsed instead of silently marking the card simulated.
  */
 function applyFace(def: CardDef, face: ScriptFace | null | undefined, mode: 'replace' | 'extend', ignored: Set<string>): CardDef {
-  const out: CardDef = { ...def, keywords: [...def.keywords], abilities: [...def.abilities], unparsed: [...def.unparsed], producesMana: [...def.producesMana] };
-  if (mode === 'replace' && face && declarationCount(face) > 0) {
-    if (face.keywords) out.keywords = [...face.keywords];
-    if (face.abilities) out.abilities = [...face.abilities];
-    if (face.altCosts) out.altCosts = [...face.altCosts];
-    if (face.asEnters) out.asEnters = [...face.asEnters];
-    if (face.costModifiers) out.costModifiers = [...face.costModifiers];
-    out.unparsed = []; out.fullyParsed = true;
+  const out: CardDef = { ...def, keywords: [...def.keywords], abilities: [...def.abilities], unparsed: [], producesMana: [...def.producesMana] };
+  if (mode === 'replace') {
+    out.keywords = [...(face?.keywords ?? [])];
+    out.abilities = [...(face?.abilities ?? [])];
+    out.altCosts = face?.altCosts ? [...face.altCosts] : undefined;
+    out.asEnters = face?.asEnters ? [...face.asEnters] : undefined;
+    out.costModifiers = face?.costModifiers ? [...face.costModifiers] : undefined;
   } else {
     if (face?.keywords) for (const k of face.keywords) if (!out.keywords.includes(k)) out.keywords.push(k);
     if (face?.abilities) out.abilities.push(...face.abilities);
     if (face?.altCosts) out.altCosts = [...(out.altCosts ?? []), ...face.altCosts];
     if (face?.asEnters) out.asEnters = [...(out.asEnters ?? []), ...face.asEnters];
     if (face?.costModifiers) out.costModifiers = [...(out.costModifiers ?? []), ...face.costModifiers];
-    const covers = (face?.covers ?? []).map(c => c.trim());
-    const covered = new Set(covers);
-    out.unparsed = covers.includes('*') ? [] : out.unparsed.filter(u => {
-      const t = u.trim();
-      return !covered.has(t) && !ignored.has(t);
-    });
-    out.fullyParsed = out.unparsed.length === 0 && !hasUnknownEffect(out.abilities);
   }
+  const claimed = claimedLines(out, face, ignored);
+  out.unparsed = faceLines(out).filter(l => !claimed.has(l) && !keywordLineClaimed(l, out.keywords));
+  out.fullyParsed = out.unparsed.length === 0 && !faceHasUnknown(out);
   // producesMana follows mana abilities the script may have added
   for (const a of out.abilities) if (a.kind === 'activated' && a.manaAbility) for (const e of a.effects) if (e.op === 'add-mana' && Array.isArray(e.mana)) for (const m of e.mana) if (!out.producesMana.includes(m)) out.producesMana.push(m);
   return out;
@@ -381,20 +518,21 @@ function applyFace(def: CardDef, face: ScriptFace | null | undefined, mode: 'rep
  * Apply a card's script to the parser's output. A stale script (oracle text changed since it was written) is not
  * applied; the def records the status either way so coverage reports can list stale scripts.
  *
- * `ignore` lines are dropped from `unparsed` and therefore stop blocking `fullyParsed`; an entry may be written with
- * or without the `// ` back-face marker. `covers: ['*']` clears every remaining unparsed line (mode 'extend' only).
+ * `unparsed` is recomputed from scratch for each face — the face's own oracle lines minus the ones the applied face
+ * claims (see `claimedLines`) — so it lists what is really unaccounted for rather than what the parser happened to
+ * report. `ignore` lines count as claimed; an entry may be written with or without the `// ` back-face marker.
+ * `fullyParsed` is "nothing unclaimed AND nothing `unknown` anywhere in the face".
  *
  * `backFace` is applied to `def.backFace` (set by parse.ts for transform / modal double-faced cards) with the same
  * replace/extend semantics, and the back face is applied WHETHER OR NOT the script declares one: a card is fully
  * simulated only when both of its faces are, so a script that finishes the front and says nothing about the back
- * leaves `fullyParsed` false rather than clearing the front face's `// `-prefixed lines and claiming the card.
- * `verification` is tool-owned and ignored here.
+ * leaves `fullyParsed` false. The back face's lines live in `def.backFace.unparsed`; the front face's `unparsed`
+ * holds only its own lines. `verification` is tool-owned and ignored here.
  */
 export function applyScript(def: CardDef, script: CardScript | null): CardDef {
   if (!script) return def;
   const status: ScriptStatus = { applied: false, stale: false, source: script.source, confidence: script.confidence };
-  // types.ts still carries the pre-8a `source` union; 'llm' is written at runtime and read back by the tooling.
-  if (script.oracleHash !== oracleHash(def.oracleText)) { status.stale = true; def.script = status as CardDef['script']; return def; }
+  if (script.oracleHash !== oracleHash(def.oracleText)) { status.stale = true; def.script = status; return def; }
   const mode = script.mode ?? 'replace';
   const ignoreLines = (script.ignore ?? []).map(i => i.line.trim());
   // a back-face line may be named either as the parser reports it on the front ("// X") or as the back face sees it ("X")
@@ -403,10 +541,27 @@ export function applyScript(def: CardDef, script: CardScript | null): CardDef {
   if (def.backFace) {
     const back = applyFace(def.backFace, script.backFace, mode, ignored);
     out.backFace = back;
-    const stillUnparsed = new Set(back.unparsed.map(u => '// ' + u.trim()));
-    out.unparsed = out.unparsed.filter(u => !u.trim().startsWith('// ') || stillUnparsed.has(u.trim()));
-    out.fullyParsed = out.fullyParsed && out.unparsed.length === 0 && back.fullyParsed;
+    out.fullyParsed = out.fullyParsed && back.fullyParsed;
   }
-  status.applied = true; out.script = status as CardDef['script'];
+  status.applied = true; out.script = status;
+  return out;
+}
+
+/**
+ * Ability texts in the script that name no line of the card — `scripts:check` reports these as a warning. A script
+ * whose ability text does not match the oracle is usually a copy/paste slip; it also means the ability claims
+ * nothing, so the line it was meant to cover stays unparsed.
+ */
+export function unmatchedAbilityTexts(def: Pick<CardDef, 'name' | 'oracleText' | 'layout' | 'faces' | 'backFace' | 'unparsed'>, script: CardScript): string[] {
+  const lines = new Set(scriptableLines(def));
+  const out: string[] = [];
+  const check = (abilities: Ability[] | undefined, name: string, prefix: string) => {
+    for (const a of abilities ?? []) {
+      const claims = abilityClaimLines(a.text, name);
+      if (!claims.some(c => lines.has(c) || lines.has(prefix + c))) out.push(prefix + a.text);
+    }
+  };
+  check(script.abilities, def.name, '');
+  check(script.backFace?.abilities, def.backFace?.name ?? def.name, '// ');
   return out;
 }

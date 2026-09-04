@@ -1,9 +1,12 @@
 # Card scripts (format v2)
 
 One JSON file per oracle id, the canonical description of a card's abilities for the rules engine. The oracle-text
-parser (`src/cards/parse.ts`) produces the first draft of every card; a script here overrides (`mode: "replace"`, the
-default) or completes (`mode: "extend"`, with `covers` listing the oracle lines it accounts for) what the parser
-understood. Scripts are applied by `CardDB` through `src/cards/scripts.ts`.
+parser (`src/cards/parse.ts`) produces the first draft of every card; a script here stands in for (`mode: "replace"`,
+the default) or adds to (`mode: "extend"`) what the parser understood. Scripts are applied by `CardDB` through
+`src/cards/scripts.ts`.
+
+**Read *Claiming lines* below before writing one.** A script does not assert that a card is finished; it claims the
+card's oracle lines one at a time, and the card is finished when every line is claimed and nothing in it is unknown.
 
 ## Layout
 
@@ -33,18 +36,64 @@ Sibling directories under `data/scripts/`:
 | `oracleHash` | fnv-1a of the card's oracle text when the script was written (`oracleHash(text)`). After a Scryfall refresh changes the text the script is **stale** and is not applied; the coverage report lists stale scripts. |
 | `source` | `generated` (written by the generator, may be overwritten) · `llm` (written by a script agent) · `reviewed` (a person checked it) · `hand` (a person wrote it). Precedence for `put()` is **hand > reviewed > llm > generated**: a lower source never overwrites a higher one, and an `llm` script only overwrites another `llm` script when the existing one has no verification of status `verified` or better. `--force` overrides. |
 | `confidence` | 0..1 for `generated` / `llm`; reviewed and hand scripts are 1 |
-| `mode` | `replace` (default) or `extend` |
+| `mode` | `replace` (default): the script's declarations stand in for the parser's on that face. `extend`: they are added to the parser's, and both sets of claims count. Neither mode "clears" anything — see **Claiming lines**. |
 | `keywords`, `abilities`, `altCosts`, `asEnters`, `costModifiers` | the front face's declarations |
-| `covers` | the lines (see **Normalisation**) this script accounts for; with `extend` they are removed from `unparsed`. The single entry `"*"` means *every remaining unparsed line*; it is read only under `mode: "extend"`, and `scripts:check` rejects it under `mode: "replace"`, which already clears every line. |
+| `covers` | oracle lines (see **Normalisation**) this face claims **without an ability of its own** — the only way a `keywords` / `altCosts` / `asEnters` / `costModifiers` declaration can account for a line. There is no wildcard: `"*"` is rejected, list the lines. A face may claim at most as many lines this way as it has such declarations (`covers` entries that simply repeat one of its own ability texts are free). |
 | `backFace` | the same six fields for the back face of a transforming / modal double-faced card; applied to `def.backFace` with the same replace/extend semantics. A card counts as fully simulated only when **both** faces do, so a script that finishes the front face of a double-faced card and says nothing about the back leaves it unfinished — `scripts:check` reports the back face's remaining lines. |
-| `ignore` | `[{ line, reason }]` — oracle lines that are deliberately not simulated. They are dropped from `unparsed` and stop blocking `fullyParsed`. The line must be one `scriptableLines(def)` names (see **Normalisation**), and `scripts:check` rejects a line containing a verb the engine can already model (deal / draw / destroy / exile / counter / create / sacrifice / gain / lose / put / return / search / tap / untap / discard / mill) **unless the line proves its own reason** — it carries the word `ante`, `draft`/`booster pack`, `outside the game`/`sideboard`, a deck-construction phrase, an un-set physical action or a digital-only keyword. Contract from Below’s “Discard your hand, ante the top card of your library, then draw seven cards.” is `ante`-ignorable; “Destroy target creature.” is not ignorable under any reason. `reminder-only` gets no exemption. |
+| `ignore` | `[{ line, reason }]` — oracle lines that are deliberately not simulated. An ignored line counts as claimed and stops blocking `fullyParsed`. The line must be one `scriptableLines(def)` names, and it must match the **whitelist** of the reason it claims (below). It never hides an `unknown`: a face with an `unknown` anywhere in it fails whatever its lines say. |
 | `scenarios` | names of scenarios in `test/scenarios/` that verify the script behaviourally |
 | `aiHints` | optional `role`, `value`, `timing` for the AI |
 | `notes` | free text |
 | `verification` | **tool-owned**: written by `scripts:verify`, never hand-edited, and ignored by `applyScript`. `scriptHash(script)` (fnv-1a of the script with `verification` removed and keys sorted) is stable across verification write-backs, so `verification.scriptHash !== scriptHash(script)` means the verification is stale — `scripts:check` reports that as an `INFO` line, not a problem. |
 
-`ignore` reasons: `draft-matters` · `ante` · `outside-the-game` · `deck-construction` · `reminder-only` ·
-`un-physical` · `digital-only`.
+## Claiming lines
+
+A card is **fully simulated** (`fullyParsed`) when, for each of its faces:
+
+1. every oracle **line** of that face is CLAIMED, and
+2. nothing in that face is `unknown` — no unknown effect, static effect, trigger event or condition, at any depth
+   (inside `conditional`, `optional-then`, `optional-pay`, `choose-mode`, `delayed-trigger`, `gain-ability`, …).
+
+`unparsed` is exactly the list of unclaimed lines of that face — the front face's own in `def.unparsed`, the back
+face's in `def.backFace.unparsed`. Neither mode ever *clears* it: `mode: "replace"` means "my declarations stand in
+for the parser's", not "everything is accounted for". A script that declares nothing therefore finishes nothing (a
+vanilla card with no oracle text is the one exception: it has no line to claim, so an empty script finishes it).
+
+There are exactly four ways to claim a line:
+
+| Claimed by | How |
+|---|---|
+| an **ability** | its `text`, normalised, is that line. This is the normal case: write the oracle line into `text` verbatim (after **Normalisation**). An instant/sorcery ability whose `text` is the whole face text claims every line of it. |
+| a **keyword** | the line is nothing but keywords the face has, comma-separated — `"Flying, vigilance"` is claimed by `["flying", "vigilance"]`. A parameterised keyword line (`"Ward {2}"`, `"Toxic 1"`, `"Islandwalk"`, `"Protection from red"`) is claimed by the bare keyword the parser records for it (`ward`, `toxic`, `landwalk`, `protection`). |
+| a **`covers`** entry | for a line a non-ability declaration accounts for — an `altCosts` entry for `"Flashback {2}{R}"`, an `asEnters` entry for `"~ enters tapped."` or `"As ~ enters, choose a color."`, a `costModifiers` entry for `"Delve"`. One covered line per such declaration. |
+| an **`ignore`** entry | for a line that cannot matter inside a game (below). |
+
+A modal `"• …"` bullet is **not** a line of its own: it belongs to the `"Choose one —"` line above it, and the ability
+that claims that line claims its bullets too. (A bullet the parser did not understand leaves an `unknown` inside the
+`choose-mode` effect, which fails the face anyway.) `covers` / `ignore` may still name a bullet, because
+`scriptableLines(def)` lists them.
+
+A handful of lines the parser folds into a non-ability field of `CardDef` — `"Enchant creature"`, `"Cascade"`,
+`"Devoid"`, `"Equip {2}"` — have no declaration in this format to justify a `covers` entry. Claim them with an
+ability whose `text` is the line (that is always available, and it forces the behaviour to be declared).
+
+### `ignore` reasons
+
+An ignored line must MATCH ITS REASON — a whitelist, checked case-insensitively against the normalised line. Anything
+that does not match is a `scripts:check` problem, and the answer is to script the line instead of ignoring it.
+
+| Reason | The line must … |
+|---|---|
+| `draft-matters` | start with `Draft ~ face up` / `Reveal ~ as you draft`, or contain `you drafted`, `draft(ed) a/this card`, or `conspiracy` |
+| `ante` | contain the word `ante` |
+| `outside-the-game` | contain `from outside the game` |
+| `deck-construction` | *be* one of the printed deck-building keywords: `Partner…`, `Choose a Background`, `Doctor's companion`, `Friends forever`, `Companion — …`, `A deck can have any number of cards named ~.`, `Commander enchantment`, `Spell commander`, `Legendary landwalk` |
+| `reminder-only` | consist of nothing but a parenthetical (the parser strips parentheses, so this almost never survives) |
+| `un-physical` | be on a card whose pool **tier** is `un` (any line; the whole card is outside the game) |
+| `digital-only` | be on a card whose pool tier is `digital` **and** contain `conjure` / `seek` / `perpetual` / `spellbook` / `draft a card from` |
+
+The tier gate on the last two is load-bearing: the Alchemy-to-paper conversions (Jet Collector, Overcooked, Toralf's
+Disciple, …) print `conjure` on **paper** cards, and those have to be simulated, not waved through.
 
 ## Normalisation
 
@@ -66,8 +115,20 @@ So: **copy from `def.unparsed`**. `normalizeOracleLines` alone is not the contra
 
 The ability vocabulary is the engine AST in `src/cards/types.ts` (`Ability`, `Effect`, `TriggerEvent`, `Condition`,
 `StaticEffect`, `AbilityCost`). `src/cards/schema.ts` is the strict zod mirror of it; `npm run scripts:check`
-validates every script against it before anything else, and `npm run scripts:schema` writes `schema.json` here for
-editors and authoring prompts. Files must be **LF only** — `scripts:check` fails on a CR.
+validates every script against `CardScriptChecked` before anything else, and `npm run scripts:schema` writes
+`schema.json` here — generated from that same checked schema — for editors and authoring prompts. Files must be
+**LF only** — `scripts:check` fails on a CR.
+
+`schema.json` carries every rule JSON Schema can state (including "a claimed line is a non-empty string that is not
+`"*"`"). Three rules it cannot state are enforced by `scripts:check` alone: the `covers` budget (comparing two array
+lengths), that every `covers` / `ignore` line is one `scriptableLines(def)` names, and that an `ignore` reason
+matches its whitelist and the card's pool tier — the last two need the card.
+
+`scripts:check` applies the same rules to EVERY source, `generated` included. Drafts live in the gitignored
+`drafts/`, which is never indexed, so the only generated script it can reach is one that was promoted into a shard —
+exactly the case worth catching. Three findings are reported but do not fail the run: a script that declares
+nothing (`WARN`), an ability whose `text` names no oracle line and therefore claims none (`WARN`), and a stale
+verification block (`INFO`).
 
 `_example.json.txt` shows the shape; rename such a file to `<2-hex>/<oracle_id>.json` and set `oracleHash` to
 `oracleHash(def.oracleText)` to activate it.

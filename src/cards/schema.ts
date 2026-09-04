@@ -15,7 +15,7 @@
 // Amount.count, AltCost.id, AltCost.from) lives in exactly one named constant, so merging is a one-line edit.
 import { z } from 'zod';
 import type { Ability, Amount, Condition, Effect, Filter, StaticAbility, StaticEffect, TriggerEvent } from './types.js';
-import { IGNORE_REASONS } from './scripts.js';
+import { coversWithinBudget, IGNORE_REASONS } from './scripts.js';
 
 // ---------------------------------------------------------------------------
 // What the parser really emits
@@ -570,6 +570,12 @@ export const SCRIPT_SOURCES = ['generated', 'llm', 'reviewed', 'hand'] as const;
 export const ScriptSourceSchema = z.enum(SCRIPT_SOURCES);
 export const IgnoreReasonSchema = z.enum(IGNORE_REASONS);
 
+/**
+ * A claimed oracle line. Format v2 has no wildcard: `'*'` is rejected here (as a `pattern`, so it survives into
+ * `schema.json` and an editor rejects it too) and every claimed line is written out in full.
+ */
+const CLAIMED_LINE = z.string().min(1).regex(/^(?!\*$)/, "'*' is not a line: list the oracle lines this face claims");
+
 /** The shared shape of the front face and `backFace`. */
 const faceShape = {
   keywords: z.array(KeywordSchema).optional(),
@@ -577,12 +583,12 @@ const faceShape = {
   altCosts: z.array(AltCostSchema).optional(),
   asEnters: z.array(AsEntersSchema).optional(),
   costModifiers: z.array(CostModifierSchema).optional(),
-  covers: z.array(S).optional(),
+  covers: z.array(CLAIMED_LINE).optional(),
 };
 
 export const ScriptFaceSchema = z.strictObject(faceShape);
 
-export const IgnoredLineSchema = z.strictObject({ line: S, reason: IgnoreReasonSchema });
+export const IgnoredLineSchema = z.strictObject({ line: CLAIMED_LINE, reason: IgnoreReasonSchema });
 
 export const VerificationSchema = z.strictObject({
   at: S,
@@ -621,18 +627,24 @@ export const CardScriptSchema = z.strictObject({
 });
 
 /**
- * `CardScriptSchema` plus the cross-field rules: `covers: ['*']` ("every remaining unparsed line") is only allowed
- * with `mode: 'extend'` — that is the mode `applyScript` reads `covers` in at all, and under `mode: 'replace'` every
- * line is cleared anyway, so a `'*'` there would be a no-op that reads like a claim. Use this in tooling; use
- * `CardScriptSchema` where the plain object schema is needed (`z.toJSONSchema`, type pinning).
+ * `CardScriptSchema` plus the cross-field rule JSON Schema cannot state: every `covers` entry must be JUSTIFIED.
+ * `covers` is the only way a non-ability declaration claims a line, so a face may claim at most as many lines that
+ * way as it has keyword / altCost / asEnters / costModifier declarations. Entries that merely repeat an ability's own
+ * `text` are free (the ability already claims that line) and do not count against the budget. Without the cap a
+ * script could list every line of a card under `covers`, declare nothing, and read as fully simulated.
+ *
+ * Two further rules need the CARD and so live in `scripts:check`, not here: every `covers` / `ignore` line must be
+ * one `scriptableLines(def)` names, and an `ignore` reason must match its whitelist entry (`ignoreLineProblem`).
+ *
+ * Use this in tooling; `CardScriptSchema` is the plain object schema used for type pinning.
  */
-const STAR_ONLY_WITH_EXTEND = "covers: ['*'] is only allowed with mode 'extend' (mode 'replace' already accounts for every line)";
+const COVERS_BUDGET = 'covers claims more lines than this face has keyword / altCost / asEnters / costModifier declarations to justify them (a covers entry that repeats an ability text is free)';
 export const CardScriptChecked = CardScriptSchema.refine(
-  s => !(s.covers ?? []).includes('*') || s.mode === 'extend',
-  { message: STAR_ONLY_WITH_EXTEND, path: ['covers'] },
+  s => coversWithinBudget(s),
+  { message: COVERS_BUDGET, path: ['covers'] },
 ).refine(
-  s => !(s.backFace?.covers ?? []).includes('*') || s.mode === 'extend',
-  { message: `backFace.${STAR_ONLY_WITH_EXTEND}`, path: ['backFace', 'covers'] },
+  s => coversWithinBudget(s.backFace),
+  { message: `backFace.${COVERS_BUDGET}`, path: ['backFace', 'covers'] },
 );
 
 // Convenience aliases for the tooling (test/schema-types.test.ts pins each of these to its types.ts counterpart).

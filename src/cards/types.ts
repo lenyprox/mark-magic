@@ -313,7 +313,7 @@ export type StaticEffect =
 
 export interface CardDef {
   /** Status of the per-card script (data/scripts/<oracle_id>.json) if one exists: applied, or stale after an oracle text change. */
-  script?: { applied: boolean; stale: boolean; source?: 'generated' | 'reviewed' | 'hand'; confidence?: number };
+  script?: { applied: boolean; stale: boolean; source?: 'generated' | 'llm' | 'reviewed' | 'hand'; confidence?: number };
   /** Keyword parameters: toxic N, bushido N, rampage N, landwalk land types. */
   toxic?: number;
   /** Storm (CR 702.40). */

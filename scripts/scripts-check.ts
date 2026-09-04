@@ -1,8 +1,10 @@
-// Validate the scripts under data/scripts: schema (strict), LF-only bytes, oracle-hash freshness (stale after a
-// Scryfall refresh), no `unknown` effects in llm/reviewed/hand scripts (either face), every `covers`/`ignore` line
-// matching a line `scriptableLines(def)` names, ignore reasons that neither hide a simulable verb nor go unproven by
-// the line itself, a script that declares something, that BOTH faces end up fully simulated, and that the scripted
-// card resolves in master.db. Verification staleness is reported as INFO, never as a problem. Exit 1 on problems.
+// Validate the scripts under data/scripts: schema (strict, including the `covers` budget), LF-only bytes,
+// oracle-hash freshness (stale after a Scryfall refresh), every `covers`/`ignore` line matching a line
+// `scriptableLines(def)` names, every `ignore` reason matching its whitelist entry for this card's pool tier, no
+// `unknown` anywhere, and that BOTH faces end up fully simulated — for EVERY source, `generated` included: the
+// drafts directory is gitignored and unindexed, so the only generated script this can reach is one someone promoted
+// into a shard, which is exactly the case worth catching. A script that declares nothing and an ability whose text
+// names no oracle line are WARNings; verification staleness is INFO. Exit 1 on problems.
 //
 //   npm run scripts:check                 # every script (default)
 //   npm run scripts:check -- --changed    # only files git reports as modified/untracked under data/scripts
@@ -12,10 +14,11 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { CardDB } from '../src/cards/db.js';
 import { parseCard } from '../src/cards/parse.js';
+import { tierOf } from '../src/cards/pool.js';
 import { CardScriptChecked } from '../src/cards/schema.js';
 import {
-  applyScript, DEFAULT_SCRIPTS_DIR, ignoreLineProblem, oracleHash, scriptableLines, scriptHash, ScriptStore,
-  type CardScript, type ScriptFace,
+  applyScript, DEFAULT_SCRIPTS_DIR, hasUnknown, ignoreLineProblem, oracleHash, scriptableLines, scriptHash,
+  ScriptStore, unmatchedAbilityTexts, type CardScript, type ScriptFace,
 } from '../src/cards/scripts.js';
 
 const args = process.argv.slice(2);
@@ -57,6 +60,7 @@ const cards = CardDB.shared();
 const ids = selectIds();
 let ok = 0;
 const problems: string[] = [];
+const warn: string[] = [];
 const info: string[] = [];
 
 for (const id of ids) {
@@ -98,32 +102,33 @@ for (const id of ids) {
     ...(script.ignore ?? []).map(i => ['ignore', i.line] as const),
   ];
   for (const [where, line] of claimed) {
-    if (line === '*') continue;   // the schema already restricts '*' to mode 'extend'
     if (!lines.has(line.trim())) problems.push(`${id} (${script.name}): ${where} line does not match any oracle line: ${JSON.stringify(line)}`);
   }
+  const tier = tierOf(rawRow);
   for (const ig of script.ignore ?? []) {
-    // ignoreLineProblem (src/cards/scripts.ts) owns the policy: a simulable verb blocks the line unless the line
-    // itself carries the marker of the reason given (ante, drafting, outside the game, …).
-    const why = ignoreLineProblem(ig.line, ig.reason);
-    if (why) problems.push(`${id} (${script.name}): ignore[${ig.reason}] ${why} — script the line instead: ${JSON.stringify(ig.line)}`);
+    // ignoreLineProblem (src/cards/scripts.ts) owns the policy: a per-reason whitelist regex, plus the pool tier for
+    // the two reasons that are only available to un-set and Alchemy cards.
+    const why = ignoreLineProblem(ig.line, ig.reason, tier);
+    if (why) problems.push(`${id} (${script.name}): ignore[${ig.reason}] ${why}: ${JSON.stringify(ig.line)}`);
   }
 
-  // 4. the script must actually finish the card, BOTH faces (generated drafts are exempt)
+  // 4. the script must actually finish the card, BOTH faces — every source, `generated` included
   const applied = applyScript(def, script);
-  const unknowns = [...applied.abilities, ...(applied.backFace?.abilities ?? [])]
-    .flatMap(a => 'effects' in a ? a.effects.filter(e => e.op === 'unknown') : []);
-  const authored = script.source !== 'generated';
-  const declares = (f: ScriptFace | undefined) => !!f && [f.abilities, f.keywords, f.altCosts, f.asEnters, f.costModifiers, f.covers].some(v => v?.length);
-  if (authored && !declares(script) && !declares(script.backFace) && !script.ignore?.length)
-    problems.push(`${id} (${script.name}): ${script.source} script declares nothing — no abilities, keywords, costs, covers or ignore`);
-  if (authored && unknowns.length) problems.push(`${id} (${script.name}): ${script.source} script still has ${unknowns.length} unknown effect(s)`);
-  if (authored && !applied.fullyParsed) {
+  if (hasUnknown(applied.abilities) || hasUnknown(applied.backFace?.abilities)) {
+    problems.push(`${id} (${script.name}): ${script.source} script still has an unknown effect / static / trigger / condition`);
+  }
+  if (!applied.fullyParsed) {
     const back = applied.backFace && !applied.backFace.fullyParsed ? applied.backFace.unparsed : [];
-    const where = applied.unparsed.length ? `unparsed: ${applied.unparsed.slice(0, 3).join(' | ')}`
-      : back.length ? `back face unparsed: ${back.slice(0, 3).join(' | ')}`
-      : 'the back face is not fully simulated';
+    const where = applied.unparsed.length ? `unclaimed: ${applied.unparsed.slice(0, 3).join(' | ')}`
+      : back.length ? `back face unclaimed: ${back.slice(0, 3).join(' | ')}`
+      : 'nothing is unclaimed, but something in the card is still unknown';
     problems.push(`${id} (${script.name}): ${script.source} script does not make the card fully simulated (${where})`);
   }
+  const declares = (f: ScriptFace | undefined) => !!f && [f.abilities, f.keywords, f.altCosts, f.asEnters, f.costModifiers, f.covers].some(v => v?.length);
+  if (!declares(script) && !declares(script.backFace) && !script.ignore?.length)
+    warn.push(`${id} (${script.name}): ${script.source} script declares nothing — no abilities, keywords, costs, covers or ignore`);
+  for (const text of unmatchedAbilityTexts(def, script))
+    warn.push(`${id} (${script.name}): ability text names no oracle line, so it claims none: ${JSON.stringify(text)}`);
 
   // 5. verification freshness — informational only
   if (script.verification) {
@@ -134,8 +139,9 @@ for (const id of ids) {
   ok++;
 }
 
-console.log(`${ok} script(s) checked${mode === 'all' ? '' : ` (--${mode})`}, ${problems.length} problem(s)`);
+console.log(`${ok} script(s) checked${mode === 'all' ? '' : ` (--${mode})`}, ${problems.length} problem(s)${warn.length ? `, ${warn.length} warning(s)` : ''}`);
 for (const p of problems) console.log('  ' + p);
+for (const w of warn) console.log('  WARN ' + w);
 for (const i of info) console.log('  INFO ' + i);
 cards.close();
 process.exit(problems.length ? 1 : 0);

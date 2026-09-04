@@ -4,22 +4,25 @@
   "oracleHash": "deadbeef",
   "source": "hand",
   "confidence": 1,
-  "mode": "extend",
-  "covers": ["Whenever ~ attacks, you gain 1 life."],
+  "mode": "replace",
   "keywords": ["flying"],
   "abilities": [
-    { "kind": "triggered", "event": { "on": "attacks", "self": true }, "effects": [{ "op": "gain-life", "amount": 1, "who": "you" }], "text": "Whenever this creature attacks, you gain 1 life." }
+    { "kind": "triggered", "event": { "on": "attacks", "self": true }, "effects": [{ "op": "gain-life", "amount": 1, "who": "you" }], "text": "Whenever ~ attacks, you gain 1 life." }
   ],
+  "altCosts": [
+    { "id": "flashback", "label": "flashback", "cost": { "mana": { "generic": 2, "x": 0, "pips": ["R"], "hybrid": [], "phyrexian": [], "raw": "{2}{R}" } }, "from": "graveyard", "exileAfter": true }
+  ],
+  "covers": ["Flashback {2}{R}"],
   "ignore": [
     { "line": "Draft ~ face up.", "reason": "draft-matters" }
   ],
   "backFace": {
+    "keywords": ["trample"],
     "abilities": [
       { "kind": "static", "effect": { "kind": "self-keywords", "keywords": ["trample"] }, "text": "Trample" }
-    ],
-    "covers": ["Trample"]
+    ]
   },
   "scenarios": ["Example Card gains life on attack"],
   "aiHints": { "role": "creature", "value": 3, "timing": "main" },
-  "notes": "Rename to <2-hex>/<oracle_id>.json and set oracleHash to oracleHash(def.oracleText) to activate. The 'verification' block is written by scripts:verify — never by hand."
+  "notes": "Every oracle line of each face must be CLAIMED: by an ability whose 'text' is that line, by the face's keywords (a line that is nothing but keywords it has), by a 'covers' entry, or by an 'ignore' entry. 'Flying' is claimed by keywords, the trigger line by its ability's text, 'Flashback {2}{R}' by covers (justified by the altCosts declaration), 'Draft ~ face up.' by ignore. There is no '*' wildcard. Rename to <2-hex>/<oracle_id>.json and set oracleHash to oracleHash(def.oracleText) to activate. The 'verification' block is written by scripts:verify — never by hand."
 }
