@@ -36,7 +36,7 @@ export type GameEventBody =
   | { type: 'resolve'; itemId: number; name: string; kind: 'spell' | 'ability' | 'trigger' }
   | { type: 'fizzle'; itemId: number; name: string; reason: 'all-targets-illegal' | 'enchant-target-illegal' }
   | { type: 'countered'; itemId: number; name: string; by?: string; unlessPaid?: boolean }
-  | { type: 'attack'; player: PlayerId; target: PlayerId; attackers: { id: number; name: string }[] }
+  | { type: 'attack'; player: PlayerId; target: PlayerId; attackers: { id: number; name: string }[]; /** Per attacker: the defending player, or the planeswalker (object id) it attacks. */ targets?: Record<number, PlayerId | { planeswalker: number }> }
   | { type: 'block'; player: PlayerId; blocks: { blocker: number; blockerName: string; attacker: number; attackerName: string }[] }
   | { type: 'sba'; kind: SbaKind; id?: number; name?: string; player?: PlayerId; detail?: string }
   | { type: 'player-eliminated'; player: PlayerId; reason: string }

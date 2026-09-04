@@ -58,7 +58,7 @@ export interface GameObject {
   commander?: boolean;
 }
 export type CastZone = 'hand' | 'graveyard' | 'exile' | 'command';
-export type AltCostId = 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start';
+export type AltCostId = 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard';
 
 export interface DelayedTrigger { id: number; at: 'next-upkeep' | 'next-end-step' | 'your-next-end-step'; controller: PlayerId; sourceId: number; sourceName: string; effects: Effect[]; affected?: StackItem['affected']; createdTurn: number }
 
@@ -82,6 +82,8 @@ export interface Player {
   /** Combat damage taken from each commander id over the game (21 loses, CR 704.6c). */
   commanderDamage: Record<number, number>;
   manaPool: ManaSymbol[];
+  /** Mana that survives step changes until the cleanup step (firebending, Ozai). */
+  stickyMana?: ManaSymbol[];
   landsPlayedThisTurn: number;
   lost: boolean;
   lossReason?: string;

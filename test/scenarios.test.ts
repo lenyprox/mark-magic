@@ -5,10 +5,11 @@ import fs from 'node:fs';
 import { basics } from './scenarios/basics.js';
 import { mechanics } from './scenarios/mechanics.js';
 import { owned } from './scenarios/owned.js';
+import { owned2 } from './scenarios/owned2.js';
 import { runScenario, type Scenario } from './scenarios/dsl.js';
 
 const hasDb = fs.existsSync('data/master/master.db');
-const suites: { file: string; scenarios: Scenario[] }[] = [{ file: 'basics', scenarios: basics }, { file: 'mechanics', scenarios: mechanics }, { file: 'owned', scenarios: owned }];
+const suites: { file: string; scenarios: Scenario[] }[] = [{ file: 'basics', scenarios: basics }, { file: 'mechanics', scenarios: mechanics }, { file: 'owned', scenarios: owned }, { file: 'owned2', scenarios: owned2 }];
 
 for (const suite of suites) for (const sc of suite.scenarios) {
   test(`[${suite.file}] ${sc.name}${sc.cr ? ` (CR ${sc.cr})` : ''}`, { skip: !hasDb }, async () => {

@@ -51,7 +51,7 @@ export function manaSources(s: GameState, p: Player, opts: ManaSourceOptions = {
         else if (Array.isArray(e.mana)) options.push(rep(e.mana));
         else if (e.mana === 'any') options.push(...ALL.map(c => rep(Array(e.amount ?? 1).fill(c))));
         else if (e.mana === 'any-one') {
-          const opts = e.options === 'exiled-with-colors' ? exiledColors(s, o) : e.options === 'chosen-color' ? (o.chosen?.color ? [o.chosen.color] : ALL) : e.options;
+          const opts = e.options === 'exiled-with-colors' ? exiledColors(s, o) : e.options === 'chosen-color' ? (o.chosen?.color ? [o.chosen.color] : ALL) : e.options === 'permanent-colors' ? ALL.filter(c => p.battlefield.some(x => (colors(x) as string[]).includes(c))) : e.options;
           options.push(...(opts ?? ALL).map(c => rep(Array(e.amount ?? 1).fill(c))));
         }
       }
@@ -113,7 +113,7 @@ export function findPayment(s: GameState, p: Player, cost: ManaCost, x = 0, redu
   const extras = opts.extraSources ?? [];
   const sources = extras.length ? (opts.extrasFirst ? [...extras, ...regular] : [...regular, ...extras]) : regular;
   // Enumerate: small search over source options (branching kept low by trying the most-constrained pips first).
-  const pool = [...p.manaPool];
+  const pool = [...p.manaPool, ...(p.stickyMana ?? [])];
   const best = solve(pool, sources, needPips, hybrid, phyrexian, generic, limit);
   return best;
 }

@@ -13,6 +13,8 @@ export function cloneObject(o: GameObject): GameObject {
   c.blocking = [...o.blocking];
   c.blockedBy = [...o.blockedBy];
   c.activatedThisTurn = new Set(o.activatedThisTurn);
+  if (o.triggeredThisTurn) c.triggeredThisTurn = new Set(o.triggeredThisTurn);
+  if (o.animated) c.animated = { ...o.animated, colors: [...o.animated.colors], types: [...o.animated.types], subtypes: [...o.animated.subtypes], keywords: [...o.animated.keywords] };
   c.token = o.token ? { ...o.token, colors: [...o.token.colors], types: [...o.token.types], subtypes: [...o.token.subtypes], keywords: [...o.token.keywords] } : null;
   if (o.lastKnown) c.lastKnown = { ...o.lastKnown };
   const ex = (o as GameObject & { exiledUntilLeaves?: number[] }).exiledUntilLeaves;
@@ -26,7 +28,7 @@ export function cloneObject(o: GameObject): GameObject {
 }
 
 function clonePlayer(p: Player, cl: (o: GameObject) => GameObject): Player {
-  return { ...p, library: p.library.map(cl), hand: p.hand.map(cl), graveyard: p.graveyard.map(cl), exile: p.exile.map(cl), battlefield: p.battlefield.map(cl), command: (p.command ?? []).map(cl), commanders: [...(p.commanders ?? [])], commanderCasts: { ...(p.commanderCasts ?? {}) }, commanderDamage: { ...(p.commanderDamage ?? {}) }, manaPool: [...p.manaPool] };
+  return { ...p, ...(p.stickyMana ? { stickyMana: [...p.stickyMana] } : {}), library: p.library.map(cl), hand: p.hand.map(cl), graveyard: p.graveyard.map(cl), exile: p.exile.map(cl), battlefield: p.battlefield.map(cl), command: (p.command ?? []).map(cl), commanders: [...(p.commanders ?? [])], commanderCasts: { ...(p.commanderCasts ?? {}) }, commanderDamage: { ...(p.commanderDamage ?? {}) }, manaPool: [...p.manaPool] };
 }
 
 function cloneStackItem(it: StackItem, cl: (o: GameObject) => GameObject): StackItem {

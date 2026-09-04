@@ -8,14 +8,14 @@ export { HIDDEN_DEF_NAME };
 
 export function defKey(def: CardDef): string { return def.printingId ? `${def.name}@${def.printingId}` : def.name; }
 
-export type SerializedObject = Omit<GameObject, 'def' | 'activatedThisTurn'> & { defKey: string; activatedThisTurn: number[] } & Record<string, unknown>;
+export type SerializedObject = Omit<GameObject, 'def' | 'activatedThisTurn' | 'triggeredThisTurn'> & { defKey: string; activatedThisTurn: number[]; triggeredThisTurn?: string[] } & Record<string, unknown>;
 export type SerializedStackItem = Omit<StackItem, 'source' | 'targetsByEffect'> & { source: SerializedObject; targetsByEffect: [number, TargetRef[]][] } & Record<string, unknown>;
 export type SerializedPlayer = Omit<Player, 'library' | 'hand' | 'graveyard' | 'exile' | 'battlefield' | 'command'> & { library: SerializedObject[]; hand: SerializedObject[]; graveyard: SerializedObject[]; exile: SerializedObject[]; battlefield: SerializedObject[]; command?: SerializedObject[] };
 export type SerializedState = Omit<GameState, 'players' | 'stack' | 'version'> & { version: 1; stateVersion?: number; players: SerializedPlayer[]; stack: SerializedStackItem[] } & Record<string, unknown>;
 
 function serObject(o: GameObject): SerializedObject {
-  const { def, activatedThisTurn, ...rest } = o as GameObject & Record<string, unknown>;
-  return { ...(rest as Omit<GameObject, 'def' | 'activatedThisTurn'>), defKey: defKey(def), activatedThisTurn: [...activatedThisTurn] };
+  const { def, activatedThisTurn, triggeredThisTurn, ...rest } = o as GameObject & Record<string, unknown>;
+  return { ...(rest as Omit<GameObject, 'def' | 'activatedThisTurn' | 'triggeredThisTurn'>), defKey: defKey(def), activatedThisTurn: [...activatedThisTurn], ...(triggeredThisTurn ? { triggeredThisTurn: [...triggeredThisTurn] } : {}) };
 }
 
 export function serializeState(s: GameState): SerializedState {
@@ -26,10 +26,10 @@ export function serializeState(s: GameState): SerializedState {
 }
 
 function deObject(o: SerializedObject, defs: Map<string, CardDef>): GameObject {
-  const { defKey: key, activatedThisTurn, ...rest } = o;
+  const { defKey: key, activatedThisTurn, triggeredThisTurn, ...rest } = o;
   const def = defs.get(key) ?? (key === HIDDEN_DEF_NAME ? defs.get(HIDDEN_DEF_NAME) : undefined);
   if (!def) throw new Error(`deserializeState: unknown card def "${key}"`);
-  return { ...(rest as Omit<GameObject, 'def' | 'activatedThisTurn'>), def, activatedThisTurn: new Set(activatedThisTurn) } as GameObject;
+  return { ...(rest as Omit<GameObject, 'def' | 'activatedThisTurn' | 'triggeredThisTurn'>), def, activatedThisTurn: new Set(activatedThisTurn), ...(triggeredThisTurn ? { triggeredThisTurn: new Set(triggeredThisTurn) } : {}) } as GameObject;
 }
 
 export function deserializeState(ser: SerializedState, defs: Map<string, CardDef>): GameState {

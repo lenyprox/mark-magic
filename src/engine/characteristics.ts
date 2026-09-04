@@ -80,6 +80,8 @@ export function matchesFilter(s: GameState, o: GameObject, f: Filter | undefined
   if (f?.withCounters && !Object.values(o.counters).some(n => n > 0)) return false;
   if (f?.withCounter && !((o.counters[f.withCounter] ?? 0) > 0)) return false;
   if (f?.toughnessGtPower && !(toughness(s, o) > power(s, o))) return false;
+  if (f?.chosenType && !(source?.chosen?.creatureType && subtypes(o).includes(source.chosen.creatureType))) return false;
+  if (f?.withKeyword && !hasKeyword(s, o, f.withKeyword)) return false;
   if (!f) return true;
   const ts = types(o), sts = subtypes(o), cs = colors(o);
   if (f.types && !f.types.some(t => ts.includes(t))) return false;
@@ -145,6 +147,14 @@ function staticMods(s: GameState, o: GameObject): Mods {
       }
     }
   }
+  // Anger / Filth: anthems that work from the graveyard
+  if (isCreature(o)) for (const src of s.players[o.controller].graveyard) for (const ab of abilitiesOf(src)) {
+    if (ab.kind !== 'static' || ab.effect.kind !== 'anthem' || !ab.effect.whileInGraveyard) continue;
+    const e = ab.effect;
+    if (e.condition && !conditionHolds(s, src, e.condition)) continue;
+    if (!matchesFilter(s, o, e.filter, src)) continue;
+    m.p += e.power; m.t += e.toughness; if (e.keywords) m.kw.push(...e.keywords);
+  }
   return m;
 }
 
@@ -159,6 +169,7 @@ export function conditionHolds(s: GameState, src: GameObject, c: unknown): boole
     case 'total-toughness-ge': return me.battlefield.filter(isCreature).reduce((a, o) => a + toughness(s, o), 0) >= cond.value;
     case 'hand-has': return me.hand.some(o => matchesFilter(s, o, cond.filter, src));
     case 'opponents-lands-ge': return opps.reduce((a, pl) => a + pl.battlefield.filter(isLand).length, 0) >= cond.value;
+    case 'opponent-more-lands': return opps.some(pl => pl.battlefield.filter(isLand).length > me.battlefield.filter(isLand).length);
     case 'life-le': return cond.who === 'any' ? [me, ...opps].some(pl => pl.life <= cond.value) : side(cond.who, pl => pl.life <= cond.value);
     case 'opponents-ge': return opps.length >= cond.value;
     case 'controls': return side(cond.who, pl => pl.battlefield.filter(o => matchesFilter(s, o, cond.filter, src)).length >= cond.atLeast);

@@ -19,7 +19,7 @@ export type Keyword =
   | 'flying' | 'first strike' | 'double strike' | 'deathtouch' | 'lifelink' | 'trample' | 'haste' | 'vigilance'
   | 'reach' | 'defender' | 'flash' | 'hexproof' | 'indestructible' | 'menace' | 'unblockable' | 'cant block'
   | 'shroud' | 'protection' | 'prowess' | 'ward' | 'fear' | 'intimidate' | 'skulk' | 'cant attack'
-  | 'shadow' | 'horsemanship' | 'flanking' | 'exalted' | 'infect' | 'wither' | 'toxic' | 'bushido' | 'landwalk' | 'rampage';
+  | 'shadow' | 'horsemanship' | 'flanking' | 'exalted' | 'infect' | 'wither' | 'toxic' | 'bushido' | 'landwalk' | 'rampage' | 'firebending';
 
 /** Who / what an effect can target */
 export interface TargetSpec {
@@ -43,6 +43,8 @@ export interface Filter {
   other?: boolean;                          // "another" / "other"
   withCounters?: boolean; withCounter?: string;  // "with a counter on it" / "with a +1/+1 counter on it"
   toughnessGtPower?: boolean;                    // Doran: "with toughness greater than its power"
+  chosenType?: boolean;                          // "of the chosen type" (the source's chosen creature type)
+  withKeyword?: Keyword;                         // "creature with deathtouch"
 }
 
 /** Amount expression */
@@ -76,7 +78,7 @@ export interface AbilityCost {
 
 /** An alternative way to cast a spell (CR 118.9). `from` is the zone the card is cast from. */
 export interface AltCost {
-  id: 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start';
+  id: 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard';
   label: string;
   cost: AbilityCost;              // cost.mana undefined => free
   condition?: Condition;
@@ -162,10 +164,10 @@ export type Effect =
   | { op: 'sacrifice-self' }
   | { op: 'mill'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' }
   | { op: 'search-land'; toBattlefield: boolean; tapped: boolean; basic: boolean; count: number; subtypes?: string[] }
-  | { op: 'add-mana'; mana: ManaSymbol[] | 'any' | 'any-one' | 'commander-identity' | 'opponent-lands'; amount?: number; perEach?: Amount; options?: ManaSymbol[] | 'exiled-with-colors' | 'chosen-color'; restriction?: 'creature-spell' | 'instant-sorcery' | 'chosen-type-creature' | 'colorless-eldrazi'; altIf?: { condition: Condition; mana: ManaSymbol[] } }
+  | { op: 'add-mana'; mana: ManaSymbol[] | 'any' | 'any-one' | 'commander-identity' | 'opponent-lands'; amount?: number; perEach?: Amount; /** Firebending: the mana stays in the pool until end of turn. */ sticky?: boolean; options?: ManaSymbol[] | 'exiled-with-colors' | 'chosen-color' | 'permanent-colors'; restriction?: 'creature-spell' | 'instant-sorcery' | 'chosen-type-creature' | 'colorless-eldrazi'; altIf?: { condition: Condition; mana: ManaSymbol[] } }
   | { op: 'scry'; amount: number }
   | { op: 'surveil'; amount: number }
-  | { op: 'return-from-graveyard'; what: Filter; to: 'hand' | 'battlefield'; target?: boolean; anyGraveyard?: boolean }
+  | { op: 'return-from-graveyard'; what: Filter; to: 'hand' | 'battlefield'; target?: boolean; anyGraveyard?: boolean; tapped?: boolean }
   | { op: 'fight'; target: TargetSpec; self: boolean }
   | { op: 'bite'; target: TargetSpec }
   | { op: 'set-life'; amount: number; who: 'you' | 'each-player' }
@@ -196,6 +198,7 @@ export type Condition =
   | { kind: 'total-toughness-ge'; value: number }
   | { kind: 'hand-has'; filter: Filter }
   | { kind: 'opponents-lands-ge'; value: number }
+  | { kind: 'opponent-more-lands' }
   | { kind: 'life-le'; who: 'you' | 'opponent' | 'any'; value: number }
   | { kind: 'opponents-ge'; value: number }
   | { kind: 'controls'; who: 'you' | 'opponent'; filter: Filter; atLeast: number }
@@ -231,7 +234,7 @@ export type TriggerEvent =
   | { on: 'ltb'; self: boolean }
   | { on: 'attacks'; self: boolean; filter?: Filter }
   | { on: 'blocks'; self: boolean } | { on: 'becomes-blocked'; self: boolean }
-  | { on: 'combat-damage-player'; self: boolean }
+  | { on: 'combat-damage-player'; self: boolean; filter?: Filter }                   // self, or "a creature you control [with deathtouch]"
   | { on: 'deals-damage'; self: boolean }
   | { on: 'upkeep'; whose: 'your' | 'each' | 'opponent' }
   | { on: 'end-step'; whose: 'your' | 'each' }
@@ -246,8 +249,8 @@ export type TriggerEvent =
   | { on: 'life-gain' } | { on: 'life-loss-opponent' }
   | { on: 'sacrifice'; filter?: Filter }
   | { on: 'tapped'; self: boolean }
-  | { on: 'targeted'; self: boolean; bySpellYouCast?: boolean }
-  | { on: 'discard' }
+  | { on: 'targeted'; self: boolean; bySpellYouCast?: boolean; filter?: Filter }
+  | { on: 'discard'; filter?: Filter }
   | { on: 'end-of-turn' }
   | { on: 'unknown'; text: string };
 
@@ -258,7 +261,7 @@ export interface SpellAbility { kind: 'spell'; effects: Effect[]; text: string }
 export type Ability = TriggeredAbility | ActivatedAbility | StaticAbility | SpellAbility;
 
 export type StaticEffect =
-  | { kind: 'anthem'; power: number; toughness: number; filter: Filter; scope: 'you-control' | 'all' | 'other-you-control'; keywords?: Keyword[]; condition?: Condition; anyPermanent?: boolean }
+  | { kind: 'anthem'; power: number; toughness: number; filter: Filter; scope: 'you-control' | 'all' | 'other-you-control'; keywords?: Keyword[]; condition?: Condition; anyPermanent?: boolean; whileInGraveyard?: boolean }
   | { kind: 'damage-by-toughness'; scope: 'self' | 'you-control'; onlyWhenGreater?: boolean }   // Doran: assigns combat damage equal to its toughness
   | { kind: 'flash-for'; filter: Filter }                                                       // "you may cast X spells as though they had flash"
   | { kind: 'trigger-twice'; equipped?: boolean; event?: 'etb' | 'dies' | 'land-etb' | 'cast'; filter?: Filter }  // "...triggers an additional time"
@@ -267,6 +270,7 @@ export type StaticEffect =
   | { kind: 'extra-mana-on-tap'; filter?: Filter; enchanted?: boolean; mana: ManaSymbol[] | 'chosen-color' }     // "whenever you tap a Forest for mana, add an additional {G}"
   | { kind: 'opponents-cant-cast'; during: 'your-turn'; filter?: Filter }                       // Grand Abolisher
   | { kind: 'play-lands-from'; zone: 'graveyard' | 'library-top' }                              // Ancient Greenwarden / Oracle of Mul Daya
+  | { kind: 'unspent-mana-becomes-red' }                                                         // Ozai, the Phoenix King
   | { kind: 'self-pt'; power: Amount; toughness: Amount }                                 // "~ gets +1/+1 for each ..."
   | { kind: 'self-keywords'; keywords: Keyword[]; condition?: Condition }
   | { kind: 'can-be-commander' } | { kind: 'look-top-anytime' } | { kind: 'may-not-untap' } | { kind: 'no-max-hand-size' }
@@ -287,7 +291,9 @@ export interface CardDef {
   /** Status of the per-card script (data/scripts/<oracle_id>.json) if one exists: applied, or stale after an oracle text change. */
   script?: { applied: boolean; stale: boolean; source?: 'generated' | 'reviewed' | 'hand'; confidence?: number };
   /** Keyword parameters: toxic N, bushido N, rampage N, landwalk land types. */
-  toxic?: number; bushido?: number; rampage?: number; landwalk?: string[];
+  toxic?: number;
+  /** Firebending N: whenever this creature attacks, add N {R} that lasts until end of turn. */
+  firebending?: number; bushido?: number; rampage?: number; landwalk?: string[];
   /** Cascade (CR 702.85): on cast, exile from the top until a cheaper nonland card and cast it free. */
   cascade?: boolean;
   /** "If ~ would be put into a graveyard from anywhere, exile it / shuffle it into its owner's library instead." (CR 614) */

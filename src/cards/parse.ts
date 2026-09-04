@@ -72,6 +72,8 @@ function parseFilterWords(desc: string): Filter | null {
   const f: Filter = {};
   let d = desc.trim().toLowerCase();
   d = d.replace(/^(an?|another|other|each|all|every)\s+/, (m) => { if (/another|other/.test(m)) f.other = true; return ''; });
+  d = d.replace(/^((?:non[a-z]+,? )+)/, m => m.replace(/,/g, ''));
+  { const kwm = d.match(/^(.+?) with (deathtouch|lifelink|trample|haste|menace|reach|vigilance|first strike|double strike|hexproof|indestructible)$/); if (kwm) { f.withKeyword = kwm[2] as Keyword; d = kwm[1]; } }
   const withM = d.match(/\s+with\s+(.+)$/);
   if (withM) {
     const w = withM[1];
@@ -434,6 +436,10 @@ const EFFECT_RULES: Rule[] = [
   { re: /^permanents you control gain (.+?) until end of turn$/i, make: m => { const k = kwList(m[1]); return k && { op: 'grant-keyword', target: 'permanents-you-control', keywords: k, duration: 'eot' }; } },
   { re: /^search your library for an? (.+?) card(?: with mana value (\w+) or less)?, reveal it, put it into your hand(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[1]); if (!f) return null; const mv = m[2] ? num(m[2]) : undefined; return { op: 'search', filter: f, to: 'hand', count: 1, reveal: true, ...(mv !== undefined ? { mvLE: mv } : {}) }; } },
   { re: /^untap all (.+?) you control$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'untap-all', filter: f }; } },
+  { re: new RegExp(`^return ${TGT} from your graveyard to the battlefield tapped$`, 'i'), make: m => { const f = parseFilterWords(m[1].replace(/^target /, '').replace(/ card$/, '')); return f && { op: 'return-from-graveyard', what: f, to: 'battlefield', target: true, tapped: true }; } },
+  { re: /^search your library for up to (\w+) (.+?) cards?, reveal them, put them into your hand(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[2]); return f && { op: 'search', filter: f, to: 'hand', count: num(m[1]) as number, optional: true, reveal: true }; } },
+  { re: /^creatures you control gain (.+?) and get \+x\/\+x until end of turn, where x is (.+)$/i, make: m => { const kw = kwList(m[1]); const a = parseAmountPhrase(m[2]); return kw && a !== null ? { op: 'pump', target: 'creatures-you-control', power: a, toughness: a, keywords: kw, duration: 'eot' } : null; } },
+  { re: /^choose a color of a permanent you control\. add one mana of that color$/i, make: () => ({ op: 'add-mana', mana: 'any-one', options: 'permanent-colors' }) },
   { re: /^untap up to (\w+) (.+?)$/i, make: m => { const f = parseFilterWords(m[2].replace(/ you control$/, '')); return f && { op: 'untap-choose', filter: f, count: num(m[1]) as number }; } },
   { re: new RegExp(`^double the power of ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'double-power', target: t }; } },
   { re: new RegExp(`^the owner of ${TGT} shuffles it into their library$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'shuffle-into-library', target: t }; } },
@@ -542,6 +548,7 @@ export function parseEffectSentence(sentence: string): Effect {
   const optional = /^you may /i.test(s);
   s = s.replace(/^you may /i, '').replace(/^then /i, '');
   s = s.replace(/^(?:it|that creature|that permanent|this creature|this permanent)\b/i, '~');
+  s = s.replace(/^each other player /i, 'each opponent ');
   for (const r of EFFECT_RULES) {
     const m = s.match(r.re);
     if (m) { const e = r.make(m); if (e) { if (optional && (e.op === 'search' || e.op === 'dig' || e.op === 'shuffle' || e.op === 'counters' || e.op === 'put-from-hand')) e.optional = true; return e; } }
@@ -649,6 +656,8 @@ function parseCondition(s: string): Condition {
   if ((m = t.match(/^you've drawn (\w+) or more cards this turn$/))) return { kind: 'cards-drawn-ge', value: num(m[1]) as number };
   if ((m = t.match(/^you control (\w+) or more lands$/))) return { kind: 'lands-ge', value: num(m[1]) as number };
   if (t === 'you control no creatures') return { kind: 'controls-le', who: 'you', filter: { types: ['Creature'] }, atMost: 0 };
+  if ((m = t.match(/^you control no (.+)$/))) { const f = parseFilterWords(singular(m[1])); if (f) return { kind: 'controls-le', who: 'you', filter: f, atMost: 0 }; }
+  if (t === 'an opponent controls more lands than you') return { kind: 'opponent-more-lands' };
   if ((m = t.match(/^(.+?) or if (.+)$/))) { const a = parseCondition(m[1]); const b = parseCondition(m[2]); if (a.kind !== 'unknown' && b.kind !== 'unknown') return { kind: 'or', conditions: [a, b] }; }
   if (t === '~ entered this turn' || t === '~ entered the battlefield this turn') return { kind: 'self-entered-this-turn' };
   if ((m = t.match(/^creatures you control have total toughness (\d+) or greater$/))) return { kind: 'total-toughness-ge', value: Number(m[1]) };
@@ -671,6 +680,12 @@ function parseTrigger(head: string): TriggerEvent {
   if (/^whenever a land you control enters(?: the battlefield)?$/.test(t)) return { on: 'landfall' };
   if (/^whenever an opponent draws a card except the first one they draw in each of their draw steps$/.test(t)) return { on: 'draw', who: 'opponent', exceptFirstInDrawStep: true };
   if (/^whenever an opponent draws a card$/.test(t)) return { on: 'draw', who: 'opponent' };
+  if (/^whenever one or more cards leave your graveyard$/.test(t)) return { on: 'leaves-graveyard' };
+  if ((m = t.match(/^whenever one or more (.+?) cards leave your graveyard$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'leaves-graveyard', filter: f }; }
+  if ((m = t.match(/^whenever you discard an? (.+?) card$/))) { const f = parseFilterWords(m[1].replace(/, /g, ' ')); if (f) return { on: 'discard', filter: f }; }
+  if ((m = t.match(/^whenever an? (.+?) you control deals combat damage to a player(?: or battle)?$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'combat-damage-player', self: false, filter: f }; }
+  if ((m = t.match(/^whenever an? (.+?) you control becomes the target of a spell$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'targeted', self: false, filter: f }; }
+  if (/^whenever a creature you control of the chosen type enters or attacks$/.test(t)) return { on: 'or', events: [{ on: 'etb', self: false, filter: { types: ['Creature'], chosenType: true }, controller: 'you' }, { on: 'attacks', self: false, filter: { types: ['Creature'], chosenType: true } }] };
   if ((m = t.match(/^whenever an? (.+?) card leaves your graveyard$/))) { const f = parseFilterWords(m[1].replace(/ or /g, ' ')); if (f) return { on: 'leaves-graveyard', filter: f }; }
   if (/^whenever you draw a card$/.test(t)) return { on: 'draw', who: 'you' };
   if ((m = t.match(/^when(?:ever)? you draw your (second|third|fourth|fifth) card (?:in a turn|each turn)$/))) return { on: 'draw', who: 'you', nth: ({ second: 2, third: 3, fourth: 4, fifth: 5 })[m[1]] };
@@ -780,7 +795,7 @@ function describeCost(c: AbilityCost): string {
 // Static abilities
 // ---------------------------------------------------------------------------
 /** Singular creature type from a plural (Elves → Elf, Dwarves → Dwarf, Goblins → Goblin). */
-function singular(w: string): string { if (/ves$/.test(w)) return w.slice(0, -3) + 'f'; if (/ies$/.test(w)) return w.slice(0, -3) + 'y'; return w.replace(/s$/, ''); }
+function singular(w: string): string { if (/ves$/.test(w)) return w.slice(0, -3) + 'f'; if (/(zomb|faer)ies$/i.test(w)) return w.slice(0, -1); if (/ies$/.test(w)) return w.slice(0, -3) + 'y'; return w.replace(/s$/, ''); }
 
 function spellTypeFilter(word: string): Filter {
   const w = word.toLowerCase();
@@ -803,11 +818,15 @@ function parseStatic(line: string, card: { types: CardType[]; subtypes: string[]
   if ((m = t.match(/^(?:each )?creatures? you control with (?:a |one or more )?\+1\/\+1 counters? on (?:it|them) (?:have|has) (.+)$/i))) { const kw = kwList(m[1]); if (!kw) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { types: ['Creature'], withCounter: '+1/+1' }, scope: 'you-control', keywords: kw }; }
   if ((m = t.match(/^(?:each )?creatures? you control with (?:a |one or more )?counters? on (?:it|them) (?:have|has) (.+)$/i))) { const kw = kwList(m[1]); if (!kw) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { types: ['Creature'], withCounters: true }, scope: 'you-control', keywords: kw }; }
   if ((m = t.match(/^permanents you control with counters on them have (.+)$/i))) { const kw = kwList(m[1]); if (!kw) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { withCounters: true }, scope: 'you-control', keywords: kw, anyPermanent: true }; }
-  if ((m = t.match(/^other ([A-Z][a-z]+) creatures get ([+-]\d+)\/([+-]\d+)$/))) return { kind: 'anthem', power: Number(m[2]), toughness: Number(m[3]), filter: { subtypes: [m[1]] }, scope: 'all', keywords: [] };
-  if ((m = t.match(/^other ([A-Z][a-z]+) creatures have (.+)$/))) { const kw = kwList(m[2]); if (!kw) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { subtypes: [m[1]] }, scope: 'all', keywords: kw }; }
+  if ((m = t.match(/^[Oo]ther ([A-Z][a-z]+) creatures get ([+-]\d+)\/([+-]\d+)$/))) return { kind: 'anthem', power: Number(m[2]), toughness: Number(m[3]), filter: { subtypes: [m[1]] }, scope: 'all', keywords: [] };
+  if ((m = t.match(/^[Oo]ther ([A-Z][a-z]+) creatures have (.+)$/))) { const kw = kwList(m[2]); if (!kw) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { subtypes: [m[1]] }, scope: 'all', keywords: kw }; }
+  if ((m = t.match(/^([A-Z][a-z]+)s you control and other ([A-Z][a-z]+)s you control get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?$/))) { const kw = m[5] ? kwList(m[5]) : []; if (!kw) return null; return [{ kind: 'anthem', power: Number(m[3]), toughness: Number(m[4]), filter: { subtypes: [m[1]] }, scope: 'you-control', keywords: kw }, { kind: 'anthem', power: Number(m[3]), toughness: Number(m[4]), filter: { subtypes: [m[2]] }, scope: 'other-you-control', keywords: kw }]; }
+  if ((m = t.match(/^as long as ~ is in your graveyard and you control an? (\w+), creatures you control have (.+)$/i))) { const kw = kwList(m[2]); const f = parseFilterWords(m[1]); if (!kw || !f) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { types: ['Creature'] }, scope: 'you-control', keywords: kw, whileInGraveyard: true, condition: { kind: 'controls', who: 'you', filter: f, atLeast: 1 } }; }
+  if ((m = t.match(/^creatures you control of the chosen type get ([+-]\d+)\/([+-]\d+)$/i))) return { kind: 'anthem', power: Number(m[1]), toughness: Number(m[2]), filter: { types: ['Creature'], chosenType: true }, scope: 'you-control' };
   if (/^~ assigns combat damage equal to its toughness rather than its power$/i.test(t)) return { kind: 'damage-by-toughness', scope: 'self' };
   if (/^each creature you control with toughness greater than its power assigns combat damage equal to its toughness rather than its power$/i.test(t)) return { kind: 'damage-by-toughness', scope: 'you-control', onlyWhenGreater: true };
   if (/^you may cast spells as though they had flash$/i.test(t)) return { kind: 'flash-for', filter: {} };
+  if (/^if you would lose unspent mana, that mana becomes red instead$/i.test(t)) return { kind: 'unspent-mana-becomes-red' };
   if (/^you may play lands from your graveyard$/i.test(t)) return { kind: 'play-lands-from', zone: 'graveyard' };
   if (/^you may play lands from the top of your library$/i.test(t)) return { kind: 'play-lands-from', zone: 'library-top' };
   if (/^play with the top card of your library revealed$/i.test(t)) return { kind: 'look-top-anytime' };
@@ -1004,6 +1023,7 @@ export function parseCard(row: OracleRow): CardDef {
       let km: RegExpMatchArray | null;
       if ((km = part.match(/^ward \{(\d+)\}$/i))) { def.wardCost = Number(km[1]); return 'ward' as Keyword; }
       if ((km = part.match(/^toxic (\d+)$/i))) { def.toxic = (def.toxic ?? 0) + Number(km[1]); return 'toxic' as Keyword; }
+      if ((km = part.match(/^firebending (\d+)$/i))) { const n = Number(km[1]); def.firebending = (def.firebending ?? 0) + n; def.abilities.push({ kind: 'triggered', event: { on: 'attacks', self: true }, effects: [{ op: 'add-mana', mana: Array(n).fill('R') as ManaSymbol[], sticky: true }], text: `Firebending ${n}` }); return 'firebending' as Keyword; }
       if ((km = part.match(/^bushido (\d+)$/i))) { def.bushido = (def.bushido ?? 0) + Number(km[1]); return 'bushido' as Keyword; }
       if ((km = part.match(/^rampage (\d+)$/i))) { def.rampage = (def.rampage ?? 0) + Number(km[1]); return 'rampage' as Keyword; }
       if ((km = part.match(/^(plains|island|swamp|mountain|forest|desert)walk$/i))) { (def.landwalk ??= []).push(km[1][0].toUpperCase() + km[1].slice(1).toLowerCase()); return 'landwalk' as Keyword; }
@@ -1018,6 +1038,7 @@ export function parseCard(row: OracleRow): CardDef {
     if ((m = line.match(/^equip (\{[^ ]+\})$/i))) { const eq = def.abilities.find(a => a.kind === 'static' && a.effect.kind === 'equipment') as { effect: Extract<StaticEffect, { kind: 'equipment' }> } | undefined; if (eq) eq.effect.equipCost = parseManaCost(m[1])!; else def.abilities.push({ kind: 'static', effect: { kind: 'equipment', power: 0, toughness: 0, keywords: [], equipCost: parseManaCost(m[1])! }, text: line }); continue; }
     if (/^enchant [a-z ,]+$/i.test(line) && row.subtypes.includes('Aura')) continue; // recorded in aura static
     if (/^~ enters (?:the battlefield )?tapped\.?$/i.test(line)) { def.entersTapped = true; continue; }
+    if ((m = line.match(/^You may cast ~ from your graveyard(?: as long as (.+?))?\.?$/i)) && def.manaCost) { const c = m[1] ? parseCondition(m[1]) : undefined; if (!c || c.kind !== 'unknown') { (def.altCosts ??= []).push({ id: 'from-graveyard', label: 'from graveyard', cost: { mana: def.manaCost }, from: 'graveyard', ...(c ? { condition: c } : {}) }); continue; } }
     if ((m = line.match(/^~ enters (?:the battlefield )?tapped unless (.+?)\.?$/i))) { const c = parseCondition(m[1]); if (c.kind !== 'unknown') { def.entersTapped = { unless: c }; continue; } }
     if ((m = line.match(/^As ~ enters, you may reveal an? (.+?) card from your hand\. If you don't, ~ enters tapped\.?$/i))) { const words = m[1].split(/ or /); const subs = words.map(w => w.trim()).filter(w => /^[A-Z]/.test(w)); const f: Filter | null = subs.length === words.length ? { subtypes: subs } : parseFilterWords(m[1]); if (f) { def.entersTapped = { unless: { kind: 'hand-has', filter: f } }; continue; } }
     if (/^devoid$/i.test(line)) { def.colors = []; continue; }
@@ -1154,6 +1175,7 @@ function parseActivatedLine(line: string): ActivatedAbility | null {
   if (!m || /^(choose|enchant)/i.test(line)) return null;
   const cost = parseCost(m[1]); if (!cost) return null;
   let body = m[2]; let sorcerySpeed = false, oncePerTurn = false, instantSpeed = false; let activateOnlyIf: Condition | undefined;
+  if (/ activate only as a sorcery and only if /i.test(body)) { sorcerySpeed = true; body = body.replace(/ activate only as a sorcery and only if /i, ' activate only if '); }
   if (/ activate only as a sorcery\.?$/i.test(body)) { sorcerySpeed = true; body = body.replace(/ activate only as a sorcery\.?$/i, ''); }
   if (/ activate only as an instant\.?$/i.test(body)) { instantSpeed = true; body = body.replace(/ activate only as an instant\.?$/i, ''); }
   if (/ activate only once each turn\.?$/i.test(body)) { oncePerTurn = true; body = body.replace(/ activate only once each turn\.?$/i, ''); }

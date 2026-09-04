@@ -1,39 +1,39 @@
 {
-  "generated_at": "2026-09-04T09:37:37.353Z",
+  "generated_at": "2026-09-04T17:50:13.396Z",
   "playable_oracle_cards": 34513,
-  "fully_parsed": 10361,
-  "fully_parsed_pct": 30.02,
-  "of_which_vanilla_or_keyword_only": 1480,
+  "fully_parsed": 10492,
+  "fully_parsed_pct": 30.4,
+  "of_which_vanilla_or_keyword_only": 1481,
   "by_primary_type": {
     "Creature": {
       "total": 19233,
-      "full": 6366,
-      "pct": 33.1
+      "full": 6448,
+      "pct": 33.5
     },
     "Artifact": {
       "total": 2601,
-      "full": 694,
-      "pct": 26.7
+      "full": 703,
+      "pct": 27
     },
     "Enchantment": {
       "total": 3564,
-      "full": 580,
-      "pct": 16.3
+      "full": 608,
+      "pct": 17.1
     },
     "Sorcery": {
       "total": 3620,
-      "full": 848,
-      "pct": 23.4
+      "full": 855,
+      "pct": 23.6
     },
     "Instant": {
       "total": 3849,
-      "full": 1150,
-      "pct": 29.9
+      "full": 1154,
+      "pct": 30
     },
     "Land": {
       "total": 1161,
-      "full": 686,
-      "pct": 59.1
+      "full": 687,
+      "pct": 59.2
     },
     "Kindred": {
       "total": 80,
@@ -137,10 +137,6 @@
     {
       "n": 29,
       "clause": "Ascend"
-    },
-    {
-      "n": 28,
-      "clause": "Exile ~, then return it to the battlefield transformed under your control."
     },
     {
       "n": 28,
@@ -301,6 +297,10 @@
     {
       "n": 17,
       "clause": "Choose target creature."
+    },
+    {
+      "n": 17,
+      "clause": "Dash {}{}"
     }
   ]
 }
