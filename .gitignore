@@ -25,3 +25,6 @@ data/scripts/drafts/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# agent worktrees (created by Claude Code isolation; never junction data/ into them)
+.claude/worktrees/
