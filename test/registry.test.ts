@@ -7,17 +7,18 @@ import { allPermanents, battlefieldOf, canAttack, canBlock, conditionHolds, defO
 import { cloneState } from '../src/engine/clone.js';
 import { costAdjust, nonManaCostPayable, spellManaCost } from '../src/engine/cost.js';
 import { citation, LOGGED, renderEvent, type GameEventBody } from '../src/engine/events.js';
+import { Game } from '../src/engine/game.js';
 import { legalActions, targetOptionsFor } from '../src/engine/legal.js';
 import { collectDefs, deserializeState, serializeState } from '../src/engine/serialize.js';
 import { redact } from '../src/engine/view.js';
 import { defaultAnswer } from '../src/engine/agents/defaults.js';
 import { EVENT_META, RENDERERS, TOKEN_ABILITIES, MODULES, registerFamily, registryHash, unregisterFamily, tokenAbilityOf } from '../src/engine/ops/_registry.js';
-import { extDel, extGet, extGetOr, extSet, isJsonPlain, plainCopy } from '../src/engine/ops/ext.js';
+import { extBump, extDel, extGet, extGetOr, extSet, isJsonPlain, plainCopy } from '../src/engine/ops/ext.js';
 import { chars } from '../src/engine/ops/chars.js';
 import type { FamilyModule } from '../src/engine/ops/types.js';
 import { makeObject, type Ability, type Agent, type Decision, type GameObject, type GameState, type PlayerId, type TargetSpec } from '../src/engine/state.js';
 import type { AbilityCost, Effect } from '../src/cards/types.js';
-import { C, setup, find } from './helpers.js';
+import { C, setup, find, Script } from './helpers.js';
 
 // ------------------------------------------------------------------ the probe family
 /** Every hook the probe fired, by name. The assertions below are "did this hook site actually call us?". */
@@ -37,6 +38,8 @@ const probe: FamilyModule = {
       c.g.note(`probe effect ${c.amt(e.amount)} on ${c.src.def.name} (idx ${c.idx}, ${c.objs().length} objs, ${c.players().length} players, ${c.T.length} targets, seat ${c.p}, turn ${c.s.turn}, item ${c.item.id})`);
     },
     'probe-recurse': async (_e, c) => { hit('effects.apply'); await c.apply({ op: 'probe-effect', amount: 1 } as unknown as Effect); },
+    // "after this phase, there is an additional combat phase", the way a family writes it (docs/vocabulary/README.md)
+    'probe-extra-combat': (_e, c) => { hit('effects.extraCombat'); extBump(c.s, 'extraCombats', 1); },
   },
   conditions: { 'probe-cond': (_c, _s, src) => hit('conditions') && extGetOr<number>(src, 'probeN', 0) > 0 },
   amounts: { 'probe-amount': (_a, _s, _ctrl, _x, src) => { hit('amounts'); return src ? extGetOr<number>(src, 'probeN', 0) : 0; } },
@@ -66,7 +69,12 @@ const probe: FamilyModule = {
     },
     damage: (_g, _src, target, n) => { hit('replacements.damage'); return typeof target !== 'number' && extGet<boolean>(target, 'probeHalveDamage') === true ? Math.floor(n / 2) : n; },
     draw: (g, p) => { hit('replacements.draw'); return extGet<boolean>(g.state.players[p], 'probeNoDraw') === true; },
-    counters: (_g, o, counter, delta) => { hit('replacements.counters'); return extGet<boolean>(o, 'probeDoubleCounters') === true && counter === '+1/+1' ? delta * 2 : delta; },
+    counters: (_g, o, counter, delta) => {
+      hit('replacements.counters');
+      // the fold is unguarded, so a shield can answer for a removal, for loyalty and for an object outside the battlefield
+      if (delta < 0 && extGet<boolean>(o, 'probeNoCounterLoss') === true) { hit('replacements.counters.removal'); return 0; }
+      return delta > 0 && extGet<boolean>(o, 'probeDoubleCounters') === true && counter === '+1/+1' ? delta * 2 : delta;
+    },
     lifeGain: (g, p, n) => { hit('replacements.lifeGain'); return extGet<boolean>(g.state.players[p], 'probeBonusLife') === true ? n + 1 : n; },
   },
   steps: {
@@ -567,6 +575,213 @@ test('mode costs and cost alteration have registry hooks', () => {
   assert.ok(seen.has('costMod'));
 });
 
+// ------------------------------------------------------------------ the 8a-1 review fixes
+/** A three-seat freeform game in seat 0's precombat main phase. */
+function threeSeatGame(): Game {
+  const deck = () => Array(20).fill(C('Mountain'));
+  const g = new Game([deck(), deck(), deck()], [new Script('P0'), new Script('P1'), new Script('P2')], { seed: 1, quiet: true, mulligans: false });
+  const s = g.state; s.turn = 5; s.activePlayer = 0; s.step = 'main1'; s.priority = 0;
+  return g;
+}
+
+test("an extra combat granted to a seat never reaches another seat's turn", async () => {
+  const g = threeSeatGame(); const s = g.state;
+  const bears = makeObject(s.nextId++, C('Grizzly Bears'), 0, 'battlefield', 1);
+  bears.enteredTurn = 1; s.players[0].battlefield.push(bears);
+
+  // a probe effect op grants the active seat an extra combat phase, exactly as a family mechanic would
+  const item = g.makeStackItem('ability', bears, 0, [{ op: 'probe-extra-combat' } as unknown as Effect], 'probe', 0, undefined, 'probe');
+  await g.applyEffect(item, { op: 'probe-extra-combat' } as unknown as Effect, 0, item.effects);
+  assert.equal(extGet<number>(s, 'extraCombats'), 1, 'the probe op queued an extra combat for seat 0');
+
+  // seat 0 is eliminated in its own main phase: that turn ends without ever reaching its cleanup step
+  g.eliminate(0, 'conceded', 'P0 concedes.');
+  assert.equal(s.players[0].lost, true);
+  assert.equal(s.winner, null, 'two seats are still in the game');
+  assert.equal(extGet<number>(s, 'extraCombats'), undefined, 'the eliminated active player took the extra combat with them');
+
+  // and a counter that survives any other early exit is dropped when the next seat's turn begins
+  extSet(s, 'extraCombats', 1);
+  let combats = 0;
+  g.onEvent = ev => { if (ev.type === 'step' && ev.to === 'combat-begin') combats++; };
+  await g.playTurns(1);
+  assert.equal(s.activePlayer, 1, 'seat 1 took the next turn');
+  assert.equal(extGet<number>(s, 'extraCombats'), undefined, 'the turn started from zero extra combats');
+  assert.equal(combats, 1, 'seat 1 got exactly one combat phase');
+});
+
+test('resumeTurn does not re-fire the step hook of the step it resumes into', async () => {
+  let main2 = 0;
+  registerFamily({ name: 'main2-probe', steps: { main2: () => { main2++; } } });
+  try {
+    const a = setup({ bf: ['Mountain'] }, { bf: ['Mountain'] });
+    a.state.step = 'main2';
+    await a.resumeTurn();
+    assert.equal(main2, 0, 'main 2 had already been entered, so its hook must not run again');
+
+    const b = setup({ bf: ['Mountain'] }, { bf: ['Mountain'] });
+    b.state.step = 'end';
+    await b.resumeTurn();
+    assert.equal(main2, 0, 'and a resume past main 2 never enters it at all');
+
+    const c = setup({ bf: ['Mountain'] }, { bf: ['Mountain'] });
+    c.state.step = 'main1';
+    await c.resumeTurn();
+    assert.equal(main2, 1, 'a resume that really does enter main 2 still fires it exactly once');
+  } finally { unregisterFamily('main2-probe'); }
+});
+
+test('a registry mode cost is part of the payment plan of every legal cast', async () => {
+  // Cryptic Command is {1}{U}{U}{U}, "choose two"; the probe's modeCost adds {1} for the second mode.
+  const isl = ['Island', 'Island', 'Island', 'Island', 'Island'];
+  const g = setup({ bf: isl, hand: ['Cryptic Command'] }, { bf: ['Mountain'] });
+  const s = g.state;
+  const cc = s.players[0].hand.find(o => o.def.name === 'Cryptic Command')!;
+  // modes 3+4 ("tap all creatures your opponents control" + "draw a card") take no targets, so they are always offered
+  const label = 'cast Cryptic Command [mode 3+4]';
+  const act = legalActions(g, 0).find(l => l.label === label);
+  assert.ok(act, `the two-mode cast is legal with five lands (${label})`);
+  assert.equal(act.manaValue, 5, 'the printed {1}{U}{U}{U} plus the registry mode surcharge');
+  assert.equal(act.pay?.taps.length, 5, 'and the payment plan taps five lands, not four');
+  assert.ok(seen.has('modeCost'));
+
+  // it really is the surcharge: with one land fewer the same cast is not offered at all
+  const four = setup({ bf: isl.slice(1), hand: ['Cryptic Command'] }, { bf: ['Mountain'] });
+  assert.equal(legalActions(four, 0).some(l => l.label === label), false, 'four lands cannot pay the mode surcharge');
+
+  // and the cast that plan describes goes through, spending exactly that mana
+  assert.equal(await g.performAction(0, act.action), true);
+  assert.equal(s.players[0].battlefield.filter(o => !o.tapped).length, 0, 'all five lands paid for it');
+  assert.deepEqual(s.players[0].manaPool, [], 'with nothing left floating');
+  assert.equal(s.stack.some(it => it.source.id === cc.id), true, 'Cryptic Command is on the stack');
+});
+
+test('the counters replacement fold sees removals, loyalty and objects outside the battlefield', () => {
+  const g = setup({ bf: ['Grizzly Bears'] }, { bf: ['Mountain'] });
+  const s = g.state;
+  const bears = find(g, 'Grizzly Bears', 0);
+
+  // a removal: the early return used to hide every negative delta from the fold
+  g.addCounters(bears, '+1/+1', 3);
+  extSet(bears, 'probeNoCounterLoss', true);
+  g.addCounters(bears, '+1/+1', -2);
+  assert.equal(bears.counters['+1/+1'], 3, 'the family replacement prevented the counter loss');
+  assert.ok(seen.has('replacements.counters.removal'));
+
+  // loyalty, which the core doubling statics must still never touch
+  bears.counters.loyalty = 3;
+  g.addCounters(bears, 'loyalty', -1);
+  assert.equal(bears.counters.loyalty, 3, 'a loyalty removal reached the fold too');
+  g.addCounters(bears, 'loyalty', 1);
+  assert.equal(bears.counters.loyalty, 4, 'and an addition is still not doubled by the core statics');
+  delete bears.counters.loyalty;
+  extDel(bears, 'probeNoCounterLoss');
+
+  // an object outside the battlefield (a suspended card in exile)
+  const exiled = makeObject(s.nextId++, C('Hill Giant'), 0, 'exile', s.turn);
+  s.players[0].exile.push(exiled);
+  exiled.counters.time = 2;
+  extSet(exiled, 'probeNoCounterLoss', true);
+  g.addCounters(exiled, 'time', -1);
+  assert.equal(exiled.counters.time, 2, 'the fold answered for a card in exile');
+  extDel(exiled, 'probeNoCounterLoss');
+  g.addCounters(exiled, 'time', -1);
+  assert.equal(exiled.counters.time, 1, 'and abstaining still removes it');
+});
+
+test('an earthbent commander keeps its replacement note even though it goes to the command zone', () => {
+  const deck = () => Array(20).fill(C('Mountain'));
+  const g = new Game([deck(), deck()], [new Script('P0'), new Script('P1')],
+    { seed: 1, quiet: true, mulligans: false, format: 'commander', commanders: [[C('Isamaru, Hound of Konda')], [C('Grizzly Bears')]] });
+  const s = g.state; s.turn = 5; s.activePlayer = 0; s.step = 'main1';
+  const cmd = s.players[0].command[0];
+  g.moveTo(cmd, 'battlefield');
+  assert.equal(cmd.zone, 'battlefield');
+  cmd.earthbent = true;
+
+  const before = s.log.length;
+  g.moveTo(cmd, 'graveyard', 'top', 'destroy');
+  assert.equal(cmd.zone, 'command', 'CR 903.9a still redirects it to the command zone');
+  assert.match(s.log.slice(before).join('\n'), /Isamaru, Hound of Konda would die and returns to its owner's hand instead\./,
+    'the earthbend replacement note survives the commander redirect');
+});
+
+test('a token ability only replaces the generic activated-ability scan when it covers the token', () => {
+  // Bonesplitter is an Equipment, so the generic scan offers "equip" for it. Dressing it up as each predefined token
+  // pins which of them speak for the object (Clue, Food, an untapped Treasure) and which fall through to that scan
+  // (a tapped Treasure, every Eldrazi Spawn) - the labels legalActions produced before 8a-1 moved them into a registry.
+  const g = setup({ bf: ['Bonesplitter', 'Mountain', 'Mountain', 'Grizzly Bears'] }, { bf: ['Hill Giant'] });
+  const o = find(g, 'Bonesplitter', 0);
+  const equip = `equip Bonesplitter#${o.id}`;
+  const mine = () => legalActions(g, 0).map(l => l.label).filter(l => l === equip || l.startsWith('sacrifice'));
+  // a token's own def is only its creator's card, so the equipment ability rides along as a granted one
+  const asToken = (spec: Record<string, unknown>) => {
+    o.grantedAbilities = [...C('Bonesplitter').abilities];
+    o.token = { name: 'Bonesplitter', power: 0, toughness: 0, colors: [], types: ['Artifact'], subtypes: [], keywords: [], ...spec } as GameObject['token'];
+    g.state.bfGen = (g.state.bfGen ?? 0) + 1; g.state.version++;
+  };
+
+  assert.deepEqual(mine(), [equip], 'the plain Equipment offers equip');
+
+  asToken({ treasure: true });
+  assert.deepEqual(mine(), ['sacrifice Treasure for mana'], 'an untapped Treasure speaks for the object: no equip');
+  o.tapped = true;
+  assert.deepEqual(mine(), [equip], 'a tapped Treasure offers nothing and falls through to the generic scan');
+  o.tapped = false;
+
+  asToken({ spawn: true });
+  assert.deepEqual(mine(), [equip], 'Eldrazi Spawn is spent by the mana solver and always falls through');
+
+  asToken({ clue: true });
+  assert.deepEqual(mine(), ['sacrifice Clue: draw a card'], 'a Clue speaks for the object');
+
+  asToken({ food: true });
+  assert.deepEqual(mine(), ['sacrifice Food: gain 3 life'], 'and so does a Food');
+  o.tapped = true;
+  assert.deepEqual(mine(), [], 'a tapped Food still covers the object even though it can offer nothing');
+
+  o.tapped = false; o.token = null; delete o.grantedAbilities;
+});
+
+/** A Script that records the blocker candidates it was offered. */
+class Blocker extends Script {
+  asked: number[][] = [];
+  override async decide(s: GameState, me: PlayerId, d: Decision): Promise<unknown> {
+    if (d.kind === 'blockers') this.asked.push([...d.candidates]);
+    return super.decide(s, me, d);
+  }
+}
+
+test('a phased-out permanent does not trigger the legend rule and is not offered as a blocker', async () => {
+  // legend rule (CR 704.5j): a phased-out permanent does not exist, so nothing is put into the graveyard
+  const g = setup({ bf: ['Isamaru, Hound of Konda', 'Isamaru, Hound of Konda'] }, { bf: ['Mountain'] });
+  const s = g.state;
+  const [first, second] = s.players[0].battlefield.filter(o => o.def.name === 'Isamaru, Hound of Konda');
+  extSet(s, 'phasing', true); extSet(second, 'phasedOut', true);
+  g.checkSBA();
+  assert.equal(first.zone, 'battlefield');
+  assert.equal(second.zone, 'battlefield', 'the legend rule never saw the phased-out copy');
+  extDel(second, 'phasedOut');
+  g.checkSBA();
+  assert.equal(first.zone, 'graveyard', 'and applies the moment it phases back in');
+  extDel(s, 'phasing');
+
+  // declare blockers: the candidate list the defender is asked about
+  let attacker = 0;
+  const run = async (phaseOut: boolean) => {
+    const def = new Blocker('P1');
+    const h = setup({ bf: ['Grizzly Bears'] }, { bf: ['Hill Giant'] }, [new Combatant('P0', () => [attacker]), def]);
+    attacker = find(h, 'Grizzly Bears', 0).id;
+    if (phaseOut) { extSet(h.state, 'phasing', true); extSet(find(h, 'Hill Giant', 1), 'phasedOut', true); }
+    await h.resumeTurn();
+    return { h, asked: def.asked };
+  };
+  const on = await run(false);
+  assert.deepEqual(on.asked, [[find(on.h, 'Hill Giant', 1).id]], 'the untapped defender was offered as a blocker');
+  const off = await run(true);
+  assert.deepEqual(off.asked, [], 'a phased-out creature is never offered as a blocker');
+});
+
 // ------------------------------------------------------------------ the final tally
 test('every hook kind of the FamilyModule contract was observed', () => {
   const required = [
@@ -578,6 +793,7 @@ test('every hook kind of the FamilyModule contract was observed', () => {
     'keywordHooks.blockFixup', 'keywordHooks.combatDamage', 'triggerSources', 'redact', 'redactPlayer', 'redactState',
     'cleanupEot', 'targetKinds', 'tokenAbilities.legal', 'tokenAbilities.activate', 'leave', 'castFrom', 'freeCast',
     'triggers.core', 'replacements.zoneMove.cancel', 'chars', 'modeCost', 'costMod',
+    'effects.extraCombat', 'replacements.counters.removal',
   ];
   assert.deepEqual(required.filter(k => !seen.has(k)), [], 'these hook sites never called the probe family');
 });

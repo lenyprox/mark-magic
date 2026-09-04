@@ -73,7 +73,7 @@ the orchestrator applies core changes serially on `main`.
 | `replacements.zoneMove` | `game.ts:moveTo`, right after the commander redirect and before anything moves | override `zone` / `pos`, `cancel` the move (the object keeps its zone, its place in that zone's array and its battlefield state), `emit` a line |
 | `replacements.damage` | `game.ts:dealDamage` / `dealDamageToPlayer`, after protection and prevention shields | return the new amount |
 | `replacements.draw` | `game.ts:draw`, after the dredge block | return `true` when the draw was replaced |
-| `replacements.counters` | `game.ts:replaceCounters` | return the new delta |
+| `replacements.counters` | `game.ts:replaceCounters`, before the core doubling statics | return the new delta. It is the **unguarded** fold: it sees removals (a negative delta), objects in any zone and `loyalty`, so a shield or a "counters are put on it as though" effect can answer for all of them. The core's `counters-replacement` statics run after it and keep their narrower scope (additions, on the battlefield, never loyalty). |
 | `replacements.lifeGain` | `game.ts:gainLife` | return the new amount |
 | `leave` | `game.ts:moveTo`, where "exile until this leaves" is handled | a permanent left the battlefield |
 | `steps` | `game.ts:runTurn` / `runTurnFrom` / `combatFrom` | every `Step` plus `'turn-start'` (before untap) and `'cleanup-end'` (after the end-of-turn wipe) |
@@ -83,18 +83,20 @@ the orchestrator applies core changes serially on `main`.
 | `actions` | `game.ts:performAction` `default:` | perform them |
 | `decisions` | `agents/defaults.ts:defaultAnswer` `default:` | what a shipped agent answers for a decision it has never seen |
 | `targetKinds` | `legal.ts:targetOptionsFor` `default:` | non-core `TargetSpec.kind`s |
-| `tokenAbilities` | `legal.ts:legalActions` + `game.ts:activateAbility` | built-in abilities of predefined tokens (Treasure, Clue, Food and Eldrazi Spawn already live here, in `_tokens.ts`) |
+| `tokenAbilities` | `legal.ts:legalActions` + `game.ts:activateAbility` | built-in abilities of predefined tokens (Treasure, Clue, Food and Eldrazi Spawn already live here, in `_tokens.ts`). `legal` offers the action; the optional `covers` (default `true`) says whether the ability speaks for the token, so `legalActions` skips the generic activated-ability and equip scan for it — return `false` to fall through to it anyway (a tapped Treasure and every Eldrazi Spawn do) |
 | `castFrom` / `freeCast` | `game.ts:castSpell` | allow a cast from a new zone; cast it without paying its mana cost |
 | `events` | `events.ts` `LOGGED` / `citation` / `renderEvent` | `logged`, `cr` and `render` for the family's own event types |
 | `redact` / `redactPlayer` / `redactState` | `view.ts:redact` | scrub state a viewer must not see, from an object's, a seat's and the game's `ext` bag |
-| `modeCost` | `cost.ts:spellManaCost` | what the chosen modes add to the cost actually paid (entwine, escalate, spree, multikicker) |
+| `modeCost` | `cost.ts:spellManaCost` | what the chosen modes add to the cost actually paid (entwine, escalate, spree, multikicker). `legal.ts:castActionsFor` enumerates the payment plans once per mode set, so the surcharge is in the `pay.cost` of the legal cast as well as in what `castSpell` charges |
 | `costMod` | `cost.ts:costAdjust` | cost alteration the core's fixed-`amount` `cost-adjust` static cannot express (positive = cheaper, negative = a tax) |
 | `render` | script verification pipeline | round-trip English per op |
 
 Three mechanics are state, not hooks:
 
 * **Extra combat phases.** `extBump(s, 'extraCombats', 1)` and `runTurnFrom` re-runs `combatFrom` and then main 2. The
-  cleanup step clears the counter, so one nobody reached cannot be spent by the next turn (or by an AI clone of it).
+  counter belongs to the turn that granted it and is cleared three times over, so one nobody reached can never be spent
+  by another turn (or by an AI clone of it): at the cleanup step, at the start of every turn, and when the active
+  player leaves the game mid-turn (an elimination ends the turn before its cleanup step runs).
 * **Phasing.** Set `s.ext.phasing = true` once and `o.ext.phasedOut = true` per permanent; no `s.version++` is needed,
   the gate is read from the state on every call. `allPermanents` and `battlefieldOf(s, p)` are the two accessors every
   battlefield scan in the engine goes through — untap, the attacker candidates, `legalActions`, `computeStaticMods`,
