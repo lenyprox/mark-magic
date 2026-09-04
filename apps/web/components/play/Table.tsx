@@ -9,6 +9,7 @@ import Link from 'next/link';
 import clsx from 'clsx';
 import { FlaskConical, HelpCircle, PanelLeft, ScrollText } from 'lucide-react';
 import { useReducedMotion } from 'motion/react';
+import { describeEvent } from '@play/anim';
 import type { IllegalHint, LegalAction, PlayerId, Step, TargetRef } from '@engine/state';
 import { DEFAULT_STOPS, type StopPolicy } from '@engine/agents/deferred';
 import { DEFAULT_START_OPTIONS, type StartOptions } from '@play/protocol';
@@ -22,6 +23,8 @@ import { indexObjects, loadSetup, me as meOf, opponents as oppsOf, refFromKey, s
 import { usePlaySettings, writeSettings, type PlaySettings } from '@/lib/game/settings';
 import { readLocal, writeLocal } from '@/lib/hooks/useLocalStorage';
 import { useIsMobile } from '@/lib/hooks/useMediaQuery';
+import { configureSfx, playSfx, unlockSfx } from '@/lib/audio/sfx';
+import { configureHaptics, HAPTIC, installPointerTracking, vibrate } from '@/lib/audio/haptics';
 import { toast } from '@/lib/stores/ui';
 import { AnalysisPanel } from '@/components/analysis/AnalysisPanel';
 import { useTableInteraction } from './useTableInteraction';
@@ -112,6 +115,8 @@ export function Table({ gameId }: { gameId: string }) {
   const [boot, setBoot] = useState<'idle' | 'loading' | 'missing' | 'ready' | 'failed'>('idle');
   const [bootError, setBootError] = useState<string | null>(null);
   const [zone, setZone] = useState<{ pid: PlayerId; zone: 'graveyard' | 'exile' | 'command' } | null>(null);
+  /** Phone layout: the opponent seat whose battlefield is open in a sheet. */
+  const [bfSeat, setBfSeat] = useState<PlayerId | null>(null);
   const [panels, setPanels] = useState<{ log: boolean; analysis: boolean; rail: Rail }>({ log: false, analysis: true, rail: 'analysis' });
   const [sheet, setSheet] = useState<'analysis' | 'log' | null>(null);
   const [help, setHelp] = useState(false);
@@ -160,6 +165,13 @@ export function Table({ gameId }: { gameId: string }) {
   }, [setSpeed, gl]);
   const changeSpeed = useCallback((s: number) => { setSpeed(s); writeSettings({ speed: s }); }, [setSpeed]);
 
+  // ---- sound and haptics: the settings are pushed into the two modules, which the animation queue and the drag /
+  // combat handlers call. The AudioContext is created and resumed on the first pointer-down / key-down.
+  useEffect(() => { configureSfx({ enabled: settings.sound, volume: settings.soundVolume }); }, [settings.sound, settings.soundVolume]);
+  useEffect(() => { configureHaptics(settings.haptics); }, [settings.haptics]);
+  useEffect(() => installPointerTracking(), []);
+  const previewSound = useCallback(() => { unlockSfx(); playSfx('resolve'); }, []);
+
   // ---- one toast at game start listing partially simulated cards; the explain default applies then too
   useEffect(() => {
     if (status !== 'running' || !decks || toasted.current === gameId) return;
@@ -183,6 +195,13 @@ export function Table({ gameId }: { gameId: string }) {
     return reasoning.length ? reasoning[reasoning.length - 1].summary : null;
   }, [log, reasoning]);
   const decisionText = decision ? describeDecision(decision.decision) : '';
+  /** Screen-reader narration: the event line the table has just played, then what is being asked for. */
+  const pnameOf = useCallback((p: PlayerId) => view?.players[p]?.name ?? `Player ${p + 1}`, [view]);
+  const lastEventLine = useMemo(() => {
+    const i = playback.cursor - eventBase - 1;
+    const ev = i >= 0 && i < events.length ? events[i] : null;
+    return ev ? describeEvent(ev, pnameOf) : '';
+  }, [events, eventBase, playback.cursor, pnameOf]);
   const nonPriorityDecision = decision && decision.decision.kind !== 'priority' && decision.decision.kind !== 'attackers' && decision.decision.kind !== 'blockers' ? decision.decision : null;
   /** Table interaction is only meaningful once the shown view is the decision's view. */
   const interactive = settled && status === 'running' && !playback.paused;
@@ -222,6 +241,7 @@ export function Table({ gameId }: { gameId: string }) {
     switch (effect.kind) {
       case 'begin': {
         if (plan.choices && plan.choices.length > 1) { const card = objects.get(sourceIdOf(plan.source)) ?? liveView?.players[myId].command.find(c => c.id === sourceIdOf(plan.source)); if (card) { setChoice({ card, actions: plan.choices, at: point }); return; } }
+        vibrate(HAPTIC.cast);
         if (effect.pick) ix.beginWithPick(effect.legal, effect.pick);
         else if (effect.paySource !== undefined) ix.beginLegal(effect.legal, { source: effect.paySource, force: true });
         else ix.beginLegal(effect.legal);
@@ -306,6 +326,13 @@ export function Table({ gameId }: { gameId: string }) {
   const stackLen = view?.stack.length ?? 0;
   useEffect(() => { if (stackLen > 0) tutTrigger('stack'); }, [stackLen, tutTrigger]);
   useEffect(() => { if (fx.trigger) tutTrigger('trigger'); if (fx.death) tutTrigger('sba'); }, [fx.key, fx.trigger, fx.death, tutTrigger]);
+
+  // ---- haptics: damage that lands on the viewer, and the end of the game
+  const viewerId: PlayerId = liveView?.viewer ?? view?.viewer ?? 0;
+  useEffect(() => {
+    if (fx.pops.some(p => p.target.kind === 'player' && p.target.id === viewerId && (p.tone === 'damage' || p.tone === 'loss'))) vibrate(HAPTIC.damage);
+  }, [fx.key, fx.pops, viewerId]);
+  useEffect(() => { if (status === 'finished') vibrate(HAPTIC.gameOver); }, [status]);
 
   // ---- phase strip: pass until a later step of my turn (one-shot stop, restored at the next decision)
   const skipTo = useCallback((_step: Step, key: keyof StopPolicy) => {

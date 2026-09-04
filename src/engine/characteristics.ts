@@ -65,6 +65,8 @@ export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, sourc
     case 'that-many': n = ctx?.thatMany ?? 0; break;
     case 'commander-casts': n = Object.values(me.commanderCasts ?? {}).reduce((x, y) => x + y, 0); break;
     case 'opponents': n = opponentsOf(s, ctrl).length; break;
+    case 'player-counters': n = me.counters?.[a.counter ?? ''] ?? 0; break;
+    case 'cards-drawn-this-turn': n = me.cardsDrawnThisTurn ?? 0; break;
     case 'card-types-in-graveyard': n = new Set(me.graveyard.flatMap(o => o.def.types.filter(t => t !== 'Kindred' && t !== 'Tribal'))).size; break;
     case 'card-types-in-all-graveyards': n = new Set(s.players.flatMap(p => p.graveyard).flatMap(o => o.def.types.filter(t => t !== 'Kindred' && t !== 'Tribal'))).size; break;
     case 'counters-on-source': n = source?.counters[a.counter ?? '+1/+1'] ?? 0; break;

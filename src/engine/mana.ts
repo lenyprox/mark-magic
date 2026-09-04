@@ -48,6 +48,7 @@ export function manaSources(s: GameState, p: Player, opts: ManaSourceOptions = {
         if (e.altIf && conditionHolds(s, o, e.altIf.condition)) options.push(e.altIf.mana);
         else if (e.mana === 'commander-identity') { const cs = commanderIdentity(s, o.controller); if (cs.length) options.push(...cs.map(c => rep([c]))); }
         else if (e.mana === 'opponent-lands') { const cs = opponentLandColors(s, o.controller); if (cs.length) options.push(...cs.map(c => rep([c]))); }
+        else if (e.choices) options.push(...e.choices.map(rep));
         else if (Array.isArray(e.mana)) options.push(rep(e.mana));
         else if (e.mana === 'any') options.push(...ALL.map(c => rep(Array(e.amount ?? 1).fill(c))));
         else if (e.mana === 'any-one') {

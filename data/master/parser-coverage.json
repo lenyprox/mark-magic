@@ -1,39 +1,39 @@
 {
-  "generated_at": "2026-09-04T17:50:13.396Z",
+  "generated_at": "2026-09-04T18:06:27.685Z",
   "playable_oracle_cards": 34513,
-  "fully_parsed": 10492,
-  "fully_parsed_pct": 30.4,
+  "fully_parsed": 10602,
+  "fully_parsed_pct": 30.72,
   "of_which_vanilla_or_keyword_only": 1481,
   "by_primary_type": {
     "Creature": {
       "total": 19233,
-      "full": 6448,
-      "pct": 33.5
+      "full": 6506,
+      "pct": 33.8
     },
     "Artifact": {
       "total": 2601,
-      "full": 703,
-      "pct": 27
+      "full": 706,
+      "pct": 27.1
     },
     "Enchantment": {
       "total": 3564,
-      "full": 608,
-      "pct": 17.1
+      "full": 612,
+      "pct": 17.2
     },
     "Sorcery": {
       "total": 3620,
-      "full": 855,
-      "pct": 23.6
+      "full": 871,
+      "pct": 24.1
     },
     "Instant": {
       "total": 3849,
-      "full": 1154,
-      "pct": 30
+      "full": 1170,
+      "pct": 30.4
     },
     "Land": {
       "total": 1161,
-      "full": 687,
-      "pct": 59.2
+      "full": 699,
+      "pct": 60.2
     },
     "Kindred": {
       "total": 80,
@@ -42,8 +42,8 @@
     },
     "Planeswalker": {
       "total": 335,
-      "full": 9,
-      "pct": 2.7
+      "full": 10,
+      "pct": 3
     },
     "Other": {
       "total": 29,

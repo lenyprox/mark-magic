@@ -2,7 +2,7 @@
 // One player's battlefield: lands compact and grouped by name, creatures, and everything else. Each card reports
 // its interaction state through the table's `cardState` callback. Creatures and other permanents sit in `layoutId`
 // wrappers (FLIP in from the hand or the stack, fade out when they die); land groups settle in with CSS.
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'motion/react';
 import type { LegalAction } from '@engine/state';
@@ -36,7 +36,7 @@ export interface BattlefieldProps {
   reducedMotion?: boolean;
 }
 
-export function Battlefield({ permanents, mine, player, cardWidth = 88, cardState, onActivate, actionsFor, menuCard, onMenuOpenChange, onPickAction, bindDrag, dropTarget, dropOver, layoutKey, reducedMotion }: BattlefieldProps) {
+export const Battlefield = memo(function Battlefield({ permanents, mine, player, cardWidth = 88, cardState, onActivate, actionsFor, menuCard, onMenuOpenChange, onPickAction, bindDrag, dropTarget, dropOver, layoutKey, reducedMotion }: BattlefieldProps) {
   const { lands, creatures, others } = useMemo(() => {
     const lands: PermanentView[] = []; const creatures: PermanentView[] = []; const others: PermanentView[] = [];
     for (const p of permanents) { if (p.isCreature) creatures.push(p); else if (p.isLand) lands.push(p); else others.push(p); }
@@ -87,4 +87,4 @@ export function Battlefield({ permanents, mine, player, cardWidth = 88, cardStat
       ))}
     </div>
   );
-}
+});

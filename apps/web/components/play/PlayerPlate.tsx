@@ -3,6 +3,7 @@
 // for opponents), graveyard / exile stacks that open the zone drawer, and the mana pool. Doubles as a target when
 // it is legal and as a drop zone for attackers. The graveyard thumb carries the top card's `layoutId`, so a dying
 // permanent FLIPs into it. Eliminated seats are dimmed.
+import { memo } from 'react';
 import clsx from 'clsx';
 import { motion } from 'motion/react';
 import { BookOpen, Skull, Sparkles, Crown, Swords } from 'lucide-react';
@@ -49,7 +50,7 @@ function CardBacks({ n }: { n: number }) {
 
 export const COMMANDER_DAMAGE_LETHAL = 21;
 
-export function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, picked, dimmed, hovered, thinking, dropTarget, dropOver, pulsed, compact, nameOf, onClick, onOpenZone, layoutKey, reducedMotion }: PlayerPlateProps) {
+export const PlayerPlate = memo(function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, picked, dimmed, hovered, thinking, dropTarget, dropOver, pulsed, compact, nameOf, onClick, onOpenZone, layoutKey, reducedMotion }: PlayerPlateProps) {
   const clickable = !!onClick && legalTarget;
   const topGy = player.graveyard[player.graveyard.length - 1];
   const topEx = player.exile[player.exile.length - 1];
@@ -120,4 +121,4 @@ export function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, pi
       )}
     </div>
   );
-}
+});

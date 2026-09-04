@@ -8,6 +8,7 @@ import type { PlayerId } from '@engine/state';
 import type { ViewState, CardView } from '@play/view';
 import { applyEvent, hydrate, indexCards, type ReplayView } from '@play/replay';
 import { chipFor, classify, durationFor, involvedInEvent, RUSH_SPEED, shouldRush, stackItemOf, totalDuration } from '@play/anim';
+import { playBatchSfx } from '@/lib/audio/sfx';
 
 export interface FxChip { key: string; cr: string; object: number | null; player: PlayerId | null; label: string }
 export interface FxPop { key: string; target: { kind: 'object' | 'player'; id: number }; text: string; tone: 'damage' | 'heal' | 'counter' | 'loss' }
@@ -35,6 +36,9 @@ export interface Fx {
 }
 
 export const EMPTY_FX: Fx = { key: 0, duration: 0, chips: [], pops: [], glow: [], dying: [], moving: [], hits: [], stackGlow: null, banner: null, step: null, trigger: false, death: false };
+
+/** How far ahead the backlog estimate looks (enough to pass the 1.2 s sound cut-off without walking 2000 events). */
+const BACKLOG_WINDOW = 200;
 
 export interface QueueState {
   events: GameEvent[];
@@ -159,6 +163,8 @@ export class AnimQueue {
     for (const ev of batch) shown = applyEvent(shown, ev);
     shown = hydrate(shown, this.known(s.liveView));
     const fx = fxFor(batch, duration, s.explain);
+    // Sound rides the batch that is about to play; it goes quiet when the queue is racing (see sfx.ts).
+    playBatchSfx(batch, { speed, backlogMs: totalDuration(s.events.slice(i, i + BACKLOG_WINDOW), speed, s.reducedMotion, s.explain) });
     this.host.write({ shownView: shown, cursor: s.eventBase + i, settled: false, fx });
     if (duration > 0) this.timer = setTimeout(this.tick, duration);
     else this.tick();

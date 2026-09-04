@@ -28,7 +28,7 @@ export function cloneObject(o: GameObject): GameObject {
 }
 
 function clonePlayer(p: Player, cl: (o: GameObject) => GameObject): Player {
-  return { ...p, ...(p.stickyMana ? { stickyMana: [...p.stickyMana] } : {}), library: p.library.map(cl), hand: p.hand.map(cl), graveyard: p.graveyard.map(cl), exile: p.exile.map(cl), battlefield: p.battlefield.map(cl), command: (p.command ?? []).map(cl), commanders: [...(p.commanders ?? [])], commanderCasts: { ...(p.commanderCasts ?? {}) }, commanderDamage: { ...(p.commanderDamage ?? {}) }, manaPool: [...p.manaPool] };
+  return { ...p, ...(p.stickyMana ? { stickyMana: [...p.stickyMana] } : {}), ...(p.counters ? { counters: { ...p.counters } } : {}), library: p.library.map(cl), hand: p.hand.map(cl), graveyard: p.graveyard.map(cl), exile: p.exile.map(cl), battlefield: p.battlefield.map(cl), command: (p.command ?? []).map(cl), commanders: [...(p.commanders ?? [])], commanderCasts: { ...(p.commanderCasts ?? {}) }, commanderDamage: { ...(p.commanderDamage ?? {}) }, manaPool: [...p.manaPool] };
 }
 
 function cloneStackItem(it: StackItem, cl: (o: GameObject) => GameObject): StackItem {

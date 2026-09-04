@@ -1,7 +1,7 @@
 'use client';
 // Table settings persisted in localStorage (`vault.play.settings`): playback speed, reduced motion, the explain
-// default, when the pay tray asks, the sound placeholder and the WebGL quality. A tiny external store so every
-// component that reads a setting re-renders when the sheet changes it.
+// default, when the pay tray asks, sound (on/off plus volume), haptics and the WebGL quality. A tiny external store
+// so every component that reads a setting re-renders when the sheet changes it.
 import { useSyncExternalStore } from 'react';
 import type { AskToPay } from '@play/targeting';
 import { clampSpeed } from '@play/anim';
@@ -11,8 +11,12 @@ import { SPEED_KEY } from './store';
 export const SETTINGS_KEY = 'vault.play.settings';
 
 export interface PlaySettings {
-  /** Placeholder: there is no sound yet. */
+  /** Synthesised table sounds (see lib/audio/sfx.ts). Off by default: audio needs a deliberate opt-in. */
   sound: boolean;
+  /** Sound volume, 0–100. */
+  soundVolume: number;
+  /** Haptic pulses on touch devices (see lib/audio/haptics.ts). */
+  haptics: boolean;
   speed: number;
   /** 'system' follows prefers-reduced-motion; 'on' / 'off' override it. */
   reducedMotion: 'system' | 'on' | 'off';
@@ -22,7 +26,9 @@ export interface PlaySettings {
   glQuality: QualitySetting;
 }
 
-export const DEFAULT_SETTINGS: PlaySettings = { sound: false, speed: 1, reducedMotion: 'system', explain: false, askToPay: 'when-ambiguous', glQuality: 'auto' };
+export const DEFAULT_SETTINGS: PlaySettings = { sound: false, soundVolume: 60, haptics: true, speed: 1, reducedMotion: 'system', explain: false, askToPay: 'when-ambiguous', glQuality: 'auto' };
+
+const clampVolume = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n))) : DEFAULT_SETTINGS.soundVolume; };
 
 let cached: PlaySettings | null = null;
 const listeners = new Set<() => void>();
@@ -33,13 +39,14 @@ export function readSettings(): PlaySettings {
   try { const raw = localStorage.getItem(SETTINGS_KEY); if (raw) stored = JSON.parse(raw) as Partial<PlaySettings>; } catch { /* private mode */ }
   let speed = stored.speed;
   if (speed === undefined) { try { const s = localStorage.getItem(SPEED_KEY); if (s != null) speed = Number(s); } catch { /* ignore */ } }
-  cached = { ...DEFAULT_SETTINGS, ...stored, speed: clampSpeed(speed ?? 1) };
+  cached = { ...DEFAULT_SETTINGS, ...stored, speed: clampSpeed(speed ?? 1), soundVolume: clampVolume(stored.soundVolume ?? DEFAULT_SETTINGS.soundVolume) };
   return cached;
 }
 
 export function writeSettings(patch: Partial<PlaySettings>) {
   const next = { ...readSettings(), ...patch };
   if (patch.speed !== undefined) next.speed = clampSpeed(patch.speed);
+  if (patch.soundVolume !== undefined) next.soundVolume = clampVolume(patch.soundVolume);
   cached = next;
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); if (patch.speed !== undefined) localStorage.setItem(SPEED_KEY, String(next.speed)); } catch { /* private mode */ }
   for (const l of listeners) l();

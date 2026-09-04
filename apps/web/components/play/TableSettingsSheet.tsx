@@ -1,10 +1,12 @@
 'use client';
-// Table settings in a drawer: sound (placeholder), playback speed, reduced motion, the explain default, when the
-// pay tray asks, the WebGL quality and the tutorial. Persisted in localStorage (`vault.play.settings`).
+// Table settings in a drawer: sound (on/off plus volume), haptics, playback speed, reduced motion, the explain
+// default, when the pay tray asks, the WebGL quality and the tutorial. Persisted in localStorage
+// (`vault.play.settings`). Ticking sound plays a sample so the level is audible while it is being set.
 import { Button, Drawer, Segmented } from '@/components/ui';
 import type { PlaySettings } from '@/lib/game/settings';
 import type { AskToPay } from '@play/targeting';
 import type { QualitySetting } from '@/lib/gl/support';
+import { hapticsSupported } from '@/lib/audio/haptics';
 import styles from './table.module.css';
 
 export interface TableSettingsSheetProps {
@@ -18,12 +20,15 @@ export interface TableSettingsSheetProps {
   /** Present when the WebGL card renderer is mounted (its quality can be changed live). */
   glQuality?: QualitySetting;
   systemReducedMotion?: boolean;
+  /** Play one sound so the level can be heard while it is set. */
+  onPreviewSound?: () => void;
 }
 
 type SpeedKey = '0.5' | '1' | '2' | '4';
 
-export function TableSettingsSheet({ open, onClose, settings, onChange, tutorialOff, onTutorialOff, onResetTutorial, glQuality, systemReducedMotion }: TableSettingsSheetProps) {
+export function TableSettingsSheet({ open, onClose, settings, onChange, tutorialOff, onTutorialOff, onResetTutorial, glQuality, systemReducedMotion, onPreviewSound }: TableSettingsSheetProps) {
   const speedKey = String(settings.speed) as SpeedKey;
+  const canVibrate = hapticsSupported();
   return (
     <Drawer open={open} onClose={onClose} title="Table settings" width={400}>
       <div className={styles.settingsSheet} data-testid="table-settings">
@@ -39,7 +44,23 @@ export function TableSettingsSheet({ open, onClose, settings, onChange, tutorial
             <p className="faint small">On: changes apply instantly and the queue plays without animation.</p>
           </div>
           <label className={styles.settingsRow}><input type="checkbox" checked={settings.explain} onChange={e => onChange({ explain: e.target.checked })} data-testid="setting-explain" /> Start tables in Explain mode (rule chips next to every animation, half speed)</label>
-          <label className={styles.settingsRow} title="No sound yet"><input type="checkbox" checked={false} disabled data-testid="setting-sound" /> Sound <span className="faint">(coming later)</span></label>
+        </section>
+
+        <section className={styles.settingsGroup}>
+          <h3 className={styles.settingsTitle}>Sound and touch</h3>
+          <label className={styles.settingsRow}>
+            <input type="checkbox" checked={settings.sound} onChange={e => onChange({ sound: e.target.checked })} data-testid="setting-sound" /> Sound effects
+          </label>
+          <div className={styles.settingsField} data-testid="setting-volume-field" data-enabled={settings.sound ? 'true' : 'false'}>
+            <label className={styles.settingsLabel} htmlFor="sfx-volume">Volume <span className="mono" data-testid="setting-volume-value">{settings.soundVolume}</span></label>
+            <input id="sfx-volume" type="range" min={0} max={100} step={5} value={settings.soundVolume} disabled={!settings.sound} className={styles.volumeSlider}
+              aria-label="Sound volume" aria-valuetext={`${settings.soundVolume} percent`} data-testid="setting-volume"
+              onChange={e => onChange({ soundVolume: Number(e.target.value) })} onPointerUp={onPreviewSound} onKeyUp={onPreviewSound} />
+            <p className="faint small">Synthesised, no downloads. Nothing plays above 2× playback or while the queue is catching up.</p>
+          </div>
+          <label className={styles.settingsRow}>
+            <input type="checkbox" checked={settings.haptics} onChange={e => onChange({ haptics: e.target.checked })} data-testid="setting-haptics" /> Haptics {!canVibrate && <span className="faint">(this device has no vibration)</span>}
+          </label>
         </section>
 
         <section className={styles.settingsGroup}>

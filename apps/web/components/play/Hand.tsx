@@ -1,9 +1,11 @@
 'use client';
-// The viewer's hand as a fanned arc of live cards. Hovering lifts and straightens a card; castable cards carry a
-// brass rim; clicking asks the table for that card's actions. Each card sits in a `layoutId` wrapper so it FLIPs
-// to the stack or the battlefield when the animation queue moves it; only the first eight cards (plus the hovered
-// one) are live WebGL, the rest upgrade on hover.
-import { useState } from 'react';
+// The viewer's hand. On a pointer device it is a fanned arc of live cards: hovering lifts and straightens a card,
+// castable cards carry a brass rim, clicking asks the table for that card's actions. On a phone (`compact`) the fan
+// flattens into a horizontal snap-scroll strip — the cards pan with the thumb (`touch-action: pan-x`) and a
+// long press still picks one up to drag. Each card sits in a `layoutId` wrapper so it FLIPs to the stack or the
+// battlefield when the animation queue moves it; only the first eight cards (plus the hovered one) are live WebGL,
+// the rest upgrade on hover.
+import { memo, useState } from 'react';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'motion/react';
 import type { LegalAction } from '@engine/state';
@@ -23,27 +25,28 @@ export interface HandProps {
   menuCard: number | null;
   onMenuOpenChange: (id: number, open: boolean) => void;
   onPickAction: (l: LegalAction) => void;
+  /** Phone layout: a snap-scroll strip instead of the fan. */
   compact?: boolean;
   /** Drag binding from useDragIntent; when absent the hand is click-only. */
-  bindDrag?: (source: DragSource, card: CardView) => DragBindProps;
+  bindDrag?: (source: DragSource, card: CardView, opts?: { touchAction?: string }) => DragBindProps;
   /** Changes whenever the shown view changes through the animation queue. */
   layoutKey?: unknown;
   reducedMotion?: boolean;
 }
 
-export function Hand({ cards, cardState, onActivate, actionsFor, menuCard, onMenuOpenChange, onPickAction, compact, bindDrag, layoutKey, reducedMotion }: HandProps) {
+export const Hand = memo(function Hand({ cards, cardState, onActivate, onPickAction, actionsFor, menuCard, onMenuOpenChange, compact, bindDrag, layoutKey, reducedMotion }: HandProps) {
   const [hovered, setHovered] = useState<number | null>(null);
   const n = cards.length;
-  const width = compact ? 88 : 116;
-  const maxFan = compact ? 340 : 720;
+  const width = compact ? 96 : 116;
+  const maxFan = 720;
   // Angle spread grows with the hand up to ±18°, overlap tightens as it grows.
-  const spread = Math.min(18, 4.5 * (n - 1));
-  const step = n > 1 ? (spread * 2) / (n - 1) : 0;
-  const overlap = n > 1 ? Math.max(width * 0.45, Math.min(width * 0.86, (maxFan - width) / (n - 1))) : width;
+  const spread = compact ? 0 : Math.min(18, 4.5 * (n - 1));
+  const step = !compact && n > 1 ? (spread * 2) / (n - 1) : 0;
+  const overlap = !compact && n > 1 ? Math.max(width * 0.45, Math.min(width * 0.86, (maxFan - width) / (n - 1))) : width;
   const t = reducedMotion ? { duration: 0 } : { type: 'spring' as const, stiffness: 380, damping: 32, mass: 0.9 };
   return (
-    <div className={clsx(styles.hand, compact && styles.handCompact)} role="group" aria-label={`Your hand, ${n} cards`} style={{ '--hand-w': `${width}px` } as React.CSSProperties} data-drop-zone="void" data-testid="hand">
-      <div className={styles.fan} style={{ width: n ? overlap * (n - 1) + width : 0 }}>
+    <div className={clsx(styles.hand, compact && styles.handCompact)} role="group" aria-label={`Your hand, ${n} cards`} style={{ '--hand-w': `${width}px` } as React.CSSProperties} data-drop-zone="void" data-testid="hand" data-layout={compact ? 'strip' : 'fan'}>
+      <div className={clsx(styles.fan, compact && styles.fanStrip)} style={compact ? undefined : { width: n ? overlap * (n - 1) + width : 0 }}>
         <AnimatePresence initial={false}>
           {cards.map((c, i) => {
             const angle = -spread + step * i;
@@ -53,8 +56,8 @@ export function Hand({ cards, cardState, onActivate, actionsFor, menuCard, onMen
             return (
               <motion.div
                 key={c.id}
-                className={clsx(styles.fanSlot, isHover && styles.fanHover, menuCard === c.id && styles.fanHover)}
-                style={{ '--x': `${i * overlap}px`, '--rot': `${angle}deg`, '--lift': `${lift}px`, zIndex: isHover ? 50 : i } as React.CSSProperties}
+                className={clsx(compact ? styles.stripSlot : styles.fanSlot, !compact && isHover && styles.fanHover, !compact && menuCard === c.id && styles.fanHover)}
+                style={compact ? undefined : ({ '--x': `${i * overlap}px`, '--rot': `${angle}deg`, '--lift': `${lift}px`, zIndex: isHover ? 50 : i } as React.CSSProperties)}
                 exit={{ opacity: 0, transition: { duration: reducedMotion ? 0 : 0.18 } }}
                 onPointerEnter={() => setHovered(c.id)}
                 onPointerLeave={() => setHovered(h => (h === c.id ? null : h))}
@@ -62,9 +65,9 @@ export function Hand({ cards, cardState, onActivate, actionsFor, menuCard, onMen
                 onBlurCapture={() => setHovered(h => (h === c.id ? null : h))}
               >
                 <motion.div layoutId={`card-${c.id}`} layoutDependency={layoutKey} transition={t} className={styles.flipWrap}>
-                  <TableCard card={c} width={width} live={live} tilt={10} state={cardState(c.id)} onActivate={onActivate}
+                  <TableCard card={c} width={width} live={live} tilt={compact ? 4 : 10} state={cardState(c.id)} onActivate={onActivate}
                     menuActions={actionsFor(c.id)} menuOpen={menuCard === c.id} onMenuOpenChange={open => onMenuOpenChange(c.id, open)} onPickAction={onPickAction} className={styles.handCard}
-                    dragProps={bindDrag?.({ kind: 'hand', cardId: c.id }, c)} />
+                    dragProps={bindDrag?.({ kind: 'hand', cardId: c.id }, c, compact ? { touchAction: 'pan-x' } : undefined)} />
                 </motion.div>
               </motion.div>
             );
@@ -73,4 +76,4 @@ export function Hand({ cards, cardState, onActivate, actionsFor, menuCard, onMen
       </div>
     </div>
   );
-}
+});

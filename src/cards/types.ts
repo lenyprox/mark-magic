@@ -51,7 +51,7 @@ export interface Filter {
 export type Amount = number | 'X' | {
   count: 'creatures-you-control' | 'cards-in-hand' | 'lands-you-control' | 'power-of-source' | 'creatures-attacking' | 'opponent-creatures' | 'life-lost-this-turn'
     | 'permanents-you-control' | 'domain' | 'exiled-with' | 'cards-in-graveyard' | 'power-of-that' | 'mv-of-that' | 'colors-spent' | 'card-types-in-graveyard' | 'card-types-in-all-graveyards' | 'counters-on-source'
-    | 'counters-on-permanents' | 'that-many' | 'commander-casts' | 'opponents';
+    | 'counters-on-permanents' | 'that-many' | 'commander-casts' | 'opponents' | 'player-counters' | 'cards-drawn-this-turn';
   filter?: Filter; plus?: number; times?: number; counter?: string;
 };
 
@@ -111,7 +111,7 @@ export type Effect =
   | { op: 'lose-life'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' | 'each-player' | 'opponent' | 'that-controller' | 'defending-player' }
   /** Look at the top `look` cards, put `take` of them into your hand (or none, Ponder-style), the rest to `rest`. */
   | { op: 'dig'; look: Amount; take: number; rest: 'bottom' | 'top' | 'graveyard'; order: 'any' | 'random'; reveal?: boolean; filter?: Filter; optional?: boolean; altTake?: { condition: Condition; take: number } }
-  | { op: 'put-from-hand'; amount: Amount; to: 'library-top' | 'library-bottom' | 'battlefield'; filter?: Filter; optional?: boolean; who?: 'you' | 'each-player' }
+  | { op: 'put-from-hand'; amount: Amount; to: 'library-top' | 'library-bottom' | 'battlefield'; filter?: Filter; optional?: boolean; who?: 'you' | 'each-player'; tapped?: boolean }
   | { op: 'shuffle'; optional?: boolean; who?: 'that-player' | 'target-player' }
   | { op: 'reveal-hand'; who: 'target-player' | 'target-opponent' }
   | { op: 'become-monarch' }
@@ -164,7 +164,7 @@ export type Effect =
   | { op: 'sacrifice-self' }
   | { op: 'mill'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' }
   | { op: 'search-land'; toBattlefield: boolean; tapped: boolean; basic: boolean; count: number; subtypes?: string[] }
-  | { op: 'add-mana'; mana: ManaSymbol[] | 'any' | 'any-one' | 'commander-identity' | 'opponent-lands'; amount?: number; perEach?: Amount; /** Firebending: the mana stays in the pool until end of turn. */ sticky?: boolean; options?: ManaSymbol[] | 'exiled-with-colors' | 'chosen-color' | 'permanent-colors'; restriction?: 'creature-spell' | 'instant-sorcery' | 'chosen-type-creature' | 'colorless-eldrazi'; altIf?: { condition: Condition; mana: ManaSymbol[] } }
+  | { op: 'add-mana'; mana: ManaSymbol[] | 'any' | 'any-one' | 'commander-identity' | 'opponent-lands'; choices?: ManaSymbol[][]; amount?: number; perEach?: Amount; /** Firebending: the mana stays in the pool until end of turn. */ sticky?: boolean; options?: ManaSymbol[] | 'exiled-with-colors' | 'chosen-color' | 'permanent-colors'; restriction?: 'creature-spell' | 'instant-sorcery' | 'chosen-type-creature' | 'colorless-eldrazi'; altIf?: { condition: Condition; mana: ManaSymbol[] } }
   | { op: 'scry'; amount: number }
   | { op: 'surveil'; amount: number }
   | { op: 'return-from-graveyard'; what: Filter; to: 'hand' | 'battlefield'; target?: boolean; anyGraveyard?: boolean; tapped?: boolean }
@@ -172,7 +172,11 @@ export type Effect =
   | { op: 'bite'; target: TargetSpec }
   | { op: 'set-life'; amount: number; who: 'you' | 'each-player' }
   | { op: 'gain-control'; target: TargetSpec; duration: 'eot' | 'permanent'; untapHaste?: boolean }
-  | { op: 'copy-spell'; target: TargetSpec }
+  | { op: 'copy-spell'; target: TargetSpec; newTargets?: boolean }
+  | { op: 'token-copy'; target: TargetSpec | 'that' | 'self'; count: Amount; extraTypes?: CardType[]; extraSubtypes?: string[]; extraKeywords?: Keyword[]; tapped?: boolean }
+  | { op: 'proliferate' }
+  | { op: 'player-counter'; counter: string; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' }
+  | { op: 'fold-new-targets' }
   | { op: 'earthbend'; amount: Amount; target: TargetSpec }                                      // Avatar: land becomes a 0/0 Elemental creature with haste, gets counters, bounces instead of dying
   | { op: 'animate'; target: TargetSpec | 'self'; power: number; toughness: number; colors: Color[]; types: CardType[]; subtypes: string[]; keywords: Keyword[]; duration: 'eot' | 'permanent' }
   | { op: 'untap-all'; filter: Filter }
@@ -233,6 +237,7 @@ export type TriggerEvent =
   | { on: 'dies'; self: boolean; filter?: Filter; controller?: 'you' | 'any' }
   | { on: 'ltb'; self: boolean }
   | { on: 'attacks'; self: boolean; filter?: Filter }
+  | { on: 'you-attack' }                                                      // "Whenever you attack" (once per combat)
   | { on: 'blocks'; self: boolean } | { on: 'becomes-blocked'; self: boolean }
   | { on: 'combat-damage-player'; self: boolean; filter?: Filter }                   // self, or "a creature you control [with deathtouch]"
   | { on: 'deals-damage'; self: boolean }

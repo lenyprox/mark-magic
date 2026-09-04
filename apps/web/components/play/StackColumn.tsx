@@ -3,6 +3,7 @@
 // spell cast from hand: same `layoutId` as the hand card), its text and its target labels; items are anchors for the
 // connector overlay and can themselves be targets (counterspells). Resolving items slide out; the item the current
 // event is about glows.
+import { memo } from 'react';
 import type { PlayerId } from '@engine/state';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'motion/react';
@@ -27,7 +28,7 @@ export interface StackColumnProps {
   reducedMotion?: boolean;
 }
 
-export function StackColumn({ stack, viewer, legalStack, dimOthers, onClick, dropStack, dropOver, glowId, layoutKey, reducedMotion }: StackColumnProps) {
+export const StackColumn = memo(function StackColumn({ stack, viewer, legalStack, dimOthers, onClick, dropStack, dropOver, glowId, layoutKey, reducedMotion }: StackColumnProps) {
   const items = [...stack].reverse();
   const t = reducedMotion ? { duration: 0 } : { type: 'spring' as const, stiffness: 420, damping: 34, mass: 0.8 };
   return (
@@ -63,4 +64,4 @@ export function StackColumn({ stack, viewer, legalStack, dimOthers, onClick, dro
       )}
     </div>
   );
-}
+});

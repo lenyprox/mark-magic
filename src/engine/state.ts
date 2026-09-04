@@ -68,6 +68,8 @@ export interface Player {
   life: number;
   poison: number;
   energy: number;
+  /** Player counters other than poison/energy (experience, rad, ...). */
+  counters?: Record<string, number>;
   library: GameObject[];
   hand: GameObject[];
   graveyard: GameObject[];

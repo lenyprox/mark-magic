@@ -2,6 +2,7 @@
 // A seat's command zone: the commander card(s) with the cast count and the current tax. For the viewer it is a drag
 // source — dropping the commander on the battlefield casts it (the legal action with `from: 'command'`). A commander
 // that is not in the zone (on the battlefield, in a graveyard) leaves a labelled slot behind.
+import { memo } from 'react';
 import clsx from 'clsx';
 import { Crown } from 'lucide-react';
 import type { PlayerView, CardView } from '@play/view';
@@ -23,7 +24,7 @@ export interface CommandZoneProps {
   reducedMotion?: boolean;
 }
 
-export function CommandZone({ player, mine, cardWidth = 56, cardState, onActivate, bindDrag, whereIs, layoutKey, reducedMotion }: CommandZoneProps) {
+export const CommandZone = memo(function CommandZone({ player, mine, cardWidth = 56, cardState, onActivate, bindDrag, whereIs, layoutKey, reducedMotion }: CommandZoneProps) {
   void layoutKey; void reducedMotion;
   if (!player.commanders?.length) return null;
   const casts = player.commanderCasts ?? {};
@@ -54,4 +55,4 @@ export function CommandZone({ player, mine, cardWidth = 56, cardState, onActivat
       </div>
     </div>
   );
-}
+});

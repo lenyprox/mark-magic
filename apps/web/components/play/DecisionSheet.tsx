@@ -1,12 +1,15 @@
 'use client';
 // Bottom sheet for the non-priority decisions: choose-cards, yes-no (the mulligan prompt shows the hand),
-// choose-mode, choose-color, order-blockers. Assertive live region; everything keyboard-reachable.
+// choose-mode, choose-option, choose-color, choose-player, choose-number, and the two ordering decisions
+// (damage assignment order for a blocked attacker, and trigger order), which are drag-to-reorder lists with
+// keyboard buttons beside every row. Assertive live region; everything keyboard-reachable.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { ArrowDown, ArrowUp, Check } from 'lucide-react';
+import { Reorder } from 'motion/react';
+import { ArrowDown, ArrowUp, Check, GripVertical } from 'lucide-react';
 import type { Decision } from '@engine/state';
 import type { CardView, ViewState } from '@play/view';
-import { Button, Kbd, ManaChip } from '@/components/ui';
+import { Button, Input, Kbd, ManaChip } from '@/components/ui';
 import { ManaSymbol } from '@/components/text/ManaSymbol';
 import { CardImage } from '@/components/card/CardImage';
 import { describeDecision } from '@play/targeting';
@@ -28,12 +31,19 @@ export function DecisionSheet({ decision, view, objects, onAnswer }: { decision:
   const [picked, setPicked] = useState<number[]>([]);
   const [modes, setModes] = useState<number[]>([]);
   const [order, setOrder] = useState<number[]>([]);
+  const [number, setNumber] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const title = describeDecision(decision);
+  const title = decision.kind === 'order-triggers' ? 'Order the triggers'
+    : decision.kind === 'order-blockers' ? 'Damage assignment order'
+    : describeDecision(decision);
   const isMulligan = decision.kind === 'yes-no' && /^Mulligan/i.test(decision.prompt);
   const hand = useMemo(() => view.players[view.viewer ?? 0].hand ?? [], [view]);
 
-  useEffect(() => { setPicked([]); setModes([]); setOrder(decision.kind === 'order-blockers' ? [...decision.blockers] : []); }, [decision]);
+  useEffect(() => {
+    setPicked([]); setModes([]);
+    setOrder(decision.kind === 'order-blockers' ? [...decision.blockers] : decision.kind === 'order-triggers' ? [...decision.items] : []);
+    setNumber(decision.kind === 'choose-number' ? decision.min : 0);
+  }, [decision]);
   useEffect(() => { ref.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus(); }, [decision]);
 
   const toggle = (id: number, count: number) => setPicked(p => p.includes(id) ? p.filter(x => x !== id) : p.length >= count ? [...p.slice(1), id] : [...p, id]);
@@ -74,7 +84,7 @@ export function DecisionSheet({ decision, view, objects, onAnswer }: { decision:
     case 'choose-mode': {
       const single = decision.count === 1;
       body = (
-        <div className={styles.modeList} role={single ? 'radiogroup' : 'group'}>
+        <div className={styles.modeList} role={single ? 'radiogroup' : 'group'} aria-label="Modes">
           {decision.modes.map((m, i) => {
             const on = modes.includes(i);
             return <button key={i} type="button" role={single ? 'radio' : 'checkbox'} aria-checked={on} className={clsx(styles.modeItem, on && styles.modeOn)} onClick={() => single ? onAnswer([i]) : setModes(ms => on ? ms.filter(x => x !== i) : ms.length >= decision.count ? ms : [...ms, i])}><Kbd>{i + 1}</Kbd><span>{m}</span></button>;
@@ -89,8 +99,8 @@ export function DecisionSheet({ decision, view, objects, onAnswer }: { decision:
     }
     case 'choose-option': {
       body = (
-        <div className={styles.modeList} role="radiogroup">
-          {decision.options.map((o, i) => <button key={o} type="button" role="radio" aria-checked={false} className={styles.modeItem} onClick={() => onAnswer(o)}><Kbd>{i + 1}</Kbd><span>{o}</span></button>)}
+        <div className={styles.modeList} role="group" aria-label={decision.reason || 'Options'}>
+          {decision.options.map((o, i) => <button key={o} type="button" className={styles.modeItem} onClick={() => onAnswer(o)}><Kbd>{i + 1}</Kbd><span>{o}</span></button>)}
         </div>
       );
       footer = <span className="faint small">choose one</span>;
@@ -100,23 +110,51 @@ export function DecisionSheet({ decision, view, objects, onAnswer }: { decision:
       body = <div className={styles.colorRow}>{COLORS.map(({ c, label }) => <ManaChip key={c} color={c} pressed={false} label={label} onClick={() => onAnswer(c)}><ManaSymbol sym={c} size={18} /></ManaChip>)}</div>;
       break;
     }
-    case 'order-blockers': {
+    case 'order-blockers':
+    case 'order-triggers': {
+      const triggers = decision.kind === 'order-triggers' ? decision : null;
+      const labelOf = (id: number) => (triggers ? triggers.labels[triggers.items.indexOf(id)] ?? `#${id}` : objects.get(id)?.name ?? `#${id}`);
+      const listLabel = triggers ? 'Trigger order' : 'Damage assignment order';
       const move = (i: number, d: -1 | 1) => setOrder(o => { const j = i + d; if (j < 0 || j >= o.length) return o; const n = [...o]; [n[i], n[j]] = [n[j], n[i]]; return n; });
       body = (
-        <ol className={styles.orderList} aria-label="Damage assignment order">
+        <Reorder.Group axis="y" as="ol" values={order} onReorder={setOrder} className={styles.orderList} aria-label={listLabel} data-testid="order-list">
           {order.map((id, i) => (
-            <li key={id} className={styles.orderItem}>
+            <Reorder.Item key={id} value={id} as="li" className={styles.orderItem} data-testid="order-item" data-id={id}>
+              <GripVertical size={14} aria-hidden className={styles.orderGrip} />
               <span className="mono faint">{i + 1}</span>
-              <span className="grow">{objects.get(id)?.name ?? `#${id}`}</span>
-              <button type="button" className={styles.orderBtn} aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp size={14} /></button>
-              <button type="button" className={styles.orderBtn} aria-label="Move down" disabled={i === order.length - 1} onClick={() => move(i, 1)}><ArrowDown size={14} /></button>
-            </li>
+              <span className="grow">{labelOf(id)}</span>
+              <button type="button" className={styles.orderBtn} aria-label={`Move ${labelOf(id)} up`} disabled={i === 0} onClick={() => move(i, -1)} data-testid={`order-up-${id}`}><ArrowUp size={14} /></button>
+              <button type="button" className={styles.orderBtn} aria-label={`Move ${labelOf(id)} down`} disabled={i === order.length - 1} onClick={() => move(i, 1)} data-testid={`order-down-${id}`}><ArrowDown size={14} /></button>
+            </Reorder.Item>
           ))}
-        </ol>
+        </Reorder.Group>
       );
       footer = <>
-        <span className="faint small">attacker: {objects.get(decision.attacker)?.name}</span>
-        <Button variant="primary" size="sm" onClick={() => onAnswer(order)} icon={<Check size={14} />}>Confirm order</Button>
+        <span className="faint small">{triggers ? `${order.length} triggers · the last one you order resolves first` : `attacker: ${objects.get(decision.attacker)?.name ?? ''} · damage is assigned down this list`}</span>
+        <Button variant="primary" size="sm" onClick={() => onAnswer(order)} icon={<Check size={14} />} data-testid="order-confirm">Confirm order</Button>
+      </>;
+      break;
+    }
+    case 'choose-player': {
+      body = (
+        <div className={styles.colorRow} role="group" aria-label="Choose a player">
+          {decision.options.map((pid, i) => (
+            <Button key={pid} size="sm" variant="quiet" onClick={() => onAnswer(pid)} data-testid={`choose-player-${pid}`}><Kbd>{i + 1}</Kbd> {view.players[pid]?.name ?? `Player ${pid + 1}`}</Button>
+          ))}
+        </div>
+      );
+      break;
+    }
+    case 'choose-number': {
+      body = (
+        <div className={styles.colorRow}>
+          <Input type="number" aria-label={decision.reason || 'Choose a number'} min={decision.min} max={decision.max} value={String(number)}
+            onChange={e => setNumber(Math.min(decision.max, Math.max(decision.min, Number(e.target.value) || 0)))} data-testid="choose-number" />
+        </div>
+      );
+      footer = <>
+        <span className="faint small">{decision.min} – {decision.max}</span>
+        <Button variant="primary" size="sm" onClick={() => onAnswer(number)} icon={<Check size={14} />} data-testid="choose-number-confirm">Confirm</Button>
       </>;
       break;
     }

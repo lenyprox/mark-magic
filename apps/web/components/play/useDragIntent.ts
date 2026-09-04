@@ -157,10 +157,11 @@ export function useDragIntent(opts: DragIntentOptions) {
 
   useEffect(() => () => { const g = gesture.current; if (g?.timer) window.clearTimeout(g.timer); }, []);
 
-  /** Props for a draggable card element. */
-  const bind = useCallback((source: DragSource, card: CardView): DragBindProps => ({
+  /** Props for a draggable card element. `touchAction` relaxes the default for sources that also live in a
+   *  scroll container (the mobile hand strip pans with `pan-x` and only drags after the long press). */
+  const bind = useCallback((source: DragSource, card: CardView, o?: { touchAction?: string }): DragBindProps => ({
     'data-draggable': '',
-    style: { touchAction: 'none' },
+    style: { touchAction: o?.touchAction ?? 'none' },
     onPointerDown: (e) => {
       if (e.button !== 0 || gesture.current || phase === 'returning') return;
       if ((e.target as HTMLElement).closest('button, a, input')) return;

@@ -248,6 +248,7 @@ const EFFECT_RULES: Rule[] = [
   { re: new RegExp(`^${TGT} gets ([+-]\\d+)/([+-]\\d+) and gains (.+?) until end of turn$`, 'i'), make: m => { const t = parseTarget(m[1]); const k = kwList(m[4]); return t && k && { op: 'pump', target: t, power: pm(m[2]), toughness: pm(m[3]), keywords: k, duration: 'eot' }; } },
   { re: new RegExp(`^${TGT} gains (.+?) until end of turn$`, 'i'), make: m => { const t = parseTarget(m[1]); const k = kwList(m[2]); return t && k && { op: 'grant-keyword', target: t, keywords: k, duration: 'eot' }; } },
   { re: /^~ gets ([+-]\d+|[+-]X)\/([+-]\d+|[+-]X) until end of turn$/i, make: m => ({ op: 'pump', target: 'self', power: pm(m[1]), toughness: pm(m[2]), duration: 'eot' }) },
+  { re: /^(up to \w+ target .+?) each get ([+-]\d+)\/([+-]\d+)(?: and gain (.+?))? until end of turn$/i, make: m => { const t = parseTarget(m[1]); if (!t) return null; const kw = m[4] ? kwList(m[4]) : []; return kw ? { op: 'pump', target: t, power: Number(m[2]), toughness: Number(m[3]), keywords: kw, duration: 'eot' } : null; } },
   { re: /^~ gets ([+-]\d+)\/([+-]\d+) and gains (.+?) until end of turn$/i, make: m => { const k = kwList(m[3]); return k && { op: 'pump', target: 'self', power: pm(m[1]), toughness: pm(m[2]), keywords: k, duration: 'eot' }; } },
   { re: /^~ gains (.+?) until end of turn$/i, make: m => { const k = kwList(m[1]); return k && { op: 'grant-keyword', target: 'self', keywords: k, duration: 'eot' }; } },
   { re: /^creatures you control get ([+-]\d+)\/([+-]\d+) until end of turn$/i, make: m => ({ op: 'pump', target: 'creatures-you-control', power: pm(m[1]), toughness: pm(m[2]), duration: 'eot' }) },
@@ -436,6 +437,21 @@ const EFFECT_RULES: Rule[] = [
   { re: /^permanents you control gain (.+?) until end of turn$/i, make: m => { const k = kwList(m[1]); return k && { op: 'grant-keyword', target: 'permanents-you-control', keywords: k, duration: 'eot' }; } },
   { re: /^search your library for an? (.+?) card(?: with mana value (\w+) or less)?, reveal it, put it into your hand(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[1]); if (!f) return null; const mv = m[2] ? num(m[2]) : undefined; return { op: 'search', filter: f, to: 'hand', count: 1, reveal: true, ...(mv !== undefined ? { mvLE: mv } : {}) }; } },
   { re: /^untap all (.+?) you control$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'untap-all', filter: f }; } },
+  { re: /^proliferate$/i, make: () => ({ op: 'proliferate' }) },
+  { re: /^earthbend (\w+)$/i, make: m => { const n = num(m[1]); const t = parseTarget('target land you control'); return t && typeof n === 'number' ? { op: 'earthbend', amount: n, target: t } : null; } },
+  { re: /^untap that land$/i, make: () => ({ op: 'untap', target: 'that' }) },
+  { re: /^you get an experience counter$/i, make: () => ({ op: 'player-counter', counter: 'experience', amount: 1, who: 'you' }) },
+  { re: /^you get (\w+) experience counters$/i, make: m => ({ op: 'player-counter', counter: 'experience', amount: num(m[1]), who: 'you' }) },
+  { re: /^you may choose new targets for the copy$/i, make: () => ({ op: 'fold-new-targets' }) },
+  { re: /^you may choose new targets for (?:that copy|the copies)$/i, make: () => ({ op: 'fold-new-targets' }) },
+  { re: /^destroy all (nonland permanents|permanents|creatures|artifacts|enchantments|lands) with mana value (\d+) or less$/i, make: m => { const w = m[1].toLowerCase(); const target = w === 'nonland permanents' ? 'all-nonland' : w === 'creatures' ? 'all-creatures' : w === 'artifacts' ? 'all-artifacts' : w === 'enchantments' ? 'all-enchantments' : w === 'lands' ? 'all-lands' : 'all-nonland'; return { op: 'destroy', target: target as 'all-nonland', filter: { mvLE: Number(m[2]) } }; } },
+  { re: new RegExp(`^create ${NUMRE} tokens? that(?:'s| are) copies of ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[2]); return t && { op: 'token-copy', target: t, count: num(m[1]) }; } },
+  { re: /^create a token that's a copy of ~$/i, make: () => ({ op: 'token-copy', target: 'self', count: 1 }) },
+  { re: /^create a token that's a copy of that (?:creature|permanent|token|card)$/i, make: () => ({ op: 'token-copy', target: 'that', count: 1 }) },
+  { re: /^create a tapped token that's a copy of that (?:creature|permanent|card)$/i, make: () => ({ op: 'token-copy', target: 'that', count: 1, tapped: true }) },
+  { re: /^create a (tapped )?token that's a copy of that (?:creature|permanent|card), except it's an? (.+)$/i, make: m => { const words = m[2].toLowerCase().replace(/ in addition to its other types$/, '').split(/\s+/).filter(w => w !== 'and'); const extraSubtypes: string[] = []; for (const w of words) { if (/^\d+\/\d+$/.test(w) || w in COLOR_WORDS) continue; extraSubtypes.push(w[0].toUpperCase() + w.slice(1)); } return { op: 'token-copy', target: 'that', count: 1, ...(m[1] ? { tapped: true } : {}), extraSubtypes }; } },
+  { re: /^add ((?:\{[^}]+\})+), ((?:\{[^}]+\})+), or ((?:\{[^}]+\})+)$/i, make: m => { const cs = [m[1], m[2], m[3]].map(x => parseManaCost(x)); if (cs.some(c => !c)) return null; return { op: 'add-mana', mana: [], choices: cs.map(c => manaSymbolsOf(c!)) }; } },
+  { re: /^put an? (.+?) card from your hand onto the battlefield tapped$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'put-from-hand', amount: 1, to: 'battlefield', filter: f, optional: true, tapped: true }; } },
   { re: new RegExp(`^return ${TGT} from your graveyard to the battlefield tapped$`, 'i'), make: m => { const f = parseFilterWords(m[1].replace(/^target /, '').replace(/ card$/, '')); return f && { op: 'return-from-graveyard', what: f, to: 'battlefield', target: true, tapped: true }; } },
   { re: /^search your library for up to (\w+) (.+?) cards?, reveal them, put them into your hand(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[2]); return f && { op: 'search', filter: f, to: 'hand', count: num(m[1]) as number, optional: true, reveal: true }; } },
   { re: /^creatures you control gain (.+?) and get \+x\/\+x until end of turn, where x is (.+)$/i, make: m => { const kw = kwList(m[1]); const a = parseAmountPhrase(m[2]); return kw && a !== null ? { op: 'pump', target: 'creatures-you-control', power: a, toughness: a, keywords: kw, duration: 'eot' } : null; } },
@@ -468,7 +484,7 @@ const PARAGRAPH_RULES: { re: RegExp; make: (m: RegExpMatchArray) => Effect[] | n
   { re: /^look at the top (\w+) cards? of your library\. you may reveal an? (.+?) card from among them and put it into your hand\. (?:then )?put the rest on the bottom of your library in any order\.?/i, make: m => { const f = parseFilterWords(m[2].replace(/ or /g, ' ')); return f && [{ op: 'dig', look: num(m[1]), take: 1, rest: 'bottom', order: 'any', filter: f, optional: true, reveal: true }]; } },
   { re: /^reveal the top (\w+) cards? of your library\. you may put an? (.+?) card from among them into your hand\. put the rest into your graveyard\.?/i, make: m => { const f = parseFilterWords(m[2].replace(/ or /g, ' ')); return f && [{ op: 'dig', look: num(m[1]), take: 1, rest: 'graveyard', order: 'any', filter: f, optional: true, reveal: true }]; } },
   { re: new RegExp(`^counter ${TGT}\\. if that spell is countered this way, exile it instead of putting it into its owner's graveyard\\.?`, 'i'), make: m => { const t = parseTarget(m[1]); return t && [{ op: 'counter', target: t, toExile: true }]; } },
-  { re: /^earthbend (\w+|x)(?:, where x is (.+?))?\.?(?=$| [A-Z~])/i, make: m => { const target = parseTarget('target land you control')!; let amount: Amount = num(m[1]) as Amount; if (m[1].toLowerCase() === 'x') { if (!m[2]) return null; const a = parseAmountPhrase(m[2]); if (!a) return null; amount = a; } return [{ op: 'earthbend', amount, target }]; } },
+  { re: /^earthbend (\w+|x), where x is (.+?)\.?$/i, make: m => { const target = parseTarget('target land you control'); const a = parseAmountPhrase(m[2]); return target && a !== null ? [{ op: 'earthbend', amount: a, target }] : null; } },
   { re: /^~ becomes an? (\d+)\/(\d+) ([a-z ]+?) creature(?: with (.+?))? until end of turn\. it's still a land\.?/i, make: m => { const desc = m[3].split(/\s+/).filter(w => w !== 'and'); const colors = desc.filter(w => w in COLOR_WORDS).map(w => COLOR_WORDS[w]); const subs = desc.filter(w => !(w in COLOR_WORDS)).map(w => w[0].toUpperCase() + w.slice(1)); const kw = m[4] ? kwList(m[4]) : []; if (!kw) return null; return [{ op: 'animate', target: 'self', power: Number(m[1]), toughness: Number(m[2]), colors, types: ['Creature'], subtypes: subs, keywords: kw, duration: 'eot' }]; } },
   { re: new RegExp(`^choose ${TGT}\\. its owner shuffles it into their library\\.?`, 'i'), make: m => { const t = parseTarget(m[1]); return t && [{ op: 'shuffle-into-library', target: t }]; } },
   { re: /^you may draw a card\. if you do, discard a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1 }] },
@@ -505,16 +521,26 @@ function manaSymbolsOf(cost: ManaCost): ManaSymbol[] {
   for (let i = 0; i < cost.generic; i++) out.push('C');
   return out;
 }
+/** "Forests" / "Zombies" → a subtype filter (parseFilterWords only knows types and adjectives). */
+function singularSubtypes(f: Filter): Filter { return f.subtypes ? { ...f, subtypes: f.subtypes.map(t => singular(t)) } : f; }
+function subtypeFilter(words: string): Filter | null {
+  const w = words.trim();
+  if (!/^[A-Za-z]+s?$/.test(w)) return null;
+  const one = singular(w);
+  return { subtypes: [one[0].toUpperCase() + one.slice(1).toLowerCase()] };
+}
 /** "the number of Forests you control" / "the number of experience counters you have" → Amount. */
 function parseAmountPhrase(p: string): Amount | null {
   let m: RegExpMatchArray | null; const t = p.trim().toLowerCase();
-  if ((m = t.match(/^the number of (.+?) you control$/))) { const f = parseFilterWords(m[1]); return f && { count: 'permanents-you-control', filter: f }; }
+  if ((m = t.match(/^the number of (.+?) you control$/))) { const f = parseFilterWords(m[1]) ?? subtypeFilter(m[1]); return f && { count: 'permanents-you-control', filter: singularSubtypes(f) }; }
   if ((m = t.match(/^the number of (.+?) cards? in your graveyard$/))) { const f = parseFilterWords(m[1]); return f && { count: 'cards-in-graveyard', filter: f }; }
   if (t === 'the number of cards in your graveyard') return { count: 'cards-in-graveyard' };
   if (t === 'the number of cards in your hand') return { count: 'cards-in-hand' };
   if (t === 'the number of lands you control') return { count: 'lands-you-control' };
   if (t === 'the number of creatures you control') return { count: 'creatures-you-control' };
   if (t === 'the number of opponents you have') return { count: 'opponents' };
+  if ((m = t.match(/^the number of ([a-z]+) counters you have$/))) return { count: 'player-counters', counter: m[1] };
+  if (t === 'the number of cards you have drawn this turn' || t === "the number of cards you've drawn this turn") return { count: 'cards-drawn-this-turn' };
   if (t === "~'s power") return { count: 'power-of-source' };
   return null;
 }
@@ -723,6 +749,8 @@ function parseTrigger(head: string): TriggerEvent {
   if (/^at the beginning of your draw step$/.test(t)) return { on: 'draw-step', whose: 'your' };
   if (/^at the beginning of combat on your turn$/.test(t)) return { on: 'combat-begin', whose: 'your' };
   if (/^at the beginning of your precombat main phase$/.test(t)) return { on: 'draw-step', whose: 'your' };
+  if (/^whenever you attack(?: a player)?$/.test(t)) return { on: 'you-attack' };
+  if (/^whenever you attack with one or more creatures$/.test(t)) return { on: 'you-attack' };
   if (/^whenever you cast a noncreature spell$/.test(t)) return { on: 'cast', filter: { notTypes: ['Creature'] }, who: 'you' };
   if (/^whenever you cast a creature spell$/.test(t)) return { on: 'cast', filter: { types: ['Creature'] }, who: 'you' };
   if (/^whenever you cast an instant or sorcery spell$/.test(t)) return { on: 'cast', filter: { types: ['Instant', 'Sorcery'] }, who: 'you' };
@@ -762,6 +790,7 @@ function parseCostPhrase(p: string): AbilityCost | null {
   else if ((m = pl.match(/^pay ((?:\{e\}\s*)+)$/))) cost.energy = (m[1].match(/\{e\}/g) ?? []).length;
   else if ((m = pl.match(/^remove (a|\w+) \+1\/\+1 counters? from ~$/))) cost.removeCounters = { counter: '+1/+1', amount: num(m[1]) as number };
   else if ((m = pl.match(/^remove (a|\w+) (\w+) counters? from ~$/))) cost.removeCounters = { counter: m[2], amount: num(m[1]) as number };
+  else if ((m = pl.match(/^remove (a|\w+) counters? from ~$/))) cost.removeCounters = { counter: 'any', amount: num(m[1]) as number };
   else if ((m = pl.match(/^exile (a|\w+) cards? from your graveyard$/))) cost.exileFromGraveyard = num(m[1]) as number;
   else if ((m = pl.match(/^exile (\w+|any number of) other cards? from your graveyard(?: with (\w+) or more card types among them)?$/))) cost.exileOtherFromGraveyard = { count: m[1] === 'any number of' ? 'any' : num(m[1]) as number, minCardTypes: m[2] ? num(m[2]) as number : undefined };
   else if ((m = pl.match(/^exile (?:a|an) (.+?) card from your hand$/))) { const f = parseFilterWords(m[1]); if (!f) return null; cost.exileFromHand = { filter: f, count: 1 }; }
