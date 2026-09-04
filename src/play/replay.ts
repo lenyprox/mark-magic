@@ -158,7 +158,8 @@ export function applyEvent(view: ViewState, ev: GameEvent): ReplayView {
     }
     case 'activate': case 'trigger': {
       const source = findAnywhere(v, ev.id) ?? placeholderCard(ev.id, ev.name);
-      v.stack.push({ id: ev.itemId, kind: ev.type === 'activate' ? 'ability' : 'trigger', name: ev.name, controller: ev.player, text: ev.ability, sourceId: ev.id, source: stripPermanent(source), targets: [], targetLabels: [...ev.targets], countered: false });
+      // the engine labels a triggered ability's stack item "<source> trigger: <text>"; activated abilities vary and are corrected by the next view
+      v.stack.push({ id: ev.itemId, kind: ev.type === 'activate' ? 'ability' : 'trigger', name: ev.type === 'trigger' ? `${ev.name} trigger: ${ev.ability}` : ev.name, controller: ev.player, text: ev.ability, sourceId: ev.id, source: stripPermanent(source), targets: [], targetLabels: [...ev.targets], countered: false });
       break;
     }
     case 'resolve': case 'fizzle': case 'countered': {
@@ -287,6 +288,15 @@ export class Replayer {
     const remaining = this.events.splice(0);
     this.base = newBase; this.head = newBase; this.frames = new Map([[0, newBase]]);
     this.append(remaining);
+  }
+  /** Drop every event from local index `n` on (undo): the head becomes the view after the first `n` events. */
+  truncate(n: number) {
+    const keep = Math.max(0, Math.min(n, this.events.length));
+    if (keep === this.events.length) return;
+    const kept = this.events.slice(0, keep);
+    this.events.length = 0;
+    this.head = this.base as ReplayView; this.frames = new Map([[0, this.head]]);
+    this.append(kept);
   }
   /** The event window a UI cursor refers to; `seq` of the first event when the list has been trimmed. */
   get firstSeq(): number { return this.events[0]?.seq ?? 0; }

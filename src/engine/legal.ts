@@ -1,7 +1,7 @@
 // Enumerates legal actions for a player with priority, and legal targets for a target spec.
 import type { AltCost, Effect, ManaCost, TargetSpec } from '../cards/types.js';
 import { manaValue } from '../cards/parse.js';
-import { abilitiesOf, allPermanents, conditionHolds, defOf, isCreature, isLand, isType, matchesFilter, name, protectedFrom, hasKeyword } from './characteristics.js';
+import { abilitiesOf, allPermanents, castForbiddenBy, conditionHolds, defOf, flashFor, isCreature, isLand, isType, matchesFilter, name, protectedFrom, hasKeyword } from './characteristics.js';
 import { findPayment as findPaymentFull, manaSources, type ManaSourceOptions, type Payment } from './mana.js';
 import { costAdjust, exileWindowOpen, extraManaSources, hasModifier, nonManaCostPayable, pickDelve, spellManaCost, ZERO_COST } from './cost.js';
 import type { Game } from './game.js';
@@ -86,6 +86,11 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
   const sorceryTiming = s.activePlayer === p && (s.step === 'main1' || s.step === 'main2') && s.stack.length === 0;
   const extraLands = pl.battlefield.reduce((a, o) => a + abilitiesOf(o).reduce((b, ab) => b + (ab.kind === 'static' && ab.effect.kind === 'extra-land' ? ab.effect.amount : 0), 0), 0);
   const landDrop = sorceryTiming && pl.landsPlayedThisTurn < 1 + extraLands;
+  if (landDrop) {
+    const zones = new Set(pl.battlefield.flatMap(o => abilitiesOf(o).flatMap(ab => ab.kind === 'static' && ab.effect.kind === 'play-lands-from' ? [ab.effect.zone] : [])));
+    if (zones.has('graveyard')) for (const c of pl.graveyard) if (c.def.types.includes('Land')) out.push({ action: { type: 'play-land', cardId: c.id, from: 'graveyard' }, label: `play land ${c.def.name} from graveyard` });
+    if (zones.has('library-top') && pl.library[0]?.def.types.includes('Land')) out.push({ action: { type: 'play-land', cardId: pl.library[0].id, from: 'library' }, label: `play land ${pl.library[0].def.name} from the top of the library` });
+  }
   for (const c of pl.hand) {
     const d = c.def;
     if (d.types.includes('Land')) { if (landDrop) out.push({ action: { type: 'play-land', cardId: c.id }, label: `play land ${d.name}` }); }
@@ -161,7 +166,8 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
 function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZone, sorceryTiming: boolean, out: LegalAction[]) {
   const s = g.state; const pl = s.players[p]; const d = c.def;
   if (d.types.includes('Land')) return;
-  const instantSpeed = d.types.includes('Instant') || d.keywords.includes('flash');
+  const instantSpeed = d.types.includes('Instant') || d.keywords.includes('flash') || flashFor(s, p, c);
+  if (castForbiddenBy(s, p, c)) return [];
   const free = from === 'exile' && !!c.castableFromExile?.free; // rebound: cast during the upkeep, timing permissions aside (CR 702.88a)
   if (!instantSpeed && !sorceryTiming && !free) return;
   const spell = d.abilities.find(a => a.kind === 'spell');

@@ -156,7 +156,8 @@ export async function runScript(g: Game, steps: ScriptStep[]) {
     if ('playLand' in st) {
       const by = (st.by ?? s.priority) as PlayerId;
       const card = findByName(s, st.playLand, by)!;
-      const ok = await g.performAction(by, { type: 'play-land', cardId: card.id });
+      const l = legalFor(g, by, x => x.action.type === 'play-land' && x.action.cardId === card.id);
+      const ok = await g.performAction(by, l.action);
       if (!ok) throw new Error(`scenario: play land ${st.playLand} was rejected`);
       continue;
     }

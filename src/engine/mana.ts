@@ -1,7 +1,8 @@
 // Mana: what a player can produce, whether a cost is payable, and how to pay it (auto-tapping).
 import type { ManaCost, ManaSymbol, Filter } from '../cards/types.js';
-import type { GameObject, GameState, Player } from './state.js';
-import { abilitiesOf, colors, conditionHolds, findObject, hasKeyword, isCreature, matchesFilter } from './characteristics.js';
+import type { GameObject, GameState, Player, PlayerId } from './state.js';
+import { abilitiesOf, colors, conditionHolds, evalAmount, findObject, hasKeyword, isCreature, isLand, matchesFilter } from './characteristics.js';
+import { opponentsOf } from './players.js';
 
 export interface ManaSource { obj: GameObject; abilityIndex: number; options: ManaSymbol[][] } // each option = the mana produced
 
@@ -41,18 +42,51 @@ export function manaSources(s: GameState, p: Player, opts: ManaSourceOptions = {
           if (e.restriction === 'instant-sorcery' && !spell.def.types.includes('Instant') && !spell.def.types.includes('Sorcery')) continue;
           if (e.restriction === 'colorless-eldrazi' && (spell.def.colors.length || !spell.def.subtypes.includes('Eldrazi'))) continue;
         }
+        const per = e.perEach ? evalAmount(s, e.perEach, o.controller, 0, o) : 1;
+        if (per <= 0) continue;
+        const rep = (m: ManaSymbol[]): ManaSymbol[] => per === 1 ? m : Array.from({ length: per }, () => m).flat();
         if (e.altIf && conditionHolds(s, o, e.altIf.condition)) options.push(e.altIf.mana);
-        else if (Array.isArray(e.mana)) options.push(e.mana);
-        else if (e.mana === 'any') options.push(...ALL.map(c => Array(e.amount ?? 1).fill(c)));
+        else if (e.mana === 'commander-identity') { const cs = commanderIdentity(s, o.controller); if (cs.length) options.push(...cs.map(c => rep([c]))); }
+        else if (e.mana === 'opponent-lands') { const cs = opponentLandColors(s, o.controller); if (cs.length) options.push(...cs.map(c => rep([c]))); }
+        else if (Array.isArray(e.mana)) options.push(rep(e.mana));
+        else if (e.mana === 'any') options.push(...ALL.map(c => rep(Array(e.amount ?? 1).fill(c))));
         else if (e.mana === 'any-one') {
           const opts = e.options === 'exiled-with-colors' ? exiledColors(s, o) : e.options === 'chosen-color' ? (o.chosen?.color ? [o.chosen.color] : ALL) : e.options;
-          options.push(...(opts ?? ALL).map(c => Array(e.amount ?? 1).fill(c)));
+          options.push(...(opts ?? ALL).map(c => rep(Array(e.amount ?? 1).fill(c))));
         }
       }
-      if (options.length) out.push({ obj: o, abilityIndex: i, options });
+      if (options.length) out.push({ obj: o, abilityIndex: i, options: withExtraMana(s, p, o, options) });
     });
   }
   return out;
+}
+
+/** Colours in the union of the player's commanders' colour identities (Command Tower, Arcane Signet). */
+export function commanderIdentity(s: GameState, p: PlayerId): ManaSymbol[] {
+  const cs = new Set<ManaSymbol>();
+  for (const id of s.players[p].commanders ?? []) { const c = findObject(s, id); if (!c) continue; for (const x of c.def.colorIdentity ?? c.def.colors) cs.add(x); }
+  return ALL.filter(c => cs.has(c));
+}
+/** Colours a land an opponent controls could produce (Exotic Orchard, Fellwar Stone). */
+function opponentLandColors(s: GameState, p: PlayerId): ManaSymbol[] {
+  const cs = new Set<ManaSymbol>();
+  for (const q of opponentsOf(s, p)) for (const l of s.players[q].battlefield) {
+    if (!isLand(l)) continue;
+    for (const ab of abilitiesOf(l)) { if (ab.kind !== 'activated' || !ab.manaAbility) continue; for (const e of ab.effects) { if (e.op !== 'add-mana') continue; if (Array.isArray(e.mana)) e.mana.forEach(m => { if (m !== 'C') cs.add(m); }); else if (e.mana === 'any' || e.mana === 'any-one') ALL.forEach(m => cs.add(m)); else if (e.mana === 'commander-identity') commanderIdentity(s, q).forEach(m => cs.add(m)); } }
+  }
+  return ALL.filter(c => cs.has(c));
+}
+/** "Whenever you tap a Forest for mana, add an additional {G}" — every option of a matching source grows by the extra mana. */
+function withExtraMana(s: GameState, p: Player, o: GameObject, options: ManaSymbol[][]): ManaSymbol[][] {
+  let extra: ManaSymbol[] = [];
+  for (const src of p.battlefield) for (const ab of abilitiesOf(src)) {
+    if (ab.kind !== 'static' || ab.effect.kind !== 'extra-mana-on-tap') continue;
+    const e = ab.effect;
+    const hit = e.enchanted ? src.attachedTo === o.id : matchesFilter(s, o, e.filter, src);
+    if (!hit) continue;
+    extra = extra.concat(e.mana === 'chosen-color' ? [src.chosen?.color ?? 'G'] : e.mana);
+  }
+  return extra.length ? options.map(opt => [...opt, ...extra]) : options;
 }
 
 function exiledColors(s: GameState, o: GameObject): ManaSymbol[] {

@@ -21,27 +21,28 @@ export function abilitiesOf(o: GameObject): Ability[] {
 const EMPTY_ABILITIES: Ability[] = [];
 
 export function types(o: GameObject): CardType[] {
-  const base = o.token ? (o.token.types as CardType[]) : defOf(o).types;
+  let base = o.token ? (o.token.types as CardType[]) : defOf(o).types;
+  if (o.animated) base = [...new Set([...base, ...o.animated.types])];
   if (o.eotFlags.crewed || o.eotFlags.saddled) return base.includes('Creature') ? base : [...base, 'Creature'];
   if (o.counters.time && o.def.altCosts?.some(a => a.id === 'impending')) return base.filter(t => t !== 'Creature'); // impending: not a creature while it has time counters
   return base;
 }
-export function subtypes(o: GameObject): string[] { return o.token ? o.token.subtypes : defOf(o).subtypes; }
-export function colors(o: GameObject): Color[] { return o.token ? o.token.colors : defOf(o).colors; }
+export function subtypes(o: GameObject): string[] { const base = o.token ? o.token.subtypes : defOf(o).subtypes; return o.animated?.subtypes.length ? [...new Set([...base, ...o.animated.subtypes])] : base; }
+export function colors(o: GameObject): Color[] { if (o.animated?.colors.length) return o.animated.colors; return o.token ? o.token.colors : defOf(o).colors; }
 export function isCreature(o: GameObject): boolean { return types(o).includes('Creature'); }
 export function isLand(o: GameObject): boolean { return types(o).includes('Land'); }
 export function isType(o: GameObject, t: CardType): boolean { return types(o).includes(t); }
 export function name(o: GameObject): string { return o.token ? o.token.name : defOf(o).name; }
 export function manaValueOf(o: GameObject): number { return o.token ? 0 : defOf(o).manaValue; }
 
-function baseP(o: GameObject): number { if (o.token) return o.token.power + (o.token.dynamicPT ? dynamicPT(o) : 0); return numOrStar(defOf(o).power); }
-function baseT(o: GameObject): number { if (o.token) return o.token.toughness + (o.token.dynamicPT ? dynamicPT(o) : 0); return numOrStar(defOf(o).toughness); }
+function baseP(o: GameObject): number { if (o.animated) return o.animated.power; if (o.token) return o.token.power + (o.token.dynamicPT ? dynamicPT(o) : 0); return numOrStar(defOf(o).power); }
+function baseT(o: GameObject): number { if (o.animated) return o.animated.toughness; if (o.token) return o.token.toughness + (o.token.dynamicPT ? dynamicPT(o) : 0); return numOrStar(defOf(o).toughness); }
 let dynamicState: GameState | null = null;
 function dynamicPT(o: GameObject): number { return dynamicState && o.token?.dynamicPT ? evalAmount(dynamicState, o.token.dynamicPT, o.controller, 0, o) : 0; }
 function numOrStar(s: string | null): number { if (s == null) return 0; const n = Number(s); return Number.isFinite(n) ? n : 0; }
 
 /** Extra context for amounts that refer to "that" object or to how the spell was cast. */
-export interface AmountCtx { that?: { power: number; manaValue: number }; colorsSpent?: number }
+export interface AmountCtx { that?: { power: number; manaValue: number }; colorsSpent?: number; /** "that many": the number the trigger was about (damage dealt, cards, attackers). */ thatMany?: number }
 
 export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, source?: GameObject, ctx?: AmountCtx): number {
   if (typeof a === 'number') return a;
@@ -60,6 +61,10 @@ export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, sourc
     case 'domain': n = new Set(me.battlefield.filter(isLand).flatMap(o => subtypes(o)).filter(t => BASIC_TYPES.has(t))).size; break;
     case 'exiled-with': n = (source?.exiledWith ?? []).map(id => findObject(s, id)).filter(o => o && (!a.filter || matchesFilter(s, o, a.filter, source))).length; break;
     case 'cards-in-graveyard': n = me.graveyard.filter(o => !a.filter || matchesFilter(s, o, a.filter, source)).length; break;
+    case 'counters-on-permanents': n = me.battlefield.filter(o => !a.filter || matchesFilter(s, o, a.filter, source)).reduce((t, o) => t + (a.counter ? (o.counters[a.counter] ?? 0) : Object.values(o.counters).reduce((x, y) => x + y, 0)), 0); break;
+    case 'that-many': n = ctx?.thatMany ?? 0; break;
+    case 'commander-casts': n = Object.values(me.commanderCasts ?? {}).reduce((x, y) => x + y, 0); break;
+    case 'opponents': n = opponentsOf(s, ctrl).length; break;
     case 'card-types-in-graveyard': n = new Set(me.graveyard.flatMap(o => o.def.types.filter(t => t !== 'Kindred' && t !== 'Tribal'))).size; break;
     case 'card-types-in-all-graveyards': n = new Set(s.players.flatMap(p => p.graveyard).flatMap(o => o.def.types.filter(t => t !== 'Kindred' && t !== 'Tribal'))).size; break;
     case 'counters-on-source': n = source?.counters[a.counter ?? '+1/+1'] ?? 0; break;
@@ -72,6 +77,9 @@ export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, sourc
 const BASIC_TYPES = new Set(['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']);
 
 export function matchesFilter(s: GameState, o: GameObject, f: Filter | undefined, source?: GameObject): boolean {
+  if (f?.withCounters && !Object.values(o.counters).some(n => n > 0)) return false;
+  if (f?.withCounter && !((o.counters[f.withCounter] ?? 0) > 0)) return false;
+  if (f?.toughnessGtPower && !(toughness(s, o) > power(s, o))) return false;
   if (!f) return true;
   const ts = types(o), sts = subtypes(o), cs = colors(o);
   if (f.types && !f.types.some(t => ts.includes(t))) return false;
@@ -118,7 +126,8 @@ function staticMods(s: GameState, o: GameObject): Mods {
     for (const ab of abilitiesOf(src)) if (ab.kind === 'static') {
       const e = ab.effect as StaticEffect & { opponentsOnly?: boolean; condition?: unknown };
       if (e.kind === 'anthem') {
-        if (!isCreature(o)) continue;
+        if (!isCreature(o) && !e.anyPermanent) continue;
+        if (e.condition && !conditionHolds(s, src, e.condition)) continue;
         const sameCtl = src.controller === o.controller;
         if (e.scope === 'you-control' && !sameCtl) continue;
         if (e.scope === 'other-you-control' && (!sameCtl || src.id === o.id)) continue;
@@ -145,6 +154,11 @@ export function conditionHolds(s: GameState, src: GameObject, c: unknown): boole
   const me = s.players[src.controller]; const opps = opponentsOf(s, src.controller).map(q => s.players[q]);
   const side = (who: string | undefined, pred: (pl: typeof me) => boolean) => who === 'you' ? pred(me) : opps.some(pred);
   switch (cond.kind) {
+    case 'or': return cond.conditions.some(c => conditionHolds(s, src, c));
+    case 'self-entered-this-turn': return src.enteredTurn === s.turn;
+    case 'total-toughness-ge': return me.battlefield.filter(isCreature).reduce((a, o) => a + toughness(s, o), 0) >= cond.value;
+    case 'hand-has': return me.hand.some(o => matchesFilter(s, o, cond.filter, src));
+    case 'opponents-lands-ge': return opps.reduce((a, pl) => a + pl.battlefield.filter(isLand).length, 0) >= cond.value;
     case 'life-le': return cond.who === 'any' ? [me, ...opps].some(pl => pl.life <= cond.value) : side(cond.who, pl => pl.life <= cond.value);
     case 'opponents-ge': return opps.length >= cond.value;
     case 'controls': return side(cond.who, pl => pl.battlefield.filter(o => matchesFilter(s, o, cond.filter, src)).length >= cond.atLeast);
@@ -173,6 +187,21 @@ export function conditionHolds(s: GameState, src: GameObject, c: unknown): boole
     case 'self-no-counters': { const c = src.zone !== 'battlefield' && src.lastKnown?.counters ? src.lastKnown.counters : src.counters; return !(c[cond.counter] > 0); }
     case 'self-not-renowned': return !src.renowned;
     case 'self-attacking': return src.attacking !== null;
+    case 'self-tapped': return src.tapped;
+    case 'self-untapped': return !src.tapped;
+    case 'self-has-counters': return (src.counters[cond.counter] ?? 0) > 0;
+    case 'controls-le': return cond.who === 'you' ? me.battlefield.filter(o => matchesFilter(s, o, cond.filter, src)).length <= cond.atMost : opps.every(pl => pl.battlefield.filter(o => matchesFilter(s, o, cond.filter, src)).length <= cond.atMost);
+    case 'life-ge': return cond.who === 'any' ? [me, ...opps].some(pl => pl.life >= cond.value) : side(cond.who, pl => pl.life >= cond.value);
+    case 'more-life-than-opponent': return opps.some(pl => me.life > pl.life);
+    case 'opponent-more-life': return opps.some(pl => pl.life > me.life);
+    case 'attacked-with-ge': return (me.attackedWithThisTurn ?? 0) >= cond.value;
+    case 'you-lost-life-this-turn': return me.lifeLostThisTurn > 0;
+    case 'spells-cast-this-turn-ge': return me.spellsCastThisTurn >= cond.value;
+    case 'cards-in-hand-le': return side(cond.who, pl => pl.hand.length <= cond.value);
+    case 'opponent-hellbent': return opps.some(pl => pl.hand.length === 0);
+    case 'graveyard-ge': return me.graveyard.filter(o => !cond.filter || matchesFilter(s, o, cond.filter, src)).length >= cond.value;
+    case 'controls-commander': return me.battlefield.some(o => o.commander);
+    case 'cards-drawn-ge': return (me.cardsDrawnThisTurn ?? 0) >= cond.value;
     case 'opponent-lost-life-this-turn': return opps.some(pl => pl.lifeLostThisTurn > 0);
     case 'life-gained-this-turn': return (me.lifeGainedThisTurn ?? 0) > 0;
     default: return false;
@@ -189,7 +218,32 @@ export function toughness(s: GameState, o: GameObject): number {
 }
 export function keywords(s: GameState, o: GameObject): Keyword[] {
   const base = o.token ? o.token.keywords : defOf(o).keywords;
-  return [...new Set([...base, ...o.eotKeywords, ...staticMods(s, o).kw])];
+  const fromCounters = Object.keys(o.counters).filter(k => o.counters[k] > 0 && KEYWORD_COUNTERS.has(k)) as Keyword[];
+  return [...new Set([...base, ...(o.animated?.keywords ?? []), ...fromCounters, ...o.eotKeywords, ...staticMods(s, o).kw])];
+}
+/** CR 122.1: keyword counters grant the keyword. */
+const KEYWORD_COUNTERS = new Set(['flying', 'first strike', 'double strike', 'deathtouch', 'haste', 'hexproof', 'indestructible', 'lifelink', 'menace', 'reach', 'trample', 'vigilance', 'shadow', 'exalted']);
+/** Doran and friends: does this creature assign combat damage equal to its toughness? */
+export function damageByToughness(s: GameState, o: GameObject): boolean {
+  for (const src of s.players[o.controller].battlefield) for (const ab of abilitiesOf(src)) {
+    if (ab.kind !== 'static' || ab.effect.kind !== 'damage-by-toughness') continue;
+    const e = ab.effect;
+    if (e.scope === 'self' ? src.id !== o.id : src.controller !== o.controller) continue;
+    if (e.onlyWhenGreater && !(toughness(s, o) > power(s, o))) continue;
+    return true;
+  }
+  return false;
+}
+/** "You may cast X spells as though they had flash" for a card `c` player `p` wants to cast. */
+export function flashFor(s: GameState, p: PlayerId, c: GameObject): boolean {
+  return s.players[p].battlefield.some(src => abilitiesOf(src).some(ab => ab.kind === 'static' && ab.effect.kind === 'flash-for' && matchesFilter(s, c, ab.effect.filter, src)));
+}
+/** Grand Abolisher: an opponent of `p` forbids casting `c` right now. */
+export function castForbiddenBy(s: GameState, p: PlayerId, c: GameObject): GameObject | null {
+  for (const q of opponentsOf(s, p)) if (s.activePlayer === q) for (const src of s.players[q].battlefield) for (const ab of abilitiesOf(src)) {
+    if (ab.kind === 'static' && ab.effect.kind === 'opponents-cant-cast' && (!ab.effect.filter || matchesFilter(s, c, ab.effect.filter, src))) return src;
+  }
+  return null;
 }
 export function hasKeyword(s: GameState, o: GameObject, k: Keyword): boolean { return keywords(s, o).includes(k); }
 export function flags(s: GameState, o: GameObject) { const f = staticMods(s, o).flags; if (o.eotFlags.cantAttackOrBlock) f.cantAttackOrBlock = true; if (o.eotFlags.cantBlock) f.cantBlock = true; return f; }

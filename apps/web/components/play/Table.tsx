@@ -1,22 +1,25 @@
 'use client';
-// The play table: boots (or re-creates) the game for the route's gameId, lays out the zones, and wires clicks,
-// keys, the right rail (analysis · explain · timeline) and the decision surfaces to the game store. The DOM renders
-// `shownView`, which the animation queue walks through the typed events; table interaction is enabled only once it
-// has caught up with the decision's view (`data-settled="true"` on the root).
+// The play table: boots (or re-creates) the game for the route's gameId, lays out the seats (the viewer at the
+// bottom, one to three opponents across the top), and wires clicks, keys, the right rail (analysis · explain ·
+// timeline) and the decision surfaces to the game store. The DOM renders `shownView`, which the animation queue
+// walks through the typed events; table interaction is enabled only once it has caught up with the decision's
+// view (`data-settled="true"` on the root).
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { FlaskConical, HelpCircle, PanelLeft, ScrollText } from 'lucide-react';
 import { useReducedMotion } from 'motion/react';
-import type { IllegalHint, LegalAction, PlayerId, TargetRef } from '@engine/state';
+import type { IllegalHint, LegalAction, PlayerId, Step, TargetRef } from '@engine/state';
 import { DEFAULT_STOPS, type StopPolicy } from '@engine/agents/deferred';
 import { DEFAULT_START_OPTIONS, type StartOptions } from '@play/protocol';
-import { describeDecision, planDrag, sameZone, type DragContext, type DragPlan, type DragSource, type DropEffect, type DropZone, type IllegalReason } from '@play/targeting';
-import type { CardView, PermanentView } from '@play/view';
+import { describeDecision, defaultDefender, dragSourceId, isManaSource, planDrag, sameZone, type DragContext, type DragPlan, type DragSource, type DropEffect, type DropZone, type IllegalReason } from '@play/targeting';
+import type { CardView, PermanentView, PlayerView } from '@play/view';
 import { Button, Callout, EmptyState, IconButton, Skeleton, Drawer, Tabs } from '@/components/ui';
+import { useCardGL } from '@/components/card/CardGLProvider';
 import { useGameStore } from '@/lib/game/store';
 import { parseGameId, payloadFor, type DeckRef } from '@/lib/game/api';
-import { indexObjects, loadSetup, me as meOf, opp as oppOf, refFromKey, STEP_LABELS } from '@/lib/game/ui';
+import { indexObjects, loadSetup, me as meOf, opponents as oppsOf, refFromKey, seatsOf, STEP_LABELS } from '@/lib/game/ui';
+import { usePlaySettings, writeSettings, type PlaySettings } from '@/lib/game/settings';
 import { readLocal, writeLocal } from '@/lib/hooks/useLocalStorage';
 import { useIsMobile } from '@/lib/hooks/useMediaQuery';
 import { toast } from '@/lib/stores/ui';
@@ -24,17 +27,21 @@ import { AnalysisPanel } from '@/components/analysis/AnalysisPanel';
 import { useTableInteraction } from './useTableInteraction';
 import { PlayerPlate } from './PlayerPlate';
 import { Battlefield } from './Battlefield';
+import { CommandZone } from './CommandZone';
+import { Seat, SeatRing } from './Seat';
 import { Hand } from './Hand';
 import { PhaseStrip } from './PhaseStrip';
 import { StackColumn } from './StackColumn';
 import { TargetArrows, type Connector } from './TargetArrows';
 import { PriorityBar } from './PriorityBar';
 import { ActionBar } from './ActionBar';
+import { PayTray } from './PayTray';
 import { DecisionSheet } from './DecisionSheet';
 import { LogPanel } from './LogPanel';
 import { ZoneDrawer } from './ZoneDrawer';
 import { GameOver } from './GameOver';
 import { ShortcutsSheet } from './ShortcutsSheet';
+import { TableSettingsSheet } from './TableSettingsSheet';
 import { useDragIntent } from './useDragIntent';
 import { CastingSlot, DragLayer } from './DragLayer';
 import { ActionsPopover } from './ActionsPopover';
@@ -47,12 +54,14 @@ import { TutorialTip, useTutorial } from './Tutorial';
 import type { TableCardProps } from './TableCard';
 import styles from './table.module.css';
 
-const sourceIdOf = (s: DragSource) => (s.kind === 'hand' ? s.cardId : s.id);
+const sourceIdOf = (s: DragSource) => dragSourceId(s);
 
 const STOPS_KEY = 'vault.play.stops';
 const PANELS_KEY = 'vault.play.panels';
 type Rail = 'analysis' | 'explain' | 'timeline';
 const EMPTY_IDS: number[] = [];
+/** The own-turn stop keys in step order (a one-shot skip turns the earlier ones off and the target on). */
+const OWN_STOP_KEYS: (keyof StopPolicy)[] = ['ownMain', 'ownCombatBegin', 'ownBlockers', 'ownEnd'];
 
 export function Table({ gameId }: { gameId: string }) {
   const status = useGameStore(s => s.status);
@@ -66,6 +75,9 @@ export function Table({ gameId }: { gameId: string }) {
   const events = useGameStore(s => s.events);
   const eventBase = useGameStore(s => s.eventBase);
   const decision = useGameStore(s => s.decision);
+  const undoAvailable = useGameStore(s => s.undoAvailable);
+  const undoRefused = useGameStore(s => s.undoRefused);
+  const undoing = useGameStore(s => s.undoing);
   const log = useGameStore(s => s.log);
   const reasoning = useGameStore(s => s.reasoning);
   const analysis = useGameStore(s => s.analysis);
@@ -77,6 +89,7 @@ export function Table({ gameId }: { gameId: string }) {
   const start = useGameStore(s => s.start);
   const answer = useGameStore(s => s.answer);
   const concede = useGameStore(s => s.concede);
+  const undo = useGameStore(s => s.undo);
   const setStopsRemote = useGameStore(s => s.setStops);
   const deepen = useGameStore(s => s.deepen);
   const rerun = useGameStore(s => s.rerun);
@@ -91,7 +104,9 @@ export function Table({ gameId }: { gameId: string }) {
   const showMe = useGameStore(s => s.showMe);
 
   const isMobile = useIsMobile();
-  const ix = useTableInteraction();
+  const settings = usePlaySettings();
+  const gl = useCardGL();
+  const ix = useTableInteraction({ askToPay: settings.askToPay });
   const rootRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const [boot, setBoot] = useState<'idle' | 'loading' | 'missing' | 'ready' | 'failed'>('idle');
@@ -100,6 +115,7 @@ export function Table({ gameId }: { gameId: string }) {
   const [panels, setPanels] = useState<{ log: boolean; analysis: boolean; rail: Rail }>({ log: false, analysis: true, rail: 'analysis' });
   const [sheet, setSheet] = useState<'analysis' | 'log' | null>(null);
   const [help, setHelp] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [stops, setStops] = useState<StopPolicy>(DEFAULT_STOPS);
   const toasted = useRef<string | null>(null);
   const tut = useTutorial();
@@ -110,40 +126,57 @@ export function Table({ gameId }: { gameId: string }) {
     if (boot === 'loading') return;
     const rec = loadSetup(gameId);
     const parsed = parseGameId(gameId);
-    let a: DeckRef | null = rec?.a ?? null; let b: DeckRef | null = rec?.b ?? null;
+    let seats: (DeckRef | null)[] = rec ? seatsOf(rec) : [];
     let opts: StartOptions | null = rec?.options ?? null;
-    if ((!a || !b) && parsed) { a = refFromKey(parsed.a); b = refFromKey(parsed.b); opts = opts ?? { ...DEFAULT_START_OPTIONS, seed: parsed.seed }; }
-    if (!a || !b || !opts) { setBoot('missing'); return; }
+    if ((!seats.length || seats.some(r => !r)) && parsed) { seats = parsed.keys.map(k => refFromKey(k)); opts = opts ?? { ...DEFAULT_START_OPTIONS, seed: parsed.seed }; }
+    if (seats.length < 2 || seats.some(r => !r) || !opts) { setBoot('missing'); return; }
+    const refs = seats as DeckRef[];
     setBoot('loading');
     const seed = opts.seed;
-    Promise.all([payloadFor(a, seed), payloadFor(b, seed)])
-      .then(([pa, pb]) => { void start(gameId, [pa, pb], { ...opts!, aiName: opts!.aiName ?? pb.archetype?.name ?? b!.name }); setBoot('ready'); })
+    Promise.all(refs.map(r => payloadFor(r, seed)))
+      .then(payloads => { void start(gameId, payloads, { ...opts!, aiName: opts!.aiName ?? payloads[1].archetype?.name ?? refs[1].name }); setBoot('ready'); })
       .catch(e => { setBootError((e as Error).message); setBoot('failed'); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId, storeGameId, status]);
 
-  // ---- stops: persisted per browser, pushed to the worker when the game runs
+  // ---- stops: persisted per browser, pushed to the worker when the game runs; a phase-strip skip sets a one-shot
+  // policy that is restored at the next decision
+  const oneShot = useRef(false);
   useEffect(() => { setStops({ ...DEFAULT_STOPS, ...readLocal<Partial<StopPolicy>>(STOPS_KEY, {}) }); setPanels(p => ({ ...p, ...readLocal<Partial<typeof panels>>(PANELS_KEY, {}) })); }, []);
   useEffect(() => { if (status === 'running' && storeGameId === gameId) setStopsRemote(stops); }, [status, storeGameId, gameId, stops, setStopsRemote]);
+  useEffect(() => { if (decision && oneShot.current) { oneShot.current = false; setStopsRemote(stops); } }, [decision, stops, setStopsRemote]);
   const toggleStop = useCallback((key: keyof StopPolicy, value: boolean) => { setStops(s => { const n = { ...s, [key]: value }; writeLocal(STOPS_KEY, n); return n; }); }, []);
   const togglePanel = useCallback((key: 'log' | 'analysis') => { setPanels(p => { const n = { ...p, [key]: !p[key] }; writeLocal(PANELS_KEY, n); return n; }); }, []);
   const setRail = useCallback((rail: Rail) => { setPanels(p => { const n = { ...p, rail, analysis: true }; writeLocal(PANELS_KEY, n); return n; }); }, []);
 
-  // ---- reduced motion zeroes the queue's durations
-  const reducedMotion = !!useReducedMotion();
+  // ---- reduced motion zeroes the queue's durations (the setting can override the system preference)
+  const systemReducedMotion = !!useReducedMotion();
+  const reducedMotion = settings.reducedMotion === 'system' ? systemReducedMotion : settings.reducedMotion === 'on';
   useEffect(() => { setReducedMotion(reducedMotion); }, [reducedMotion, setReducedMotion]);
+  const changeSettings = useCallback((patch: Partial<PlaySettings>) => {
+    writeSettings(patch);
+    if (patch.speed !== undefined) setSpeed(patch.speed);
+    if (patch.glQuality !== undefined) gl?.setQuality(patch.glQuality);
+  }, [setSpeed, gl]);
+  const changeSpeed = useCallback((s: number) => { setSpeed(s); writeSettings({ speed: s }); }, [setSpeed]);
 
-  // ---- one toast at game start listing partially simulated cards
+  // ---- one toast at game start listing partially simulated cards; the explain default applies then too
   useEffect(() => {
     if (status !== 'running' || !decks || toasted.current === gameId) return;
     toasted.current = gameId;
-    const mine = decks[0].partial.length; const theirs = decks[1].partial.length;
-    if (mine || theirs) toast({ title: 'Some cards are only partly simulated', body: `${mine} in your deck, ${theirs} in ${decks[1].name}. The engine notes each one in the log when it matters.`, kind: 'note', ttl: 9000 });
+    if (settings.explain) setExplain(true);
+    const mine = decks[0].partial.length; const theirs = decks.slice(1).reduce((n, d) => n + d.partial.length, 0);
+    if (mine || theirs) toast({ title: 'Some cards are only partly simulated', body: `${mine} in your deck, ${theirs} in ${decks.slice(1).map(d => d.name).join(' and ')}. The engine notes each one in the log when it matters.`, kind: 'note', ttl: 9000 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, decks, gameId]);
+
+  // ---- undo refusals surface as a toast with the worker's reason
+  useEffect(() => { if (undoRefused) toast({ title: 'Cannot undo', body: undoRefused.reason, kind: 'warn', ttl: 4500 }); }, [undoRefused]);
 
   const objects = useMemo(() => indexObjects(view), [view]);
   const myId: PlayerId = view?.viewer ?? 0;
-  const me = view ? meOf(view) : null; const opp = view ? oppOf(view) : null;
+  const me = view ? meOf(view) : null;
+  const opps = useMemo(() => (view ? oppsOf(view) : []), [view]);
   const thinking = status === 'running' && !decision;
   const narration = useMemo(() => {
     for (let i = log.length - 1; i >= 0 && i > log.length - 40; i--) if (log[i].kind === 'ai') return log[i].line.replace(/^\s*\[[^\]]+ thinks\]\s*/, '');
@@ -154,6 +187,23 @@ export function Table({ gameId }: { gameId: string }) {
   /** Table interaction is only meaningful once the shown view is the decision's view. */
   const interactive = settled && status === 'running' && !playback.paused;
   const hints: IllegalHint[] | undefined = decision?.decision.kind === 'priority' ? decision.decision.illegal : undefined;
+  const nameOf = useCallback((id: number): string | null => {
+    const o = objects.get(id); if (o) return o.name;
+    for (const p of view?.players ?? []) { const c = p.command.find(x => x.id === id); if (c) return c.name; }
+    return null;
+  }, [objects, view]);
+  /** Where a commander that is not in its zone currently is. */
+  const whereIs = useCallback((id: number): string | null => {
+    if (!view) return null;
+    for (const p of view.players) {
+      if (p.battlefield.some(o => o.id === id)) return 'on the battlefield';
+      if (p.graveyard.some(o => o.id === id)) return 'in the graveyard';
+      if (p.exile.some(o => o.id === id)) return 'in exile';
+      if (p.hand?.some(o => o.id === id)) return 'in hand';
+    }
+    if (view.stack.some(s => s.sourceId === id)) return 'on the stack';
+    return null;
+  }, [view]);
 
   // ---- drag and drop: plans come from @play/targeting, effects go back into the interaction hook
   const [choice, setChoice] = useState<{ card: CardView; actions: LegalAction[]; at: { x: number; y: number } } | null>(null);
@@ -163,24 +213,27 @@ export function Table({ gameId }: { gameId: string }) {
   dragRef.current = { ctx: dragCtx, mode: ix.mode.kind, status, blocked: !!nonPriorityDecision, objects, interactive, hints };
   const planFor = useCallback((source: DragSource): DragPlan | null => {
     const { ctx, mode: mk, status: st, blocked, objects: objs, interactive: ok } = dragRef.current;
-    if (!ctx || st !== 'running' || blocked || !ok || mk === 'x' || mk === 'armed') return null;
+    if (!ctx || st !== 'running' || blocked || !ok || mk === 'x' || mk === 'armed' || mk === 'pay') return null;
     if (source.kind === 'permanent') { const p = objs.get(source.id) as PermanentView | undefined; if (!p || !('controller' in p) || p.controller !== ctx.me) return null; }
+    if (source.kind === 'command' && !ctx.view.players[ctx.me].command.some(c => c.id === source.cardId)) return null;
     return planDrag(source, ctx);
   }, []);
   const onDrop = useCallback((plan: DragPlan, _zone: DropZone, effect: Exclude<DropEffect, { kind: 'none' }>, point: { x: number; y: number }) => {
     switch (effect.kind) {
       case 'begin': {
-        if (plan.choices && plan.choices.length > 1) { const card = objects.get(sourceIdOf(plan.source)); if (card) { setChoice({ card, actions: plan.choices, at: point }); return; } }
-        if (effect.pick) ix.beginWithPick(effect.legal, effect.pick); else ix.beginLegal(effect.legal);
+        if (plan.choices && plan.choices.length > 1) { const card = objects.get(sourceIdOf(plan.source)) ?? liveView?.players[myId].command.find(c => c.id === sourceIdOf(plan.source)); if (card) { setChoice({ card, actions: plan.choices, at: point }); return; } }
+        if (effect.pick) ix.beginWithPick(effect.legal, effect.pick);
+        else if (effect.paySource !== undefined) ix.beginLegal(effect.legal, { source: effect.paySource, force: true });
+        else ix.beginLegal(effect.legal);
         return;
       }
       case 'pick': ix.pickRef(effect.ref); return;
-      case 'attack': ix.setAttacking(effect.id, true); return;
+      case 'attack': ix.setAttacking(effect.id, true, effect.target); return;
       case 'unattack': ix.setAttacking(effect.id, false); return;
       case 'block': ix.setBlock(effect.blocker, effect.attacker); return;
       case 'unblock': ix.clearBlock(effect.blocker); return;
     }
-  }, [ix, objects]);
+  }, [ix, objects, liveView, myId]);
   // Snap-back toasts prefer the engine's own reason for the card (decision.illegal) over the client heuristic.
   const onIllegal = useCallback((plan: DragPlan, _zone: DropZone, reason: IllegalReason) => {
     const hint = dragRef.current.hints?.find(h => h.id === sourceIdOf(plan.source));
@@ -190,19 +243,21 @@ export function Table({ gameId }: { gameId: string }) {
   }, []);
   const drag = useDragIntent({ planFor, onDrop, onIllegal, reducedMotion });
   const drops = useMemo(() => {
-    const out = { bf: new Set<PlayerId>(), players: new Set<PlayerId>(), objects: new Set<number>(), stack: new Set<number>() };
+    const out = { bf: new Set<PlayerId>(), players: new Set<PlayerId>(), objects: new Set<number>(), stack: new Set<number>(), willTap: new Set<number>() };
     if (drag.phase !== 'dragging' || !drag.plan) return out;
-    for (const { zone } of drag.plan.zones) {
+    for (const { zone, effect } of drag.plan.zones) {
       if (zone.kind === 'battlefield') out.bf.add(zone.player); else if (zone.kind === 'player') out.players.add(zone.id); else if (zone.kind === 'object') out.objects.add(zone.id); else if (zone.kind === 'stack') out.stack.add(zone.id);
+      // the lands the engine would tap for the spell being dragged get a dashed rim
+      if (effect.kind === 'begin' && effect.paySource === undefined && effect.legal.pay) for (const t of effect.legal.pay.taps) out.willTap.add(t.id);
     }
     return out;
   }, [drag.phase, drag.plan]);
   const overIs = useCallback((z: DropZone) => !!drag.over && sameZone(drag.over, z), [drag.over]);
   const liftedId = drag.phase !== 'idle' && drag.phase !== 'pending' && drag.ghost ? sourceIdOf(drag.ghost.source) : null;
-  // The spell being cast from hand sits in the casting slot while its targets are chosen; a tether runs from there.
+  // The spell being cast from hand (or the command zone) sits in the casting slot while its targets are chosen; a tether runs from there.
   const slotCard = useMemo<CardView | null>(() => {
     if (ix.mode.kind !== 'targeting' || ix.sourceId == null || ix.mode.st.legal.action.type !== 'cast') return null;
-    return me?.hand?.find(c => c.id === ix.sourceId) ?? null;
+    return me?.hand?.find(c => c.id === ix.sourceId) ?? me?.command.find(c => c.id === ix.sourceId) ?? null;
   }, [ix.mode, ix.sourceId, me]);
   const tether = useMemo(() => (ix.mode.kind === 'targeting' && ix.sourceId != null ? { from: slotCard ? '[data-cast-slot]' : `[data-obj-id="${ix.sourceId}"]`, rootRef, tone: 'brass' as const } : null), [ix.mode.kind, ix.sourceId, slotCard]);
 
@@ -235,8 +290,8 @@ export function Table({ gameId }: { gameId: string }) {
   const onRootPointerDown = useCallback((e: ReactPointerEvent) => { if ((e.target as HTMLElement | null)?.closest?.('[data-inspector]')) return; closeInspector(); }, [closeInspector]);
   useEffect(() => { if (drag.phase !== 'idle') closeInspector(); }, [drag.phase, closeInspector]);
   useEffect(() => () => clearTimers(), []);
-  const inspectCard = inspect ? objects.get(inspect.id) ?? null : null;
-  const inspectMine = !!inspectCard && (('controller' in inspectCard) ? (inspectCard as PermanentView).controller === myId : !!me?.hand?.some(c => c.id === inspectCard.id));
+  const inspectCard = inspect ? objects.get(inspect.id) ?? me?.command.find(c => c.id === inspect.id) ?? null : null;
+  const inspectMine = !!inspectCard && (('controller' in inspectCard) ? (inspectCard as PermanentView).controller === myId : !!me?.hand?.some(c => c.id === inspectCard.id) || !!me?.command.some(c => c.id === inspectCard.id));
   const inspectActions = useMemo(() => (inspectCard && interactive ? ix.legal.filter(l => (l.action.type === 'play-land' && l.action.cardId === inspectCard.id) || (l.action.type === 'cast' && l.action.cardId === inspectCard.id) || (l.action.type === 'activate' && l.action.objectId === inspectCard.id)) : []), [inspectCard, interactive, ix.legal]);
 
   // ---- tutorial spotlights
@@ -252,6 +307,16 @@ export function Table({ gameId }: { gameId: string }) {
   useEffect(() => { if (stackLen > 0) tutTrigger('stack'); }, [stackLen, tutTrigger]);
   useEffect(() => { if (fx.trigger) tutTrigger('trigger'); if (fx.death) tutTrigger('sba'); }, [fx.key, fx.trigger, fx.death, tutTrigger]);
 
+  // ---- phase strip: pass until a later step of my turn (one-shot stop, restored at the next decision)
+  const skipTo = useCallback((_step: Step, key: keyof StopPolicy) => {
+    if (!interactive || !ix.isPriority || ix.mode.kind !== 'idle') return;
+    const policy: StopPolicy = { ...stops };
+    for (const k of OWN_STOP_KEYS) policy[k] = k === key;
+    oneShot.current = true;
+    setStopsRemote(policy);
+    ix.pass();
+  }, [interactive, ix, stops, setStopsRemote]);
+
   // ---- keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -259,6 +324,7 @@ export function Table({ gameId }: { gameId: string }) {
       const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
       if (e.key === '?' && !typing) { e.preventDefault(); setHelp(h => !h); return; }
       if (e.key === 'Escape') { if (inspect) closeInspector(); if (ix.mode.kind !== 'idle' || ix.menuCard !== null) { e.preventDefault(); ix.cancel(); } return; }
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && !typing) { e.preventDefault(); if (status === 'running' && liveView?.viewer !== null) undo(); return; }
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === ' ' && !(t && t.getAttribute('role') === 'button')) { e.preventDefault(); if (interactive) ix.pass(); return; }
       if (e.key === 'Enter' && ix.mode.kind !== 'idle' && ix.mode.kind !== 'x' && !(t && (t.tagName === 'BUTTON' || t.getAttribute('role') === 'button'))) { e.preventDefault(); if (interactive) ix.confirm(); return; }
@@ -275,11 +341,12 @@ export function Table({ gameId }: { gameId: string }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [ix, isMobile, togglePanel, nonPriorityDecision, interactive, playback.explain, setExplain, inspect, closeInspector]);
+  }, [ix, isMobile, togglePanel, nonPriorityDecision, interactive, playback.explain, setExplain, inspect, closeInspector, undo, status, liveView?.viewer]);
 
   // ---- per-card interaction state
   const pulseObjects = useMemo(() => new Set(pulse?.objects ?? EMPTY_IDS), [pulse]);
   const fxSets = useMemo(() => ({ glow: new Set(fx.glow), dying: new Set(fx.dying), hits: new Set(fx.hits), moving: new Set(fx.moving) }), [fx]);
+  const payMode = ix.mode.kind === 'pay' ? ix.mode : null;
   const cardState = useCallback((id: number): TableCardProps['state'] => {
     const m = ix.mode;
     const legal = interactive && (m.kind === 'targeting' ? ix.targets!.objects.has(id) : m.kind === 'attackers' ? m.candidates.includes(id) : m.kind === 'blockers' ? (m.candidates.includes(id) || (m.selected !== null && m.attackers.includes(id))) : false);
@@ -287,6 +354,7 @@ export function Table({ gameId }: { gameId: string }) {
     const perm = objects.get(id);
     const attacking = !!perm && 'attacking' in perm && (perm as { attacking: PlayerId | null }).attacking !== null;
     const blocking = !!perm && 'blocking' in perm && (perm as { blocking: number[] }).blocking.length > 0;
+    const payCandidate = !!payMode && !!perm && 'controller' in perm && (perm as PermanentView).controller === myId && !(perm as PermanentView).tapped && isManaSource(perm);
     return {
       castable: interactive && m.kind === 'idle' && ix.isPriority && ix.playable.has(id),
       legalTarget: legal,
@@ -294,9 +362,10 @@ export function Table({ gameId }: { gameId: string }) {
       picked: pickedNow, hovered: ix.hover.objects.has(id), selected: m.kind === 'blockers' && m.selected === id, source: ix.sourceId === id,
       attacking: attacking || (m.kind === 'attackers' && m.decl.attackers.includes(id)), blocking,
       dropTarget: drops.objects.has(id), dropOver: overIs({ kind: 'object', id }), lifted: liftedId === id || slotCard?.id === id,
+      willTap: drops.willTap.has(id), paySource: !!payMode && payMode.sources.includes(id), payCandidate: payCandidate && !payMode!.sources.includes(id),
       glow: fxSets.glow.has(id), dying: fxSets.dying.has(id), hit: fxSets.hits.has(id), moving: fxSets.moving.has(id), pulsed: pulseObjects.has(id),
     };
-  }, [ix, objects, drops, overIs, liftedId, slotCard, interactive, fxSets, pulseObjects]);
+  }, [ix, objects, drops, overIs, liftedId, slotCard, interactive, fxSets, pulseObjects, payMode, myId]);
   const actionsFor = useCallback((id: number) => (interactive ? ix.legal.filter(l => (l.action.type === 'play-land' && l.action.cardId === id) || (l.action.type === 'cast' && l.action.cardId === id) || (l.action.type === 'activate' && l.action.objectId === id)) : []), [ix.legal, interactive]);
   const onMenuOpenChange = useCallback((id: number, open: boolean) => ix.setMenuCard(open ? id : null), [ix]);
   const onObjectClick = useCallback((id: number) => { if (dragRef.current.interactive) ix.onObjectClick(id); }, [ix]);
@@ -309,16 +378,24 @@ export function Table({ gameId }: { gameId: string }) {
     if (!view) return out;
     for (const it of view.stack) for (const t of it.targets) out.push({ from: { kind: 'stack', id: it.id }, to: t, tone: 'brass' });
     for (const p of view.players) for (const perm of p.battlefield) {
-      if (perm.attacking !== null && view.step !== 'combat-end') out.push({ from: { kind: 'object', id: perm.id }, to: { kind: 'player', id: perm.attacking }, tone: 'danger' });
+      if (perm.attacking !== null && view.step !== 'combat-end') out.push({ from: { kind: 'object', id: perm.id }, to: perm.attackingPlaneswalker != null ? { kind: 'object', id: perm.attackingPlaneswalker } : { kind: 'player', id: perm.attacking }, tone: 'danger' });
       for (const a of perm.blocking) out.push({ from: { kind: 'object', id: perm.id }, to: { kind: 'object', id: a }, tone: 'info' });
     }
     const m = ix.mode;
     if (m.kind === 'blockers') for (const b of m.decl.blocks) out.push({ from: { kind: 'object', id: b.blocker }, to: { kind: 'object', id: b.attacker }, tone: 'info' });
-    if (m.kind === 'attackers') for (const id of m.decl.attackers) out.push({ from: { kind: 'object', id }, to: { kind: 'player', id: myId === 0 ? 1 : 0 }, tone: 'danger' });
+    if (m.kind === 'attackers') {
+      const fallback = dragCtx ? defaultDefender(dragCtx) : null;
+      for (const id of m.decl.attackers) {
+        const t = m.decl.targets?.[id];
+        const to: TargetRef | null = t !== undefined ? (typeof t === 'number' ? { kind: 'player', id: t } : { kind: 'object', id: t.planeswalker }) : fallback !== null ? { kind: 'player', id: fallback } : null;
+        if (to) out.push({ from: { kind: 'object', id }, to, tone: 'danger' });
+      }
+    }
     if ((m.kind === 'targeting') && ix.sourceId != null) for (const group of [...m.st.picks, m.st.current]) for (const t of group) out.push({ from: { kind: 'object', id: ix.sourceId }, to: t, tone: 'brass' });
     if (m.kind === 'armed' && (m.action.type === 'cast' || m.action.type === 'activate')) { const src = m.action.type === 'cast' ? m.action.cardId : m.action.objectId; for (const t of (m.action.targets ?? []).flat()) out.push({ from: { kind: 'object', id: src }, to: t as TargetRef, tone: 'brass' }); }
+    if (m.kind === 'pay') for (const t of (m.action.targets ?? []).flat()) out.push({ from: { kind: 'object', id: m.action.cardId }, to: t as TargetRef, tone: 'brass' });
     return out;
-  }, [view, ix.mode, ix.sourceId, myId]);
+  }, [view, ix.mode, ix.sourceId, dragCtx]);
 
   const rematch = useCallback(() => { if (decks && options) void start(gameId, decks, options); }, [decks, options, start, gameId]);
   const legalPlayers = interactive && ix.mode.kind === 'targeting' ? ix.targets!.players : null;
@@ -332,7 +409,7 @@ export function Table({ gameId }: { gameId: string }) {
   if (boot === 'failed' || status === 'error') {
     return <div className="container" style={{ paddingBlock: 48 }}><Callout variant="danger" title="The table could not be set up">{bootError ?? error}</Callout><p style={{ marginTop: 16 }}><Link className="link" href="/play">Back to setup</Link></p></div>;
   }
-  if (!view || !me || !opp || !liveView) {
+  if (!view || !me || !opps.length || !liveView) {
     return (
       <div className={styles.shell} aria-busy="true">
         <div className={styles.table}><div className={styles.booting}><Skeleton height={120} /><Skeleton height={40} width="60%" /><Skeleton height={160} /><span className="faint small">Shuffling and building the analysis pool…</span></div></div>
@@ -341,6 +418,8 @@ export function Table({ gameId }: { gameId: string }) {
   }
 
   const myTurn = view.activePlayer === myId;
+  const activeName = view.players[view.activePlayer]?.name ?? 'Opponent';
+  const humanSeat = liveView.viewer !== null;
   const analysisPanel = (
     <AnalysisPanel report={analysis} phase={analysisPhase} reruns={reruns} seed={options?.seed ?? 0} enabled={!!options?.analysis.enabled} interactive={interactive && ix.isPriority && ix.mode.kind === 'idle'}
       onDeepen={policy => deepen(400, policy)} onRerun={rerun} onHover={ix.setHoverAction} onArm={ix.armPlay} onUse={ix.usePlay} objects={objects} view={liveView} />
@@ -355,37 +434,51 @@ export function Table({ gameId }: { gameId: string }) {
   );
   const logPanel = <LogPanel log={log} />;
   const canPass = interactive && ix.isPriority && ix.mode.kind === 'idle';
+  const pod = opps.length > 1;
+
+  const plateProps = (p: PlayerView) => ({
+    active: view.activePlayer === p.id, hasPriority: view.priority === p.id, thinking: thinking && status === 'running' && (view.priority === p.id || (opps.length === 1)),
+    legalTarget: !!legalPlayers?.has(p.id), picked: ix.picked.players.has(p.id), hovered: ix.hover.players.has(p.id), dimmed: ix.mode.kind === 'targeting' && !legalPlayers?.has(p.id),
+    onClick: onPlayerClick, onOpenZone: (pid: PlayerId, z: 'graveyard' | 'exile' | 'command') => setZone({ pid, zone: z }), nameOf,
+    dropTarget: drops.players.has(p.id), dropOver: overIs({ kind: 'player', id: p.id }), pulsed: !!pulse?.players.includes(p.id), layoutKey, reducedMotion,
+  });
 
   return (
     <div ref={rootRef} className={clsx(styles.shell, panels.log && !isMobile && styles.shellLog, panels.analysis && !isMobile && styles.shellAnalysis, ix.mode.kind === 'targeting' && styles.shellTargeting)}
-      data-testid="play-table" data-status={status} data-settled={settled ? 'true' : 'false'} data-cursor={playback.cursor} data-paused={playback.paused ? 'true' : undefined}
+      data-testid="play-table" data-status={status} data-settled={settled ? 'true' : 'false'} data-cursor={playback.cursor} data-paused={playback.paused ? 'true' : undefined} data-seats={view.players.length}
       onPointerDownCapture={onRootPointerDown}>
-      <span className="sr-only" aria-live="polite">Turn {view.turn}, {myTurn ? 'your' : `${opp.name}'s`} turn, {STEP_LABELS[view.step]}.</span>
+      <span className="sr-only" aria-live="polite">Turn {view.turn}, {myTurn ? 'your' : `${activeName}'s`} turn, {STEP_LABELS[view.step]}.</span>
 
       {!isMobile && panels.log && <aside className={styles.logRail} aria-label="Log rail">{logPanel}</aside>}
 
-      <div ref={tableRef} className={styles.table} onPointerOver={onTablePointerOver} onPointerOut={onTablePointerOut}>
+      <div ref={tableRef} className={clsx(styles.table, pod && styles.tableRing)} onPointerOver={onTablePointerOver} onPointerOut={onTablePointerOut}>
         <TargetArrows rootRef={rootRef} connectors={connectors} version={`${view.logLength}:${layoutKey}`} />
         <NumberPops fx={fx} rootRef={tableRef} reducedMotion={reducedMotion} />
         <EventChips fx={fx} rootRef={tableRef} explain={playback.explain} reducedMotion={reducedMotion} />
         <TurnBanner fx={fx} viewer={myId} names={names} reducedMotion={reducedMotion} />
 
-        <section className={styles.oppZone} aria-label={`${opp.name}'s side`}>
-          <PlayerPlate player={opp} isMe={false} active={!myTurn} hasPriority={view.priority === opp.id} thinking={thinking && status === 'running'} legalTarget={!!legalPlayers?.has(opp.id)} picked={ix.picked.players.has(opp.id)} hovered={ix.hover.players.has(opp.id)} dimmed={ix.mode.kind === 'targeting' && !legalPlayers?.has(opp.id)} onClick={onPlayerClick} onOpenZone={(pid, z) => setZone({ pid, zone: z })}
-            dropTarget={drops.players.has(opp.id)} dropOver={overIs({ kind: 'player', id: opp.id })} pulsed={!!pulse?.players.includes(opp.id)} layoutKey={layoutKey} reducedMotion={reducedMotion} />
-          <Battlefield permanents={opp.battlefield} mine={false} player={opp.id} cardWidth={isMobile ? 60 : 78} cardState={cardState} onActivate={onObjectClick} dropTarget={drops.bf.has(opp.id)} dropOver={overIs({ kind: 'battlefield', player: opp.id })} layoutKey={layoutKey} reducedMotion={reducedMotion} />
+        <section className={clsx(styles.oppZone, pod && styles.oppZonePod)} aria-label={pod ? 'Opponents' : `${opps[0].name}'s side`}>
+          <SeatRing opponents={opps}>
+            {p => (
+              <Seat key={p.id} player={p} seats={opps.length} isMobile={isMobile} cardState={cardState} onActivate={onObjectClick} whereIs={whereIs}
+                plate={plateProps(p)}
+                battlefield={{ cardState, onActivate: onObjectClick, dropTarget: drops.bf.has(p.id), dropOver: overIs({ kind: 'battlefield', player: p.id }), layoutKey, reducedMotion }} />
+            )}
+          </SeatRing>
         </section>
 
         <section className={styles.mid} aria-label="Turn, stack and priority">
           <div className={styles.phaseRow}>
-            <PhaseStrip step={view.step} turn={view.turn} myTurn={myTurn} stops={stops} onToggleStop={toggleStop} />
-            {!isMobile && <PlaybackBar playback={playback} settled={settled} pending={Math.max(0, eventBase + events.length - playback.cursor)} onSpeed={setSpeed} onSkip={skip} onExplain={setExplain} onResetTutorial={tut.reset} tutorialOff={tut.state.off} onTutorialOff={tut.setOff} />}
+            <PhaseStrip step={view.step} turn={view.turn} myTurn={myTurn} stops={stops} onToggleStop={toggleStop} onSkipTo={skipTo} canSkip={canPass && !undoing} />
+            {!isMobile && <PlaybackBar playback={playback} settled={settled} pending={Math.max(0, eventBase + events.length - playback.cursor)} onSpeed={changeSpeed} onSkip={skip} onExplain={setExplain} onOpenSettings={() => setSettingsOpen(true)} />}
           </div>
           <div className={styles.midRow}>
             <StackColumn stack={view.stack} viewer={myId} legalStack={interactive ? ix.targets?.stack ?? null : null} dimOthers={ix.mode.kind === 'targeting'} onClick={onStackClick} dropStack={drops.stack} dropOver={drag.over?.kind === 'stack' ? drag.over.id : null} glowId={fx.stackGlow} layoutKey={layoutKey} reducedMotion={reducedMotion} />
             <div className={styles.midRight}>
-              <PriorityBar hasDecision={!!decision} decisionText={decisionText} thinking={thinking} narration={narration} numbered={canPass ? ix.numbered : []} onPick={ix.beginLegal} onPass={ix.pass} onConcede={concede} canPass={canPass} stackSize={view.stack.length} finished={status === 'finished'} settled={settled && !playback.paused} />
-              {interactive && <ActionBar ix={ix} view={liveView} objects={objects} />}
+              <PriorityBar hasDecision={!!decision} decisionText={decisionText} thinking={thinking} narration={narration} numbered={canPass ? ix.numbered : []} onPick={ix.beginLegal} onPass={ix.pass} onConcede={concede} canPass={canPass} stackSize={view.stack.length} finished={status === 'finished'} settled={settled && !playback.paused}
+                undo={undoAvailable} undoing={undoing} onUndo={humanSeat ? undo : undefined} />
+              {interactive && payMode && <PayTray action={payMode.action} legal={payMode.legal} sources={payMode.sources} me={liveView.players[myId]} cardName={objects.get(payMode.action.cardId)?.name ?? me.command.find(c => c.id === payMode.action.cardId)?.name ?? 'Spell'} onToggle={ix.togglePaySource} onReset={ix.setPaySources} onConfirm={ix.confirm} onCancel={ix.cancel} />}
+              {interactive && !payMode && <ActionBar ix={ix} view={liveView} objects={objects} />}
             </div>
           </div>
         </section>
@@ -395,8 +488,10 @@ export function Table({ gameId }: { gameId: string }) {
             bindDrag={drag.bind} dropTarget={drops.bf.has(myId)} dropOver={overIs({ kind: 'battlefield', player: myId })} layoutKey={layoutKey} reducedMotion={reducedMotion} />
           {slotCard && <CastingSlot card={slotCard} label={ix.requirement ? `choose ${ix.requirement.optional ? 'up to ' : ''}${ix.requirement.count} ${ix.requirement.spec}` : 'choose targets'} bind={drag.bind} onCancel={ix.cancel} width={isMobile ? 72 : 96} />}
           <div className={styles.myBottom}>
-            <PlayerPlate player={me} isMe active={myTurn} hasPriority={view.priority === myId} legalTarget={!!legalPlayers?.has(myId)} picked={ix.picked.players.has(myId)} hovered={ix.hover.players.has(myId)} dimmed={ix.mode.kind === 'targeting' && !legalPlayers?.has(myId)} onClick={onPlayerClick} onOpenZone={(pid, z) => setZone({ pid, zone: z })}
-              dropTarget={drops.players.has(myId)} dropOver={overIs({ kind: 'player', id: myId })} pulsed={!!pulse?.players.includes(myId)} layoutKey={layoutKey} reducedMotion={reducedMotion} />
+            <div className={styles.mySeat}>
+              <PlayerPlate {...plateProps(me)} player={me} isMe thinking={false} />
+              {me.commanders?.length > 0 && <CommandZone player={me} mine cardWidth={isMobile ? 48 : 56} cardState={cardState} onActivate={onObjectClick} bindDrag={drag.bind} whereIs={whereIs} layoutKey={layoutKey} reducedMotion={reducedMotion} />}
+            </div>
             <Hand cards={me.hand ?? []} cardState={cardState} onActivate={onObjectClick} actionsFor={actionsFor} menuCard={ix.menuCard} onMenuOpenChange={onMenuOpenChange} onPickAction={ix.beginLegal} compact={isMobile} bindDrag={drag.bind} layoutKey={layoutKey} reducedMotion={reducedMotion} />
             <div className={styles.tableTools}>
               {isMobile ? (
@@ -426,6 +521,7 @@ export function Table({ gameId }: { gameId: string }) {
 
       <ZoneDrawer open={!!zone} onClose={() => setZone(null)} title={zone ? `${view.players[zone.pid].name} · ${zone.zone}` : ''} cards={zone ? view.players[zone.pid][zone.zone] : []} />
       <ShortcutsSheet open={help} onClose={() => setHelp(false)} />
+      <TableSettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={settings} onChange={changeSettings} tutorialOff={tut.state.off} onTutorialOff={tut.setOff} onResetTutorial={tut.reset} glQuality={gl?.quality} systemReducedMotion={systemReducedMotion} />
       {choice && <ActionsPopover title={choice.card.name} manaCost={choice.card.manaCost} actions={choice.actions} at={choice.at} onPick={l => { setChoice(null); ix.beginLegal(l); }} onClose={() => setChoice(null)} testId="drop-choice" />}
       <DragLayer drag={drag} tether={tether} reducedMotion={reducedMotion} />
       {drag.phase === 'idle' && (

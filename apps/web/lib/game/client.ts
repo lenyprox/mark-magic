@@ -29,5 +29,7 @@ export class GameClient {
   rerun(req: McRequest) { this.send({ type: 'analysis-rerun', req }); }
   cancelAnalysis() { this.send({ type: 'analysis-cancel' }); }
   concede() { this.send({ type: 'concede' }); }
+  /** Take back the last action (the worker answers with `undo-result`). */
+  undo() { this.send({ type: 'undo' }); }
   dispose() { try { this.send({ type: 'terminate' }); } catch { /* ignore */ } this.worker.terminate(); this.listeners.clear(); }
 }

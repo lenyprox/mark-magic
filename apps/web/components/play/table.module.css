@@ -30,7 +30,7 @@
     var(--bg-0);
 }
 .booting { padding: 32px; display: flex; flex-direction: column; gap: 16px; max-width: 720px; margin: 0 auto; width: 100%; justify-content: center; }
-.oppZone { grid-area: opp; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 12px; padding: 12px 16px 8px; min-height: 0; align-items: start; }
+.oppZone { grid-area: opp; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 12px 16px 8px; min-height: 0; align-items: start; }
 .myZone { grid-area: me; position: relative; display: flex; flex-direction: column; min-height: 0; padding: 8px 16px 0; }
 .myBottom { position: relative; display: grid; grid-template-columns: 200px minmax(0, 1fr) auto; align-items: end; gap: 12px; padding-bottom: 8px; }
 .mid { grid-area: mid; display: flex; flex-direction: column; gap: 6px; padding: 6px 16px; border-block: 1px solid var(--line); background: color-mix(in srgb, var(--bg-1) 70%, transparent); backdrop-filter: blur(6px); }
@@ -446,3 +446,53 @@
   .glow::after, .dying, .hit, .pulsed::after, .platePulsed::after, .counters, .stepFlash, .catching { animation: none; }
   .dying { opacity: 0.4; }
 }
+
+/* ---- seats (2-4 players) ----------------------------------------------------------------------- */
+.oppZone.oppZonePod { grid-template-columns: minmax(0, 1fr); }
+.seatRing { display: grid; gap: 12px; min-height: 0; min-width: 0; align-items: start; }
+.ring1 { grid-template-columns: minmax(0, 1fr); }
+.ring2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ring3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.seat { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 12px; min-height: 0; min-width: 0; align-items: start; }
+.seatCompact { grid-template-columns: 150px minmax(0, 1fr); gap: 8px; padding: 6px 8px; border-radius: var(--r-3); background: color-mix(in srgb, var(--bg-1) 55%, transparent); box-shadow: inset 0 0 0 1px var(--line); }
+.seatCompact .battlefield { max-height: 26vh; }
+.seatLost { opacity: 0.55; filter: saturate(0.5); }
+.seatPlate { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mySeat { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tableRing { grid-template-rows: minmax(0, 1fr) auto minmax(0, 1.15fr); }
+@media (min-width: 1600px) {
+  .ring3 { grid-template-columns: 1fr 1.35fr 1fr; align-items: stretch; }
+  .ring2 { grid-template-columns: 1fr 1fr; }
+  .seatCompact { grid-template-columns: 170px minmax(0, 1fr); }
+}
+@media (max-width: 1180px) { .ring3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .seatCompact { grid-template-columns: minmax(0, 1fr); } }
+.plateCompact { padding: 8px 10px; gap: 4px; }
+.plateCompact .lifeNum { font-size: var(--t-xl); }
+.plateLost { opacity: 0.6; filter: saturate(0.4); }
+.plateOut { font-size: var(--t-xs); color: var(--danger); border: 1px solid var(--danger); border-radius: var(--r-pill); padding: 0 6px; }
+.platePriority .plateName { color: var(--brass-1); }
+.cmdDamage { display: inline-flex; align-items: center; gap: 3px; color: var(--brass-1); font-family: var(--font-mono); font-size: var(--t-sm); }
+.cmdDamageLethal { color: var(--danger); font-weight: 700; }
+
+/* ---- command zone ------------------------------------------------------------------------------ */
+.commandZone { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border-radius: var(--r-2); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--brass-line); }
+.commandHead { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--brass-2); }
+.commandCards { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+.commandCard { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+.commandSlot { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; width: 56px; aspect-ratio: 488 / 680; border-radius: 4px; border: 1px dashed var(--line-strong); color: var(--ink-3); font-size: 10px; text-align: center; padding: 4px; }
+.commandTax { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); white-space: nowrap; }
+
+/* ---- phase skip, pay tray, settings sheet ------------------------------------------------------ */
+.stepSkip { cursor: pointer; }
+.stepSkip:hover, .stepSkip:focus-visible { color: var(--ink-1); box-shadow: inset 0 0 0 1px var(--brass-2); outline: none; }
+.payTray { box-shadow: var(--catch), inset 0 0 0 1px var(--brass-line); }
+.payPips { display: inline-flex; gap: 2px; margin-inline: 6px; vertical-align: middle; }
+.paySourceMana { display: inline-flex; gap: 1px; margin-left: 2px; }
+.tcard.willTap::after { opacity: 1; border: 2px dashed var(--brass-2); box-shadow: none; }
+.tcard.payCandidate { cursor: pointer; }
+.tcard.payCandidate::after { opacity: 1; border: 1.5px dashed var(--line-strong); box-shadow: none; }
+.tcard.paySource::after { opacity: 1; border: 2px solid var(--brass-1); box-shadow: 0 0 14px var(--brass-glow); }
+.settingsSheet { display: flex; flex-direction: column; gap: 18px; }
+.settingsGroup { display: flex; flex-direction: column; gap: 8px; }
+.settingsField { display: flex; flex-direction: column; gap: 6px; }
+.settingsLabel { font-size: var(--t-xs); color: var(--ink-3); }

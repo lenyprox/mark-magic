@@ -79,17 +79,23 @@ export type MainToWorker =
   | { type: 'analysis-rerun'; req: McRequest }                                              // reproduce one MC estimate (verification)
   | { type: 'analysis-cancel' }
   | { type: 'concede' }
+  /** Take back the last action: restore the snapshot taken before the human's previous priority decision (see the worker's safety rules). */
+  | { type: 'undo' }
   | { type: 'terminate' };
 
 export type WorkerToMain =
   | { type: 'ready' }
   | { type: 'started'; gameId: string; view: ViewState; events?: GameEvent[] }
   /** `events`: the redacted typed events since the previous message that carried events (in order). */
-  | { type: 'decision'; requestId: number; decision: Decision; view: ViewState; events?: GameEvent[] }
+  | { type: 'decision'; requestId: number; decision: Decision; view: ViewState; events?: GameEvent[]; /** Whether `undo` would be accepted right now, and why not. */ undo?: UndoAvailability }
   | { type: 'view'; view: ViewState; events?: GameEvent[] }
   | { type: 'log'; line: string; turn: number; step: Step; index: number }
   | { type: 'reasoning'; reasoning: Reasoning }
   | { type: 'analysis'; requestId: number; report: AnalysisReport; phase: 'quick' | 'update' | 'done' }
   | { type: 'analysis-rerun-result'; req: McRequest; identical: boolean; results: TrialResult[] }
   | { type: 'finished'; gameId: string; winner: PlayerId | null; view: ViewState; log: string[]; actions: RecordedAnswer[]; reasoning: Reasoning[]; turns: number; events?: GameEvent[] }
+  /** Answer to `undo`. On success the page drops events from `eventCount` on and log lines from `logIndex` on; a fresh `view` and the re-asked `decision` follow. */
+  | { type: 'undo-result'; ok: boolean; reason?: string; eventCount?: number; logIndex?: number }
   | { type: 'error'; message: string; stack?: string };
+
+export interface UndoAvailability { ok: boolean; reason?: string }

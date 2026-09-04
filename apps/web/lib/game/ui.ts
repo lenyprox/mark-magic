@@ -74,7 +74,18 @@ export function refLabel(ref: TargetRef, view: ViewState | null, objects: Map<nu
 }
 
 export const me = (view: ViewState): PlayerView => view.players[view.viewer ?? 0];
-export const opp = (view: ViewState): PlayerView => view.players[(view.viewer ?? 0) === 0 ? 1 : 0];
+/** Every other seat in turn order starting after the viewer (eliminated players included, so plates stay put). */
+export function opponents(view: ViewState): PlayerView[] {
+  const myId = view.viewer ?? 0;
+  const order = view.turnOrder?.length ? view.turnOrder : view.players.map(p => p.id);
+  const i = Math.max(0, order.indexOf(myId));
+  const ring = [...order.slice(i + 1), ...order.slice(0, i)].filter(id => id !== myId);
+  const seen = new Set(ring);
+  for (const p of view.players) if (p.id !== myId && !seen.has(p.id)) ring.push(p.id);
+  return ring.map(id => view.players[id]).filter((p): p is PlayerView => !!p);
+}
+/** The first opponent (the only one in a duel). */
+export const opp = (view: ViewState): PlayerView => opponents(view)[0] ?? view.players[(view.viewer ?? 0) === 0 ? 1 : 0];
 
 // ---- formatting --------------------------------------------------------------------------------
 export const pct = (v: number, digits = 1) => `${(v * 100).toFixed(digits)}%`;
@@ -87,7 +98,9 @@ export const METHOD_TONE: Record<Method, 'ok' | 'info' | 'brass' | 'mute'> = { e
 export const fmtNum = (v: number | string) => typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(Math.abs(v) < 0.01 ? 4 : 3)) : v;
 
 // ---- setup persistence -------------------------------------------------------------------------
-export interface SetupRecord { a: DeckRef; b: DeckRef; options: StartOptions; playerName?: string }
+/** `a` / `b` are seats 0 and 1 (kept for older records); `seats` lists every seat in order when there are more than two. */
+export interface SetupRecord { a: DeckRef; b: DeckRef; seats?: DeckRef[]; options: StartOptions; playerName?: string }
+export const seatsOf = (rec: SetupRecord): DeckRef[] => (rec.seats && rec.seats.length >= 2 ? rec.seats : [rec.a, rec.b]);
 const KEY = (gameId: string) => `vault.play.setup:${gameId}`;
 export const LAST_SETUP_KEY = 'vault.play.lastSetup';
 

@@ -2,7 +2,7 @@
 // combat (CR 506-510), state-based actions (CR 704), triggered abilities (CR 603) and a broad set of effects.
 import type { Ability, AbilityCost, ActivatedAbility, CardDef, Color, Effect, Keyword, ManaCost, ManaSymbol, TargetSpec, TriggeredAbility } from '../cards/types.js';
 import { manaValue } from '../cards/parse.js';
-import { abilitiesOf, allPermanents, canAttack, canBlock, colors, conditionHolds, defOf, evalAmount, findObject, hasKeyword, isCreature, isLand, isType, manaValueOf, matchesFilter, name, power, protectedFrom, subtypes, toughness, types, flags, type AmountCtx } from './characteristics.js';
+import { abilitiesOf, allPermanents, canAttack, canBlock, colors, conditionHolds, defOf, evalAmount, findObject, hasKeyword, isCreature, isLand, isType, manaValueOf, matchesFilter, name, power, protectedFrom, subtypes, toughness, types, flags, type AmountCtx, damageByToughness } from './characteristics.js';
 import { FAST_MANA_LIMIT, MANA_COMBO_LIMIT, findPayment as findPaymentFull, manaSources, type ManaSourceOptions, type Payment } from './mana.js';
 import { costAdjust, exileWindowOpen, extraManaSources, hasModifier, nonManaCostPayable, pickCrew, pickDelve, pickEscapeExile, spellManaCost, ZERO_COST } from './cost.js';
 import { makeKnowledge, makeObject, makePlayer, opponentOf, STEPS, type Agent, type AttackDeclaration, type AttackTarget, type BlockDeclaration, type CastZone, type Decision, type DelayedTrigger, type GameObject, type GameState, type LegalAction, type Player, type PlayerAction, type PlayerId, type StackItem, type Step, type TargetRef } from './state.js';
@@ -174,7 +174,21 @@ export class Game {
     o.tapped = tapped;
     this.emit({ type: 'tap', id: o.id, name: name(o), tapped, reason });
   }
+  /** Doubling Season / Kami of Whispered Hopes: how many counters actually land (CR 614.1c replacement). Loyalty costs are never modified. */
+  private replaceCounters(o: GameObject, counter: string, delta: number): number {
+    if (delta <= 0 || o.zone !== 'battlefield' || counter === 'loyalty') return delta;
+    let n = delta;
+    for (const src of this.state.players[o.controller].battlefield) for (const ab of abilitiesOf(src)) {
+      if (ab.kind !== 'static' || ab.effect.kind !== 'counters-replacement') continue;
+      const e = ab.effect;
+      if (e.counter && e.counter !== counter) continue;
+      if (e.filter && !matchesFilter(this.state, o, e.filter, src)) continue;
+      n = e.mode === 'double' ? n * 2 : n + 1;
+    }
+    return n;
+  }
   addCounters(o: GameObject, counter: string, delta: number) {
+    delta = this.replaceCounters(o, counter, delta);
     if (!delta) return;
     const total = (o.counters[counter] ?? 0) + delta;
     if (total <= 0) delete o.counters[counter]; else o.counters[counter] = total;
@@ -234,7 +248,7 @@ export class Game {
   private async runTurn() {
     const s = this.state;
     this.emit({ type: 'turn', player: s.activePlayer, number: s.turn });
-    for (const p of s.players) { p.landsPlayedThisTurn = 0; p.attackedThisTurn = false; p.lifeLostThisTurn = 0; p.creaturesDiedThisTurn = 0; p.spellsCastThisTurn = 0; p.permanentsLeftThisTurn = 0; p.cardsDrawnThisTurn = 0; p.lifeGainedThisTurn = 0; for (const o of p.battlefield) o.activatedThisTurn.clear(); }
+    for (const p of s.players) { p.landsPlayedThisTurn = 0; p.attackedThisTurn = false; p.attackedWithThisTurn = 0; p.lifeLostThisTurn = 0; p.creaturesDiedThisTurn = 0; p.spellsCastThisTurn = 0; p.permanentsLeftThisTurn = 0; p.cardsDrawnThisTurn = 0; p.lifeGainedThisTurn = 0; for (const o of p.battlefield) { o.activatedThisTurn.clear(); o.triggeredThisTurn?.clear(); } }
     s.players[s.activePlayer].turnsTaken = (s.players[s.activePlayer].turnsTaken ?? 0) + 1;
     await this.runTurnFrom('untap');
   }
@@ -321,7 +335,7 @@ export class Game {
       for (const id of chosen) this.discard(ap, id);
     }
     // end-of-turn effects wear off, damage removed
-    for (const pl of s.players) for (const o of pl.battlefield) { o.damage = 0; o.eotPower = 0; o.eotToughness = 0; o.eotKeywords = []; o.eotFlags = {}; }
+    for (const pl of s.players) for (const o of pl.battlefield) { o.damage = 0; o.eotPower = 0; o.eotToughness = 0; o.eotKeywords = []; o.eotFlags = {}; if (o.animated?.untilTurn !== undefined) delete o.animated; }
     // temporary control effects end
     for (const pl of s.players) for (const o of [...pl.battlefield]) { const back = (o as GameObject & { controlUntilEot?: PlayerId }).controlUntilEot; if (back !== undefined) { delete (o as GameObject & { controlUntilEot?: PlayerId }).controlUntilEot; this.changeControl(o, back); } }
     this.checkSBA();
@@ -360,7 +374,8 @@ export class Game {
       case 'pass': return true;
       case 'concede': { this.eliminate(p, 'conceded', `${this.pname(p)} concedes.`); return true; }
       case 'play-land': {
-        const card = s.players[p].hand.find(c => c.id === action.cardId); if (!card) return false;
+        const zone = action.from === 'graveyard' ? s.players[p].graveyard : action.from === 'library' ? s.players[p].library.slice(0, 1) : s.players[p].hand;
+        const card = zone.find(c => c.id === action.cardId); if (!card) return false;
         const face = action.face ?? 0;
         if (!(legal ?? legalActions(this, p)).some(l => l.action.type === 'play-land' && l.action.cardId === card.id && (l.action.face ?? 0) === face)) return false;
         card.activeFace = face;
@@ -520,7 +535,7 @@ export class Game {
     const fromZone = o.token ? 'none' : o.zone;
     if (o.token) { o.zone = 'battlefield'; o.enteredTurn = s.turn; pl.battlefield.push(o); this.bfGen++; } else this.moveTo(o, 'battlefield', 'top', 'enter');
     o.damage = 0;
-    let tapped = !!ctx.tapped || !!def.entersTapped;
+    let tapped = !!ctx.tapped || (typeof def.entersTapped === 'object' ? !conditionHolds(s, o, def.entersTapped.unless) : !!def.entersTapped);
     for (const a of def.asEnters ?? []) {
       switch (a.kind) {
         case 'tapped': tapped = true; break;
@@ -878,6 +893,22 @@ export class Game {
       case 'shuffle': { const w: PlayerId = e.who === 'target-player' ? (this.players(T)[0] ?? p) : e.who === 'that-player' ? (this.players(T)[0] ?? item.affected?.[0]?.lastKnown.controller ?? p) : p; if (!e.optional || await this.ask(w, { kind: 'yes-no', prompt: 'Shuffle your library?', tag: 'optional' })) { this.shuffle(w); this.emit({ type: 'library', player: w, action: 'shuffle' }); } break; }
       case 'reveal-hand': { const w = this.players(T)[0] ?? opp; const pl = s.players[w]; for (const c of pl.hand) if (!s.knowledge.knownInHand.includes(c.id)) s.knowledge.knownInHand.push(c.id); this.note(`${this.pname(w)} reveals their hand: ${pl.hand.map(c => c.def.name).join(', ') || 'nothing'}.`); break; }
       case 'become-monarch': this.setMonarch(p); break;
+      case 'optional-then': {
+        if (!(await this.ask(p, { kind: 'yes-no', prompt: `${item.name}: ${e.first.map(f => f.op).join(', ')}?`, tag: 'optional' }))) break;
+        for (let i = 0; i < e.first.length; i++) await this.applyEffect(item, e.first[i], idx, all);
+        for (let i = 0; i < e.then.length; i++) await this.applyEffect(item, e.then[i], idx, all);
+        break;
+      }
+      case 'impulse': {
+        const pl = s.players[p];
+        for (let i = 0; i < e.count; i++) {
+          const c = pl.library[0]; if (!c) break;
+          this.moveTo(c, 'exile', 'top', 'exile'); this.reveal(c.id);
+          c.castableFromExile = { afterTurn: s.turn - 1, free: false, untilTurn: e.until === 'eot' ? s.turn : s.turn + s.players.length, by: p };
+          this.note(`${this.pname(p)} exiles ${c.def.name} and may play it ${e.until === 'eot' ? 'this turn' : 'until the end of their next turn'}.`);
+        }
+        break;
+      }
       case 'optional-pay': {
         const pl = s.players[p]; const pay = this.findPayment(pl, e.mana);
         if (pay && await this.ask(p, { kind: 'yes-no', prompt: `${item.name}: pay ${e.mana.raw}?`, tag: 'unless-pay' })) { this.payMana(pl, pay); this.note(`${this.pname(p)} pays ${e.mana.raw} for ${item.name}.`); for (let i = 0; i < e.then.length; i++) await this.applyEffect(item, e.then[i], idx, all); }
@@ -952,8 +983,17 @@ export class Game {
         const opts = pl.library.filter(c => matchesFilter(s, c, f, src));
         if (!opts.length) { this.shuffle(who); this.emit({ type: 'library', player: who, action: 'search', found: [] }); break; }
         const ids = await this.ask(who, { kind: 'choose-cards', from: opts.map(o => o.id), count: Math.min(e.count, opts.length), reason: `Search for ${describeFilter(e.filter)}`, exact: !e.optional }) as number[];
-        for (const id of ids.slice(0, e.count)) { const c = opts.find(o => o.id === id); if (!c) continue; if (e.to === 'battlefield') { await this.enterBattlefield(c, { controller: who, via: 'effect', tapped: e.tapped }); this.note(`${this.pname(who)} puts ${c.def.name} onto the battlefield${c.tapped ? ' tapped' : ''}.`); } else { this.moveTo(c, 'hand', 'top', 'search'); this.emit({ type: 'library', player: who, action: 'search', found: [c.def.name] }); } }
-        this.shuffle(who);
+        const found = ids.slice(0, e.count).map(id => opts.find(o => o.id === id)).filter((c): c is GameObject => !!c);
+        for (let k = 0; k < found.length; k++) {
+          const c = found[k];
+          const dest = e.split === 'one-battlefield-rest-hand' ? (k === 0 ? 'battlefield' : 'hand') : e.to;
+          if (dest === 'battlefield') { await this.enterBattlefield(c, { controller: who, via: 'effect', tapped: e.tapped }); this.note(`${this.pname(who)} puts ${c.def.name} onto the battlefield${c.tapped ? ' tapped' : ''}.`); }
+          else if (dest === 'top') { const lib = pl.library; lib.splice(lib.indexOf(c), 1); this.shuffle(who); lib.unshift(c); this.emit({ type: 'library', player: who, action: 'search', found: [c.def.name] }); this.note(`${this.pname(who)} puts ${c.def.name} on top of their library.`); }
+          else if (dest === 'graveyard') { this.moveTo(c, 'graveyard', 'top', 'search'); this.note(`${this.pname(who)} puts ${c.def.name} into their graveyard.`); }
+          else { this.moveTo(c, 'hand', 'top', 'search'); this.emit({ type: 'library', player: who, action: 'search', found: [c.def.name] }); }
+        }
+        this.noteAffected(item, found);
+        if (e.to !== 'top') this.shuffle(who);
         break;
       }
       case 'delayed-trigger': { (s.delayed ??= []).push({ id: ++this.stackCounter, at: e.at, controller: p, sourceId: src.id, sourceName: name(src), effects: e.effects, affected: e.bind === 'that' ? item.affected : undefined, createdTurn: s.turn }); break; }
@@ -1013,7 +1053,7 @@ export class Game {
       }
       case 'lose-life': {
         if (e.who === 'that-controller') { for (const a of item.affected ?? []) this.loseLife(a.lastKnown.controller, evalAmount(s, e.amount, p, item.x, src, { that: a.lastKnown }), item.name); break; }
-        const who = e.who === 'you' ? [p] : e.who === 'opponent' ? [opp] : e.who === 'each-opponent' ? opps : e.who === 'each-player' ? everyone : this.players(T); for (const w of who) this.loseLife(w, amt(e.amount), item.name); break;
+        const who = e.who === 'you' ? [p] : e.who === 'opponent' ? [opp] : e.who === 'each-opponent' ? opps : e.who === 'each-player' ? everyone : e.who === 'defending-player' ? [src.attacking ?? opp] : this.players(T); for (const w of who) this.loseLife(w, amt(e.amount), item.name); break;
       }
       case 'set-life': { const who = e.who === 'you' ? [p] : everyone; for (const w of who) { const delta = e.amount - s.players[w].life; s.players[w].life = e.amount; this.emit({ type: 'life', player: w, delta, total: e.amount, reason: item.name }, `${this.pname(w)}'s life becomes ${e.amount}.`); } break; }
       case 'pump': case 'grant-keyword': {
@@ -1033,7 +1073,8 @@ export class Game {
         break;
       }
       case 'token': {
-        const n = amt(e.count); const made: GameObject[] = [];
+        let n = amt(e.count); const made: GameObject[] = [];
+        for (const src2 of s.players[p].battlefield) for (const ab of abilitiesOf(src2)) if (ab.kind === 'static' && ab.effect.kind === 'tokens-replacement') n *= 2;
         for (let i = 0; i < n; i++) {
           const tok = makeObject(s.nextId++, src.def, p, 'battlefield', s.turn);
           tok.controller = p; tok.owner = p;
@@ -1124,7 +1165,40 @@ export class Game {
         if (e.viaExile) this.queueTriggers('etb', { obj: src, player: p });
         break;
       }
-      case 'copy-spell': break;
+      case 'copy-spell': {
+        const t = T[0]; const orig = typeof t === 'number' ? s.stack.find(x => x.id === t) : undefined;
+        if (!orig || orig.kind !== 'spell') break;
+        const copy: StackItem = { ...orig, id: ++this.stackCounter, controller: p, targetsByEffect: new Map(orig.targetsByEffect), targets: [...orig.targets], isCopy: true } as StackItem;
+        s.stack.push(copy);
+        this.note(`${this.pname(p)} copies ${orig.name}.`);
+        break;
+      }
+      case 'earthbend': {
+        const o = this.objs(T)[0]; if (!o || o.zone !== 'battlefield') break;
+        o.animated = { power: 0, toughness: 0, colors: [], types: ['Creature'], subtypes: ['Elemental'], keywords: ['haste'] }; o.earthbent = true;
+        this.addCounters(o, '+1/+1', amt(e.amount));
+        this.noteAffected(item, [o]);
+        this.note(`${name(o)} is earthbent: a 0/0 Elemental creature with haste that's still a land.`);
+        break;
+      }
+      case 'animate': {
+        const o = e.target === 'self' ? src : this.objs(T)[0]; if (!o || o.zone !== 'battlefield') break;
+        o.animated = { power: e.power, toughness: e.toughness, colors: e.colors, types: e.types, subtypes: e.subtypes, keywords: e.keywords, ...(e.duration === 'eot' ? { untilTurn: s.turn } : {}) };
+        this.noteAffected(item, [o]);
+        this.note(`${name(o)} becomes a ${e.power}/${e.toughness} ${[...e.subtypes, ...e.types].join(' ')}${e.duration === 'eot' ? ' until end of turn' : ''}.`);
+        break;
+      }
+      case 'double-power': { const o = this.objs(T)[0]; if (!o || o.zone !== 'battlefield') break; const pw = power(s, o); o.eotPower += pw; this.note(`${name(o)}'s power is doubled to ${power(s, o)} until end of turn.`); break; }
+      case 'shuffle-into-library': { for (const o of this.objs(T)) { if (o.zone !== 'battlefield') continue; const owner = o.owner; this.moveTo(o, 'library', 'top', 'effect'); this.shuffle(owner); this.note(`${name(o)} is shuffled into its owner's library.`); } break; }
+      case 'untap-choose': {
+        const cands = s.players[p].battlefield.filter(o => o.tapped && matchesFilter(s, o, e.filter, src)); if (!cands.length) break;
+        const ids = await this.ask(p, { kind: 'choose-cards', from: cands.map(o => o.id), count: Math.min(e.count, cands.length), reason: `${item.name}: untap up to ${e.count}`, exact: false }) as number[];
+        for (const id of ids.slice(0, e.count)) { const o = cands.find(c => c.id === id); if (o) this.setTapped(o, false, 'effect'); }
+        break;
+      }
+      case 'multi-counters': { for (const o of this.objs(T)) { if (o.zone !== 'battlefield') continue; for (const c of e.counters) this.addCounters(o, c, 1); this.note(`${name(o)} gets ${e.counters.map(c => `a ${c} counter`).join(', ')}.`); } break; }
+      case 'each-self-damage': { for (const o of allPermanents(s).filter(isCreature)) { const pw = power(s, o); if (pw > 0) this.dealDamage(o, o, pw); } break; }
+      case 'untap-all': { for (const o of s.players[p].battlefield) if (o.tapped && matchesFilter(s, o, e.filter, src)) this.setTapped(o, false, 'effect'); break; }
       case 'attach-self': { const o = this.objs(T)[0]; if (o && src.zone === 'battlefield') this.attach(src, o); break; }
       case 'choose-mode': break; // expanded earlier
       case 'conditional': { if (conditionHolds(s, src, e.condition)) for (let i = 0; i < e.then.length; i++) await this.applyEffect(item, e.then[i], idx, all); else if (e.else) for (let i = 0; i < e.else.length; i++) await this.applyEffect(item, e.else[i], idx, all); break; }
@@ -1242,6 +1316,8 @@ export class Game {
 
   /** Move an object between zones, handling leave-the-battlefield bookkeeping. */
   moveTo(o: GameObject, zone: import('./state.js').Zone, libraryPos: 'top' | 'bottom' = 'top', reason: ZoneChangeReason = 'effect') {
+    if (o.earthbent && o.zone === 'battlefield' && zone === 'graveyard') { this.note(`${name(o)} would die and returns to its owner's hand instead.`); zone = 'hand'; }
+    if (o.zone === 'battlefield' && zone !== 'battlefield') { delete o.animated; delete o.earthbent; }
     const s = this.state;
     this.bfGen++;
     const removeFrom = (arr: GameObject[]) => { const i = arr.indexOf(o); if (i >= 0) arr.splice(i, 1); };
@@ -1376,6 +1452,19 @@ export class Game {
     return kinds;
   }
 
+  /** Wizard's Staff / Ancient Greenwarden / Drivnod: how many extra times a trigger of `perm` fires. */
+  private triggerExtraTimes(perm: GameObject, event: string, ctx: TriggerCtx): number {
+    const s = this.state; let extra = 0;
+    for (const src of s.players[perm.controller].battlefield) for (const ab of abilitiesOf(src)) {
+      if (ab.kind !== 'static' || ab.effect.kind !== 'trigger-twice') continue;
+      const e = ab.effect;
+      if (e.equipped) { if (src.attachedTo === perm.id) extra++; continue; }
+      if (e.event === 'land-etb') { if (event === 'etb' && ctx.obj && isLand(ctx.obj)) extra++; continue; }
+      if (e.event) { if (event === e.event && (!e.filter || (ctx.obj && matchesFilter(s, ctx.obj, e.filter, src)))) extra++; continue; }
+      if (e.filter && perm.id !== src.id && matchesFilter(s, perm, e.filter, src)) extra++;
+    }
+    return extra;
+  }
   queueTriggers(event: string, ctx: TriggerCtx) {
     const s = this.state;
     const selfLeaving = (event === 'dies' || event === 'ltb') && !!ctx.obj;
@@ -1408,7 +1497,8 @@ export class Game {
           }
           if (fires) break;
         }
-        if (fires) this.pendingTriggers.push({ ability: ab, source: perm, controller: perm.controller, triggerCtx: ctx });
+        if (fires && ab.oncePerTurn) { if (perm.triggeredThisTurn?.has(ab.text)) fires = false; else (perm.triggeredThisTurn ??= new Set()).add(ab.text); }
+        if (fires) { const times = 1 + this.triggerExtraTimes(perm, event, ctx); for (let k = 0; k < times; k++) this.pendingTriggers.push({ ability: ab, source: perm, controller: perm.controller, triggerCtx: ctx }); }
       }
     }
     // dies triggers of the object itself (it has already left the battlefield when this is called)
@@ -1510,7 +1600,7 @@ export class Game {
         }
       }
       if (s.attackers.length) {
-        s.players[ap].attackedThisTurn = true;
+        s.players[ap].attackedThisTurn = true; s.players[ap].attackedWithThisTurn = s.attackers.length;
         this.emit({ type: 'attack', player: ap, target: dp, attackers: s.attackers.map(id => ({ id, name: name(findObject(s, id)!) })) });
         // exalted (CR 702.83): a creature attacking alone gets +1/+1 per exalted instance you control
         if (s.attackers.length === 1) { const ex = s.players[ap].battlefield.filter(o => hasKeyword(s, o, 'exalted')).length; if (ex) { const a = findObject(s, s.attackers[0])!; a.eotPower += ex; a.eotToughness += ex; this.note(`${name(a)} gets +${ex}/+${ex} until end of turn (exalted).`); } }
@@ -1577,7 +1667,7 @@ export class Game {
     const damage: { src: GameObject; to: GameObject | PlayerId; n: number }[] = [];
     for (const id of s.attackers) {
       const a = findObject(s, id); if (!a || a.zone !== 'battlefield' || a.attacking === null || !dealsNow(a)) continue;
-      let p = power(s, a); if (p <= 0) continue;
+      let p = damageByToughness(s, a) ? toughness(s, a) : power(s, a); if (p <= 0) continue;
       const blockers = a.blockedBy.map(b => findObject(s, b)!).filter(b => b && b.zone === 'battlefield');
       const pw = a.attackingPlaneswalker != null ? findObject(s, a.attackingPlaneswalker) : undefined;
       const defender: GameObject | PlayerId = pw && pw.zone === 'battlefield' ? pw : a.attacking;

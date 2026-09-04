@@ -1,9 +1,9 @@
 'use client';
-// Playback controls for the animation queue: speed, skip, the explain toggle (E) and a small settings popover
-// (tutorial reset, reduced-motion note). Sits at the end of the phase strip.
+// Playback controls for the animation queue: speed, skip, the explain toggle (E) and the settings sheet button.
+// Sits at the end of the phase strip.
 import clsx from 'clsx';
 import { FastForward, Settings2, Sparkles } from 'lucide-react';
-import { Button, IconButton, Kbd, Popover, Segmented } from '@/components/ui';
+import { Button, IconButton, Kbd, Segmented } from '@/components/ui';
 import type { Playback } from '@/lib/game/store';
 import styles from './table.module.css';
 
@@ -14,14 +14,12 @@ export interface PlaybackBarProps {
   onSpeed: (s: number) => void;
   onSkip: () => void;
   onExplain: (on: boolean) => void;
-  onResetTutorial: () => void;
-  tutorialOff: boolean;
-  onTutorialOff: (off: boolean) => void;
+  onOpenSettings: () => void;
 }
 
 type SpeedKey = '0.5' | '1' | '2' | '4';
 
-export function PlaybackBar({ playback, settled, pending, onSpeed, onSkip, onExplain, onResetTutorial, tutorialOff, onTutorialOff }: PlaybackBarProps) {
+export function PlaybackBar({ playback, settled, pending, onSpeed, onSkip, onExplain, onOpenSettings }: PlaybackBarProps) {
   const speedKey = (String(playback.speed) as SpeedKey);
   return (
     <div className={styles.playback} data-testid="playback" data-settled={settled ? 'true' : 'false'} data-rushing={playback.rushing ? 'true' : undefined}>
@@ -31,14 +29,7 @@ export function PlaybackBar({ playback, settled, pending, onSpeed, onSkip, onExp
       <button type="button" className={clsx(styles.explainBtn, playback.explain && styles.explainOn)} aria-pressed={playback.explain} onClick={() => onExplain(!playback.explain)} title="Explain: inline rule chips next to every animation, at half speed (E)" data-testid="explain-key">
         <Sparkles size={13} aria-hidden /> Explain <Kbd>E</Kbd>
       </button>
-      <Popover trigger={<IconButton size="sm" label="Table settings"><Settings2 size={14} /></IconButton>} placement="bottom-end">
-        <div className={styles.settings} data-testid="table-settings">
-          <div className={styles.settingsTitle}>Table settings</div>
-          <label className={styles.settingsRow}><input type="checkbox" checked={!tutorialOff} onChange={e => onTutorialOff(!e.target.checked)} /> Show tutorial tips</label>
-          <Button size="sm" variant="quiet" onClick={onResetTutorial} data-testid="tutorial-reset">Reset tutorial</Button>
-          <p className="faint small">{playback.reducedMotion ? 'Reduced motion is on: changes apply instantly.' : 'Animations follow your speed setting; the system "reduce motion" preference disables them.'}</p>
-        </div>
-      </Popover>
+      <IconButton size="sm" label="Table settings" onClick={onOpenSettings} data-testid="table-settings-button"><Settings2 size={14} /></IconButton>
     </div>
   );
 }

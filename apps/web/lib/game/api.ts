@@ -30,13 +30,19 @@ export async function payloadFor(ref: DeckRef, seed: number): Promise<DeckPayloa
   return fetchDeckPayload(deck.id);
 }
 
-/** Deterministic game id from the inputs so a game can be reproduced from its URL. */
-export function makeGameId(seed: number, a: DeckRef, b: DeckRef): string {
-  const key = (r: DeckRef) => r.kind === 'saved' ? `s.${r.id}` : r.kind === 'bundled' ? `b.${r.file}` : `a.${r.id}`;
-  return `${seed}~${encodeURIComponent(key(a))}~${encodeURIComponent(key(b))}`;
+export const deckRefKey = (r: DeckRef) => r.kind === 'saved' ? `s.${r.id}` : r.kind === 'bundled' ? `b.${r.file}` : `a.${r.id}`;
+
+/** Deterministic game id from the inputs so a game can be reproduced from its URL: `seed~deck0~deck1[~deck2[~deck3]]` (seat order). */
+export function makeGameId(seed: number, refs: DeckRef[]): string;
+export function makeGameId(seed: number, a: DeckRef, b: DeckRef): string;
+export function makeGameId(seed: number, a: DeckRef | DeckRef[], b?: DeckRef): string {
+  const refs = Array.isArray(a) ? a : [a, ...(b ? [b] : [])];
+  return [String(seed), ...refs.map(r => encodeURIComponent(deckRefKey(r)))].join('~');
 }
-export function parseGameId(id: string): { seed: number; a: string; b: string } | null {
-  const m = id.split('~'); if (m.length !== 3) return null;
+/** `a` / `b` are seats 0 and 1 (every id has at least two decks); `keys` lists every seat. */
+export function parseGameId(id: string): { seed: number; a: string; b: string; keys: string[] } | null {
+  const m = id.split('~'); if (m.length < 3 || m.length > 5) return null;
   const seed = Number(m[0]); if (!Number.isFinite(seed)) return null;
-  return { seed, a: decodeURIComponent(m[1]), b: decodeURIComponent(m[2]) };
+  const keys = m.slice(1).map(k => decodeURIComponent(k));
+  return { seed, a: keys[0], b: keys[1], keys };
 }

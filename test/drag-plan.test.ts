@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { beginAction, pickTarget } from '../src/play/targeting.js';
-import { attackTargetsFor, canPickUp, planDrag, resolveDrop, sameZone, type DropZone } from '../src/play/drag.js';
-import { activate, bears, bolt, cast, ctx, land, pass, perm, playLand, view } from './drag-fixtures.js';
+import { attackPlaneswalkersFor, attackTargetsFor, canPickUp, defaultDefender, planDrag, resolveDrop, sameZone, type DropZone } from '../src/play/drag.js';
+import { activate, bears, bolt, cast, ctx, land, pass, perm, playLand, player, view } from './drag-fixtures.js';
 
 const BF_ME: DropZone = { kind: 'battlefield', player: 0 };
 const BF_OPP: DropZone = { kind: 'battlefield', player: 1 };
@@ -109,6 +109,66 @@ test('drag plan: blockers mode — drop a blocker on an attacker, or back home t
   assert.equal(t.illegal?.code, 'tapped');
   const cp = canPickUp({ kind: 'permanent', id: tappedMine.id }, c);
   assert.equal(cp.ok, false); if (!cp.ok) assert.match(cp.reason.text, /509\.1a/);
+});
+
+test('drag plan: a commander drags out of the command zone onto my battlefield (cast with from: command); hand and command sources do not mix', () => {
+  const cmd = bears({ id: 900, manaCost: '{1}{G}', manaValue: 2 });
+  const lands = [perm(land('Forest'), 0), perm(land('Forest'), 0), perm(land('Forest'), 0), perm(land('Forest'), 0)];
+  const v = view({}, { hand: [], battlefield: lands, command: [cmd], commanders: [cmd.id], commanderCasts: { [cmd.id]: 1 } });
+  const legal = { ...cast(cmd.id), action: { type: 'cast', cardId: cmd.id, from: 'command' }, label: 'Cast Grizzly Bears (from command zone, tax 2)', manaValue: 4 } as typeof pass;
+  const c = ctx(v, { legal: [pass, legal] });
+  const plan = planDrag({ kind: 'command', cardId: cmd.id }, c);
+  assert.equal(plan.illegal, undefined);
+  assert.ok(plan.zones.some(z => sameZone(z.zone, BF_ME)));
+  const eff = resolveDrop(plan, BF_ME);
+  assert.equal(eff.kind, 'begin'); if (eff.kind === 'begin') { assert.equal(eff.legal.action.type, 'cast'); assert.equal((eff.legal.action as { from?: string }).from, 'command'); }
+  assert.deepEqual(canPickUp({ kind: 'command', cardId: cmd.id }, c), { ok: true });
+  // the same card as a hand source does not see the command-zone action
+  assert.equal(planDrag({ kind: 'hand', cardId: cmd.id }, c).illegal?.code, 'no-action');
+  // short on mana: the reason cites the commander tax (CR 903.8)
+  const poor = view({}, { hand: [], battlefield: [perm(land('Forest'), 0)], command: [cmd], commanders: [cmd.id], commanderCasts: { [cmd.id]: 2 } });
+  const nope = planDrag({ kind: 'command', cardId: cmd.id }, ctx(poor, { legal: [pass] }));
+  assert.equal(nope.illegal?.code, 'cant-pay'); assert.match(nope.illegal!.text, /903\.8/); assert.match(nope.illegal!.text, /\{4\}/);
+});
+
+test('drag plan: attackers with several defenders and a planeswalker — each drop chooses the attack target', () => {
+  const a = perm(bears(), 0);
+  const pw = perm(card('Jace Beleren', { types: ['Planeswalker'], loyalty: 3 }), 2, { counters: { loyalty: 3 } });
+  const v = view({ step: 'declare-attackers' }, { battlefield: [a] });
+  v.players.push(player(2, { battlefield: [pw] }));
+  v.turnOrder = [0, 1, 2];
+  const c = ctx(v, { kind: 'attackers', attackers: { decl: { attackers: [] }, candidates: [a.id], mustAttack: [], defenders: [1, 2], planeswalkers: [{ id: pw.id, controller: 2 }] } });
+  assert.deepEqual(attackTargetsFor(c), [1, 2]);
+  assert.deepEqual(attackPlaneswalkersFor(c), [{ id: pw.id, controller: 2 }]);
+  const plan = planDrag({ kind: 'permanent', id: a.id }, c);
+  const onP2 = resolveDrop(plan, { kind: 'player', id: 2 });
+  assert.equal(onP2.kind, 'attack'); if (onP2.kind === 'attack') assert.deepEqual({ id: onP2.id, target: onP2.target }, { id: a.id, target: 2 });
+  const onBf1 = resolveDrop(plan, { kind: 'battlefield', player: 1 });
+  assert.equal(onBf1.kind, 'attack'); if (onBf1.kind === 'attack') assert.equal(onBf1.target, 1);
+  const onPw = resolveDrop(plan, { kind: 'object', id: pw.id });
+  assert.equal(onPw.kind, 'attack'); if (onPw.kind === 'attack') assert.deepEqual(onPw.target, { planeswalker: pw.id });
+  assert.equal(resolveDrop(plan, BF_ME).kind, 'unattack');
+  assert.equal(resolveDrop(plan, { kind: 'object', id: a.id }).kind, 'none');
+  // without defenders in the decision: every living opponent, in seat order; the first is the default defender
+  const v2 = view({ step: 'declare-attackers' }, { battlefield: [a] });
+  v2.players.push(player(2, { lost: true }));
+  const c2 = ctx(v2, { kind: 'attackers', attackers: { decl: { attackers: [] }, candidates: [a.id], mustAttack: [] } });
+  assert.deepEqual(attackTargetsFor(c2), [1]);
+  assert.equal(defaultDefender(c2), 1);
+  const single = resolveDrop(planDrag({ kind: 'permanent', id: a.id }, c2), OPP);
+  assert.equal(single.kind, 'attack'); if (single.kind === 'attack') assert.equal(single.target, 1);
+});
+
+test('drag plan: a castable spell with a payment suggestion can be dropped on an untapped land to pay from it', () => {
+  const b = bolt();
+  const mtn = perm(land(), 0); const tappedMtn = perm(land(), 0, { tapped: true });
+  const v = view({}, { hand: [b], battlefield: [mtn, tappedMtn] });
+  const legal = { ...cast(b.id), pay: { cost: '{R}', taps: [{ id: mtn.id, name: 'Mountain', mana: ['R'] }], pool: [] } } as typeof pass;
+  const plan = planDrag({ kind: 'hand', cardId: b.id }, ctx(v, { legal: [pass, legal] }));
+  const onLand = resolveDrop(plan, { kind: 'object', id: mtn.id });
+  assert.equal(onLand.kind, 'begin'); if (onLand.kind === 'begin') assert.equal(onLand.paySource, mtn.id);
+  assert.equal(resolveDrop(plan, { kind: 'object', id: tappedMtn.id }).kind, 'none');
+  assert.equal(resolveDrop(plan, BF_ME).kind, 'begin');
 });
 
 function card(name: string, over: Parameters<typeof land>[1]) { return land(name, { ...over, types: over?.types ?? [] }); }

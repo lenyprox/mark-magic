@@ -128,5 +128,7 @@ export function describeDecision(d: { kind: string; reason?: string; prompt?: st
 }
 
 // ---- drag-and-drop planning (pure additions; see drag.ts) -------------------------------------
-export { planDrag, resolveDrop, canPickUp, whyNotPlayable, attackTargetsFor, availableMana, sameZone } from './drag.js';
+export { planDrag, resolveDrop, canPickUp, whyNotPlayable, attackTargetsFor, attackPlaneswalkersFor, defaultDefender, availableMana, sameZone, sourceId as dragSourceId } from './drag.js';
 export type { DragSource, DropZone, DropEffect, IllegalReason, IllegalCode, DragContext, DragMode, DragPlan } from './drag.js';
+export { shouldAskToPay, isAmbiguousPayment, initialSources, isManaSource, manaColorsOf, costPips, untappedManaSources, producedBy } from './pay.js';
+export type { AskToPay, PaySuggestion } from './pay.js';

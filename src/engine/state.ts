@@ -26,9 +26,14 @@ export interface GameObject {
   noUntapNext: boolean;
   attacking: PlayerId | null;      // player being attacked (or the controller of the planeswalker being attacked)
   attackingPlaneswalker?: number;  // planeswalker being attacked, if any (CR 508.1)
+  /** "becomes a 1/4 white and black creature" — overrides base P/T, adds types/subtypes/keywords/colours (until `untilTurn`'s cleanup when set). */
+  animated?: { power: number; toughness: number; colors: Color[]; types: import('../cards/types.js').CardType[]; subtypes: string[]; keywords: Keyword[]; untilTurn?: number };
+  /** Earthbent land: if it would die it returns to its owner's hand instead. */
+  earthbent?: boolean;
   blocking: number[];              // attacker ids this creature blocks
   blockedBy: number[];
   activatedThisTurn: Set<number>;  // ability indexes used this turn (once-per-turn / loyalty)
+  triggeredThisTurn?: Set<string>; // texts of once-per-turn triggers that fired this turn
   transformed: boolean;
   lastKnown?: { power: number; toughness: number; controller: PlayerId; counters?: Record<string, number> };
   /** Renown (702.111): already renowned. */
@@ -42,8 +47,8 @@ export interface GameObject {
   /** Ids of cards exiled as a cost of casting this (delve) or imprinted on it. */
   exiledWith?: number[];
   chosen?: { creatureType?: string; color?: Color };
-  /** Warp / rebound: this exiled card may be cast again from exile after `afterTurn`; `free` = without paying its mana cost, only in `upkeepOnly`'s upkeep. */
-  castableFromExile?: { afterTurn: number; free: boolean; upkeepOnly?: PlayerId };
+  /** Warp / rebound / impulse: this exiled card may be cast from exile after `afterTurn` (and, when set, no later than `untilTurn`); `free` = without paying its mana cost, only in `upkeepOnly`'s upkeep. */
+  castableFromExile?: { afterTurn: number; free: boolean; upkeepOnly?: PlayerId; untilTurn?: number; by?: PlayerId };
   warpExileTurn?: number;
   /** 0 = front face, 1 = back face of a double-faced card. */
   activeFace?: 0 | 1;
@@ -81,6 +86,7 @@ export interface Player {
   lost: boolean;
   lossReason?: string;
   attackedThisTurn: boolean;
+  attackedWithThisTurn?: number;
   lifeLostThisTurn: number;
   creaturesDiedThisTurn: number;
   spellsCastThisTurn: number;
@@ -156,7 +162,7 @@ export const STEPS: Step[] = ['untap', 'upkeep', 'draw', 'main1', 'combat-begin'
 // ---- Actions a player can take when they have priority --------------------------------------
 export type PlayerAction =
   | { type: 'pass' }
-  | { type: 'play-land'; cardId: number; face?: 0 | 1 }
+  | { type: 'play-land'; cardId: number; face?: 0 | 1; from?: 'graveyard' | 'library' }
   | { type: 'cast'; cardId: number; targets?: TargetRef[][]; x?: number; modes?: number[]; kicked?: boolean;
       /** Alternative cost id and the zone the card is cast from (default hand). */
       alt?: AltCostId; from?: CastZone;

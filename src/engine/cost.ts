@@ -11,6 +11,8 @@ export const ZERO_COST: ManaCost = { generic: 0, x: 0, pips: [], hybrid: [], phy
 /** Whether an exiled card's cast-from-exile window (warp, rebound) is open for player p right now. */
 export function exileWindowOpen(s: GameState, p: PlayerId, w: NonNullable<GameObject['castableFromExile']>): boolean {
   if (s.turn <= w.afterTurn) return false;
+  if (w.untilTurn !== undefined && s.turn > w.untilTurn) return false;
+  if (w.by !== undefined && w.by !== p) return false;
   if (w.free) return s.activePlayer === p && s.step === 'upkeep' && (w.upkeepOnly === undefined || w.upkeepOnly === p);
   return true;
 }

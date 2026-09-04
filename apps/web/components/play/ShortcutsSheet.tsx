@@ -10,6 +10,8 @@ const ROWS: [string, string][] = [
   ['1 – 9', 'Pick the nth legal action (or target, when targeting)'],
   ['Enter', 'Confirm the current declaration or armed play'],
   ['Esc', 'Cancel targeting / clear the declaration'],
+  ['Ctrl+Z', 'Undo the last action (only while nothing hidden was revealed and no opponent acted since)'],
+  ['Phase strip', 'Click a later step of your turn to pass until it'],
   ['E', 'Explain: inline rule chips next to every animation, at half speed'],
   ['L', 'Toggle the log rail'],
   ['P', 'Toggle the right rail (Analysis · Explain · Timeline)'],

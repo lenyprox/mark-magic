@@ -41,12 +41,15 @@ export interface Filter {
   powerLE?: number; powerGE?: number; toughnessLE?: number; mvLE?: number | Amount; mvGE?: number; mvEQ?: number | Amount;
   tapped?: boolean; untapped?: boolean; token?: boolean; nontoken?: boolean; attacking?: boolean; blocking?: boolean; flying?: boolean; nonbasic?: boolean; basic?: boolean;
   other?: boolean;                          // "another" / "other"
+  withCounters?: boolean; withCounter?: string;  // "with a counter on it" / "with a +1/+1 counter on it"
+  toughnessGtPower?: boolean;                    // Doran: "with toughness greater than its power"
 }
 
 /** Amount expression */
 export type Amount = number | 'X' | {
   count: 'creatures-you-control' | 'cards-in-hand' | 'lands-you-control' | 'power-of-source' | 'creatures-attacking' | 'opponent-creatures' | 'life-lost-this-turn'
-    | 'permanents-you-control' | 'domain' | 'exiled-with' | 'cards-in-graveyard' | 'power-of-that' | 'mv-of-that' | 'colors-spent' | 'card-types-in-graveyard' | 'card-types-in-all-graveyards' | 'counters-on-source';
+    | 'permanents-you-control' | 'domain' | 'exiled-with' | 'cards-in-graveyard' | 'power-of-that' | 'mv-of-that' | 'colors-spent' | 'card-types-in-graveyard' | 'card-types-in-all-graveyards' | 'counters-on-source'
+    | 'counters-on-permanents' | 'that-many' | 'commander-casts' | 'opponents';
   filter?: Filter; plus?: number; times?: number; counter?: string;
 };
 
@@ -103,7 +106,7 @@ export type Effect =
   | { op: 'draw'; amount: Amount; who: 'you' | 'target-player' | 'each-player' | 'opponent' | 'controller' }
   | { op: 'discard'; amount: Amount | 'hand'; who: 'you' | 'target-player' | 'each-opponent' | 'each-player'; random?: boolean }
   | { op: 'gain-life'; amount: Amount; who: 'you' | 'target-player' | 'each-player' | 'that-controller' }
-  | { op: 'lose-life'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' | 'each-player' | 'opponent' | 'that-controller' }
+  | { op: 'lose-life'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' | 'each-player' | 'opponent' | 'that-controller' | 'defending-player' }
   /** Look at the top `look` cards, put `take` of them into your hand (or none, Ponder-style), the rest to `rest`. */
   | { op: 'dig'; look: Amount; take: number; rest: 'bottom' | 'top' | 'graveyard'; order: 'any' | 'random'; reveal?: boolean; filter?: Filter; optional?: boolean; altTake?: { condition: Condition; take: number } }
   | { op: 'put-from-hand'; amount: Amount; to: 'library-top' | 'library-bottom' | 'battlefield'; filter?: Filter; optional?: boolean; who?: 'you' | 'each-player' }
@@ -119,6 +122,8 @@ export type Effect =
   | { op: 'cascade' }
   | { op: 'explore' }
   | { op: 'optional-pay'; mana: ManaCost; then: Effect[] }                   // "you may pay {2}. If you do, ..."
+  | { op: 'optional-then'; first: Effect[]; then: Effect[] }                 // "you may X. If you do, Y"
+  | { op: 'impulse'; count: number; until: 'eot' | 'next-turn' }             // "exile the top card of your library. You may play it this turn"
   | { op: 'return-own'; filter: Filter; count: number; to: 'hand' }        // "return a land you control to its owner's hand"
   | { op: 'cant-block'; target: TargetSpec; duration: 'eot' }
   | { op: 'no-untap-self' }                                                  // "~ doesn't untap during your next untap step" (mana side effect)
@@ -128,7 +133,7 @@ export type Effect =
   | { op: 'shuffle-self-into-library' }
   | { op: 'reveal-hand-discard'; who: 'target-player' | 'target-opponent'; filter: Filter; count: 1 | 'all-named' }
   | { op: 'look-top'; who: 'target-player' | 'you'; amount: number }
-  | { op: 'search'; filter: Filter; to: 'hand' | 'battlefield'; tapped?: boolean; count: number; optional?: boolean; who?: 'you' | 'that-controller'; reveal?: boolean; mvLE?: Amount }
+  | { op: 'search'; filter: Filter; to: 'hand' | 'battlefield' | 'graveyard' | 'top'; tapped?: boolean; count: number; optional?: boolean; who?: 'you' | 'that-controller'; reveal?: boolean; mvLE?: Amount; split?: 'one-battlefield-rest-hand' }
   | { op: 'delayed-trigger'; at: 'next-upkeep' | 'next-end-step' | 'your-next-end-step'; effects: Effect[]; bind?: 'that' }
   | { op: 'return-to-battlefield'; target: 'that'; underControlOf: 'owner' | 'you'; counterIfYours?: 'that' | 'self' }
   | { op: 'amass'; subtype: string; amount: Amount }
@@ -157,7 +162,7 @@ export type Effect =
   | { op: 'sacrifice-self' }
   | { op: 'mill'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' }
   | { op: 'search-land'; toBattlefield: boolean; tapped: boolean; basic: boolean; count: number; subtypes?: string[] }
-  | { op: 'add-mana'; mana: ManaSymbol[] | 'any' | 'any-one' ; amount?: number; options?: ManaSymbol[] | 'exiled-with-colors' | 'chosen-color'; restriction?: 'creature-spell' | 'instant-sorcery' | 'chosen-type-creature' | 'colorless-eldrazi'; altIf?: { condition: Condition; mana: ManaSymbol[] } }
+  | { op: 'add-mana'; mana: ManaSymbol[] | 'any' | 'any-one' | 'commander-identity' | 'opponent-lands'; amount?: number; perEach?: Amount; options?: ManaSymbol[] | 'exiled-with-colors' | 'chosen-color'; restriction?: 'creature-spell' | 'instant-sorcery' | 'chosen-type-creature' | 'colorless-eldrazi'; altIf?: { condition: Condition; mana: ManaSymbol[] } }
   | { op: 'scry'; amount: number }
   | { op: 'surveil'; amount: number }
   | { op: 'return-from-graveyard'; what: Filter; to: 'hand' | 'battlefield'; target?: boolean; anyGraveyard?: boolean }
@@ -166,6 +171,14 @@ export type Effect =
   | { op: 'set-life'; amount: number; who: 'you' | 'each-player' }
   | { op: 'gain-control'; target: TargetSpec; duration: 'eot' | 'permanent'; untapHaste?: boolean }
   | { op: 'copy-spell'; target: TargetSpec }
+  | { op: 'earthbend'; amount: Amount; target: TargetSpec }                                      // Avatar: land becomes a 0/0 Elemental creature with haste, gets counters, bounces instead of dying
+  | { op: 'animate'; target: TargetSpec | 'self'; power: number; toughness: number; colors: Color[]; types: CardType[]; subtypes: string[]; keywords: Keyword[]; duration: 'eot' | 'permanent' }
+  | { op: 'untap-all'; filter: Filter }
+  | { op: 'untap-choose'; filter: Filter; count: number }                                       // "untap up to three lands"
+  | { op: 'double-power'; target: TargetSpec }
+  | { op: 'shuffle-into-library'; target: TargetSpec }
+  | { op: 'each-self-damage' }                                                                   // Wave of Reckoning
+  | { op: 'multi-counters'; target: TargetSpec; counters: string[] }                             // "put a flying counter, a deathtouch counter, and a lifelink counter on target creature"
   | { op: 'transform-self'; viaExile?: boolean }
   | { op: 'choose-mode'; modes: Effect[][]; count: number }
   | { op: 'conditional'; condition: Condition; then: Effect[]; else?: Effect[] }
@@ -178,6 +191,11 @@ export type Effect =
   | { op: 'unknown'; text: string };
 
 export type Condition =
+  | { kind: 'or'; conditions: Condition[] }
+  | { kind: 'self-entered-this-turn' }
+  | { kind: 'total-toughness-ge'; value: number }
+  | { kind: 'hand-has'; filter: Filter }
+  | { kind: 'opponents-lands-ge'; value: number }
   | { kind: 'life-le'; who: 'you' | 'opponent' | 'any'; value: number }
   | { kind: 'opponents-ge'; value: number }
   | { kind: 'controls'; who: 'you' | 'opponent'; filter: Filter; atLeast: number }
@@ -191,7 +209,18 @@ export type Condition =
   | { kind: 'controls-each'; filters: Filter[] }
   | { kind: 'self-no-counters'; counter: string }
   | { kind: 'self-not-renowned' }
-  | { kind: 'self-attacking' }
+  | { kind: 'self-attacking' } | { kind: 'self-tapped' } | { kind: 'self-untapped' } | { kind: 'self-has-counters'; counter: string }
+  | { kind: 'controls-le'; who: 'you' | 'opponent'; filter: Filter; atMost: number }
+  | { kind: 'life-ge'; who: 'you' | 'opponent' | 'any'; value: number }
+  | { kind: 'more-life-than-opponent' } | { kind: 'opponent-more-life' }
+  | { kind: 'attacked-with-ge'; value: number }
+  | { kind: 'you-lost-life-this-turn' }
+  | { kind: 'spells-cast-this-turn-ge'; value: number }
+  | { kind: 'cards-in-hand-le'; who: 'you' | 'opponent'; value: number }
+  | { kind: 'opponent-hellbent' }
+  | { kind: 'graveyard-ge'; value: number; filter?: Filter }
+  | { kind: 'controls-commander' }
+  | { kind: 'cards-drawn-ge'; value: number }
   | { kind: 'opponent-lost-life-this-turn' }
   | { kind: 'life-gained-this-turn' }
   | { kind: 'unknown'; text: string };
@@ -222,14 +251,22 @@ export type TriggerEvent =
   | { on: 'end-of-turn' }
   | { on: 'unknown'; text: string };
 
-export interface TriggeredAbility { kind: 'triggered'; event: TriggerEvent; effects: Effect[]; condition?: Condition; optional?: boolean; text: string; intervening?: Condition }
+export interface TriggeredAbility { kind: 'triggered'; event: TriggerEvent; effects: Effect[]; condition?: Condition; optional?: boolean; text: string; intervening?: Condition; /** "This ability triggers only once each turn." */ oncePerTurn?: boolean }
 export interface ActivatedAbility { kind: 'activated'; cost: AbilityCost; effects: Effect[]; text: string; sorcerySpeed?: boolean; loyalty?: number; oncePerTurn?: boolean; manaAbility?: boolean; activateOnlyIf?: Condition; instantSpeed?: boolean; /** Activated while the card is in the graveyard (unearth). */ fromGraveyard?: boolean }
 export interface StaticAbility { kind: 'static'; effect: StaticEffect; text: string }
 export interface SpellAbility { kind: 'spell'; effects: Effect[]; text: string }
 export type Ability = TriggeredAbility | ActivatedAbility | StaticAbility | SpellAbility;
 
 export type StaticEffect =
-  | { kind: 'anthem'; power: number; toughness: number; filter: Filter; scope: 'you-control' | 'all' | 'other-you-control'; keywords?: Keyword[] }
+  | { kind: 'anthem'; power: number; toughness: number; filter: Filter; scope: 'you-control' | 'all' | 'other-you-control'; keywords?: Keyword[]; condition?: Condition; anyPermanent?: boolean }
+  | { kind: 'damage-by-toughness'; scope: 'self' | 'you-control'; onlyWhenGreater?: boolean }   // Doran: assigns combat damage equal to its toughness
+  | { kind: 'flash-for'; filter: Filter }                                                       // "you may cast X spells as though they had flash"
+  | { kind: 'trigger-twice'; equipped?: boolean; event?: 'etb' | 'dies' | 'land-etb' | 'cast'; filter?: Filter }  // "...triggers an additional time"
+  | { kind: 'counters-replacement'; mode: 'double' | 'plus-one'; filter?: Filter; counter?: string }              // Doubling Season / Kami of Whispered Hopes
+  | { kind: 'tokens-replacement'; mode: 'double' }                                              // Doubling Season / Exalted Sunborn
+  | { kind: 'extra-mana-on-tap'; filter?: Filter; enchanted?: boolean; mana: ManaSymbol[] | 'chosen-color' }     // "whenever you tap a Forest for mana, add an additional {G}"
+  | { kind: 'opponents-cant-cast'; during: 'your-turn'; filter?: Filter }                       // Grand Abolisher
+  | { kind: 'play-lands-from'; zone: 'graveyard' | 'library-top' }                              // Ancient Greenwarden / Oracle of Mul Daya
   | { kind: 'self-pt'; power: Amount; toughness: Amount }                                 // "~ gets +1/+1 for each ..."
   | { kind: 'self-keywords'; keywords: Keyword[]; condition?: Condition }
   | { kind: 'can-be-commander' } | { kind: 'look-top-anytime' } | { kind: 'may-not-untap' } | { kind: 'no-max-hand-size' }
@@ -291,7 +328,7 @@ export interface CardDef {
   cycling?: ManaCost;
   /** Typecycling: cycling searches for a card matching this filter instead of drawing. */
   cyclingSearch?: Filter;
-  entersTapped?: boolean;
+  entersTapped?: boolean | { unless: Condition };   // "~ enters tapped unless ..." / "As ~ enters, you may reveal a Forest card from your hand. If you don't, ~ enters tapped."
   /** Alternative costs (pitch, evoke, flashback, escape, warp, impending, ...). */
   altCosts?: AltCost[];
   /** Mandatory additional costs ("As an additional cost to cast ~, sacrifice a creature"). */

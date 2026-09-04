@@ -1,10 +1,11 @@
 'use client';
-// A player's plate: name, life (rolling), poison, library count, hand (fanned card backs for the opponent),
-// graveyard / exile stacks that open the zone drawer, and the mana pool. Doubles as a target when it is legal.
-// The graveyard thumb carries the top card's `layoutId`, so a dying permanent FLIPs into it.
+// A player's plate: name, life (rolling), poison, commander damage taken, library count, hand (fanned card backs
+// for opponents), graveyard / exile stacks that open the zone drawer, and the mana pool. Doubles as a target when
+// it is legal and as a drop zone for attackers. The graveyard thumb carries the top card's `layoutId`, so a dying
+// permanent FLIPs into it. Eliminated seats are dimmed.
 import clsx from 'clsx';
 import { motion } from 'motion/react';
-import { BookOpen, Skull, Sparkles, Crown } from 'lucide-react';
+import { BookOpen, Skull, Sparkles, Crown, Swords } from 'lucide-react';
 import type { PlayerId } from '@engine/state';
 import type { PlayerView } from '@play/view';
 import { ManaSymbol } from '@/components/text/ManaSymbol';
@@ -27,6 +28,10 @@ export interface PlayerPlateProps {
   dropOver?: boolean;
   /** "Show me" from the explain panel. */
   pulsed?: boolean;
+  /** Smaller plate for opponents in a multiplayer ring. */
+  compact?: boolean;
+  /** Name lookup for commander damage sources (object id → commander name). */
+  nameOf?: (id: number) => string | null;
   onClick?: (pid: PlayerId) => void;
   onOpenZone: (pid: PlayerId, zone: 'graveyard' | 'exile' | 'command') => void;
   layoutKey?: unknown;
@@ -42,17 +47,26 @@ function CardBacks({ n }: { n: number }) {
   );
 }
 
-export function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, picked, dimmed, hovered, thinking, dropTarget, dropOver, pulsed, onClick, onOpenZone, layoutKey, reducedMotion }: PlayerPlateProps) {
+export const COMMANDER_DAMAGE_LETHAL = 21;
+
+export function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, picked, dimmed, hovered, thinking, dropTarget, dropOver, pulsed, compact, nameOf, onClick, onOpenZone, layoutKey, reducedMotion }: PlayerPlateProps) {
   const clickable = !!onClick && legalTarget;
   const topGy = player.graveyard[player.graveyard.length - 1];
   const topEx = player.exile[player.exile.length - 1];
   const pool = player.manaPool;
   const t = reducedMotion ? { duration: 0 } : { type: 'spring' as const, stiffness: 380, damping: 32, mass: 0.9 };
+  const cmdDamage = Object.entries(player.commanderDamage ?? {}).map(([id, dmg]) => ({ id: Number(id), dmg })).filter(x => x.dmg > 0);
+  const worst = cmdDamage.reduce((m, x) => Math.max(m, x.dmg), 0);
+  const casts = Object.values(player.commanderCasts ?? {}).reduce((a, b) => a + b, 0);
   return (
     <div
-      className={clsx(styles.plate, isMe && styles.plateMe, active && styles.plateActive, legalTarget && styles.legalTarget, picked && styles.picked, dimmed && styles.dimmed, hovered && styles.hovered, clickable && styles.plateClickable, dropTarget && styles.dropZone, dropOver && styles.dropZoneOver, pulsed && styles.platePulsed)}
+      className={clsx(styles.plate, isMe && styles.plateMe, active && styles.plateActive, hasPriority && styles.platePriority, legalTarget && styles.legalTarget, picked && styles.picked, dimmed && styles.dimmed, hovered && styles.hovered, clickable && styles.plateClickable, dropTarget && styles.dropZone, dropOver && styles.dropZoneOver, pulsed && styles.platePulsed, player.lost && styles.plateLost, compact && styles.plateCompact)}
       data-player-id={player.id}
       data-testid={isMe ? 'plate-me' : 'plate-opp'}
+      data-seat={player.id}
+      data-active={active ? '' : undefined}
+      data-priority={hasPriority ? '' : undefined}
+      data-lost={player.lost ? '' : undefined}
       data-legal-target={legalTarget ? '' : undefined}
       data-drop-target={dropTarget ? '' : undefined}
       role={clickable ? 'button' : undefined}
@@ -63,17 +77,24 @@ export function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, pi
     >
       <div className={styles.plateHead}>
         <span className={styles.plateName}>{player.name}</span>
-        {active && <span className={styles.plateTurn} title="Active player">turn</span>}
-        {hasPriority && <span className={styles.platePrio} title="Has priority">◆</span>}
+        {player.lost && <span className={styles.plateOut} title={player.lossReason ?? 'Eliminated'}>out</span>}
+        {active && !player.lost && <span className={styles.plateTurn} title="Active player">turn</span>}
+        {hasPriority && !player.lost && <span className={styles.platePrio} title="Has priority">◆</span>}
         {thinking && <span className={styles.plateThinking} aria-live="off">thinking…</span>}
       </div>
       <div className={styles.plateLife} aria-label={`${player.name} life ${player.life}`}>
         <NumberRoll value={player.life} className={clsx(styles.lifeNum, player.life <= 5 && styles.lifeLow)} />
         {player.poison > 0 && <span className={styles.poison} title="Poison counters"><Skull size={12} aria-hidden /> {player.poison}</span>}
+        {cmdDamage.length > 0 && (
+          <span className={clsx(styles.cmdDamage, worst >= COMMANDER_DAMAGE_LETHAL && styles.cmdDamageLethal)} data-testid={`commander-damage-${player.id}`} data-worst={worst}
+            title={`Commander damage taken: ${cmdDamage.map(x => `${x.dmg} from ${nameOf?.(x.id) ?? `#${x.id}`}`).join(', ')}. A player dealt 21 or more combat damage by the same commander loses the game (CR 704.6c).`}>
+            <Swords size={12} aria-hidden /> {worst}<span className="sr-only"> commander damage taken</span>
+          </span>
+        )}
       </div>
       <div className={styles.plateZones}>
         {(player.commanders?.length > 0) && (
-          <button type="button" className={clsx(styles.zoneBtn, !player.command.length && styles.zoneEmpty)} onClick={() => onOpenZone(player.id, 'command')} aria-label={`Command zone, ${player.command.length} cards`} title={`Command zone${Object.values(player.commanderCasts ?? {}).some(Boolean) ? ` · cast ${Object.values(player.commanderCasts).reduce((a, b) => a + b, 0)}× (tax {${2 * Object.values(player.commanderCasts).reduce((a, b) => a + b, 0)}})` : ''}${Object.values(player.commanderDamage ?? {}).length ? ` · commander damage taken ${Object.values(player.commanderDamage).join('/')}` : ''}`} data-testid={`command-zone-${player.id}`}>
+          <button type="button" className={clsx(styles.zoneBtn, !player.command.length && styles.zoneEmpty)} onClick={() => onOpenZone(player.id, 'command')} aria-label={`Command zone, ${player.command.length} cards`} title={`Command zone${casts ? ` · cast ${casts}× (tax {${2 * casts}})` : ''}`} data-testid={`command-btn-${player.id}`}>
             <Crown size={13} aria-hidden /><span className="mono">{player.command.length}</span>
           </button>
         )}

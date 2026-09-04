@@ -8,7 +8,7 @@ import type { Decision, PlayerId } from '@engine/state';
 import type { GameEvent } from '@engine/events';
 import type { Reasoning } from '@ai/ai';
 import type { AnalysisReport, McRequest, TrialResult } from '@analysis/types';
-import type { DeckPayload, StartOptions, WorkerToMain } from '@play/protocol';
+import type { DeckPayload, StartOptions, UndoAvailability, WorkerToMain } from '@play/protocol';
 import type { ViewState } from '@play/view';
 import type { RecordedAnswer } from '@engine/agents/deferred';
 import { hydrate, indexCards, Replayer } from '@play/replay';
@@ -58,6 +58,12 @@ export interface GameStore {
   fx: Fx;
   pulse: Pulse | null;
   decision: { requestId: number; decision: Decision } | null;
+  /** Whether the worker would accept an undo for the pending decision (and why not). */
+  undoAvailable: UndoAvailability | null;
+  /** The last refused undo (a counter so the same reason can toast twice). */
+  undoRefused: { key: number; reason: string } | null;
+  /** An undo is in flight (between the request and the re-asked decision). */
+  undoing: boolean;
   log: LogLine[];
   reasoning: Reasoning[];
   analysis: AnalysisReport | null;
@@ -72,6 +78,8 @@ export interface GameStore {
   start(gameId: string, decks: DeckPayload[], options: StartOptions): Promise<void>;
   answer(answer: unknown): void;
   concede(): void;
+  /** Take back the last action (Ctrl+Z); the worker decides whether it is safe. */
+  undo(): void;
   setStops: GameClient['setStops'];
   deepen(trials?: number, policy?: 'rollout' | 'ai30'): void;
   rerun(req: McRequest): void;
@@ -140,7 +148,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   return {
     client: null, gameId: null, status: 'idle', view: null, liveView: null, shownView: null, settled: false, events: [], eventBase: 0, playback: initialPlayback(), fx: EMPTY_FX, pulse: null,
-    decision: null, log: [], reasoning: [], analysis: null, analysisPhase: 'idle', analysisFor: null, reruns: {},
+    decision: null, undoAvailable: null, undoRefused: null, undoing: false, log: [], reasoning: [], analysis: null, analysisPhase: 'idle', analysisFor: null, reruns: {},
     winner: null, error: null, decks: null, options: null, finished: null,
     async start(gameId, decks, options) {
       get().client?.dispose();
@@ -149,7 +157,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       let speed = 1;
       try { speed = clampSpeed(Number(localStorage.getItem(SPEED_KEY) ?? 1)); } catch { /* private mode */ }
       replayer = null;
-      set({ client, gameId, status: 'starting', view: null, liveView: null, shownView: null, settled: false, events: [], eventBase: 0, playback: { ...initialPlayback(), speed, explain: get().playback.explain, reducedMotion: get().playback.reducedMotion }, fx: EMPTY_FX, pulse: null, decision: null, log: [], reasoning: [], analysis: null, analysisPhase: 'idle', analysisFor: null, reruns: {}, winner: null, error: null, decks, options, finished: null });
+      set({ client, gameId, status: 'starting', view: null, liveView: null, shownView: null, settled: false, events: [], eventBase: 0, playback: { ...initialPlayback(), speed, explain: get().playback.explain, reducedMotion: get().playback.reducedMotion }, fx: EMPTY_FX, pulse: null, decision: null, undoAvailable: null, undoRefused: null, undoing: false, log: [], reasoning: [], analysis: null, analysisPhase: 'idle', analysisFor: null, reruns: {}, winner: null, error: null, decks, options, finished: null });
       client.subscribe((m: WorkerToMain) => {
         switch (m.type) {
           case 'started': {
@@ -160,8 +168,19 @@ export const useGameStore = create<GameStore>((set, get) => {
           }
           case 'view': ingest(m.events, m.view); break;
           case 'decision': {
-            set({ decision: { requestId: m.requestId, decision: m.decision }, analysis: null, analysisPhase: 'idle', analysisFor: m.requestId, reruns: {} });
+            set({ decision: { requestId: m.requestId, decision: m.decision }, undoAvailable: m.undo ?? null, undoing: false, analysis: null, analysisPhase: 'idle', analysisFor: m.requestId, reruns: {} });
             ingest(m.events, m.view, { decision: true });
+            break;
+          }
+          case 'undo-result': {
+            if (!m.ok) { set(s => ({ undoing: false, undoRefused: { key: (s.undoRefused?.key ?? 0) + 1, reason: m.reason ?? 'Undo is not possible right now' } })); break; }
+            // Drop everything after the snapshot: events (the timeline just truncates), log lines, the pending decision.
+            const s = get();
+            const keep = Math.max(0, Math.min((m.eventCount ?? 0) - s.eventBase, s.events.length));
+            queue.cancel();
+            replayer?.truncate(keep);
+            const logKeep = m.logIndex ?? Number.POSITIVE_INFINITY;
+            set(st => ({ events: st.events.slice(0, keep), log: st.log.filter(l => l.index < logKeep), decision: null, undoAvailable: null, analysis: null, analysisPhase: 'idle', analysisFor: null, reruns: {}, settled: false, fx: EMPTY_FX, playback: { ...st.playback, cursor: st.eventBase + keep, paused: false, rushing: false } }));
             break;
           }
           case 'log': set(s => ({ log: [...s.log, { index: m.index, line: m.line, turn: m.turn, step: m.step, kind: classify(m.line) }] })); break;
@@ -185,6 +204,12 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ decision: null });
     },
     concede() { get().client?.concede(); },
+    undo() {
+      const { client, status, undoing } = get();
+      if (!client || status !== 'running' || undoing) return;
+      set({ undoing: true });
+      client.undo();
+    },
     setStops(stops) { get().client?.setStops(stops); },
     deepen(trials = 400, policy) { get().client?.analyze({ trials, policy, horizon: 4 }); },
     rerun(req) { get().client?.rerun(req); },
