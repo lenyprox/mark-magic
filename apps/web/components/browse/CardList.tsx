@@ -42,7 +42,7 @@ export function CardList({ items, total, hasMore, fetchingMore, onLoadMore, card
   };
   return (
     <div>
-      <div className={styles.listHead} aria-hidden><span /><span>Card</span><span>Type</span><span>Set</span><span>Rarity</span><span style={{ textAlign: 'right' }}>Price</span></div>
+      <div className={styles.listHead} aria-hidden><span /><span>Card</span><span>Type</span><span>Set</span><span>Rarity</span><span>Owned</span><span style={{ textAlign: 'right' }}>Price</span></div>
       <div ref={wrap} className={styles.list} role="grid" aria-rowcount={total} aria-label="Cards" onKeyDown={onKey} style={{ height: virt.getTotalSize() }}>
         {rows.map(row => {
           const c = items[row.index];
@@ -57,6 +57,7 @@ export function CardList({ items, total, hasMore, fetchingMore, onLoadMore, card
                 <span className={styles.listType}>{c.typeLine}</span>
                 <span className={styles.listSet}><SetIcon code={c.setCode} rarity={c.rarity} size={14} /><span>{c.setCode.toUpperCase()} {c.collectorNumber}</span></span>
                 <span className={styles.listRarity}><span className="rarity-dot" data-rarity={c.rarity} />{c.rarity}</span>
+                <span className={styles.listOwned} data-owned={c.owned ? '1' : undefined}>{c.owned == null ? '' : c.owned ? `×${c.owned}` : '—'}</span>
                 <span className={styles.listPrice}>{formatPrice(c.priceUsd)}</span>
               </button>
             </div>

@@ -17,10 +17,11 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 
 export type CardPage = Page<CardSummary> & { query: CardQuery };
-export interface AutocompleteHit { name: string; oracleId: string; printingId: string; typeLine: string; manaCost: string | null }
+export interface AutocompleteHit { name: string; oracleId: string; printingId: string; typeLine: string; manaCost: string | null; owned?: number | null }
 export interface HealthStatus {
   ok: boolean; root: string; master: boolean; index: boolean; indexStale: boolean; masterBuiltAt: string | null; indexBuiltAt: string | null;
   userDb: boolean; manaSprite: boolean; images: { files: number; bytes: number };
+  collection: { distinct: number; copies: number; sources: number; decks: number; updatedAt: string | null } | null;
 }
 export type CatalogKind = 'types' | 'subtypes' | 'supertypes' | 'keywords';
 

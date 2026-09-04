@@ -55,4 +55,24 @@ CREATE TABLE meta_card_stats (
 );
 CREATE TABLE meta_sync_log (id INTEGER PRIMARY KEY, source TEXT, format TEXT, started_at TEXT, finished_at TEXT, ok INTEGER, message TEXT);
 `,
+  // 2: registered card collection. A source is one imported file (or the manual "found in my bulk" bucket); owned = sum over sources.
+  `
+CREATE TABLE collection_sources (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('csv','moxfield','archidekt','deckbox','manabox','arena','text','manual')),
+  ref TEXT NOT NULL, label TEXT, deck_id TEXT REFERENCES decks(id) ON DELETE SET NULL,
+  content_hash TEXT NOT NULL, rows INTEGER NOT NULL, copies INTEGER NOT NULL, unresolved TEXT NOT NULL DEFAULT '[]',
+  imported_at TEXT NOT NULL, UNIQUE (kind, ref)
+);
+CREATE TABLE collection_cards (
+  oracle_id TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES collection_sources(id) ON DELETE CASCADE,
+  name TEXT NOT NULL, printing_id TEXT NOT NULL DEFAULT '', finish TEXT NOT NULL DEFAULT '',
+  count INTEGER NOT NULL CHECK (count > 0), first_seen TEXT NOT NULL, updated_at TEXT NOT NULL,
+  PRIMARY KEY (oracle_id, source_id, printing_id, finish)
+);
+CREATE INDEX idx_collection_cards_oracle ON collection_cards(oracle_id);
+CREATE INDEX idx_collection_cards_source ON collection_cards(source_id);
+CREATE VIEW collection_owned AS
+  SELECT oracle_id, min(name) AS name, sum(count) AS count, count(DISTINCT source_id) AS sources FROM collection_cards GROUP BY oracle_id;
+`,
 ];

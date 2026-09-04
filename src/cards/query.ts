@@ -20,6 +20,8 @@ export interface CardQuery {
   lang?: string;
   playable?: boolean;   // default true (excludes tokens, emblems, art cards, ...)
   hasImage?: boolean;
+  /** Only cards in the registered collection (needs user.db attached via attachUser). */
+  owned?: boolean;
   page?: number; pageSize?: number;
 }
 
@@ -28,6 +30,8 @@ export interface CardSummary {
   colors: Color[]; colorIdentity: Color[]; rarity: Rarity; setCode: string; setName: string; collectorNumber: string;
   releasedAt: string | null; edhrecRank: number | null; priceUsd: number | null; layout: string; hasBack: boolean;
   frame: string | null; frameEffects: string[]; finishes: string[]; fullArt: boolean; borderColor: string | null; artist: string | null;
+  /** Copies in the registered collection; null when no collection database is attached. */
+  owned: number | null;
 }
 export interface Page<T> { items: T[]; total: number; page: number; pageSize: number }
 
@@ -47,6 +51,8 @@ export interface CardDetail {
   colors: Color[]; colorIdentity: Color[]; oracleText: string; power: string | null; toughness: string | null; loyalty: string | null; defense: string | null;
   keywords: string[]; reserved: boolean; edhrecRank: number | null; firstPrinted: string | null; printingCount: number;
   representativePrintingId: string; hasBack: boolean;
+  /** Copies in the registered collection; null when no collection database is attached. */
+  owned: number | null;
   def: CardDef;
   printings: PrintingDetail[];
   rulings: { publishedAt: string; comment: string }[];
@@ -83,11 +89,35 @@ export function ftsExpression(q: string): string | null {
 export class CardQueryDB {
   private countCache = new Map<string, number>();
   private setsCache: SetSummary[] | null = null;
+  private userAttached = false;
   constructor(readonly db: Database.Database) {}
 
   hasWebIndex(): boolean {
     return !!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='card_index'").get();
   }
+
+  /**
+   * Attach user.db (read-only) so searches can join the collection. The WAL/-shm files must already exist, which is
+   * the case whenever the read-write connection has been opened first. Returns whether the join is available.
+   */
+  attachUser(dbPath: string): boolean {
+    if (this.userAttached) return true;
+    try {
+      this.db.exec(`ATTACH DATABASE '${dbPath.replace(/'/g, "''")}' AS user`);
+      this.userAttached = !!this.db.prepare("SELECT 1 FROM user.sqlite_master WHERE type='view' AND name='collection_owned'").get();
+      if (!this.userAttached) this.db.exec('DETACH DATABASE user');
+    } catch { this.userAttached = false; }
+    if (this.userAttached) this.countCache.clear();
+    return this.userAttached;
+  }
+  hasUser(): boolean { return this.userAttached; }
+  /** Bumped by every collection write; part of the count-cache key for owned-filtered searches. */
+  ownedVersion(): number {
+    if (!this.userAttached) return 0;
+    try { const r = this.db.prepare("SELECT value FROM user.settings WHERE key = 'collection_version'").get() as { value: string } | undefined; return r ? Number(JSON.parse(r.value)) || 0 : 0; } catch { return 0; }
+  }
+  private ownedJoin(): string { return this.userAttached ? ' LEFT JOIN user.collection_owned co ON co.oracle_id = ci.oracle_id' : ''; }
+  private ownedSelect(): string { return this.userAttached ? ', co.count AS owned' : ''; }
 
   // ------------------------------------------------------------------ search
   search(q: CardQuery): Page<CardSummary> {
@@ -130,9 +160,10 @@ export class CardQueryDB {
       if (q.priceMax != null) { where.push('pm.price_usd <= ?'); params.push(q.priceMax); }
       if (q.hasImage) where.push('EXISTS (SELECT 1 FROM printing_images pi WHERE pi.printing_id = p.id)');
     }
-    const from = mode === 'oracle'
+    if (q.owned) where.push(this.userAttached ? 'co.count > 0' : '0');
+    const from = (mode === 'oracle'
       ? `FROM card_index ci ${useFts ? 'JOIN m ON m.id = ci.id ' : ''}JOIN printings p ON p.id = ci.rep_printing_id LEFT JOIN printing_meta pm ON pm.printing_id = p.id`
-      : `FROM printings p JOIN card_index ci ON ci.oracle_id = p.oracle_id ${useFts ? 'JOIN m ON m.id = ci.id ' : ''}LEFT JOIN printing_meta pm ON pm.printing_id = p.id`;
+      : `FROM printings p JOIN card_index ci ON ci.oracle_id = p.oracle_id ${useFts ? 'JOIN m ON m.id = ci.id ' : ''}LEFT JOIN printing_meta pm ON pm.printing_id = p.id`) + this.ownedJoin();
     const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
     const dir = (q.dir ?? (q.sort === 'edhrec' || q.sort === 'name' || q.sort === 'collector' || q.sort === 'mv' ? 'asc' : 'desc')) === 'asc' ? 'ASC' : 'DESC';
     const sort = q.sort ?? (useFts ? 'relevance' : 'edhrec');
@@ -147,9 +178,9 @@ export class CardQueryDB {
     }[sort];
     const select = `SELECT ci.oracle_id, ci.name AS ci_name, ci.type_line AS ci_type_line, ci.mana_cost AS ci_mana_cost, ci.mana_value, ci.color_mask, ci.identity_mask, ci.edhrec_rank, ci.layout AS ci_layout, ci.has_back AS ci_has_back, ci.price_usd AS ci_price,
       p.id AS printing_id, p.rarity, p.set_code, p.set_name, p.collector_number, p.released_at, p.artist, p.layout AS p_layout,
-      pm.frame, pm.frame_effects, pm.finishes, pm.full_art, pm.border_color, pm.has_back AS pm_has_back, pm.price_usd AS pm_price`;
+      pm.frame, pm.frame_effects, pm.finishes, pm.full_art, pm.border_color, pm.has_back AS pm_has_back, pm.price_usd AS pm_price${this.ownedSelect()}`;
     const rows = this.db.prepare(`${withSql}${select} ${from} ${whereSql} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).all(...withParams, ...params, pageSize, (page - 1) * pageSize) as Record<string, unknown>[];
-    const countKey = JSON.stringify([mode, where, withParams, params]);
+    const countKey = JSON.stringify([mode, where, withParams, params, q.owned ? this.ownedVersion() : 0]);
     let total = this.countCache.get(countKey);
     if (total === undefined) {
       total = (this.db.prepare(`${withSql}SELECT count(*) AS n ${from} ${whereSql}`).get(...withParams, ...params) as { n: number }).n;
@@ -170,17 +201,25 @@ export class CardQueryDB {
       layout: (r.p_layout as string) ?? (r.ci_layout as string), hasBack: mode === 'oracle' ? !!(r.ci_has_back || r.pm_has_back) : !!r.pm_has_back,
       frame: (r.frame as string) ?? null, frameEffects: j<string[]>(r.frame_effects as string, []), finishes: j<string[]>(r.finishes as string, []),
       fullArt: !!r.full_art, borderColor: (r.border_color as string) ?? null, artist: (r.artist as string) ?? null,
+      owned: this.userAttached ? Number(r.owned ?? 0) : null,
     };
   }
 
   // ------------------------------------------------------------------ autocomplete
-  autocomplete(prefix: string, limit = 12): { name: string; oracleId: string; printingId: string; typeLine: string; manaCost: string | null }[] {
+  autocomplete(prefix: string, limit = 12): { name: string; oracleId: string; printingId: string; typeLine: string; manaCost: string | null; owned: number | null }[] {
     const p = prefix.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 /]+/g, ' ').replace(/\s+/g, ' ').trim();
     if (!p) return [];
-    const rows = this.db.prepare(`SELECT name, oracle_id, rep_printing_id, type_line, mana_cost, (name_norm = ?) AS exact, (name_norm LIKE ?) AS starts FROM card_index
-      WHERE playable = 1 AND (name_norm LIKE ? OR name_norm LIKE ?) ORDER BY exact DESC, starts DESC, edhrec_rank IS NULL, edhrec_rank ASC, name ASC LIMIT ?`)
-      .all(p, `${p}%`, `${p}%`, `% ${p}%`, limit) as { name: string; oracle_id: string; rep_printing_id: string; type_line: string; mana_cost: string | null }[];
-    return rows.map(r => ({ name: r.name, oracleId: r.oracle_id, printingId: r.rep_printing_id, typeLine: r.type_line, manaCost: r.mana_cost || null }));
+    const rows = this.db.prepare(`SELECT ci.name, ci.oracle_id, ci.rep_printing_id, ci.type_line, ci.mana_cost, (ci.name_norm = ?) AS exact, (ci.name_norm LIKE ?) AS starts${this.ownedSelect()} FROM card_index ci${this.ownedJoin()}
+      WHERE ci.playable = 1 AND (ci.name_norm LIKE ? OR ci.name_norm LIKE ?) ORDER BY exact DESC, starts DESC, ci.edhrec_rank IS NULL, ci.edhrec_rank ASC, ci.name ASC LIMIT ?`)
+      .all(p, `${p}%`, `${p}%`, `% ${p}%`, limit) as { name: string; oracle_id: string; rep_printing_id: string; type_line: string; mana_cost: string | null; owned?: number | null }[];
+    return rows.map(r => ({ name: r.name, oracleId: r.oracle_id, printingId: r.rep_printing_id, typeLine: r.type_line, manaCost: r.mana_cost || null, owned: this.userAttached ? Number(r.owned ?? 0) : null }));
+  }
+
+  /** Copies of a card in the registered collection (0 when unowned, null when no collection is attached). */
+  ownedCount(oracleId: string): number | null {
+    if (!this.userAttached) return null;
+    const r = this.db.prepare('SELECT count FROM user.collection_owned WHERE oracle_id = ?').get(oracleId) as { count: number } | undefined;
+    return r?.count ?? 0;
   }
 
   // ------------------------------------------------------------------ detail
@@ -206,6 +245,7 @@ export class CardQueryDB {
       loyalty: oc.loyalty ?? null, defense: oc.defense ?? null, keywords: oc.keywords ?? [], reserved: !!oc.reserved, edhrecRank: oc.edhrec_rank ?? ci?.edhrec_rank ?? null,
       firstPrinted: oc.first_printed ?? null, printingCount: oc.printing_count ?? printings.length,
       representativePrintingId: ci?.rep_printing_id ?? oc.representative_id, hasBack: !!ci?.has_back,
+      owned: this.ownedCount(oracleId),
       def, printings, rulings, legalities,
     };
   }
@@ -267,8 +307,8 @@ export class CardQueryDB {
     const order = opts.seed != null ? `(CAST(substr(p.id, 1, 8) AS INTEGER) + ${Math.floor(opts.seed)}) % 9973, p.id` : 'random()';
     const rows = this.db.prepare(`SELECT ci.oracle_id, ci.name AS ci_name, ci.type_line AS ci_type_line, ci.mana_cost AS ci_mana_cost, ci.mana_value, ci.color_mask, ci.identity_mask, ci.edhrec_rank, ci.layout AS ci_layout, ci.has_back AS ci_has_back, ci.price_usd AS ci_price,
       p.id AS printing_id, p.rarity, p.set_code, p.set_name, p.collector_number, p.released_at, p.artist, p.layout AS p_layout,
-      pm.frame, pm.frame_effects, pm.finishes, pm.full_art, pm.border_color, pm.has_back AS pm_has_back, pm.price_usd AS pm_price
-      FROM printings p JOIN card_index ci ON ci.oracle_id = p.oracle_id LEFT JOIN printing_meta pm ON pm.printing_id = p.id WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT ?`).all(...params, n) as Record<string, unknown>[];
+      pm.frame, pm.frame_effects, pm.finishes, pm.full_art, pm.border_color, pm.has_back AS pm_has_back, pm.price_usd AS pm_price${this.ownedSelect()}
+      FROM printings p JOIN card_index ci ON ci.oracle_id = p.oracle_id LEFT JOIN printing_meta pm ON pm.printing_id = p.id${this.ownedJoin()} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT ?`).all(...params, n) as Record<string, unknown>[];
     return rows.map(r => this.rowToSummary(r, 'printing'));
   }
 

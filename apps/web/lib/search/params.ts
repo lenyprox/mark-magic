@@ -35,6 +35,7 @@ export const searchParsers = {
   lang: parseAsString,
   all: flag,
   img: flag,
+  own: flag,
   ps: parseAsInteger,
 };
 
@@ -65,19 +66,21 @@ export function toCardQuery(s: SearchState, pageSize = 60): CardQuery {
   if (s.lang) q.lang = s.lang;
   if (s.all) q.playable = false;
   if (s.img) q.hasImage = true;
+  if (s.own) q.owned = true;
   q.page = 1; q.pageSize = s.ps ?? pageSize;
   return q;
 }
 
 export const EMPTY_SEARCH: SearchState = {
   q: '', c: [], cm: 'any', colorless: false, t: [], st: [], sup: [], set: '', r: [], f: '', leg: 'legal',
-  mvmin: null, mvmax: null, pmin: null, pmax: null, sort: null, dir: null, mode: 'oracle', lang: null, all: false, img: false, ps: null,
+  mvmin: null, mvmax: null, pmin: null, pmax: null, sort: null, dir: null, mode: 'oracle', lang: null, all: false, img: false, own: false, ps: null,
 };
 
 /** Count of user-facing active filters (for the "clear" summary). */
 export function activeFilterCount(s: SearchState): number {
   let n = 0;
   if (s.q.trim()) n++;
+  if (s.own) n++;
   if (s.c.length || s.colorless) n++;
   if (s.t.length) n++; if (s.st.length) n++; if (s.sup.length) n++;
   if (s.set) n++; if (s.r.length) n++; if (s.f) n++;

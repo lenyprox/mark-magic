@@ -73,6 +73,8 @@ export function PlaySetup() {
 
   const myRef = myRefs.find(r => refKey(r) === myKey) ?? null;
   const oppRef = oppRefs.find(r => refKey(r) === oppKey) ?? null;
+  const formatOf = (r: DeckRef | null) => r?.kind === 'saved' ? ([...(mine.data ?? []), ...(opps.data ?? [])].find(d => d.id === r.id)?.format ?? null) : null;
+  const commanderDecks = [myRef, oppRef].filter(r => /^(commander|edh|cedh|brawl)$/i.test(formatOf(r) ?? '')).map(r => r!.name);
   const seedNum = Number(seed);
   const seedOk = Number.isInteger(seedNum) && seedNum >= 0;
 
@@ -138,6 +140,11 @@ export function PlaySetup() {
             <span className={styles.fieldLabel}>Your name</span>
             <Input aria-label="Your name" value={name} onChange={e => setName(e.target.value)} maxLength={24} />
           </div>
+          {commanderDecks.length > 0 && (
+            <Callout variant="engine" title="Commander rules are not in the engine yet">
+              {commanderDecks.join(' and ')} will be played as a two-player game with the commander shuffled into the library. Set starting life to 40 below for a closer feel; the command zone, commander tax and 21-damage rule arrive with the Commander engine work.
+            </Callout>
+          )}
         </section>
 
         <section className={styles.card} aria-labelledby="setup-table">

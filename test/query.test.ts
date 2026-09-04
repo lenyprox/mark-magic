@@ -66,7 +66,7 @@ test('image cache helpers and a stubbed fetch', async () => {
 test('user db: migrations, deck CRUD, games', () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'udb-')), 'user.db');
   const u = openUserDb(file);
-  assert.equal(schemaVersion(u), 1);
+  assert.ok(schemaVersion(u) >= 2, `schema version ${schemaVersion(u)}`);
   const decks = new DeckStore(u);
   const d = decks.create({ name: 'Burn', format: 'modern', cards: [{ board: 'main', oracleId: 'o1', name: 'Lightning Bolt', printingId: null, count: 4, position: 0 }, { board: 'side', oracleId: 'o2', name: 'Pyroblast', printingId: null, count: 2, position: 0 }] });
   assert.equal(decks.list('mine').length, 1); assert.equal(decks.list('mine')[0].mainCount, 4); assert.equal(decks.list('mine')[0].sideCount, 2);

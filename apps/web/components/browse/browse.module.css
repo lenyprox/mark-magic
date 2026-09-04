@@ -65,11 +65,14 @@
 .foot { display: flex; justify-content: center; padding: 28px 0 60px; color: var(--ink-3); font-size: var(--t-sm); }
 .dfcTag { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: rgba(10, 10, 13, 0.7); color: var(--ink-2); backdrop-filter: blur(4px); }
 .dfcTag svg { width: 12px; height: 12px; }
+.ownedTag { position: absolute; top: 6px; left: 6px; height: 20px; padding: 0 7px; border-radius: 10px; display: grid; place-items: center; background: rgba(10, 10, 13, 0.75); color: var(--ok); font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ok) 55%, transparent); backdrop-filter: blur(4px); }
 
 /* ---------- List ---------- */
 .list { position: relative; width: 100%; outline: none; }
-.listHead { display: grid; grid-template-columns: 44px minmax(0, 2.2fr) minmax(0, 1.6fr) 110px 90px 80px; gap: 12px; padding: 0 10px 8px; font-size: var(--t-xs); color: var(--ink-3); border-bottom: 1px solid var(--line); }
-.listRow { position: absolute; top: 0; left: 0; width: 100%; display: grid; grid-template-columns: 44px minmax(0, 2.2fr) minmax(0, 1.6fr) 110px 90px 80px; gap: 12px; align-items: center; padding: 0 10px; border-radius: var(--r-2); text-align: left; color: var(--ink-1); }
+.listHead { display: grid; grid-template-columns: 44px minmax(0, 2.2fr) minmax(0, 1.6fr) 110px 90px 56px 80px; gap: 12px; padding: 0 10px 8px; font-size: var(--t-xs); color: var(--ink-3); border-bottom: 1px solid var(--line); }
+.listRow { position: absolute; top: 0; left: 0; width: 100%; display: grid; grid-template-columns: 44px minmax(0, 2.2fr) minmax(0, 1.6fr) 110px 90px 56px 80px; gap: 12px; align-items: center; padding: 0 10px; border-radius: var(--r-2); text-align: left; color: var(--ink-1); }
+.listOwned { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--t-xs); color: var(--ink-3); }
+.listOwned[data-owned] { color: var(--ok); }
 .listRow:hover, .listRow:focus-visible { background: var(--bg-2); box-shadow: var(--catch); }
 .listRow:focus-visible { outline: none; box-shadow: var(--catch), inset 0 0 0 1px var(--brass-2); }
 .listThumb { width: 36px; height: 50px; border-radius: 3px; overflow: hidden; background: var(--bg-2); }
@@ -84,7 +87,7 @@
 @media (max-width: 760px) {
   .listHead { display: none; }
   .listRow { grid-template-columns: 44px minmax(0, 1fr) 80px; }
-  .listRow > :nth-child(3), .listRow > :nth-child(4), .listRow > :nth-child(5) { display: none; }
+  .listRow > :nth-child(3), .listRow > :nth-child(4), .listRow > :nth-child(5), .listRow > :nth-child(6) { display: none; }
 }
 
 /* mobile sheet */

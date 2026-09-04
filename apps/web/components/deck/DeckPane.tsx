@@ -13,6 +13,8 @@ import { useBuilder } from './context';
 import { DeckHeader } from './DeckHeader';
 import { LegalityCheck } from './LegalityCheck';
 import { EngineCoverage } from './EngineCoverage';
+import { ChooseCommander } from './ChooseCommander';
+import { CollectionCoverage } from '@/components/collection/CollectionCoverage';
 import { DeckGroups } from './DeckGroups';
 import { ManaCurve } from './ManaCurve';
 import { ColorPie } from './ColorPie';
@@ -39,7 +41,9 @@ export function DeckPane({ deck }: { deck: DeckRecord }) {
     <div className={styles.deckPane}>
       <DeckHeader deck={deck} entries={mainEntries} info={info} />
       <LegalityCheck format={draft.format} cards={draft.cards} info={info} />
+      <ChooseCommander format={draft.format} entries={entries} />
       <EngineCoverage entries={mainEntries} />
+      <CollectionCoverage deckId={deck.id} cards={draft.cards} />
       <div className={styles.tabsRow}>
         <Tabs<Tab> label="Board" value={tab} onChange={(v) => setBoard(v as DeckBoard)} items={[{ value: 'main', label: 'Main', count: counts.main }, { value: 'side', label: 'Sideboard', count: counts.side }, { value: 'maybe', label: 'Maybe', count: counts.maybe }]} />
         <Segmented size="sm" label="Group by" value={mode} onChange={setMode} options={[{ value: 'type', label: 'Type' }, { value: 'mv', label: 'Mana value' }, { value: 'color', label: 'Colour' }]} />

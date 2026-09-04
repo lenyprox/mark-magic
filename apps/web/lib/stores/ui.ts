@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface Toast { id: number; title: string; body?: string; kind?: 'note' | 'ok' | 'warn' | 'danger'; ttl?: number }
-export interface PreviewRequest { printingId: string; face?: 0 | 1; name: string; anchor: DOMRect }
+export interface PreviewRequest { printingId: string; face?: 0 | 1; name: string; anchor: DOMRect; oracleId?: string }
 
 interface UiState {
   toasts: Toast[];

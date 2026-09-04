@@ -6,19 +6,20 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { autoUpdate, FloatingPortal, offset, size, useFloating } from '@floating-ui/react';
 import clsx from 'clsx';
-import { LayoutGrid, List, Plus } from 'lucide-react';
+import { LayoutGrid, Library, List, Plus } from 'lucide-react';
 import type { CardQuery, CardSummary } from '@cards/query';
 import type { Color } from '@cards/types';
 import { api, cardsKey, type AutocompleteHit } from '@/lib/api';
 import { imgUrl } from '@/lib/img';
 import { FORMATS, formatInfo } from '@/lib/deck/formats';
 import { useDebouncedValue } from '@/lib/hooks/useDebounced';
+import { useCollection } from '@/lib/collection/useCollection';
 import { useDeckStore } from '@/lib/stores/deck';
 import { toast } from '@/lib/stores/ui';
 import { SearchInput } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Segmented } from '@/components/ui/Segmented';
-import { ManaChip } from '@/components/ui/Chip';
+import { Chip, ManaChip } from '@/components/ui/Chip';
 import { Callout, EmptyState, Kbd, Skeleton } from '@/components/ui/Display';
 import { ManaCost, ManaSymbol } from '@/components/text/ManaSymbol';
 import { SetIcon } from '@/components/text/SetIcon';
@@ -48,12 +49,14 @@ export function Picker({ format, onQuickLook }: PickerProps) {
   const [legality, setLegality] = useState<string>(fi.legality ?? '');
   useEffect(() => { setLegality(formatInfo(format).legality ?? ''); }, [format]);
   const [view, setView] = useState<'list' | 'grid'>('list');
+  const [ownedOnly, setOwnedOnly] = useState(false);
+  const collection = useCollection();
 
   const query = useMemo<CardQuery>(() => ({
     q: dq.trim() || undefined, colors: colors.length ? colors : undefined, colorMode: colors.length ? 'identity' : undefined, colorless: colorless || undefined,
-    types: type ? [type] : undefined, format: legality || undefined, legality: legality ? 'legal' : undefined,
+    types: type ? [type] : undefined, format: legality || undefined, legality: legality ? 'legal' : undefined, owned: ownedOnly || undefined,
     sort: dq.trim() ? 'relevance' : 'edhrec', dir: 'asc', pageSize: 40,
-  }), [dq, colors, colorless, type, legality]);
+  }), [dq, colors, colorless, type, legality, ownedOnly]);
   const key = useMemo(() => ['picker', ...cardsKey(query)], [query]);
   const results = useInfiniteQuery({
     queryKey: key,
@@ -181,6 +184,7 @@ export function Picker({ format, onQuickLook }: PickerProps) {
           </div>
           <Select size="sm" aria-label="Card type" options={TYPES.map(t => ({ value: t, label: t }))} placeholder="Any type" value={type} onChange={(e) => setType(e.target.value)} />
           <Select size="sm" aria-label="Legal in" options={FORMATS.filter(f => f.legality).map(f => ({ value: f.legality!, label: `Legal in ${f.label}` }))} placeholder="Any format" value={legality} onChange={(e) => setLegality(e.target.value)} />
+          {!collection.empty && <Chip size="sm" pressed={ownedOnly} onClick={() => setOwnedOnly(v => !v)} icon={<Library size={13} />} title="Only cards in your registered collection" data-testid="picker-owned">Owned</Chip>}
           <Segmented size="sm" label="Results view" value={view} onChange={setView} options={[{ value: 'list', label: <List />, title: 'List' }, { value: 'grid', label: <LayoutGrid />, title: 'Grid' }]} />
         </div>
         <div className={styles.resultCount} aria-live="polite">
@@ -223,6 +227,7 @@ export function Picker({ format, onQuickLook }: PickerProps) {
                       <span className={styles.rowName}><b className="truncate">{c.name}</b><span className={styles.rowType}>{c.typeLine.split('//')[0].trim()}</span></span>
                       <ManaCost cost={c.manaCost} size={12} className={styles.rowCost} />
                       <span className={styles.rowSet} title={c.setName}><SetIcon code={c.setCode} rarity={c.rarity} size={13} /></span>
+                      {!!c.owned && <span className={styles.rowOwned} title={`${c.owned} in your collection`}>×{c.owned}</span>}
                       {n > 0 ? <span className={styles.inDeck} title={`${n} in deck`}>{n}</span> : <span className={styles.rowAdd} aria-hidden><Plus /></span>}
                     </button>
                   </div>

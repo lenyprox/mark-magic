@@ -41,6 +41,7 @@ export function parseCardQuery(sp: SearchParamsLike): CardQuery {
   const lang = get(sp, 'lang'); if (lang) q.lang = lang.toLowerCase().slice(0, 3);
   if (get(sp, 'all') === '1') q.playable = false;
   if (get(sp, 'img') === '1') q.hasImage = true;
+  if (get(sp, 'own') === '1') q.owned = true;
   q.page = Math.max(1, num(sp, 'page') ?? 1);
   q.pageSize = Math.min(120, Math.max(1, num(sp, 'ps') ?? 60));
   for (const k of Object.keys(q) as (keyof CardQuery)[]) if (q[k] === undefined) delete q[k];
@@ -71,6 +72,7 @@ export function cardQueryToParams(q: CardQuery): URLSearchParams {
   if (q.lang) sp.set('lang', q.lang);
   if (q.playable === false) sp.set('all', '1');
   if (q.hasImage) sp.set('img', '1');
+  if (q.owned) sp.set('own', '1');
   if (q.page && q.page > 1) sp.set('page', String(q.page));
   if (q.pageSize && q.pageSize !== 60) sp.set('ps', String(q.pageSize));
   return sp;

@@ -30,7 +30,7 @@ export function CardRef({ name, printingId, oracleId, face, children, className,
     let r = resolved;
     if (!r?.printingId) { r = printingId ? { oracleId: oracleId ?? '', printingId } : await resolveName(name); if (r) setResolved(r); }
     const rect = el.current?.getBoundingClientRect();
-    if (r && rect && el.current?.matches(':hover, :focus-visible')) setPreview({ printingId: r.printingId, face, name, anchor: rect });
+    if (r && rect && el.current?.matches(':hover, :focus-visible')) setPreview({ printingId: r.printingId, face, name, anchor: rect, oracleId: r.oracleId || oracleId });
   };
   const arm = () => { if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(show, delay); };
   const disarm = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; setPreview(null); };

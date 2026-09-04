@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDownAZ, ArrowUpAZ, X } from 'lucide-react';
+import { ArrowDownAZ, ArrowUpAZ, Library, X } from 'lucide-react';
 import type { SetSummary } from '@cards/query';
 import { api } from '@/lib/api';
 import { activeFilterCount, COLOR_MODES, EMPTY_SEARCH, FORMATS, type SearchState } from '@/lib/search/params';
@@ -73,6 +73,7 @@ export function FilterRail({ state, onChange, locked = [], searchRef }: FilterRa
   for (const t of state.st) summary.push({ key: `st:${t}`, label: t, clear: () => toggle('st', t) });
   if (has('set') && state.set) summary.push({ key: 'set', label: <><SetIcon code={state.set} size={12} />{setByCode.get(state.set)?.name ?? state.set.toUpperCase()}</>, clear: () => onChange({ set: '' }) });
   if (has('r') && state.r.length) summary.push({ key: 'r', label: state.r.join(', '), clear: () => onChange({ r: [] }) });
+  if (state.own) summary.push({ key: 'own', label: 'Owned', clear: () => onChange({ own: false }) });
   if (state.f) summary.push({ key: 'f', label: `${formatLabel(state.f)} ${state.leg}`, clear: () => onChange({ f: '', leg: 'legal' }) });
   if (state.mvmin != null || state.mvmax != null) summary.push({ key: 'mv', label: `MV ${state.mvmin ?? 0}–${state.mvmax ?? `${MV_MAX}+`}`, clear: () => onChange({ mvmin: null, mvmax: null }) });
   if (state.pmin != null || state.pmax != null) summary.push({ key: 'p', label: `${fmtPrice(state.pmin ?? 0)}–${state.pmax == null ? '$1000+' : fmtPrice(state.pmax)}`, clear: () => onChange({ pmin: null, pmax: null }) });
@@ -94,6 +95,15 @@ export function FilterRail({ state, onChange, locked = [], searchRef }: FilterRa
           <button type="button" onClick={() => insertHint('n:')}><kbd>n:</kbd> name only</button>
         </div>
       </div>
+
+      {has('own') && (
+        <fieldset className={styles.group}>
+          <legend className={styles.groupHead}><b>Collection</b></legend>
+          <div className={styles.chips}>
+            <Chip size="sm" pressed={state.own} onClick={() => onChange({ own: !state.own })} data-testid="filter-owned" icon={<Library size={13} />}>Owned only</Chip>
+          </div>
+        </fieldset>
+      )}
 
       {has('c') && (
         <fieldset className={styles.group}>

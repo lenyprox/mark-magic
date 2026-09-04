@@ -6,6 +6,7 @@ import { ArrowRightLeft, ChevronDown, Minus, Plus, X } from 'lucide-react';
 import type { DeckBoard } from '@cards/db';
 import { useDeckStore } from '@/lib/stores/deck';
 import { shortType, type Entry, type Group } from '@/lib/deck/stats';
+import { useCollection } from '@/lib/collection/useCollection';
 import { IconButton } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Display';
 import { CardRef } from '@/components/shell/CardRef';
@@ -47,6 +48,12 @@ function DeckCardRow({ entry, tab, loading }: { entry: Entry; tab: 'main' | 'sid
   const setPrinting = useDeckStore(s => s.setPrinting);
   const printingId = card.printingId ?? info?.representativePrintingId ?? null;
   const moveTo: DeckBoard = tab === 'main' ? 'side' : 'main';
+  const collection = useCollection();
+  const have = collection.owned.get(card.oracleId) ?? 0;
+  const ownership = !collection.ready || collection.empty || card.board === 'maybe' ? null
+    : have === 0 ? <span className={styles.rowUnowned} title="Not in your registered collection">not owned</span>
+    : have < card.count ? <span className={styles.rowUnowned} title={`${have} of ${card.count} in your collection`}>have {have} of {card.count}</span>
+    : null;
   return (
     <div className={styles.row} role="listitem">
       <div className={styles.qty} role="group" aria-label={`${card.name} quantity`}>
@@ -59,7 +66,7 @@ function DeckCardRow({ entry, tab, loading }: { entry: Entry; tab: 'main' | 'sid
           <CardRef name={card.name} oracleId={card.oracleId} printingId={printingId ?? undefined} className={styles.rowRef} />
           {info && <ManaCost cost={info.manaCost} size={12} className={styles.rowCost} />}
         </span>
-        <span className={styles.rowSub}>{loading ? <Skeleton kind="text" width={120} /> : info ? shortType(info.typeLine) : <span className={styles.rowMissing}>not in the card database</span>}</span>
+        <span className={styles.rowSub}>{loading ? <Skeleton kind="text" width={120} /> : info ? shortType(info.typeLine) : <span className={styles.rowMissing}>not in the card database</span>}{ownership && <> · {ownership}</>}</span>
       </div>
       <div className={styles.rowActions}>
         {info && <PrintingPicker info={info} printingId={printingId} onPick={(id) => setPrinting(card.board, card.oracleId, id)} />}

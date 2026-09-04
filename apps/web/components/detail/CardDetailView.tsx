@@ -15,6 +15,7 @@ import { Badge, RarityBadge } from '@/components/ui/Display';
 import { ColorPips, LegalityMatrix, ManaCost, OracleText, SetIcon } from '@/components/text';
 import { cardTransitionName } from '@/lib/nav/viewTransition';
 import { formatDate, formatPrice, FRAME_EFFECT_LABEL, yearOf } from '@/lib/text/format';
+import { CollectionRow } from '@/components/collection/CollectionRow';
 import { PrintingsCarousel } from './PrintingsCarousel';
 import { RelatedCards } from './RelatedCards';
 import styles from '@/app/cards/cards.module.css';
@@ -91,6 +92,7 @@ export function CardDetailView({ detail, initialPrinting }: { detail: CardDetail
           {detail.edhrecRank != null && <div className={styles.metaItem}><dt>EDHREC rank</dt><dd className="mono">#{detail.edhrecRank.toLocaleString()}</dd></div>}
           {detail.reserved && <div className={styles.metaItem}><dt>Reserved list</dt><dd><Badge tone="warn">Reserved</Badge></dd></div>}
           <div className={styles.metaItem}><dt>Engine</dt><dd>{detail.def.unparsed?.length ? <Badge tone="warn" title={detail.def.unparsed.join('\n')}>Partly simulated</Badge> : <Badge tone="ok">Fully simulated</Badge>}</dd></div>
+          <CollectionRow oracleId={detail.oracleId} name={detail.name} initial={detail.owned} className={styles.metaItem} />
         </dl>
 
         <section aria-labelledby="printings-h">

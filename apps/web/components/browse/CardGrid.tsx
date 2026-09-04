@@ -129,6 +129,7 @@ export function CardGrid({ items, total, density, hasMore, fetchingMore, onLoadM
                       printing={{ printingId: c.printingId, name: c.name, layout: c.layout, frame: c.frame, frameEffects: c.frameEffects, finishes: c.finishes, fullArt: c.fullArt, borderColor: c.borderColor, hasBack: c.hasBack }}
                       imgProps={{ style: i === focus ? { viewTransitionName: cardTransitionName(c.printingId) } : undefined, 'data-card-anchor': c.printingId } as React.ImgHTMLAttributes<HTMLImageElement>} />
                     {c.hasBack && <span className={styles.dfcTag} title="Double-faced"><RefreshCw /></span>}
+                    {!!c.owned && <span className={styles.ownedTag} title={`${c.owned} in your collection`} data-testid="owned-tag">×{c.owned}</span>}
                     <span className={styles.caption} aria-hidden>
                       <span className={styles.capName}>{c.name}</span>
                       <span className={styles.capMeta}><SetIcon code={c.setCode} rarity={c.rarity} size={12} /><span>{c.setCode.toUpperCase()}</span><span className="rarity-dot" data-rarity={c.rarity} /><span className={styles.price}>{formatPrice(c.priceUsd)}</span></span>

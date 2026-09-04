@@ -124,6 +124,8 @@
 .rowRef:hover { text-decoration-color: var(--brass-line); }
 .rowSub { font-size: var(--t-xs); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rowMissing { color: var(--warn); }
+.rowUnowned { color: var(--warn); }
+.rowOwned { font-family: var(--font-mono); font-size: var(--t-xs); color: var(--ok); white-space: nowrap; }
 .rowActions { display: inline-flex; align-items: center; gap: 2px; opacity: 0.55; transition: opacity var(--d-1) var(--ease); }
 .row:hover .rowActions, .row:focus-within .rowActions { opacity: 1; }
 .printBtn { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border-radius: var(--r-pill); font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); background: var(--bg-3); box-shadow: var(--catch); }

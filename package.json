@@ -26,7 +26,8 @@
     "analysis:selftest": "tsx scripts/analysis-selftest.ts",
     "test:e2e": "npm run test:e2e -w apps/web",
     "typecheck:all": "npm run typecheck && npm run web:typecheck",
-    "demo:pack": "node demo/pack.mjs"
+    "demo:pack": "node demo/pack.mjs",
+    "collection:import": "tsx scripts/import-collection.ts"
   },
   "engines": {
     "node": ">=20"

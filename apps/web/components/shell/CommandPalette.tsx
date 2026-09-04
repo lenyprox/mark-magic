@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
-import { Clock, Layers, LayoutGrid, Library, Play, Search } from 'lucide-react';
+import { Clock, Layers, LayoutGrid, Library, Package, Play, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { imgUrl } from '@/lib/img';
 import { useDebouncedValue } from '@/lib/hooks/useDebounced';
@@ -20,6 +20,8 @@ const ACTIONS = [
   { id: 'cards', label: 'Browse cards', href: '/cards', icon: <LayoutGrid /> },
   { id: 'sets', label: 'Sets', href: '/sets', icon: <Layers /> },
   { id: 'decks', label: 'Decks', href: '/decks', icon: <Library /> },
+  { id: 'collection', label: 'Collection', href: '/collection', icon: <Package /> },
+  { id: 'owned', label: 'Browse owned cards', href: '/cards?own=1', icon: <Package /> },
   { id: 'play', label: 'Play', href: '/play', icon: <Play /> },
 ];
 
