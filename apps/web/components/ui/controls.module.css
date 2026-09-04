@@ -99,3 +99,22 @@
 .range input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--bg-2), 0 0 0 4px var(--brass-1); }
 .range input[type='range']:focus-visible { outline: none; }
 .rangeLabels { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: var(--t-xs); color: var(--ink-2); padding: 0 2px; margin-top: 2px; }
+
+/* ---------- Phone: every control is at least a 44 px touch target ---------- */
+@media (max-width: 768px) {
+  .btn { --btn-h: 44px; }
+  .btn.sm { --btn-h: 44px; padding: 0 12px; font-size: var(--t-sm); }
+  .btn.icon { width: var(--btn-h); }
+  .seg { height: 44px; }
+  .segmented.sm .seg { height: 44px; font-size: var(--t-sm); }
+  .tab { min-height: 44px; }
+  .field, .select { height: 44px; }
+  .field.sm, .select.sm { height: 40px; }
+  .chip { height: 36px; }
+  .range { height: 44px; }
+  .range input[type='range'] { height: 44px; }
+  .range input[type='range']::-webkit-slider-runnable-track { height: 44px; }
+  .range input[type='range']::-moz-range-track { height: 44px; }
+  .range input[type='range']::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: 11px; }
+  .range input[type='range']::-moz-range-thumb { width: 22px; height: 22px; }
+}

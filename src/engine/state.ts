@@ -58,9 +58,9 @@ export interface GameObject {
   commander?: boolean;
 }
 export type CastZone = 'hand' | 'graveyard' | 'exile' | 'command';
-export type AltCostId = 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard';
+export type AltCostId = 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard' | 'buyback' | 'dash';
 
-export interface DelayedTrigger { id: number; at: 'next-upkeep' | 'next-end-step' | 'your-next-end-step'; controller: PlayerId; sourceId: number; sourceName: string; effects: Effect[]; affected?: StackItem['affected']; createdTurn: number }
+export interface DelayedTrigger { id: number; at: 'next-upkeep' | 'next-end-step' | 'your-next-end-step' | 'end-of-combat'; controller: PlayerId; sourceId: number; sourceName: string; effects: Effect[]; affected?: StackItem['affected']; createdTurn: number }
 
 export interface Player {
   id: PlayerId;

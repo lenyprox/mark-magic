@@ -12,6 +12,8 @@ import { CardImage } from '@/components/card/CardImage';
 import { OracleText } from '@/components/text/OracleText';
 import styles from './table.module.css';
 
+const identity = <T,>(c: T): T => c;
+
 export interface StackColumnProps {
   stack: StackItemView[];
   viewer: PlayerId;
@@ -28,7 +30,7 @@ export interface StackColumnProps {
   reducedMotion?: boolean;
 }
 
-export const StackColumn = memo(function StackColumn({ stack, viewer, legalStack, dimOthers, onClick, dropStack, dropOver, glowId, layoutKey, reducedMotion }: StackColumnProps) {
+export const StackColumn = identity(function StackColumn({ stack, viewer, legalStack, dimOthers, onClick, dropStack, dropOver, glowId, layoutKey, reducedMotion }: StackColumnProps) {
   const items = [...stack].reverse();
   const t = reducedMotion ? { duration: 0 } : { type: 'spring' as const, stiffness: 420, damping: 34, mass: 0.8 };
   return (

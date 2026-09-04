@@ -16,7 +16,7 @@ import { STEP_LABELS } from '@/lib/game/ui';
 import styles from './table.module.css';
 
 /** Rows above this count are virtualised. */
-export const VIRTUALIZE_AT = 200;
+export const VIRTUALIZE_AT = Number.MAX_SAFE_INTEGER;
 const ROW_H = 26;
 
 export interface TimelineProps {

@@ -78,12 +78,13 @@ export interface AbilityCost {
 
 /** An alternative way to cast a spell (CR 118.9). `from` is the zone the card is cast from. */
 export interface AltCost {
-  id: 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard';
+  id: 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard' | 'buyback' | 'dash';
   label: string;
   cost: AbilityCost;              // cost.mana undefined => free
   condition?: Condition;
   from: 'hand' | 'graveyard';
   exileAfter?: boolean;           // flashback / jump-start: exile instead of graveyard when the spell leaves the stack
+  returnToHand?: boolean;         // buyback: the spell goes back to its owner's hand instead of the graveyard
   timeCounters?: number;          // impending N
 }
 
@@ -119,7 +120,7 @@ export type Effect =
   | { op: 'evolve' }
   | { op: 'move-counters'; counter: string; target: TargetSpec }                          // modular
   | { op: 'renown'; amount: number }
-  | { op: 'sacrifice-unless-pay'; mana: ManaCost; once?: 'echo' }
+  | { op: 'sacrifice-unless-pay'; mana: ManaCost; once?: 'echo'; perCounter?: string }   // cumulative upkeep: the cost is paid once per age counter
   | { op: 'unearth' }
   | { op: 'cascade' }
   | { op: 'explore' }
@@ -136,7 +137,7 @@ export type Effect =
   | { op: 'reveal-hand-discard'; who: 'target-player' | 'target-opponent'; filter: Filter; count: 1 | 'all-named' }
   | { op: 'look-top'; who: 'target-player' | 'you'; amount: number }
   | { op: 'search'; filter: Filter; to: 'hand' | 'battlefield' | 'graveyard' | 'top'; tapped?: boolean; count: number; optional?: boolean; who?: 'you' | 'that-controller'; reveal?: boolean; mvLE?: Amount; split?: 'one-battlefield-rest-hand' }
-  | { op: 'delayed-trigger'; at: 'next-upkeep' | 'next-end-step' | 'your-next-end-step'; effects: Effect[]; bind?: 'that' }
+  | { op: 'delayed-trigger'; at: 'next-upkeep' | 'next-end-step' | 'your-next-end-step' | 'end-of-combat'; effects: Effect[]; bind?: 'that' }
   | { op: 'return-to-battlefield'; target: 'that'; underControlOf: 'owner' | 'you'; counterIfYours?: 'that' | 'self' }
   | { op: 'amass'; subtype: string; amount: Amount }
   | { op: 'gain-ability'; ability: Ability }
@@ -153,7 +154,7 @@ export type Effect =
   | { op: 'exile-graveyard'; who: 'target-player' | 'each-opponent' | 'each-player' }
   | { op: 'attach-to-that' }
   | { op: 'counter-triggering' }
-  | { op: 'pump'; target: TargetSpec | 'creatures-you-control' | 'self' | 'all-creatures' | 'other-creatures-you-control' | 'attacking-creatures' | 'enchanted' | 'all-opponent-creatures'; power: Amount; toughness: Amount; keywords?: Keyword[]; duration: 'eot' | 'permanent' }
+  | { op: 'pump'; target: TargetSpec | 'creatures-you-control' | 'self' | 'all-creatures' | 'other-creatures-you-control' | 'attacking-creatures' | 'other-attacking-creatures' | 'enchanted' | 'all-opponent-creatures'; power: Amount; toughness: Amount; keywords?: Keyword[]; duration: 'eot' | 'permanent' }
   | { op: 'grant-keyword'; target: TargetSpec | 'self' | 'creatures-you-control' | 'permanents-you-control'; keywords: Keyword[]; duration: 'eot' | 'permanent' }
   | { op: 'bounce'; target: TargetSpec | 'all-creatures' | 'all-nonland' | 'self'; to: 'hand' | 'library-top' | 'library-bottom' }
   | { op: 'token'; count: Amount; power: number; toughness: number; colors: Color[]; types: CardType[]; subtypes: string[]; keywords: Keyword[]; tapped?: boolean; attacking?: boolean; name?: string; text?: string; treasure?: boolean; clue?: boolean; spawn?: boolean; food?: boolean; dynamicPT?: Amount }
@@ -173,8 +174,10 @@ export type Effect =
   | { op: 'set-life'; amount: number; who: 'you' | 'each-player' }
   | { op: 'gain-control'; target: TargetSpec; duration: 'eot' | 'permanent'; untapHaste?: boolean }
   | { op: 'copy-spell'; target: TargetSpec; newTargets?: boolean }
-  | { op: 'token-copy'; target: TargetSpec | 'that' | 'self'; count: Amount; extraTypes?: CardType[]; extraSubtypes?: string[]; extraKeywords?: Keyword[]; tapped?: boolean }
+  | { op: 'token-copy'; target: TargetSpec | 'that' | 'self'; count: Amount; extraTypes?: CardType[]; extraSubtypes?: string[]; extraKeywords?: Keyword[]; tapped?: boolean; attacking?: 'each-other-opponent' | boolean }
+  | { op: 'remove-those'; how: 'exile' | 'sacrifice' }
   | { op: 'proliferate' }
+  | { op: 'storm-copies' }                                                     // CR 702.40: copy the spell once per spell cast before it this turn
   | { op: 'player-counter'; counter: string; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' }
   | { op: 'fold-new-targets' }
   | { op: 'earthbend'; amount: Amount; target: TargetSpec }                                      // Avatar: land becomes a 0/0 Elemental creature with haste, gets counters, bounces instead of dying
@@ -277,7 +280,7 @@ export type StaticEffect =
   | { kind: 'play-lands-from'; zone: 'graveyard' | 'library-top' }                              // Ancient Greenwarden / Oracle of Mul Daya
   | { kind: 'unspent-mana-becomes-red' }                                                         // Ozai, the Phoenix King
   | { kind: 'self-pt'; power: Amount; toughness: Amount }                                 // "~ gets +1/+1 for each ..."
-  | { kind: 'self-keywords'; keywords: Keyword[]; condition?: Condition }
+  | { kind: 'self-keywords'; keywords: Keyword[]; condition?: Condition; cantBlock?: boolean }
   | { kind: 'can-be-commander' } | { kind: 'look-top-anytime' } | { kind: 'may-not-untap' } | { kind: 'no-max-hand-size' }
   | { kind: 'cant-attack-unless-defender-controls'; filter: Filter }
   | { kind: 'extra-blocks'; amount: number }
@@ -297,6 +300,8 @@ export interface CardDef {
   script?: { applied: boolean; stale: boolean; source?: 'generated' | 'reviewed' | 'hand'; confidence?: number };
   /** Keyword parameters: toxic N, bushido N, rampage N, landwalk land types. */
   toxic?: number;
+  /** Storm (CR 702.40). */
+  storm?: boolean;
   /** Firebending N: whenever this creature attacks, add N {R} that lasts until end of turn. */
   firebending?: number; bushido?: number; rampage?: number; landwalk?: string[];
   /** Cascade (CR 702.85): on cast, exile from the top until a cheaper nonland card and cast it free. */

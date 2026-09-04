@@ -1,6 +1,6 @@
 'use client';
 // Winner banner with save / rematch / new game.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { RotateCcw, Save, Trophy, Plus } from 'lucide-react';
 import { Button } from '@/components/ui';
@@ -19,6 +19,22 @@ export function GameOver({ onRematch }: { onRematch: () => void }) {
   const gameId = useGameStore(s => s.gameId);
   const [saved, setSaved] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // The banner covers the table, so keep focus inside it (the table itself is finished and has nothing to do).
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !ref.current) return;
+      const items = [...ref.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]')];
+      if (!items.length) return;
+      const first = items[0]; const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && (active === first || !ref.current.contains(active))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, []);
   if (!view || !decks || !options) return null;
   const meWon = winner === (view.viewer ?? 0);
   const name = winner === null ? 'Draw' : view.players[winner].name;
@@ -38,7 +54,7 @@ export function GameOver({ onRematch }: { onRematch: () => void }) {
   };
 
   return (
-    <div className={styles.gameOver} role="alertdialog" aria-labelledby="gameover-title" data-testid="game-over">
+    <div ref={ref} className={styles.gameOver} role="alertdialog" aria-modal="true" aria-labelledby="gameover-title" data-testid="game-over">
       <div className={styles.gameOverPanel}>
         <Trophy size={28} aria-hidden className={meWon ? styles.trophyWin : styles.trophyLoss} />
         <h2 id="gameover-title">{winner === null ? 'Draw' : meWon ? 'You win' : `${name} wins`}</h2>

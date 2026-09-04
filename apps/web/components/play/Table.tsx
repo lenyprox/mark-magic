@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
-import { FlaskConical, HelpCircle, PanelLeft, ScrollText } from 'lucide-react';
+import { FlaskConical, HelpCircle, PanelLeft, ScrollText, Settings2 } from 'lucide-react';
 import { useReducedMotion } from 'motion/react';
 import { describeEvent } from '@play/anim';
 import type { IllegalHint, LegalAction, PlayerId, Step, TargetRef } from '@engine/state';
@@ -395,6 +395,8 @@ export function Table({ gameId }: { gameId: string }) {
   }, [ix, objects, drops, overIs, liftedId, slotCard, interactive, fxSets, pulseObjects, payMode, myId]);
   const actionsFor = useCallback((id: number) => (interactive ? ix.legal.filter(l => (l.action.type === 'play-land' && l.action.cardId === id) || (l.action.type === 'cast' && l.action.cardId === id) || (l.action.type === 'activate' && l.action.objectId === id)) : []), [ix.legal, interactive]);
   const onMenuOpenChange = useCallback((id: number, open: boolean) => ix.setMenuCard(open ? id : null), [ix]);
+  const onOpenZone = useCallback((pid: PlayerId, z: 'graveyard' | 'exile' | 'command') => setZone({ pid, zone: z }), []);
+  const openSeatBattlefield = useCallback((pid: PlayerId) => setBfSeat(pid), []);
   const onObjectClick = useCallback((id: number) => { if (dragRef.current.interactive) ix.onObjectClick(id); }, [ix]);
   const onPlayerClick = useCallback((pid: PlayerId) => { if (dragRef.current.interactive) ix.onPlayerClick(pid); }, [ix]);
   const onStackClick = useCallback((sid: number) => { if (dragRef.current.interactive) ix.onStackClick(sid); }, [ix]);
@@ -455,8 +457,8 @@ export function Table({ gameId }: { gameId: string }) {
   const timelinePanel = <Timeline events={events} eventBase={eventBase} cursor={playback.cursor} paused={playback.paused} settled={settled} decisionPending={!!decision} view={liveView} onScrub={scrubTo} onPause={pauseQueue} onPlay={playQueue} onLive={goLive} />;
   const rail = (
     <div className={styles.rail} data-testid="right-rail" data-rail={panels.rail}>
-      <Tabs value={panels.rail} onChange={setRail} label="Right rail" className={styles.railTabs} items={[{ value: 'analysis', label: 'Analysis' }, { value: 'explain', label: 'Explain' }, { value: 'timeline', label: 'Timeline' }]} />
-      <div className={styles.railPane}>{panels.rail === 'analysis' ? analysisPanel : panels.rail === 'explain' ? explainPanel : timelinePanel}</div>
+      <Tabs value={panels.rail} onChange={setRail} label="Right rail" className={styles.railTabs} idBase="rail" items={[{ value: 'analysis', label: 'Analysis' }, { value: 'explain', label: 'Explain' }, { value: 'timeline', label: 'Timeline' }]} />
+      <div className={styles.railPane} role="tabpanel" id={`rail-panel-${panels.rail}`} aria-labelledby={`rail-tab-${panels.rail}`} tabIndex={0}>{panels.rail === 'analysis' ? analysisPanel : panels.rail === 'explain' ? explainPanel : timelinePanel}</div>
     </div>
   );
   const logPanel = <LogPanel log={log} />;
@@ -466,15 +468,20 @@ export function Table({ gameId }: { gameId: string }) {
   const plateProps = (p: PlayerView) => ({
     active: view.activePlayer === p.id, hasPriority: view.priority === p.id, thinking: thinking && status === 'running' && (view.priority === p.id || (opps.length === 1)),
     legalTarget: !!legalPlayers?.has(p.id), picked: ix.picked.players.has(p.id), hovered: ix.hover.players.has(p.id), dimmed: ix.mode.kind === 'targeting' && !legalPlayers?.has(p.id),
-    onClick: onPlayerClick, onOpenZone: (pid: PlayerId, z: 'graveyard' | 'exile' | 'command') => setZone({ pid, zone: z }), nameOf,
+    onClick: onPlayerClick, onOpenZone, nameOf,
     dropTarget: drops.players.has(p.id), dropOver: overIs({ kind: 'player', id: p.id }), pulsed: !!pulse?.players.includes(p.id), layoutKey, reducedMotion,
   });
+  const bfSeatPlayer = bfSeat !== null ? view.players[bfSeat] ?? null : null;
 
   return (
     <div ref={rootRef} className={clsx(styles.shell, panels.log && !isMobile && styles.shellLog, panels.analysis && !isMobile && styles.shellAnalysis, ix.mode.kind === 'targeting' && styles.shellTargeting)}
       data-testid="play-table" data-status={status} data-settled={settled ? 'true' : 'false'} data-cursor={playback.cursor} data-paused={playback.paused ? 'true' : undefined} data-seats={view.players.length}
       onPointerDownCapture={onRootPointerDown}>
-      <span className="sr-only" aria-live="polite">Turn {view.turn}, {myTurn ? 'your' : `${activeName}'s`} turn, {STEP_LABELS[view.step]}.</span>
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="table-announcer">
+        Turn {view.turn}, {myTurn ? 'your' : `${activeName}'s`} turn, {STEP_LABELS[view.step]}.
+        {lastEventLine ? ` ${lastEventLine}.` : ''}
+        {status === 'finished' ? ' The game is over.' : decisionText ? ` ${decisionText}.` : thinking ? ` Waiting for ${activeName}.` : ''}
+      </div>
 
       {!isMobile && panels.log && <aside className={styles.logRail} aria-label="Log rail">{logPanel}</aside>}
 
@@ -487,7 +494,7 @@ export function Table({ gameId }: { gameId: string }) {
         <section className={clsx(styles.oppZone, pod && styles.oppZonePod)} aria-label={pod ? 'Opponents' : `${opps[0].name}'s side`}>
           <SeatRing opponents={opps}>
             {p => (
-              <Seat key={p.id} player={p} seats={opps.length} isMobile={isMobile} cardState={cardState} onActivate={onObjectClick} whereIs={whereIs}
+              <Seat key={p.id} player={p} seats={opps.length} isMobile={isMobile} cardState={cardState} onActivate={onObjectClick} whereIs={whereIs} onExpand={isMobile ? openSeatBattlefield : undefined}
                 plate={plateProps(p)}
                 battlefield={{ cardState, onActivate: onObjectClick, dropTarget: drops.bf.has(p.id), dropOver: overIs({ kind: 'battlefield', player: p.id }), layoutKey, reducedMotion }} />
             )}
@@ -523,8 +530,9 @@ export function Table({ gameId }: { gameId: string }) {
             <div className={styles.tableTools}>
               {isMobile ? (
                 <>
-                  <IconButton label="Log" onClick={() => setSheet('log')}><ScrollText size={16} /></IconButton>
-                  <IconButton label="Analysis" onClick={() => setSheet('analysis')}><FlaskConical size={16} /></IconButton>
+                  <IconButton label="Log" onClick={() => setSheet('log')} data-testid="mobile-log"><ScrollText size={16} /></IconButton>
+                  <IconButton label="Analysis, explain and timeline" onClick={() => setSheet('analysis')} data-testid="mobile-rail"><FlaskConical size={16} /></IconButton>
+                  <IconButton label="Table settings" onClick={() => setSettingsOpen(true)} data-testid="table-settings-button"><Settings2 size={16} /></IconButton>
                 </>
               ) : (
                 <>
@@ -543,12 +551,17 @@ export function Table({ gameId }: { gameId: string }) {
       </div>
 
       {!isMobile && panels.analysis && <aside className={styles.analysisRail} aria-label="Analysis">{rail}</aside>}
-      {isMobile && <Drawer open={sheet === 'analysis'} onClose={() => setSheet(null)} side="bottom" title="Analysis">{rail}</Drawer>}
-      {isMobile && <Drawer open={sheet === 'log'} onClose={() => setSheet(null)} side="bottom" title="Log">{logPanel}</Drawer>}
+      {isMobile && <Drawer open={sheet === 'analysis'} onClose={() => setSheet(null)} side="bottom" title="Analysis, explain and timeline" className={styles.railSheet} testId="rail-sheet">{rail}</Drawer>}
+      {isMobile && <Drawer open={sheet === 'log'} onClose={() => setSheet(null)} side="bottom" title="Log" testId="log-sheet">{logPanel}</Drawer>}
+      {isMobile && (
+        <Drawer open={bfSeatPlayer !== null} onClose={() => setBfSeat(null)} side="bottom" title={bfSeatPlayer ? `${bfSeatPlayer.name}'s battlefield` : ''} testId="seat-sheet">
+          {bfSeatPlayer && <Battlefield permanents={bfSeatPlayer.battlefield} mine={false} player={bfSeatPlayer.id} cardWidth={72} cardState={cardState} onActivate={onObjectClick} layoutKey={layoutKey} reducedMotion={reducedMotion} />}
+        </Drawer>
+      )}
 
       <ZoneDrawer open={!!zone} onClose={() => setZone(null)} title={zone ? `${view.players[zone.pid].name} · ${zone.zone}` : ''} cards={zone ? view.players[zone.pid][zone.zone] : []} />
       <ShortcutsSheet open={help} onClose={() => setHelp(false)} />
-      <TableSettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={settings} onChange={changeSettings} tutorialOff={tut.state.off} onTutorialOff={tut.setOff} onResetTutorial={tut.reset} glQuality={gl?.quality} systemReducedMotion={systemReducedMotion} />
+      <TableSettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={settings} onChange={changeSettings} tutorialOff={tut.state.off} onTutorialOff={tut.setOff} onResetTutorial={tut.reset} glQuality={gl?.quality} systemReducedMotion={systemReducedMotion} onPreviewSound={previewSound} />
       {choice && <ActionsPopover title={choice.card.name} manaCost={choice.card.manaCost} actions={choice.actions} at={choice.at} onPick={l => { setChoice(null); ix.beginLegal(l); }} onClose={() => setChoice(null)} testId="drop-choice" />}
       <DragLayer drag={drag} tether={tether} reducedMotion={reducedMotion} />
       {drag.phase === 'idle' && (

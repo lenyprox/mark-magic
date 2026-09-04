@@ -179,10 +179,24 @@ const ask = (req: AskRequest) => new Promise<unknown>((resolve, reject) => {
   runAnalysis();
 });
 
-/** Count an AI's decisions other than priority passes (what makes an undo unsafe). */
+/** How often the game loop hands the worker's macrotask queue a turn. */
+const YIELD_MS = 16;
+let lastYield = 0;
+/** The engine's loop only ever awaits already-resolved promises, so `scheduleView`'s timer would never fire while
+ *  an AI is playing: a spectated (AI-vs-AI) table would sit still until the game ended, and an AI turn in a normal
+ *  game would arrive as one lump. Yielding between AI decisions lets the view stream out as it is produced. */
+async function breathe() {
+  const now = Date.now();
+  if (now - lastYield < YIELD_MS) return;
+  lastYield = now;
+  scheduleView();
+  await new Promise<void>(resolve => { setTimeout(resolve, 0); });
+}
+
+/** Let the view stream, and count an AI's decisions other than priority passes (what makes an undo unsafe). */
 function countActs<T extends Agent>(a: T): T {
   const orig = a.decide.bind(a);
-  a.decide = async (s, me, d) => { const r = await orig(s, me, d); if (d.kind !== 'priority' || (r as PlayerAction | undefined)?.type !== 'pass') oppActs++; return r; };
+  a.decide = async (s, me, d) => { await breathe(); const r = await orig(s, me, d); if (d.kind !== 'priority' || (r as PlayerAction | undefined)?.type !== 'pass') oppActs++; return r; };
   return a;
 }
 

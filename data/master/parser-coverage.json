@@ -1,39 +1,39 @@
 {
-  "generated_at": "2026-09-04T18:06:27.685Z",
+  "generated_at": "2026-09-04T18:19:56.618Z",
   "playable_oracle_cards": 34513,
-  "fully_parsed": 10602,
-  "fully_parsed_pct": 30.72,
-  "of_which_vanilla_or_keyword_only": 1481,
+  "fully_parsed": 10805,
+  "fully_parsed_pct": 31.31,
+  "of_which_vanilla_or_keyword_only": 1486,
   "by_primary_type": {
     "Creature": {
       "total": 19233,
-      "full": 6506,
-      "pct": 33.8
+      "full": 6651,
+      "pct": 34.6
     },
     "Artifact": {
       "total": 2601,
-      "full": 706,
-      "pct": 27.1
+      "full": 716,
+      "pct": 27.5
     },
     "Enchantment": {
       "total": 3564,
-      "full": 612,
-      "pct": 17.2
+      "full": 620,
+      "pct": 17.4
     },
     "Sorcery": {
       "total": 3620,
-      "full": 871,
-      "pct": 24.1
+      "full": 891,
+      "pct": 24.6
     },
     "Instant": {
       "total": 3849,
-      "full": 1170,
-      "pct": 30.4
+      "full": 1189,
+      "pct": 30.9
     },
     "Land": {
       "total": 1161,
-      "full": 699,
-      "pct": 60.2
+      "full": 700,
+      "pct": 60.3
     },
     "Kindred": {
       "total": 80,
@@ -75,20 +75,12 @@
       "clause": "#/#"
     },
     {
-      "n": 51,
-      "clause": "Cumulative upkeep {}"
-    },
-    {
       "n": 50,
       "clause": "Start your engines!"
     },
     {
       "n": 40,
       "clause": "Morph {}{}{}"
-    },
-    {
-      "n": 39,
-      "clause": "Storm"
     },
     {
       "n": 37,
@@ -167,16 +159,8 @@
       "clause": "~ enters prepared."
     },
     {
-      "n": 26,
-      "clause": "Buyback {}"
-    },
-    {
       "n": 25,
       "clause": "Suspend #—{}"
-    },
-    {
-      "n": 25,
-      "clause": "Soulshift #"
     },
     {
       "n": 25,
@@ -193,10 +177,6 @@
     {
       "n": 23,
       "clause": "You may choose the same mode more than once."
-    },
-    {
-      "n": 22,
-      "clause": "Evoke {}{}"
     },
     {
       "n": 22,
@@ -244,19 +224,7 @@
     },
     {
       "n": 19,
-      "clause": "Living weapon"
-    },
-    {
-      "n": 19,
       "clause": "Choose a creature type."
-    },
-    {
-      "n": 19,
-      "clause": "Vanishing #"
-    },
-    {
-      "n": 19,
-      "clause": "Myriad"
     },
     {
       "n": 19,
@@ -269,10 +237,6 @@
     {
       "n": 19,
       "clause": "Job select"
-    },
-    {
-      "n": 18,
-      "clause": "Extort"
     },
     {
       "n": 18,
@@ -300,7 +264,43 @@
     },
     {
       "n": 17,
-      "clause": "Dash {}{}"
+      "clause": "Teamwork #"
+    },
+    {
+      "n": 17,
+      "clause": "~ costs {}{} more to cast for each target beyond the first."
+    },
+    {
+      "n": 17,
+      "clause": "Offspring {}"
+    },
+    {
+      "n": 16,
+      "clause": "Assist"
+    },
+    {
+      "n": 16,
+      "clause": "Madness {}"
+    },
+    {
+      "n": 16,
+      "clause": "Clash with an opponent."
+    },
+    {
+      "n": 16,
+      "clause": "You may choose new targets for the copy."
+    },
+    {
+      "n": 16,
+      "clause": "Its controller loses # life."
+    },
+    {
+      "n": 16,
+      "clause": "Umbra armor"
+    },
+    {
+      "n": 15,
+      "clause": "Specialize {}"
     }
   ]
 }

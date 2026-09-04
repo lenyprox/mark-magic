@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import { Check, Crosshair, Swords, Shield, X as XIcon } from 'lucide-react';
 import type { ViewState } from '@play/view';
 import { Button, Kbd } from '@/components/ui';
+import { HAPTIC, vibrate } from '@/lib/audio/haptics';
 import { refLabel } from '@/lib/game/ui';
 import type { CardView } from '@play/view';
 import type { TableInteraction } from './useTableInteraction';
@@ -90,7 +91,7 @@ export function ActionBar({ ix, view, objects }: { ix: TableInteraction; view: V
           })}
         </div>
         <div className={styles.abButtons}>
-          <Button size="sm" variant="primary" icon={<Swords size={14} />} onClick={ix.confirm} data-testid="attack-confirm" trailing={<Kbd>Enter</Kbd>}>{n ? `Attack with ${n}` : 'No attack'}</Button>
+          <Button size="sm" variant="primary" icon={<Swords size={14} />} onClick={() => { if (n) vibrate(HAPTIC.attack); ix.confirm(); }} data-testid="attack-confirm" trailing={<Kbd>Enter</Kbd>}>{n ? `Attack with ${n}` : 'No attack'}</Button>
           {n > 0 && <Button size="sm" variant="ghost" onClick={ix.noAttack}>No attack</Button>}
         </div>
       </div>

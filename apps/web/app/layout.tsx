@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   title: { default: 'Vault', template: '%s — Vault' },
   description: 'Every Magic: The Gathering card ever printed, browsable, buildable and playable against a reactive AI.',
 };
-export const viewport: Viewport = { themeColor: '#0A0A0D', colorScheme: 'dark' };
+export const viewport: Viewport = { themeColor: '#0A0A0D', colorScheme: 'dark', viewportFit: 'cover' };
 
 export default function RootLayout({ children, modal }: { children: ReactNode; modal: ReactNode }) {
   return (

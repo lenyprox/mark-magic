@@ -120,6 +120,7 @@ export class Game {
     this.emit({ type: 'block', player: dp, blocks: s.attackers.flatMap(id => { const a = findObject(s, id)!; return a.blockedBy.map(bid => ({ blocker: bid, blockerName: name(findObject(s, bid)!), attacker: id, attackerName: name(a) })); }) }, '');
     for (const id of s.attackers) this.queueTriggers('attacks', { obj: findObject(s, id), player: s.activePlayer });
     if (s.attackers.length) this.queueTriggers('you-attack', { player: s.activePlayer });
+    for (const id of s.attackers) { const a = findObject(s, id)!; if (a.blockedBy.length) { this.queueTriggers('becomes-blocked', { obj: a }); for (const bid of a.blockedBy) this.queueTriggers('blocks', { obj: findObject(s, bid) }); } }
     await this.resolveStackFully();
     const needFirst = allPermanents(s).some(o => (o.attacking !== null || o.blocking.length) && (hasKeyword(s, o, 'first strike') || hasKeyword(s, o, 'double strike')));
     if (needFirst) { s.step = 'first-strike-damage'; await this.combatDamage(true); this.checkSBA(); }
@@ -465,6 +466,7 @@ export class Game {
     if (from === 'command') pl.commanderCasts[card.id] = (pl.commanderCasts[card.id] ?? 0) + 1;
     const how = [alt ? alt.label : '', from === 'graveyard' && !alt ? 'from graveyard' : from === 'exile' ? 'from exile' : from === 'command' ? (tax ? `from command zone, tax ${tax}` : 'from command zone') : '', delveIds.length ? `delve ${delveIds.length}` : '', a.kicked ? 'kicked' : ''].filter(Boolean);
     this.emit({ type: 'cast', itemId: item.id, id: card.id, name: def.name, player: p, targets: this.targetNames(item), how, x: x || undefined });
+    if (def.storm) this.pendingTriggers.push({ ability: { kind: 'triggered', event: { on: 'cast', filter: {}, who: 'you' }, effects: [{ op: 'storm-copies' }], text: 'Storm' }, source: card, controller: p });
     if (def.cascade) this.pendingTriggers.push({ ability: { kind: 'triggered', event: { on: 'cast', filter: {}, who: 'you' }, effects: [{ op: 'cascade' }], text: 'Cascade' }, source: card, controller: p });
     this.queueTriggers('cast', { obj: card, player: p });
     // prowess-style keyword
@@ -542,6 +544,10 @@ export class Game {
     const fromZone = o.token ? 'none' : o.zone;
     if (o.token) { o.zone = 'battlefield'; o.enteredTurn = s.turn; pl.battlefield.push(o); this.bfGen++; } else this.moveTo(o, 'battlefield', 'top', 'enter');
     o.damage = 0;
+    if (o.castWith?.alt === 'dash') {
+      o.eotKeywords.push('haste');
+      (s.delayed ??= []).push({ id: ++this.stackCounter, at: 'next-end-step', controller: p, sourceId: o.id, sourceName: def.name, effects: [{ op: 'bounce', target: 'self', to: 'hand' }], createdTurn: s.turn });
+    }
     let tapped = !!ctx.tapped || (typeof def.entersTapped === 'object' ? !conditionHolds(s, o, def.entersTapped.unless) : !!def.entersTapped);
     for (const a of def.asEnters ?? []) {
       switch (a.kind) {
@@ -757,7 +763,9 @@ export class Game {
     if (card.zone !== 'stack') return; // already moved away by its own effect (shuffled into the library)
     const s = this.state;
     if (def.types.includes('Instant') || def.types.includes('Sorcery') || item.countered) {
-      const altExile = item.alt && def.altCosts?.find(a => a.id === item.alt)?.exileAfter;
+      const altSpec = item.alt ? def.altCosts?.find(a => a.id === item.alt) : undefined;
+      if (altSpec?.returnToHand && !item.countered) { this.moveTo(card, 'hand', 'top', 'bounce'); this.note(`${def.name} returns to its owner's hand (${item.alt}).`); return; }
+      const altExile = altSpec?.exileAfter;
       if (altExile) { this.moveTo(card, 'exile', 'top', 'exile'); this.note(`${def.name} is exiled (${item.alt}).`); return; }
       if (def.rebound && item.castFrom === 'hand' && !item.countered && !def.types.includes('Creature')) {
         this.moveTo(card, 'exile', 'top', 'exile'); card.castableFromExile = { afterTurn: s.turn, free: true, upkeepOnly: item.controller };
@@ -935,7 +943,15 @@ export class Game {
       }
       case 'move-counters': { const n = src.lastKnown?.counters?.[e.counter] ?? src.counters[e.counter] ?? 0; const t = this.objs(T)[0]; if (t && n > 0 && t.zone === 'battlefield') { this.addCounters(t, e.counter, n); this.note(`${n} ${e.counter} counter${n > 1 ? 's' : ''} moved to ${name(t)}.`); } break; }
       case 'renown': { if (src.zone === 'battlefield' && !src.renowned) { src.renowned = true; this.addCounters(src, '+1/+1', e.amount); this.note(`${name(src)} becomes renowned.`); } break; }
-      case 'sacrifice-unless-pay': {
+      case 'sacrifice-unless-pay': if (e.perCounter) {
+        const upl = s.players[p];
+        const age = src.counters[e.perCounter] ?? 0;
+        const scaled: ManaCost = { ...e.mana, generic: e.mana.generic * age, pips: Array.from({ length: age }, () => e.mana.pips).flat(), raw: `${e.mana.raw} x${age}` };
+        const pay = age > 0 ? this.findPayment(upl, scaled) : null;
+        if (age > 0 && pay && await this.ask(p, { kind: 'yes-no', prompt: `${item.name}: pay ${scaled.raw}?`, tag: 'unless-pay' })) { this.payMana(upl, pay); this.note(`${this.pname(p)} pays cumulative upkeep (${age}).`); }
+        else { this.note(`${this.pname(p)} does not pay cumulative upkeep.`); this.sacrifice(src); }
+        break;
+      } else {
         if (src.zone !== 'battlefield') break;
         if (e.once === 'echo') { if (src.echoPaid) break; src.echoPaid = true; }
         const pl = s.players[p]; const pay = this.findPayment(pl, e.mana);
@@ -1220,13 +1236,26 @@ export class Game {
               keywords: [...new Set([...d.keywords, ...(e.extraKeywords ?? [])])],
             };
             tok.grantedAbilities = [...d.abilities];
-            await this.enterBattlefield(tok, { controller: p, via: 'token', tapped: e.tapped });
+            await this.enterBattlefield(tok, { controller: p, via: 'token', tapped: e.tapped || !!e.attacking });
+            if (e.attacking && s.step === 'declare-attackers') {
+              const others = opponentsOf(s, p).filter(q => q !== src.attacking);
+              const target = e.attacking === 'each-other-opponent' ? others[i % Math.max(1, others.length)] : (src.attacking ?? others[0]);
+              if (target !== undefined) { tok.attacking = target; s.attackers.push(tok.id); }
+            }
             made.push(tok);
             this.note(`${this.pname(p)} creates a token copy of ${d.name}.`);
           }
         }
         this.noteAffected(item, made);
         if (made.length) this.emit({ type: 'create-token', id: made[0].id, name: name(made[0]), controller: p, power: made[0].token!.power, toughness: made[0].token!.toughness, count: made.length });
+        break;
+      }
+      case 'storm-copies': {
+        const orig = s.stack.find(i => i.kind === 'spell' && i.source.id === src.id);
+        if (!orig) break;
+        const n = Math.max(0, (s.players[p].spellsCastThisTurn ?? 1) - 1);
+        for (let i = 0; i < n; i++) s.stack.push({ ...orig, id: ++this.stackCounter, targetsByEffect: new Map(orig.targetsByEffect), targets: [...orig.targets], isCopy: true } as StackItem);
+        if (n) this.note(`Storm: ${this.pname(p)} copies ${orig.name} ${n} time${n > 1 ? 's' : ''}.`);
         break;
       }
       case 'proliferate': {
@@ -1254,6 +1283,10 @@ export class Game {
         break;
       }
       case 'fold-new-targets': break;
+      case 'remove-those': {
+        for (const a of item.affected ?? []) { const o = findObject(s, a.id); if (!o || o.zone !== 'battlefield') continue; if (e.how === 'exile') this.moveTo(o, 'exile', 'top', 'exile'); else this.sacrifice(o); }
+        break;
+      }
       case 'each-self-damage': { for (const o of allPermanents(s).filter(isCreature)) { const pw = power(s, o); if (pw > 0) this.dealDamage(o, o, pw); } break; }
       case 'untap-all': { for (const o of s.players[p].battlefield) if (o.tapped && matchesFilter(s, o, e.filter, src)) this.setTapped(o, false, 'effect'); break; }
       case 'attach-self': { const o = this.objs(T)[0]; if (o && src.zone === 'battlefield') this.attach(src, o); break; }
@@ -1297,6 +1330,7 @@ export class Game {
     if (t === 'other-creatures-you-control') return s.players[p].battlefield.filter(o => isCreature(o) && o !== src);
     if (t === 'all-creatures') return allPermanents(s).filter(isCreature);
     if (t === 'attacking-creatures') return s.players[p].battlefield.filter(o => o.attacking !== null);
+    if (t === 'other-attacking-creatures') return s.players[p].battlefield.filter(o => o.attacking !== null && o !== src);
     if (t === 'all-opponent-creatures') return opponentsOf(s, p).flatMap(q => s.players[q].battlefield.filter(isCreature));
     return this.objs(T);
   }
@@ -1714,7 +1748,7 @@ export class Game {
         if (await round('combat-damage')) return;
       }
     }
-    if (enter('combat-end')) await this.setStep('combat-end');
+    if (enter('combat-end')) { await this.setStep('combat-end'); this.flushDelayed('end-of-combat'); }
     await round('combat-end');
     for (const o of allPermanents(s)) { o.attacking = null; delete o.attackingPlaneswalker; o.blocking = []; o.blockedBy = []; }
     s.attackers = [];

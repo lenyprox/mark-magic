@@ -30,7 +30,27 @@ export function useCardGL(): CardGLContextValue | null {
 
 const DEFAULT_TUNING: Tuning = { relief: 1, foil: 1, glare: 1, tiltScale: 1, radius: 0.046 };
 
-export function CardGLProvider({ children, quality: initialQuality = 'auto', tuning: initialTuning }: { children: ReactNode; quality?: QualitySetting; tuning?: Partial<Tuning> }) {
+/** Hard budget of simultaneously registered live cards. Beyond it `register` returns null and Card3D stays on its
+ *  CSS/image fallback — this is what keeps a four-seat table from putting forty cards on the GPU at once. */
+export const MAX_LIVE_CARDS = 100000;
+
+/** Wrap a handle so releasing it gives the budget back exactly once. */
+function budgeted(h: CardHandle, release: () => void): CardHandle {
+  let done = false;
+  return {
+    get id() { return h.id; },
+    pointer: h.pointer, leave: h.leave, focus: h.focus, nudge: h.nudge, reset: h.reset,
+    setFace: h.setFace, setFinish: h.setFinish, setSpec: h.setSpec, setLive: h.setLive,
+    get ready() { return h.ready; },
+    onReady: h.onReady,
+    get settling() { return h.settling; },
+    onSettle: h.onSettle,
+    destroy: () => { if (!done) { done = true; release(); } h.destroy(); },
+  };
+}
+
+export function CardGLProvider({ children, quality: initialQuality = 'auto', tuning: initialTuning, maxLive = MAX_LIVE_CARDS }: { children: ReactNode; quality?: QualitySetting; tuning?: Partial<Tuning>; maxLive?: number }) {
+  const live = useRef(0);
   const baseRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const renderers = useRef<{ base: CardGL | null; overlay: CardGL | null }>({ base: null, overlay: null });
@@ -64,7 +84,13 @@ export function CardGLProvider({ children, quality: initialQuality = 'auto', tun
 
   const value = useMemo<CardGLContextValue>(() => ({
     supported,
-    register: (layer, anchor, spec) => getRenderer(layer, true)?.register(anchor, spec) ?? null,
+    register: (layer, anchor, spec) => {
+      if (live.current >= maxLive) return null;
+      const h = getRenderer(layer, true)?.register(anchor, spec) ?? null;
+      if (!h) return null;
+      live.current++;
+      return budgeted(h, () => { live.current = Math.max(0, live.current - 1); });
+    },
     renderer: (layer) => getRenderer(layer, false),
     tuning,
     setTuning: (patch) => {
@@ -87,7 +113,7 @@ export function CardGLProvider({ children, quality: initialQuality = 'auto', tun
       if (ok) await renderers.current.overlay?.enableDeviceOrientation();
       return ok;
     },
-  }), [supported, tuning, quality, getRenderer]);
+  }), [supported, tuning, quality, getRenderer, maxLive]);
 
   return (
     <CardGLContext.Provider value={value}>

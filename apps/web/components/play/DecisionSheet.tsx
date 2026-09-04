@@ -113,6 +113,7 @@ export function DecisionSheet({ decision, view, objects, onAnswer }: { decision:
     case 'order-blockers':
     case 'order-triggers': {
       const triggers = decision.kind === 'order-triggers' ? decision : null;
+      const attackerName = decision.kind === 'order-blockers' ? objects.get(decision.attacker)?.name ?? '' : '';
       const labelOf = (id: number) => (triggers ? triggers.labels[triggers.items.indexOf(id)] ?? `#${id}` : objects.get(id)?.name ?? `#${id}`);
       const listLabel = triggers ? 'Trigger order' : 'Damage assignment order';
       const move = (i: number, d: -1 | 1) => setOrder(o => { const j = i + d; if (j < 0 || j >= o.length) return o; const n = [...o]; [n[i], n[j]] = [n[j], n[i]]; return n; });
@@ -130,7 +131,7 @@ export function DecisionSheet({ decision, view, objects, onAnswer }: { decision:
         </Reorder.Group>
       );
       footer = <>
-        <span className="faint small">{triggers ? `${order.length} triggers · the last one you order resolves first` : `attacker: ${objects.get(decision.attacker)?.name ?? ''} · damage is assigned down this list`}</span>
+        <span className="faint small">{triggers ? `${order.length} triggers · the last one you order resolves first` : `attacker: ${attackerName} · damage is assigned down this list`}</span>
         <Button variant="primary" size="sm" onClick={() => onAnswer(order)} icon={<Check size={14} />} data-testid="order-confirm">Confirm order</Button>
       </>;
       break;

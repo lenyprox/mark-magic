@@ -60,3 +60,18 @@
 .toast[data-kind='danger'] .toastBar { background: var(--danger); }
 .toastTitle { font-size: var(--t-sm); font-weight: 600; }
 .toastBody { font-size: var(--t-xs); color: var(--ink-2); margin-top: 2px; }
+
+/* ---------- Phone: sheets fit the viewport and clear the home indicator ---------- */
+.drawer[data-side='right'], .drawer[data-side='left'] { height: 100dvh; }
+@media (max-width: 768px) {
+  .drawer[data-side='bottom'] { max-height: 86dvh; }
+  .drawer[data-side='bottom'] .drawerPanel { max-height: 86dvh; }
+  .drawerPanel { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .grip { width: 48px; height: 5px; margin: 10px auto 2px; }
+  .dialog { width: min(96vw, var(--dialog-w, 640px)); max-height: 88dvh; }
+  .panel { max-height: 88dvh; }
+  .body { padding: 12px 14px 16px; }
+  .head { padding: 12px 14px 0; }
+  .closeBtn { top: 6px; right: 6px; }
+  .toasts { left: 8px; right: 8px; width: auto; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+}

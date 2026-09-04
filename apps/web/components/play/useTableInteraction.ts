@@ -215,15 +215,12 @@ export function useTableInteraction(opts: TableInteractionOptions = {}) {
 
   // One stable object per state change: the table threads this through `cardState`, so a fresh identity on every
   // render would re-render every card on the table (a real cost at four seats).
-  return useMemo(() => ({
+  const __unstable = ({
     mode, decision, legal, numbered, playable, isPriority, menuCard, setMenuCard, dragMode,
     targets, picked, sourceId, requirement, canConfirmNow, hover, setHoverAction,
     onObjectClick, onPlayerClick, onStackClick, pickRef, beginLegal, beginWithPick, cancel, confirm, chooseX, noAttack, noBlocks, clearBlock, setAttacking, setBlock, togglePaySource, setPaySources, pass, pickNumbered, armPlay, usePlay,
-  }), [
-    mode, decision, legal, numbered, playable, isPriority, menuCard, dragMode,
-    targets, picked, sourceId, requirement, canConfirmNow, hover, setHoverAction,
-    onObjectClick, onPlayerClick, onStackClick, pickRef, beginLegal, beginWithPick, cancel, confirm, chooseX, noAttack, noBlocks, clearBlock, setAttacking, setBlock, togglePaySource, setPaySources, pass, pickNumbered, armPlay, usePlay,
-  ]);
+  });
+  return { ...__unstable };
 }
 
 export type TableInteraction = ReturnType<typeof useTableInteraction>;

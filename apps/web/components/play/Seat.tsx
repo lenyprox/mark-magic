@@ -17,6 +17,8 @@ import type { TableCardProps } from './TableCard';
 import type { DragBindProps } from './useDragIntent';
 import styles from './table.module.css';
 
+const identity = <T,>(c: T): T => c;
+
 export interface SeatProps {
   player: PlayerView;
   /** Number of opponents on the table (1 = duel layout). */
@@ -32,7 +34,7 @@ export interface SeatProps {
   onExpand?: (pid: PlayerId) => void;
 }
 
-export const Seat = memo(function Seat({ player, seats, plate, battlefield, cardState, onActivate, whereIs, isMobile, onExpand }: SeatProps) {
+export const Seat = identity(function Seat({ player, seats, plate, battlefield, cardState, onActivate, whereIs, isMobile, onExpand }: SeatProps) {
   const compact = seats > 1;
   const collapsed = isMobile && !!onExpand;
   const n = player.battlefield.length;

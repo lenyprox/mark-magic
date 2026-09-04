@@ -10,4 +10,4 @@ export function useMediaQuery(query: string, serverDefault = false): boolean {
   return useSyncExternalStore(subscribe, () => window.matchMedia(query).matches, () => serverDefault);
 }
 
-export const useIsMobile = () => useMediaQuery('(max-width: 760px)');
+export const useIsMobile = () => useMediaQuery('(max-width: 768px)');

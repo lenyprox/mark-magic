@@ -51,7 +51,7 @@ export function TurnBanner({ fx, viewer, names, reducedMotion }: { fx: Fx; viewe
   return (
     <AnimatePresence>
       {show && (
-        <motion.div key={show.key} className={clsx(styles.banner, show.player === viewer ? styles.bannerMine : styles.bannerTheirs)} data-testid="turn-banner" role="status" aria-live="polite"
+        <motion.div key={show.key} className={clsx(styles.banner, show.player === viewer ? styles.bannerMine : styles.bannerTheirs)} data-testid="turn-banner" aria-hidden
           initial={reducedMotion ? { opacity: 1 } : { opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, transition: { duration: reducedMotion ? 0 : 0.25 } }} transition={{ duration: reducedMotion ? 0 : 0.28, ease: [0.2, 0.8, 0.2, 1] }}>
           <span className={styles.bannerTurn}>Turn {show.turn}</span>
           <span className={styles.bannerWho}>{show.player === viewer ? 'Your turn' : `${names[show.player] ?? 'Opponent'}'s turn`}</span>

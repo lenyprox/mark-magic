@@ -106,6 +106,30 @@ function classify(line: string): LogLine['kind'] {
 
 const initialPlayback = (): Playback => ({ speed: 1, skipping: false, cursor: 0, paused: false, explain: false, rushing: false, reducedMotion: false });
 
+/** Run `flush` at most once per animation frame (falls back to a timer where rAF is missing, e.g. a hidden tab). */
+function frameBatcher(flush: () => void) {
+  let handle: number | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const run = () => { handle = null; timer = null; flush(); };
+  return {
+    schedule() {
+      if (handle !== null || timer !== null) return;
+      if (typeof requestAnimationFrame === 'function') handle = requestAnimationFrame(run);
+      else timer = setTimeout(run, 16);
+    },
+    /** Apply anything pending right now (before a message whose ordering matters). */
+    flushNow() {
+      if (handle !== null) { cancelAnimationFrame(handle); handle = null; }
+      if (timer !== null) { clearTimeout(timer); timer = null; }
+      flush();
+    },
+    cancel() {
+      if (handle !== null) { cancelAnimationFrame(handle); handle = null; }
+      if (timer !== null) { clearTimeout(timer); timer = null; }
+    },
+  };
+}
+
 export const useGameStore = create<GameStore>((set, get) => {
   let replayer: Replayer | null = null;
   const queue = new AnimQueue({
@@ -128,6 +152,23 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
   });
 
+  // The worker streams `view`, `log` and `reasoning` messages far faster than the screen refreshes (a four-seat
+  // AI game emits hundreds a second). They are buffered here and committed once per animation frame; the messages
+  // whose ordering matters — decision, finished, undo — take the buffer over first so nothing is reordered.
+  let pendingEvents: GameEvent[] = [];
+  let pendingView: ViewState | null = null;
+  let pendingLog: LogLine[] = [];
+  let pendingReasoning: Reasoning[] = [];
+
+  const flushSideChannels = () => {
+    if (!pendingLog.length && !pendingReasoning.length) return;
+    const logs = pendingLog; const reas = pendingReasoning;
+    pendingLog = []; pendingReasoning = [];
+    set(s => ({ log: logs.length ? [...s.log, ...logs] : s.log, reasoning: reas.length ? [...s.reasoning, ...reas].slice(-200) : s.reasoning }));
+  };
+  const takeEvents = (): GameEvent[] => { const e = pendingEvents; pendingEvents = []; pendingView = null; return e; };
+  const clearPending = () => { pendingEvents = []; pendingView = null; pendingLog = []; pendingReasoning = []; };
+
   /** Append a message's events, feed the replayer, trim the window, then let the queue play. */
   const ingest = (events: GameEvent[] | undefined, live: ViewState, opts: { decision?: boolean } = {}) => {
     const s = get();
@@ -146,6 +187,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     queue.notify(opts);
   };
 
+  const batcher = frameBatcher(() => { flushSideChannels(); const v = pendingView; const e = takeEvents(); if (v) ingest(e, v); });
+
   return {
     client: null, gameId: null, status: 'idle', view: null, liveView: null, shownView: null, settled: false, events: [], eventBase: 0, playback: initialPlayback(), fx: EMPTY_FX, pulse: null,
     decision: null, undoAvailable: null, undoRefused: null, undoing: false, log: [], reasoning: [], analysis: null, analysisPhase: 'idle', analysisFor: null, reruns: {},
@@ -153,6 +196,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     async start(gameId, decks, options) {
       get().client?.dispose();
       queue.cancel();
+      batcher.cancel(); clearPending();
       const client = new GameClient();
       let speed = 1;
       try { speed = clampSpeed(Number(localStorage.getItem(SPEED_KEY) ?? 1)); } catch { /* private mode */ }
@@ -162,17 +206,21 @@ export const useGameStore = create<GameStore>((set, get) => {
         switch (m.type) {
           case 'started': {
             replayer = new Replayer(m.view);
+            batcher.cancel(); clearPending();
             set({ status: 'running', view: m.view, liveView: m.view, shownView: m.view, settled: true, events: [], eventBase: 0, playback: { ...get().playback, cursor: 0, paused: false, rushing: false } });
             if (m.events?.length) ingest(m.events, m.view);
             break;
           }
           case 'view': ingest(m.events, m.view); break;
           case 'decision': {
+            batcher.cancel(); flushSideChannels();
+            const buffered = takeEvents();
             set({ decision: { requestId: m.requestId, decision: m.decision }, undoAvailable: m.undo ?? null, undoing: false, analysis: null, analysisPhase: 'idle', analysisFor: m.requestId, reruns: {} });
-            ingest(m.events, m.view, { decision: true });
+            ingest([...buffered, ...(m.events ?? [])], m.view, { decision: true });
             break;
           }
           case 'undo-result': {
+            batcher.flushNow();
             if (!m.ok) { set(s => ({ undoing: false, undoRefused: { key: (s.undoRefused?.key ?? 0) + 1, reason: m.reason ?? 'Undo is not possible right now' } })); break; }
             // Drop everything after the snapshot: events (the timeline just truncates), log lines, the pending decision.
             const s = get();
@@ -188,11 +236,13 @@ export const useGameStore = create<GameStore>((set, get) => {
           case 'analysis': set(s => (s.decision?.requestId === m.requestId || s.analysisFor === m.requestId) ? { analysis: m.report, analysisPhase: m.phase, analysisFor: m.requestId } : {}); break;
           case 'analysis-rerun-result': set(s => ({ reruns: { ...s.reruns, [`${m.req.candidateId}:${m.req.trialStart}:${m.req.trialCount}:${m.req.baseSeed}`]: { identical: m.identical, results: m.results } } })); break;
           case 'finished': {
+            batcher.cancel(); flushSideChannels();
+            const buffered = takeEvents();
             set({ status: 'finished', winner: m.winner, decision: null, finished: { log: m.log, actions: m.actions, reasoning: m.reasoning, turns: m.turns } });
-            ingest(m.events, m.view);
+            ingest([...buffered, ...(m.events ?? [])], m.view);
             break;
           }
-          case 'error': set({ status: 'error', error: m.message }); break;
+          case 'error': batcher.cancel(); flushSideChannels(); set({ status: 'error', error: m.message }); break;
         }
       });
       await client.start(gameId, decks, options);
@@ -213,7 +263,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     setStops(stops) { get().client?.setStops(stops); },
     deepen(trials = 400, policy) { get().client?.analyze({ trials, policy, horizon: 4 }); },
     rerun(req) { get().client?.rerun(req); },
-    dispose() { queue.dispose(); get().client?.dispose(); set({ client: null, status: 'idle', decision: null }); },
+    dispose() { queue.dispose(); batcher.cancel(); clearPending(); get().client?.dispose(); set({ client: null, status: 'idle', decision: null }); },
 
     setSpeed(speed) {
       const s = clampSpeed(speed);

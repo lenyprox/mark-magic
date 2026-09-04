@@ -143,8 +143,9 @@ function staticMods(s: GameState, o: GameObject): Mods {
         if (e.kind === 'self-pt' && conditionHolds(s, src, (e as { condition?: unknown }).condition)) { m.p += evalAmount(s, e.power, src.controller, 0, src); m.t += evalAmount(s, e.toughness, src.controller, 0, src); }
         if (e.kind === 'self-keywords' && conditionHolds(s, src, e.condition)) {
           m.kw.push(...e.keywords);
-          const ex = e as unknown as { mustAttack?: boolean; doesntUntap?: boolean };
+          const ex = e as unknown as { mustAttack?: boolean; doesntUntap?: boolean; cantBlock?: boolean };
           if (ex.doesntUntap) m.flags.doesntUntap = true;
+          if (ex.cantBlock) m.flags.cantBlock = true;
         }
       }
     }

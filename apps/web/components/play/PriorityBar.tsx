@@ -51,7 +51,7 @@ export function PriorityBar({ hasDecision, decisionText, thinking, narration, nu
     <div className={clsx(styles.prio, hasDecision && settled && styles.prioMine, thinking && styles.prioThinking)} data-testid="priority-bar" data-state={finished ? 'finished' : hasDecision ? (settled ? 'mine' : 'catching-up') : thinking ? 'thinking' : 'resolving'}>
       <div className={styles.prioStatus}>
         <span className={styles.prioDot} aria-hidden />
-        <span className={styles.prioText} role="status" aria-live="polite">{status}</span>
+        <span className={styles.prioText}>{status}</span>
         {narration && !hasDecision && <span className={styles.prioNarration} title={narration}>{narration}</span>}
       </div>
       {showActions && (
