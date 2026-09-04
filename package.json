@@ -25,7 +25,8 @@
     "coverage:meta": "tsx scripts/meta-coverage.ts",
     "analysis:selftest": "tsx scripts/analysis-selftest.ts",
     "test:e2e": "npm run test:e2e -w apps/web",
-    "typecheck:all": "npm run typecheck && npm run web:typecheck"
+    "typecheck:all": "npm run typecheck && npm run web:typecheck",
+    "demo:pack": "node demo/pack.mjs"
   },
   "engines": {
     "node": ">=20"
