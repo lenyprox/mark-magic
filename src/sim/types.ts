@@ -29,6 +29,8 @@ export interface MatchSpec {
   maxTurns: number;
   mulligans: MulliganPolicy;
   record: 'summary' | 'events';
+  /** Record which card clause the engine could not simulate, per game and keyed `card|clause` (costs one event object per emit). */
+  trackUnsimulated?: boolean;
   /** Optional explicit library order (card names, one per copy) per deck; null keeps the canonical sorted order. */
   orders?: (string[] | null)[];
 }
@@ -56,10 +58,14 @@ export interface GameRecordLite {
   firstCommanderCastTurn: (number | null)[];
   lossReason: (string | null)[];
   unsimulated: number;
+  /** With trackUnsimulated, hits per inert clause keyed `${cardName}|${clause}`. */
+  unsimulatedClauses?: Record<string, number>;
   error?: string;
   ms: number;
   /** With record: 'events', the engine log. */
   log?: string[];
+  /** With record: 'events', the game's per-type event counts (the "event vector" a golden compares). */
+  eventCounts?: Record<string, number>;
 }
 
 export interface DeckAggregate {
@@ -81,6 +87,8 @@ export interface MatchAggregate {
   byDeck: DeckAggregate[];
   avgTurns: number;
   unsimulated: number;
+  /** Inert clauses by hits (top 50); `games` counts the games each fired in. Empty unless the spec set trackUnsimulated. */
+  topUnsimulated: { card: string; clause: string; hits: number; games: number }[];
   ms: number;
   gamesPerSecond: number;
 }

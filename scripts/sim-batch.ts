@@ -1,7 +1,8 @@
 // Play whole games between decks and report win rates with Wilson intervals. Deterministic for a given seed.
 //   npm run sim:batch -- --deck mono-red-burn --deck mono-green-stompy [--games 200] [--seed 1] [--agent rollout|ai|mcts]
 //                        [--ai-sims 30] [--workers N] [--max-turns 30] [--mulligans none|lands] [--seating rotate|fixed]
-//                        [--format commander] [--out data/bench/run.json] [--log] [--verify <result.json>]
+//                        [--format commander] [--out data/bench/run.json] [--log] [--track-unsimulated]
+//                        [--verify <result.json>]
 // A deck is a decks/*.txt or *.csv file, a saved deck id or a saved deck name. `--verify` replays the games of a
 // saved result and reports whether the win counts reproduce.
 import fs from 'node:fs';
@@ -34,6 +35,7 @@ const agent = (opt('--agent', 'rollout') as BatchAgent);
 const spec0: Omit<MatchSpec, 'decks' | 'id'> = {
   games, baseSeed: seed, seating: (opt('--seating', 'rotate') as SeatingMode), agent, aiSims: Number(opt('--ai-sims', '30')),
   format: opt('--format') === 'commander' ? 'commander' : 'freeform', maxTurns: Number(opt('--max-turns', '0')), mulligans: (opt('--mulligans', 'lands') as MulliganPolicy), record: flag('--log') ? 'events' : 'summary',
+  trackUnsimulated: flag('--track-unsimulated'),
 };
 
 function table(r: MatchResult) {
@@ -46,6 +48,13 @@ function table(r: MatchResult) {
     console.log(`${d.name.padEnd(w)}  ${(d.winRate.value * 100).toFixed(1).padStart(5)}  [${(ci[0] * 100).toFixed(1)}, ${(ci[1] * 100).toFixed(1)}]`.padEnd(w + 30) + `  ${`${d.wins}/${d.losses}/${d.draws}`.padEnd(12)} ${`${d.onThePlay.wins}/${d.onThePlay.games}`.padEnd(6)} ${`${d.onTheDraw.wins}/${d.onTheDraw.games}`.padEnd(6)} ${(d.mulliganRate * 100).toFixed(0).padStart(4)}  ${d.commanderCastTurn ? `${(d.commanderCastTurn.byTurn3 * 100).toFixed(0)}%   ${(d.commanderCastTurn.byTurn5 * 100).toFixed(0)}%` : ''}`);
   }
   if (r.best !== null) console.log(`best: ${a.byDeck[r.best].name} (its interval clears every other deck's)`); else console.log('no deck is ahead beyond the 95% intervals');
+  if (spec0.trackUnsimulated) {
+    const top = a.topUnsimulated.slice(0, 10);
+    console.log(`
+inert clauses (top ${top.length} of ${a.topUnsimulated.length}, ${(a.unsimulated / Math.max(1, a.games)).toFixed(2)} hits/game)`);
+    for (const u of top) console.log(`  ${String(u.hits).padStart(5)} hits  ${String(u.games).padStart(4)} games  ${u.card}: ${u.clause.length > 90 ? `${u.clause.slice(0, 87)}...` : u.clause}`);
+    if (!top.length) console.log('  (none: every clause these decks reached is simulated)');
+  }
 }
 
 async function main() {
