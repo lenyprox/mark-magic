@@ -1112,7 +1112,7 @@ export class Game {
       }
       case 'counters': {
         if (e.optional && !(await this.ask(p, { kind: 'yes-no', prompt: `${item.name}: put the counter(s)?`, tag: 'optional' }))) break;
-        const list = e.target === 'self' ? [src] : e.target === 'creatures-you-control' ? s.players[p].battlefield.filter(isCreature) : e.target === 'each-other-creature-you-control' ? s.players[p].battlefield.filter(o => isCreature(o) && o !== src) : this.objs(T);
+        const list = e.target === 'self' ? [src] : e.target === 'creatures-you-control' ? s.players[p].battlefield.filter(o => isCreature(o) && (!e.filter || matchesFilter(s, o, e.filter, src))) : e.target === 'each-other-creature-you-control' ? s.players[p].battlefield.filter(o => isCreature(o) && o !== src) : this.objs(T);
         for (const o of list) { if (o.zone !== 'battlefield') continue; this.addCounters(o, e.counter, amt(e.amount)); }
         break;
       }
@@ -1168,7 +1168,7 @@ export class Game {
         if (!opts.length) break;
         const [id] = await this.ask(p, { kind: 'choose-cards', from: opts.map(o => o.id), count: 1, reason: 'Return from graveyard', exact: false }) as number[];
         const o = opts.find(x => x.id === id);
-        if (o) { this.noteAffected(item, [o]); if (e.to === 'battlefield') { await this.enterBattlefield(o, { controller: p, via: 'effect', tapped: e.tapped }); this.note(`${name(o)} returns to the battlefield.`); } else this.moveTo(o, 'hand', 'top', 'return'); }
+        if (o) { this.noteAffected(item, [o]); if (e.to === 'battlefield') { await this.enterBattlefield(o, { controller: p, via: 'effect', tapped: e.tapped }); this.note(`${name(o)} returns to the battlefield.`); } else if (e.to === 'library-top' || e.to === 'library-bottom') { this.moveTo(o, 'library', e.to === 'library-top' ? 'top' : 'bottom', 'effect'); this.note(`${name(o)} is put on ${e.to === 'library-top' ? 'top' : 'the bottom'} of its owner's library.`); } else this.moveTo(o, 'hand', 'top', 'return'); }
         break;
       }
       case 'fight': { const [a] = e.self ? [src] : this.objs(T.slice(0, 1)); const b = this.objs(T)[e.self ? 0 : 1]; if (a && b && a.zone === 'battlefield' && b.zone === 'battlefield') { const pa = power(s, a), pb = power(s, b); this.dealDamage(a, b, pa); this.dealDamage(b, a, pb); } break; }
@@ -1283,6 +1283,15 @@ export class Game {
         break;
       }
       case 'fold-new-targets': break;
+      case 'remove-from-combat': {
+        for (const o of this.objs(T)) {
+          const i = s.attackers.indexOf(o.id); if (i >= 0) s.attackers.splice(i, 1);
+          o.attacking = null; delete o.attackingPlaneswalker; o.blocking = []; for (const a of allPermanents(s)) a.blockedBy = a.blockedBy.filter(id => id !== o.id);
+          if (e.untap) this.setTapped(o, false, 'effect');
+          this.note(`${name(o)} is removed from combat.`);
+        }
+        break;
+      }
       case 'remove-those': {
         for (const a of item.affected ?? []) { const o = findObject(s, a.id); if (!o || o.zone !== 'battlefield') continue; if (e.how === 'exile') this.moveTo(o, 'exile', 'top', 'exile'); else this.sacrifice(o); }
         break;

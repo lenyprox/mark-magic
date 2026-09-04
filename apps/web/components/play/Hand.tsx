@@ -37,7 +37,7 @@ export interface HandProps {
 export const Hand = memo(function Hand({ cards, cardState, onActivate, onPickAction, actionsFor, menuCard, onMenuOpenChange, compact, bindDrag, layoutKey, reducedMotion }: HandProps) {
   const [hovered, setHovered] = useState<number | null>(null);
   const n = cards.length;
-  const width = compact ? 96 : 116;
+  const width = compact ? 84 : 116;
   const maxFan = 720;
   // Angle spread grows with the hand up to ±18°, overlap tightens as it grows.
   const spread = compact ? 0 : Math.min(18, 4.5 * (n - 1));

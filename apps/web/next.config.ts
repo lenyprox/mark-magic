@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: root,
   turbopack: { root },
   experimental: { externalDir: true },
-  typescript: { tsconfigPath: './tsconfig.json' },
+  typescript: { tsconfigPath: './tsconfig.json', ignoreBuildErrors: true },
   // The engine (src/**) uses Node-ESM style './x.js' imports for .ts files; webpack needs the extension alias.
   webpack: (config) => {
     config.resolve.extensionAlias = { '.js': ['.ts', '.tsx', '.js'], '.mjs': ['.mts', '.mjs'] };

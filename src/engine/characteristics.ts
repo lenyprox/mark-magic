@@ -186,6 +186,7 @@ export function conditionHolds(s: GameState, src: GameObject, c: unknown): boole
     case 'self-had-counters': { const c = src.zone !== 'battlefield' && src.lastKnown?.counters ? src.lastKnown.counters : src.counters; return (c[cond.counter] ?? 0) > 0; }
     case 'life-gained-ge': return (me.lifeGainedThisTurn ?? 0) >= cond.value;
     case 'descended-this-turn': return !!me.descendedThisTurn;
+    case 'unspent-mana-ge': return me.manaPool.length + (me.stickyMana?.length ?? 0) >= cond.value;
     case 'life-le': return cond.who === 'any' ? [me, ...opps].some(pl => pl.life <= cond.value) : side(cond.who, pl => pl.life <= cond.value);
     case 'opponents-ge': return opps.length >= cond.value;
     case 'controls': return side(cond.who, pl => pl.battlefield.filter(o => matchesFilter(s, o, cond.filter, src)).length >= cond.atLeast);

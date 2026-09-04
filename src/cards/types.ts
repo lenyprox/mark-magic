@@ -159,7 +159,7 @@ export type Effect =
   | { op: 'grant-keyword'; target: TargetSpec | 'self' | 'creatures-you-control' | 'permanents-you-control'; keywords: Keyword[]; duration: 'eot' | 'permanent' }
   | { op: 'bounce'; target: TargetSpec | 'all-creatures' | 'all-nonland' | 'self'; to: 'hand' | 'library-top' | 'library-bottom' }
   | { op: 'token'; count: Amount; power: number; toughness: number; colors: Color[]; types: CardType[]; subtypes: string[]; keywords: Keyword[]; tapped?: boolean; attacking?: boolean; name?: string; text?: string; treasure?: boolean; clue?: boolean; spawn?: boolean; food?: boolean; dynamicPT?: Amount }
-  | { op: 'counters'; target: TargetSpec | 'self' | 'creatures-you-control' | 'each-other-creature-you-control'; counter: string; amount: Amount; optional?: boolean }
+  | { op: 'counters'; target: TargetSpec | 'self' | 'creatures-you-control' | 'each-other-creature-you-control'; counter: string; amount: Amount; optional?: boolean; filter?: Filter }
   | { op: 'tap'; target: TargetSpec | 'all-opponent-creatures' | 'all-creatures' | 'enchanted' | 'self'; noUntap?: boolean }
   | { op: 'untap'; target: TargetSpec | 'self' | 'all-you-control' | 'lands-you-control' | 'that' | 'enchanted' }
   | { op: 'sacrifice'; who: 'you' | 'target-player' | 'each-opponent' | 'each-player'; what: Filter; amount: number }
@@ -169,7 +169,7 @@ export type Effect =
   | { op: 'add-mana'; mana: ManaSymbol[] | 'any' | 'any-one' | 'commander-identity' | 'opponent-lands'; choices?: ManaSymbol[][]; amount?: number; perEach?: Amount; /** Firebending: the mana stays in the pool until end of turn. */ sticky?: boolean; options?: ManaSymbol[] | 'exiled-with-colors' | 'chosen-color' | 'permanent-colors'; restriction?: 'creature-spell' | 'instant-sorcery' | 'chosen-type-creature' | 'colorless-eldrazi'; altIf?: { condition: Condition; mana: ManaSymbol[] } }
   | { op: 'scry'; amount: number }
   | { op: 'surveil'; amount: number }
-  | { op: 'return-from-graveyard'; what: Filter; to: 'hand' | 'battlefield'; target?: boolean; anyGraveyard?: boolean; tapped?: boolean }
+  | { op: 'return-from-graveyard'; what: Filter; to: 'hand' | 'battlefield' | 'library-top' | 'library-bottom'; target?: boolean; anyGraveyard?: boolean; tapped?: boolean }
   | { op: 'fight'; target: TargetSpec; self: boolean }
   | { op: 'bite'; target: TargetSpec }
   | { op: 'set-life'; amount: number; who: 'you' | 'each-player' }
@@ -177,6 +177,7 @@ export type Effect =
   | { op: 'copy-spell'; target: TargetSpec; newTargets?: boolean }
   | { op: 'token-copy'; target: TargetSpec | 'that' | 'self'; count: Amount; extraTypes?: CardType[]; extraSubtypes?: string[]; extraKeywords?: Keyword[]; tapped?: boolean; attacking?: 'each-other-opponent' | boolean }
   | { op: 'remove-those'; how: 'exile' | 'sacrifice' }
+  | { op: 'remove-from-combat'; target: TargetSpec; untap?: boolean }
   | { op: 'proliferate' }
   | { op: 'storm-copies' }                                                     // CR 702.40: copy the spell once per spell cast before it this turn
   | { op: 'player-counter'; counter: string; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' }
@@ -214,6 +215,7 @@ export type Condition =
   | { kind: 'self-had-counters'; counter: string }
   | { kind: 'life-gained-ge'; value: number }
   | { kind: 'descended-this-turn' }
+  | { kind: 'unspent-mana-ge'; value: number }
   | { kind: 'life-le'; who: 'you' | 'opponent' | 'any'; value: number }
   | { kind: 'opponents-ge'; value: number }
   | { kind: 'controls'; who: 'you' | 'opponent'; filter: Filter; atLeast: number }
@@ -294,7 +296,7 @@ export type StaticEffect =
   | { kind: 'extra-blocks'; amount: number }
   | { kind: 'cant-be-blocked-by-more-than-one' }
   | { kind: 'aura'; power: number; toughness: number; keywords?: Keyword[]; cantAttackOrBlock?: boolean; cantAttack?: boolean; cantBlock?: boolean; doesntUntap?: boolean; enchant: TargetSpec; controlEnchanted?: boolean; text?: string }
-  | { kind: 'equipment'; power: number; toughness: number; keywords?: Keyword[]; equipCost: ManaCost }
+  | { kind: 'equipment'; power: number; toughness: number; keywords?: Keyword[]; equipCost: ManaCost; equipFilter?: Filter }
   /** Signed generic-mana adjustment to spells matching `filter`: positive = cheaper. `who` = whose spells; `from` restricts to non-hand casts (Bilbo). */
   | { kind: 'cost-adjust'; filter: Filter; amount: number; who: 'you' | 'opponent' | 'any'; from?: 'non-hand' }
   | { kind: 'opponent-creatures-etb-tapped' }

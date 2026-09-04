@@ -149,9 +149,9 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
       }
     });
     // equipment: equip ability (sorcery speed)
-    const eq = abilitiesOf(o).find(a => a.kind === 'static' && a.effect.kind === 'equipment');
-    if (eq && eq.kind === 'static' && eq.effect.kind === 'equipment' && sorceryTiming && findPayment(eq.effect.equipCost)) {
-      const options = pl.battlefield.filter(x => isCreature(x) && x.id !== o.attachedTo).map(x => ({ kind: 'object', id: x.id } as TargetRef));
+    const eq = abilitiesOf(o).find(a => a.kind === 'static' && a.effect.kind === 'equipment') as { kind: 'static'; effect: Extract<import('../cards/types.js').StaticEffect, { kind: 'equipment' }> } | undefined;
+    if (eq && sorceryTiming && findPayment(eq.effect.equipCost)) {
+      const options = pl.battlefield.filter(x => isCreature(x) && x.id !== o.attachedTo && (!eq.effect.equipFilter || matchesFilter(s, x, eq.effect.equipFilter, o))).map(x => ({ kind: 'object', id: x.id } as TargetRef));
       if (options.length) out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -3 }, label: `equip ${name(o)}#${o.id}`, targetOptions: [{ spec: 'target creature you control', options, optional: false, count: 1 }], manaValue: manaValue(eq.effect.equipCost) });
     }
   }

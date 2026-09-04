@@ -438,6 +438,10 @@ const EFFECT_RULES: Rule[] = [
   { re: /^search your library for an? (.+?) card(?: with mana value (\w+) or less)?, reveal it, put it into your hand(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[1]); if (!f) return null; const mv = m[2] ? num(m[2]) : undefined; return { op: 'search', filter: f, to: 'hand', count: 1, reveal: true, ...(mv !== undefined ? { mvLE: mv } : {}) }; } },
   { re: /^untap all (.+?) you control$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'untap-all', filter: f }; } },
   { re: /^proliferate$/i, make: () => ({ op: 'proliferate' }) },
+  { re: new RegExp(`^put ${NUMRE} ([a-z]+|[+-]1/[+-]1) counters? on each (.+?) you control$`, 'i'), make: m => { const f = parseFilterWords(m[3]) ?? subtypeFilter(m[3]); return f ? { op: 'counters', target: 'creatures-you-control', counter: m[2].toLowerCase(), amount: num(m[1]), filter: singularSubtypes(f) } : null; } },
+  { re: new RegExp(`^put ${TGT} from your graveyard on top of your library$`, 'i'), make: m => { const t = parseTarget(m[1].replace(/^target /, 'target ')); const f = parseFilterWords(m[1].replace(/^target /, '').replace(/ card$/, '')) ?? subtypeFilter(m[1].replace(/^target /, '').replace(/ card$/, '')); return f ? { op: 'return-from-graveyard', what: singularSubtypes(f), to: 'library-top', target: true } : (t ? null : null); } },
+  { re: /^each creature gets ([+-]x)\/([+-]x) until end of turn$/i, make: m => ({ op: 'pump', target: 'all-creatures', power: pm(m[1]), toughness: pm(m[2]), duration: 'eot' }) },
+  { re: new RegExp(`^remove ${TGT} from combat(?: and untap it)?$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'remove-from-combat', target: t, untap: /untap/i.test(m[0]) }; } },
   { re: /^target player gains (\w+) life for each (.+)$/i, make: m => { const a = parseEachPhrase(m[2]); const k = num(m[1]); return a !== null && typeof k === 'number' ? { op: 'gain-life', amount: scaleAmount(a, k, '+'), who: 'target-player' } : null; } },
   { re: /^each player gains (\w+) life for each (.+)$/i, make: m => { const a = parseEachPhrase(m[2]); const k = num(m[1]); return a !== null && typeof k === 'number' ? { op: 'gain-life', amount: scaleAmount(a, k, '+'), who: 'each-player' } : null; } },
   { re: /^you gain (\w+) life for each (.+)$/i, make: m => { const a = parseEachPhrase(m[2]); const k = num(m[1]); return a && typeof k === 'number' ? { op: 'gain-life', amount: k === 1 ? a : { ...(a as object), times: k } as Amount, who: 'you' } : null; } },
@@ -494,6 +498,7 @@ const PARAGRAPH_RULES: { re: RegExp; make: (m: RegExpMatchArray) => Effect[] | n
   { re: /^earthbend (\w+|x), where x is (.+?)\.?$/i, make: m => { const target = parseTarget('target land you control'); const a = parseAmountPhrase(m[2]); return target && a !== null ? [{ op: 'earthbend', amount: a, target }] : null; } },
   { re: /^~ becomes an? (\d+)\/(\d+) ([a-z ]+?) creature(?: with (.+?))? until end of turn\. it's still a land\.?/i, make: m => { const desc = m[3].split(/\s+/).filter(w => w !== 'and'); const colors = desc.filter(w => w in COLOR_WORDS).map(w => COLOR_WORDS[w]); const subs = desc.filter(w => !(w in COLOR_WORDS)).map(w => w[0].toUpperCase() + w.slice(1)); const kw = m[4] ? kwList(m[4]) : []; if (!kw) return null; return [{ op: 'animate', target: 'self', power: Number(m[1]), toughness: Number(m[2]), colors, types: ['Creature'], subtypes: subs, keywords: kw, duration: 'eot' }]; } },
   { re: new RegExp(`^choose ${TGT}\\. its owner shuffles it into their library\\.?`, 'i'), make: m => { const t = parseTarget(m[1]); return t && [{ op: 'shuffle-into-library', target: t }]; } },
+  { re: /^choose a color of a permanent you control\. add one mana of that color\.?/i, make: () => [{ op: 'add-mana', mana: 'any-one', options: 'permanent-colors' }] },
   { re: /^you may draw a card\. if you do, discard a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1 }] },
   { re: /^you may discard a card\. if you do, draw a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1, discardFirst: true, optional: true }] },
   { re: /^you may pay (\{[^ ]+\})\. if you do, (.+?)\.?$/i, make: m => { const then = parseEffects(m[2]); if (then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-pay', mana: parseManaCost(m[1])!, then }]; } },
@@ -745,6 +750,7 @@ function parseCondition(s: string): Condition {
   if (t === 'it was kicked' || t === '~ was kicked') return { kind: 'kicked' };
   if (t === 'there are four or more card types among cards in your graveyard') return { kind: 'delirium' };
   if (t === 'you descended this turn') return { kind: 'descended-this-turn' };
+  if ((m = t.match(/^you have (\w+) or more unspent mana$/))) return { kind: 'unspent-mana-ge', value: num(m[1]) as number };
   if ((m = t.match(/^you control no (.+)$/))) { const f = parseFilterWords(singular(m[1])); if (f) return { kind: 'controls-le', who: 'you', filter: f, atMost: 0 }; }
   if (t === 'an opponent controls more lands than you') return { kind: 'opponent-more-lands' };
   if ((m = t.match(/^(.+?) or if (.+)$/))) { const a = parseCondition(m[1]); const b = parseCondition(m[2]); if (a.kind !== 'unknown' && b.kind !== 'unknown') return { kind: 'or', conditions: [a, b] }; }
@@ -1128,6 +1134,7 @@ export function parseCard(row: OracleRow): CardDef {
     if ((m = line.match(/^ward \{(\d+)\}$/i)) || (m = line.match(/^ward \{(\d+)\}\s*$/i))) { def.keywords.push('ward'); def.wardCost = Number(m[1]); continue; }
     if ((m = line.match(/^kicker (\{[^ ]+\})$/i))) { def.kicker = parseManaCost(m[1])!; continue; }
     if ((m = line.match(/^cycling (\{[^ ]+\})$/i))) { def.cycling = parseManaCost(m[1])!; continue; }
+    if ((m = line.match(/^equip ([A-Z][a-z]+) (\{[^ ]+\})$/))) { const eqt = def.abilities.find(a => a.kind === 'static' && a.effect.kind === 'equipment') as { effect: Extract<StaticEffect, { kind: 'equipment' }> } | undefined; const c = parseManaCost(m[2]); if (eqt && c) { eqt.effect.equipCost = c; eqt.effect.equipFilter = { subtypes: [m[1]] }; continue; } }
     if ((m = line.match(/^equip (\{[^ ]+\})$/i))) { const eq = def.abilities.find(a => a.kind === 'static' && a.effect.kind === 'equipment') as { effect: Extract<StaticEffect, { kind: 'equipment' }> } | undefined; if (eq) eq.effect.equipCost = parseManaCost(m[1])!; else def.abilities.push({ kind: 'static', effect: { kind: 'equipment', power: 0, toughness: 0, keywords: [], equipCost: parseManaCost(m[1])! }, text: line }); continue; }
     if (/^enchant [a-z ,]+$/i.test(line) && row.subtypes.includes('Aura')) continue; // recorded in aura static
     if (/^~ enters (?:the battlefield )?tapped\.?$/i.test(line)) { def.entersTapped = true; continue; }
