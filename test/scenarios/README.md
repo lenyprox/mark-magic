@@ -90,7 +90,7 @@ Steps run in order. `by` is a seat index and defaults to the player who currentl
 | `{ "activate": "Name", "ability": 1, "targets": [["P1"]] }` | pick the ability by index when a card has several |
 | `{ "playLand": "Name" }` | play a land from hand |
 | `{ "attack": ["Grizzly Bears", "Hill Giant"] }` | declare attackers and run the whole combat phase |
-| `{ "attack": ["Hill Giant"], "blocks": [["Grizzly Bears", "Hill Giant"]] }` | …with blocks, as `[blocker, attacker]` pairs declared by the defending seat |
+| `{ "attack": ["Hill Giant"], "blocks": [["Grizzly Bears", "Hill Giant"]] }` | …with blocks, as `[blocker, attacker]` pairs. Only the **defending seat** blocks (CR 509.1a): attackers go at the next seat still in the game after the active one, so in a three-player scenario with `"active": 1` the blockers are seat 2's |
 | `{ "resolve": true }` | resolve the stack completely (both players pass) |
 | `{ "sba": true }` | run state-based actions now |
 | `{ "turnFaceUp": "Name" }` | turn a face-down (morph/megamorph/disguise) permanent face up |
@@ -132,6 +132,11 @@ are checked, so one scenario reports every mismatch at once.
 | `events` | `{ "events": { "type": "damage", "min": 1, "max": 1 } }` | how many typed events fired (`damage`, `countered`, `fizzle`, `sba`, `zone-change`, `create-token`, `library`, `attack`, `block`, `replaced`, …) |
 | `log` | `{ "log": "deals 3 damage" }` | some line of the game log matches this regular expression (a string is read as a regex *source*, so escape `/` and `+` as in `"as -1\\/-1 counters"`) |
 | `noLog` | `{ "noLog": "Hill Giant is destroyed" }` | **no** log line matches — the way to assert something did not happen |
+
+The log disambiguates permanents by object id — it prints `Hill Giant#43 is destroyed.` — which you cannot predict, so
+every line is matched twice: as printed, and with the `#43` removed. `"Hill Giant is destroyed"` therefore means what
+it says (and `"Hill Giant#\\d+ is destroyed"` works too). This matters most for `noLog`: a pattern that could never
+match would pass no matter what happened, which is worse than having no expectation at all.
 | `winner` | `{ "winner": 0 }` | the game has been won by that seat (`null` = nobody yet) |
 | `unsimulated` | `{ "unsimulated": 0 }` | how many clauses the engine had to skip; `0` proves the card was fully simulated |
 | `ext` | `{ "ext": ["Grizzly Bears", "suspended", true] }` | deep-equals one entry of a permanent's engine extension bag |
@@ -176,6 +181,11 @@ before writing your first file.
    "Giant Growth in response saves the creature from Lightning Bolt".
 7. **Scenarios are data.** Do not import anything into a JSON file, do not depend on run order, and keep files at
    LF line endings.
+8. **This page is the whole vocabulary.** Every key is checked against it before a scenario runs: an unknown or
+   misspelled key (`"casts"`, `"lifee"`, a `"target"` where `"targets"` belongs), a value of the wrong shape, two
+   step keywords in one entry — each is a hard error naming the entry, never a step that is quietly skipped or an
+   expectation that is quietly not checked. If you need something the tables above do not offer, say so in the
+   report; do not invent a key.
 
 ## 7. Running them
 
@@ -191,6 +201,11 @@ npm run verify:scenarios -- --json data/master/verify-scenarios.json   # where t
 npm run test:scenarios                         # only the TypeScript suites, through node --test
 npm test                                       # the whole test suite, including a sample of the JSON corpus
 ```
+
+`npm test` runs a sample of the corpus, not all of it: every card in the owner's decks plus 200 more files drawn with
+a fixed seed (`SAMPLE_SEED` in `src/verify/scenarioFiles.ts`), so the fast run stays fast, always covers the cards the
+project is gated on, and spreads over the whole corpus instead of the alphabetically first shards. **A file that
+passes the sample has not necessarily run** — always check your own card with `--file` or `--changed`.
 
 The runner prints a pass/fail line per file, the five slowest scenarios and the wall time, and exits non-zero if
 anything failed. Results are sorted by file then name, so the report does not depend on the worker count.

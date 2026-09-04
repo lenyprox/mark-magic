@@ -65,10 +65,22 @@ export const dslExtras: Scenario[] = [
     expect: [{ commanderDamage: [1, 'The Whizzer, Classic Speedster', 3] }, { commanderDamage: [0, 'The Whizzer, Classic Speedster', 0] }, { life: [1, 37] }],
   },
   {
+    // The same pattern really does match when the creature dies — test/scenario-dsl.test.ts pins that, so this
+    // noLog is a live assertion and not a regex that could never fire.
     name: 'noLog: two damage does not destroy a 3/3', cr: '704.5g',
     seats: [{ bf: ['Mountain'], hand: ['Shock'] }, { bf: ['Hill Giant'] }],
     script: [{ cast: 'Shock', targets: [['Hill Giant']] }, { resolve: true }],
     expect: [{ zone: ['Hill Giant', 'battlefield'] }, { noLog: 'Hill Giant is destroyed' }, { log: 'deals 2 damage' }],
+  },
+  {
+    // Seat 1 attacks: the engine sends the attackers at seat 2, so seat 2 declares the block even though seat 0 has
+    // a creature of the same name. With the defending seat mistaken for seat 1's "other" seat, seat 0's Hill Giant
+    // would block and seat 2 would be at 18.
+    name: 'attack: in a three-player game only the defending seat blocks', cr: '509.1a',
+    seats: [{ bf: ['Hill Giant'] }, { bf: ['Grizzly Bears'] }, { bf: ['Hill Giant'] }],
+    active: 1,
+    script: [attackWith(['Grizzly Bears'], [['Hill Giant', 'Grizzly Bears']])],
+    expect: [{ life: [2, 20] }, { life: [0, 20] }, { life: [1, 20] }, { zoneCount: [1, 'graveyard', 1] }, { zoneCount: [0, 'battlefield', 1] }, { zoneCount: [2, 'battlefield', 1] }],
   },
   {
     name: 'ext: a permanent carries no engine extension data by default', cr: '110.1',

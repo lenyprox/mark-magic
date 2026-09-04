@@ -11,7 +11,8 @@ import { findObject, isCreature, keywords, power, toughness } from '../engine/ch
 import type { GameEventType } from '../engine/events.js';
 import { Game } from '../engine/game.js';
 import { legalActions } from '../engine/legal.js';
-import { makeObject, type Agent, type Decision, type GameObject, type GameState, type LegalAction, type PlayerId, type Step, type TargetRef, type Zone } from '../engine/state.js';
+import { primaryOpponent } from '../engine/players.js';
+import { makeObject, STEPS, type Agent, type Decision, type GameObject, type GameState, type LegalAction, type PlayerId, type Step, type TargetRef, type Zone } from '../engine/state.js';
 import { defaultAnswer } from '../engine/agents/defaults.js';
 
 // The card database is opened on first use so importing the DSL (for its types, or for validateScenario in the
@@ -49,6 +50,17 @@ export type ScriptStep =
 /** A regular expression, or its source as a string so the scenario stays JSON-serialisable. */
 export type Pattern = RegExp | string;
 export const toRegExp = (p: Pattern): RegExp => (typeof p === 'string' ? new RegExp(p) : p);
+
+/**
+ * The log line a pattern matches, if any. The engine disambiguates permanents by object id ("Hill Giant#12 is
+ * destroyed."), which a scenario author writing from the card text cannot know, so every line is tried both as
+ * printed and with those ids removed — `"Hill Giant is destroyed"` therefore means what it says, and a `noLog`
+ * written that way really does fail when the creature dies.
+ */
+export const matchingLog = (log: string[], p: Pattern): string | undefined => {
+  const re = toRegExp(p);
+  return log.find(l => re.test(l) || re.test(l.replace(/#\d+/g, '')));
+};
 
 export type Expectation =
   | { zone: [string, 'battlefield' | 'graveyard' | 'exile' | 'hand' | 'library' | 'stack' | 'command'] }
@@ -96,9 +108,151 @@ export interface Scenario {
   expect: Expectation[];
 }
 
+// ------------------------------------------------------------------ the vocabulary, as runtime data
+// A JSON scenario is unvalidated data and TypeScript's unions give it no protection: without these tables a typo in a
+// step or expectation key ("casts", "lifee") would be dropped on the floor by the if-chains below, so a scenario that
+// runs nothing and asserts nothing would report "ok". They are the single source of truth for the shapes above —
+// every key a scenario may use, with a guard for its value — and nothing outside them is accepted.
+type Guard = (v: unknown) => boolean;
+const isStr: Guard = v => typeof v === 'string';
+const isNum: Guard = v => typeof v === 'number' && Number.isFinite(v);
+const isInt: Guard = v => isNum(v) && Number.isInteger(v);
+const isBool: Guard = v => typeof v === 'boolean';
+const isPlainObj: Guard = v => !!v && typeof v === 'object' && !Array.isArray(v);
+/** `{ "+1/+1": 2 }` — a counter bag, name to count. */
+const isCounterBag: Guard = v => isPlainObj(v) && Object.values(v as Record<string, unknown>).every(isNum);
+const isPattern: Guard = v => typeof v === 'string' || v instanceof RegExp;
+const anything: Guard = () => true;
+const arrOf = (g: Guard): Guard => v => Array.isArray(v) && v.every(g);
+const tuple = (...gs: Guard[]): Guard => v => Array.isArray(v) && v.length === gs.length && gs.every((g, i) => g(v[i]));
+const oneOf = (...vals: unknown[]): Guard => v => vals.includes(v);
+const ZONE_NAMES: Zone[] = ['library', 'hand', 'battlefield', 'graveyard', 'exile', 'stack', 'command'];
+const isZone: Guard = v => ZONE_NAMES.includes(v as Zone);
+const isStep: Guard = v => STEPS.includes(v as Step);
+const isTargets: Guard = arrOf(arrOf(isStr));                  // one group per targeting clause
+const isBlocks: Guard = arrOf(tuple(isStr, isStr));            // [blocker, attacker] pairs
+
+/** Seat setup fields (a typo here seeds nothing, so it is rejected like any other unknown key). */
+const SEAT_FIELDS: Record<string, Guard> = {
+  hand: arrOf(isStr), bf: arrOf(isStr), graveyard: arrOf(isStr), exile: arrOf(isStr), libraryTop: arrOf(isStr), command: arrOf(isStr),
+  life: isInt, counters: v => isPlainObj(v) && Object.values(v as Record<string, unknown>).every(isCounterBag), tapped: arrOf(isStr),
+};
+/** Top-level scenario fields. */
+const SCENARIO_FIELDS: Record<string, Guard> = {
+  name: isStr, cr: isStr, ruling: isStr, seats: arrOf(isPlainObj), format: oneOf('freeform', 'commander'),
+  active: isInt, step: isStep, turn: isInt, script: arrOf(anything), expect: arrOf(anything),
+};
+/** Script steps: the discriminating key with a guard for its value, plus the extra keys that step may carry. */
+const SCRIPT_STEPS: Record<string, { value: Guard; opts: Record<string, Guard> }> = {
+  cast: { value: isStr, opts: { targets: isTargets, x: isInt, by: isInt, modes: arrOf(isInt), alt: isStr } },
+  activate: { value: isStr, opts: { ability: isInt, targets: isTargets, by: isInt } },
+  playLand: { value: isStr, opts: { by: isInt } },
+  attack: { value: arrOf(isStr), opts: { blocks: isBlocks } },
+  block: { value: isBlocks, opts: {} },
+  resolve: { value: oneOf(true), opts: {} },
+  sba: { value: oneOf(true), opts: {} },
+  turnFaceUp: { value: isStr, opts: { by: isInt } },
+  passUntil: { value: isStep, opts: {} },
+  turns: { value: isInt, opts: {} },
+  answer: { value: anything, opts: {} },
+};
+/** Expectations: one key each, with a guard for its value. */
+const EXPECTATIONS: Record<string, Guard> = {
+  zone: tuple(isStr, isZone),
+  life: tuple(isInt, isInt),
+  pt: tuple(isStr, isNum, isNum),
+  keywords: tuple(isStr, arrOf(isStr)),
+  counters: tuple(isStr, isCounterBag),
+  playerCounters: tuple(isInt, isCounterBag),
+  tapped: tuple(isStr, isBool),
+  control: tuple(isStr, isInt),
+  events: v => isPlainObj(v) && isStr((v as { type?: unknown }).type)
+    && Object.keys(v as object).every(k => ['type', 'min', 'max'].includes(k))
+    && (['min', 'max'] as const).every(k => (v as Record<string, unknown>)[k] === undefined || isInt((v as Record<string, unknown>)[k])),
+  log: isPattern,
+  noLog: isPattern,
+  unsimulated: isInt,
+  winner: v => v === null || isInt(v),
+  stack: isInt,
+  zoneCount: tuple(isInt, isZone, isInt),
+  handCount: tuple(isInt, isInt),
+  graveyardCount: tuple(isInt, isInt),
+  libraryCount: tuple(isInt, isInt),
+  stackNames: arrOf(isStr),
+  mana: tuple(isInt, isStr),
+  attachedTo: tuple(isStr, v => v === null || isStr(v)),
+  faceDown: tuple(isStr, isBool),
+  commanderDamage: tuple(isInt, isStr, isInt),
+  ext: v => Array.isArray(v) && v.length === 3 && isStr(v[0]) && isStr(v[1]),
+};
+/** Every script step keyword, for error messages and for authoring tools. */
+export const SCRIPT_STEP_KEYS = Object.keys(SCRIPT_STEPS);
+/** Every expectation keyword. */
+export const EXPECTATION_KEYS = Object.keys(EXPECTATIONS);
+
+const show = (v: unknown): string => (v instanceof RegExp ? String(v) : JSON.stringify(v) ?? String(v));
+
+function keyedProblems(at: string, v: unknown, fields: Record<string, Guard>): string[] {
+  const pre = at ? `${at}: ` : '';
+  if (!isPlainObj(v)) return [`${at || 'scenario'} is not an object`];
+  const rec = v as Record<string, unknown>; const out: string[] = [];
+  for (const k of Object.keys(rec)) {
+    if (!(k in fields)) out.push(`${pre}unknown key "${k}" (known: ${Object.keys(fields).join(', ')})`);
+    else if (rec[k] !== undefined && !fields[k](rec[k])) out.push(`${pre}${k} has a bad value ${show(rec[k])}`);
+  }
+  return out;
+}
+
+/** One script step: exactly one known step keyword, a well-formed value and no unknown extras. */
+function scriptStepProblems(st: unknown, i: number): string[] {
+  const at = `script[${i}]`;
+  if (!isPlainObj(st)) return [`${at} is not an object`];
+  const rec = st as Record<string, unknown>; const keys = Object.keys(rec);
+  const heads = keys.filter(k => k in SCRIPT_STEPS);
+  if (!heads.length) return [`${at}: not a step — no known keyword in {${keys.join(', ')}} (one of: ${SCRIPT_STEP_KEYS.join(', ')})`];
+  if (heads.length > 1) return [`${at}: ${heads.join(' and ')} in one step (write one step per entry)`];
+  const head = heads[0]; const spec = SCRIPT_STEPS[head];
+  const out = spec.value(rec[head]) ? [] : [`${at}: ${head} has a bad value ${show(rec[head])}`];
+  for (const k of keys) {
+    if (k === head) continue;
+    if (!(k in spec.opts)) out.push(`${at}: unknown key "${k}" on a ${head} step (allowed: ${[head, ...Object.keys(spec.opts)].join(', ')})`);
+    else if (rec[k] !== undefined && !spec.opts[k](rec[k])) out.push(`${at}: ${k} has a bad value ${show(rec[k])}`);
+  }
+  return out;
+}
+
+/** One expectation: exactly one known expectation keyword and a well-formed value. */
+function expectationProblems(e: unknown, i: number): string[] {
+  const at = `expect[${i}]`;
+  if (!isPlainObj(e)) return [`${at} is not an object`];
+  const rec = e as Record<string, unknown>; const keys = Object.keys(rec);
+  const heads = keys.filter(k => k in EXPECTATIONS);
+  if (!heads.length) return [`${at}: not an expectation — no known keyword in {${keys.join(', ')}} (one of: ${EXPECTATION_KEYS.join(', ')})`];
+  if (heads.length > 1) return [`${at}: ${heads.join(' and ')} in one expectation (write one per entry)`];
+  const head = heads[0];
+  const out = keys.filter(k => k !== head).map(k => `${at}: unknown key "${k}" next to ${head}`);
+  if (!EXPECTATIONS[head](rec[head])) out.push(`${at}: ${head} has a bad value ${show(rec[head])}`);
+  return out;
+}
+
 /**
- * Static checks a scenario must pass before it is worth running: it has to cite a rule, do something and assert
- * something, and (for a card's own file) actually put that card on the table. Returns a list of problems.
+ * Shape checks: every key a scenario uses is in the vocabulary and every value has the right form. These are the
+ * checks `runScenario` enforces itself (a malformed scenario throws rather than passing silently), so they hold for
+ * the TypeScript suites too — `validateScenario` adds the policy checks a committed corpus file must also pass.
+ */
+export function scenarioShape(sc: Scenario): string[] {
+  if (!isPlainObj(sc)) return ['scenario is not an object'];
+  const out = keyedProblems('', sc, SCENARIO_FIELDS);
+  (Array.isArray(sc.seats) ? sc.seats : []).forEach((seat, i) => out.push(...keyedProblems(`seats[${i}]`, seat, SEAT_FIELDS)));
+  (Array.isArray(sc.script) ? sc.script : []).forEach((st, i) => out.push(...scriptStepProblems(st, i)));
+  (Array.isArray(sc.expect) ? sc.expect : []).forEach((e, i) => out.push(...expectationProblems(e, i)));
+  return out;
+}
+
+/**
+ * Static checks a scenario must pass before it is worth running: it has to be built from the vocabulary above, cite a
+ * rule, do something and assert something, and (for a card's own file) actually put that card on the table. Returns a
+ * list of problems.
  */
 export function validateScenario(sc: Scenario, opts: { card?: string } = {}): string[] {
   const out: string[] = [];
@@ -109,6 +263,7 @@ export function validateScenario(sc: Scenario, opts: { card?: string } = {}): st
   if (!Array.isArray(sc.seats) || sc.seats.length < 1) out.push(`${where}: needs at least one seat`);
   if (!Array.isArray(sc.script) || !sc.script.length) out.push(`${where}: script is empty`);
   if (!Array.isArray(sc.expect) || !sc.expect.length) out.push(`${where}: expect is empty`);
+  out.push(...scenarioShape(sc).map(p => `${where}: ${p}`));
   if (opts.card) {
     const placed = (sc.seats ?? []).some(seat => SEAT_ZONE_FIELDS.some(z => (seat[z] ?? []).includes(opts.card!)));
     if (!placed) out.push(`${where}: never puts ${opts.card} into a seat zone (hand/bf/graveyard/exile/libraryTop/command)`);
@@ -234,12 +389,18 @@ export async function runScript(g: Game, steps: ScriptStep[]) {
     }
     if ('passUntil' in st) { await g.resumeTurn(); continue; }
     if ('turns' in st) { await g.playTurns(st.turns); continue; }
+    // No silent skips: an unknown step is a typo, and a typo that ran nothing would make the scenario green.
+    throw new Error(`scenario: unknown script step ${show(st)} (one of: ${SCRIPT_STEP_KEYS.join(', ')})`);
   }
 }
 
-/** Attack + block declaration in one go (the engine's simulateCombat takes both at once). */
+/**
+ * Attack + block declaration in one go (the engine's simulateCombat takes both at once). The defending seat is the
+ * one the engine actually sends the attackers at (primaryOpponent, CR 506.2) — never seat 1 — so blocks are looked up
+ * on the right player in a multiplayer scenario (CR 509.1a: only the defending player declares blockers).
+ */
 async function declareCombat(g: Game, attackers: string[], blocks: [string, string][]) {
-  const s = g.state; const ap = s.activePlayer; const dp = ap === 0 ? 1 : 0;
+  const s = g.state; const ap = s.activePlayer; const dp = primaryOpponent(s, ap);
   const ids = attackers.map(n => { const o = findByName(s, n, ap); if (!o) throw new Error(`scenario: no attacker named ${n}`); return o.id; });
   const pairs = blocks.map(([b, a]) => {
     const blocker = findByName(s, b, dp); if (!blocker) throw new Error(`scenario: no blocker named ${b}`);
@@ -271,8 +432,8 @@ export function checkExpectations(g: Game, sc: Scenario): string[] {
       else if ('tapped' in e) assert.equal(need(e.tapped[0]).tapped, e.tapped[1], `${e.tapped[0]} tapped`);
       else if ('control' in e) assert.equal(need(e.control[0]).controller, e.control[1], `${e.control[0]} controller`);
       else if ('events' in e) { const n = s.eventCounts?.[e.events.type] ?? 0; if (e.events.min !== undefined) assert.ok(n >= e.events.min, `${e.events.type} events ${n} >= ${e.events.min}`); if (e.events.max !== undefined) assert.ok(n <= e.events.max, `${e.events.type} events ${n} <= ${e.events.max}`); }
-      else if ('log' in e) { const re = toRegExp(e.log); assert.ok(s.log.some(l => re.test(l)), `log matches ${re}`); }
-      else if ('noLog' in e) { const re = toRegExp(e.noLog); const hit = s.log.find(l => re.test(l)); assert.ok(!hit, `no log line matches ${re} (got "${hit}")`); }
+      else if ('log' in e) assert.ok(matchingLog(s.log, e.log), `log matches ${toRegExp(e.log)}`);
+      else if ('noLog' in e) { const hit = matchingLog(s.log, e.noLog); assert.ok(!hit, `no log line matches ${toRegExp(e.noLog)} (got "${hit}")`); }
       else if ('unsimulated' in e) assert.equal(s.eventCounts?.unsimulated ?? 0, e.unsimulated, 'unsimulated clauses');
       else if ('winner' in e) assert.equal(s.winner, e.winner, 'winner');
       else if ('stack' in e) assert.equal(s.stack.length, e.stack, 'stack size');
@@ -286,12 +447,16 @@ export function checkExpectations(g: Game, sc: Scenario): string[] {
       else if ('faceDown' in e) assert.equal(!!need(e.faceDown[0]).faceDown, e.faceDown[1], `${e.faceDown[0]} face down`);
       else if ('commanderDamage' in e) { const [i, from, n] = e.commanderDamage; const cmd = need(from); assert.equal(seat(i).commanderDamage?.[cmd.id] ?? 0, n, `P${i} commander damage from ${from}`); }
       else if ('ext' in e) { const [n, key, want] = e.ext; const bag = (need(n) as { ext?: Record<string, unknown> }).ext; assert.deepEqual(bag?.[key], want, `${n} ext.${key}`); }
+      // No silent skips: an unchecked expectation is a typo, and a typo that checked nothing would make it green.
+      else throw new Error(`unknown expectation ${show(e)} (one of: ${EXPECTATION_KEYS.join(', ')})`);
     } catch (err) { fails.push((err as Error).message); }
   }
   return fails;
 }
 
 export async function runScenario(sc: Scenario): Promise<ScenarioRun> {
+  const bad = scenarioShape(sc);
+  if (bad.length) throw new Error(`scenario ${sc?.name ? `"${sc.name}"` : '(unnamed)'} is malformed:\n  - ${bad.join('\n  - ')}`);
   const g = buildScenario(sc);
   for (const st of sc.script) await runScript(g, [st]);
   g.checkSBA();
