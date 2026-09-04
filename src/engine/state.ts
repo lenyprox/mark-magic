@@ -104,8 +104,8 @@ export interface Player {
   spellsCastLastTurn?: number;
   /** A permanent card was put into this player's graveyard from anywhere this turn (descend). */
   descendedThisTurn?: boolean;
-  /** How many cards in this graveyard have a static ability that works from there (Anger, Filth). */
-  graveyardStatics?: number;
+  /** Extra land drops granted this turn by resolved effects (statics are counted separately). */
+  extraLandsThisTurn?: number;
   cardsDrawnThisTurn?: number;
   lifeGainedThisTurn?: number;
 }

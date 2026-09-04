@@ -85,7 +85,7 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
   const out: LegalAction[] = [{ action: { type: 'pass' }, label: 'pass' }];
   const sorceryTiming = s.activePlayer === p && (s.step === 'main1' || s.step === 'main2') && s.stack.length === 0;
   const extraLands = pl.battlefield.reduce((a, o) => a + abilitiesOf(o).reduce((b, ab) => b + (ab.kind === 'static' && ab.effect.kind === 'extra-land' ? ab.effect.amount : 0), 0), 0);
-  const landDrop = sorceryTiming && pl.landsPlayedThisTurn < 1 + extraLands;
+  const landDrop = sorceryTiming && pl.landsPlayedThisTurn < 1 + extraLands + (pl.extraLandsThisTurn ?? 0);
   if (landDrop) {
     const zones = new Set(pl.battlefield.flatMap(o => abilitiesOf(o).flatMap(ab => ab.kind === 'static' && ab.effect.kind === 'play-lands-from' ? [ab.effect.zone] : [])));
     if (zones.has('graveyard')) for (const c of pl.graveyard) if (c.def.types.includes('Land')) out.push({ action: { type: 'play-land', cardId: c.id, from: 'graveyard' }, label: `play land ${c.def.name} from graveyard` });

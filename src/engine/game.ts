@@ -250,7 +250,7 @@ export class Game {
   private async runTurn() {
     const s = this.state;
     this.emit({ type: 'turn', player: s.activePlayer, number: s.turn });
-    for (const p of s.players) { p.spellsCastLastTurn = p.spellsCastThisTurn; p.descendedThisTurn = false; p.landsPlayedThisTurn = 0; p.attackedThisTurn = false; p.attackedWithThisTurn = 0; p.lifeLostThisTurn = 0; p.creaturesDiedThisTurn = 0; p.spellsCastThisTurn = 0; p.permanentsLeftThisTurn = 0; p.cardsDrawnThisTurn = 0; p.lifeGainedThisTurn = 0; for (const o of p.battlefield) { o.activatedThisTurn.clear(); o.triggeredThisTurn?.clear(); } }
+    for (const p of s.players) { p.spellsCastLastTurn = p.spellsCastThisTurn; p.descendedThisTurn = false; p.landsPlayedThisTurn = 0; p.extraLandsThisTurn = 0; p.attackedThisTurn = false; p.attackedWithThisTurn = 0; p.lifeLostThisTurn = 0; p.creaturesDiedThisTurn = 0; p.spellsCastThisTurn = 0; p.permanentsLeftThisTurn = 0; p.cardsDrawnThisTurn = 0; p.lifeGainedThisTurn = 0; for (const o of p.battlefield) { o.activatedThisTurn.clear(); o.triggeredThisTurn?.clear(); } }
     s.players[s.activePlayer].turnsTaken = (s.players[s.activePlayer].turnsTaken ?? 0) + 1;
     await this.runTurnFrom('untap');
   }
@@ -1286,6 +1286,14 @@ export class Game {
         break;
       }
       case 'fold-new-targets': break;
+      case 'play-exiled': {
+        const until = e.until === 'eot' ? s.turn : s.turn + s.players.length;
+        let n = 0;
+        for (const a of item.affected ?? []) { const o = findObject(s, a.id); if (!o || o.zone !== 'exile') continue; o.castableFromExile = { afterTurn: s.turn - 1, free: !!e.free, untilTurn: until, by: p }; n++; }
+        if (n) this.note(`${this.pname(p)} may play ${n} exiled card${n > 1 ? 's' : ''} ${e.until === 'eot' ? 'this turn' : 'until the end of their next turn'}.`);
+        break;
+      }
+      case 'extra-land': { const pl2 = s.players[p]; pl2.extraLandsThisTurn = (pl2.extraLandsThisTurn ?? 0) + e.count; this.note(`${this.pname(p)} may play ${e.count} additional land${e.count > 1 ? 's' : ''} this turn.`); break; }
       case 'exile-if-dies': {
         const list = e.who === 'self' ? [src]
           : e.who === 'affected' || e.who === 'that' ? (item.affected ?? []).map(a => findObject(s, a.id)).filter((o): o is GameObject => !!o && o.zone === 'battlefield')

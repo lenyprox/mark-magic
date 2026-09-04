@@ -178,6 +178,8 @@ export type Effect =
   | { op: 'token-copy'; target: TargetSpec | 'that' | 'self'; count: Amount; extraTypes?: CardType[]; extraSubtypes?: string[]; extraKeywords?: Keyword[]; tapped?: boolean; attacking?: 'each-other-opponent' | boolean }
   | { op: 'remove-those'; how: 'exile' | 'sacrifice' }
   | { op: 'remove-from-combat'; target: TargetSpec; untap?: boolean }
+  | { op: 'play-exiled'; until: 'eot' | 'next-turn'; free?: boolean }        // "you may play that card this turn" after an exile
+  | { op: 'extra-land'; count: number }                                     // "you may play an additional land this turn"
   | { op: 'exile-if-dies'; who: 'that' | 'affected' | 'self' | 'all-creatures' | 'opponent-creatures' }   // CR 614: "if it would die this turn, exile it instead\"
   | { op: 'proliferate' }
   | { op: 'storm-copies' }                                                     // CR 702.40: copy the spell once per spell cast before it this turn
