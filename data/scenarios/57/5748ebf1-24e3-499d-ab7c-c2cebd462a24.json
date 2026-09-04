@@ -1,0 +1,63 @@
+{
+  "oracleId": "5748ebf1-24e3-499d-ab7c-c2cebd462a24",
+  "name": "Giant Growth",
+  "scenarios": [
+    {
+      "name": "Giant Growth gives the target +3/+3 without adding counters",
+      "cr": "613.4b",
+      "ruling": "The bonus is a continuous effect in layer 7c; it is not represented by +1/+1 counters.",
+      "seats": [
+        { "bf": ["Forest", "Grizzly Bears"], "hand": ["Giant Growth"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Giant Growth", "targets": [["Grizzly Bears"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "pt": ["Grizzly Bears", 5, 5] },
+        { "counters": ["Grizzly Bears", { "+1/+1": 0 }] },
+        { "zone": ["Giant Growth", "graveyard"] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Giant Growth in response saves the creature from Lightning Bolt",
+      "cr": "608.2b",
+      "ruling": "The pump resolves first, so the Bolt's 3 damage is no longer lethal on a 5/5.",
+      "seats": [
+        { "bf": ["Mountain"], "hand": ["Lightning Bolt"] },
+        { "bf": ["Forest", "Grizzly Bears"], "hand": ["Giant Growth"] }
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["Grizzly Bears"]] },
+        { "cast": "Giant Growth", "targets": [["Grizzly Bears"]], "by": 1 },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "pt": ["Grizzly Bears", 5, 5] },
+        { "noLog": "Grizzly Bears is destroyed" },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The Giant Growth bonus wears off in the cleanup step",
+      "cr": "514.2",
+      "seats": [
+        { "bf": ["Forest", "Grizzly Bears"], "hand": ["Giant Growth"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Giant Growth", "targets": [["Grizzly Bears"]] },
+        { "resolve": true },
+        { "turns": 1 }
+      ],
+      "expect": [
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "zone": ["Grizzly Bears", "battlefield"] }
+      ]
+    }
+  ]
+}
