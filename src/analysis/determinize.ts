@@ -19,7 +19,7 @@ export function hashSeed(base: number, i: number): number {
 
 function everyObject(s: GameState, owner: PlayerId): GameObject[] {
   const p = s.players[owner];
-  return [...p.battlefield, ...p.hand, ...p.graveyard, ...p.exile, ...p.library, ...s.stack.filter(it => it.source.owner === owner && it.kind === 'spell').map(it => it.source)];
+  return [...p.battlefield, ...p.hand, ...p.graveyard, ...p.exile, ...p.library, ...(p.command ?? []), ...s.stack.filter(it => it.source.owner === owner && it.kind === 'spell').map(it => it.source)];
 }
 
 /** Names of every card `owner` is known to have, wherever it is (tokens and hidden cards excluded). */

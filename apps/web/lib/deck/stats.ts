@@ -1,4 +1,5 @@
 // Pure helpers over a deck draft plus the per-card details the builder fetches: grouping, curve, pips, sources, legality.
+import { canBeCommander, commanderPairLegal, partnerKind } from '@decks/validate';
 import type { CardDetail } from '@cards/query';
 import type { DeckBoard } from '@cards/db';
 import type { DeckCard } from '@user/decks';
@@ -170,6 +171,18 @@ export function legalityIssues(format: string, cards: DeckCard[], info: Map<stri
     if (n > limit) over.push(counted.find(c => c.oracleId === oid)!);
   }
   if (over.length) issues.push({ kind: 'copies', message: `More than ${f.copies === 1 ? 'one copy' : `${f.copies} copies`}`, cards: dedupe(over) });
+  // Commander / Brawl: commander legality and colour identity (CR 903.3, 903.5c)
+  if (f.copies === 1 && f.exactSize === 100) {
+    const cmd = counted.filter(c => c.board === 'commander').map(c => info.get(c.oracleId)).filter((d): d is CardDetail => !!d);
+    const notLegal = cmd.filter(d => !canBeCommander({ typeLine: d.typeLine, oracleText: d.oracleText, supertypes: d.typeLine.split('—')[0].includes('Legendary') ? ['Legendary'] : [], types: d.typeLine.includes('Creature') ? ['Creature'] : [] }) && partnerKind({ typeLine: d.typeLine, oracleText: d.oracleText }) !== 'background');
+    if (notLegal.length) issues.push({ kind: 'illegal', message: `${notLegal.map(d => d.name).join(' and ')} can't be a commander`, cards: notLegal.map(d => ({ name: d.name, oracleId: d.oracleId, printingId: d.representativePrintingId ?? null })) });
+    if (cmd.length === 2 && !commanderPairLegal(cmd[0] as unknown as Parameters<typeof commanderPairLegal>[0], cmd[1] as unknown as Parameters<typeof commanderPairLegal>[1])) issues.push({ kind: 'illegal', message: `${cmd[0].name} and ${cmd[1].name} can't share the command zone`, cards: cmd.map(d => ({ name: d.name, oracleId: d.oracleId, printingId: d.representativePrintingId ?? null })) });
+    if (cmd.length) {
+      const identity = new Set(cmd.flatMap(d => d.colorIdentity));
+      const off = counted.filter(c => c.board === 'main').filter(c => { const d = info.get(c.oracleId); return d && d.colorIdentity.some(col => !identity.has(col)); });
+      if (off.length) issues.push({ kind: 'illegal', message: `${dedupe(off).length} card${dedupe(off).length === 1 ? '' : 's'} outside the commander's colour identity (${[...identity].join('') || 'colourless'})`, cards: dedupe(off) });
+    }
+  }
   // deck size
   const main = mainCount(counted);
   if (f.exactSize && main !== f.exactSize) issues.push({ kind: 'size', message: `${f.label} decks are exactly ${f.exactSize} cards (this one has ${main})`, cards: [] });

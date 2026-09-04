@@ -107,6 +107,7 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
   }
   for (const c of pl.graveyard) if (c.def.altCosts?.some(a => a.from === 'graveyard')) castActionsFor(g, p, c, 'graveyard', sorceryTiming, out);
   for (const c of pl.exile) if (c.castableFromExile && exileWindowOpen(s, p, c.castableFromExile)) castActionsFor(g, p, c, 'exile', sorceryTiming, out);
+  for (const c of pl.command ?? []) castActionsFor(g, p, c, 'command', sorceryTiming, out);
   // activated abilities of permanents
   for (const o of pl.battlefield) {
     if (o.token?.treasure && !o.tapped) { out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: -1 }, label: `sacrifice Treasure for mana` }); continue; }
@@ -160,7 +161,9 @@ function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZone, sor
   const auraSpec: TargetSpec | null = d.subtypes.includes('Aura') ? (d.abilities.find(a => a.kind === 'static' && a.effect.kind === 'aura') as { effect: { enchant: TargetSpec } } | undefined)?.effect.enchant ?? { kind: 'creature' } : null;
   const modal = effects.find(e => e.op === 'choose-mode');
   const modeSets: (number[] | undefined)[] = modal && modal.op === 'choose-mode' ? modeCombos(modal.modes.length, modal.count) : [undefined];
-  const adjust = costAdjust(s, p, c, from);
+  // commander tax (CR 903.8): {2} more for each time it was cast from the command zone before
+  const tax = from === 'command' ? 2 * (pl.commanderCasts?.[c.id] ?? 0) : 0;
+  const adjust = costAdjust(s, p, c, from) - tax;
   const regular = manaSources(s, pl, { forSpell: c });
   const extras = extraManaSources(s, pl, d, regular);
   const gy = pl.graveyard.filter(o => o.id !== c.id).length;
@@ -184,7 +187,7 @@ function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZone, sor
     for (const x of xs) {
       const xn = x ?? 0;
       const genericNeeded = Math.max(0, cost.generic + cost.x * xn - adjust);
-      const how: string[] = [alt ? alt.label : '', from === 'graveyard' && !alt ? 'from graveyard' : from === 'exile' ? 'from exile' : '', kicked ? 'kicked' : ''].filter(Boolean);
+      const how: string[] = [alt ? alt.label : '', from === 'graveyard' && !alt ? 'from graveyard' : from === 'exile' ? 'from exile' : from === 'command' ? (tax ? `from command zone, tax ${tax}` : 'from command zone') : '', kicked ? 'kicked' : ''].filter(Boolean);
       const mv = alt && !alt.cost.mana ? 0 : manaValue(cost, xn);
       if (tryPay(cost, xn, 0, false)) {
         variants.push({ alt, kicked, x, how, mv });

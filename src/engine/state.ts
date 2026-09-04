@@ -4,7 +4,7 @@ import type { GameEvent, GameEventType } from './events.js';
 
 /** A seat index (0..3). Two-player code that assumed 0 | 1 should use the helpers in players.ts. */
 export type PlayerId = number;
-export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'stack';
+export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'stack' | 'command';
 export type Step = 'untap' | 'upkeep' | 'draw' | 'main1' | 'combat-begin' | 'declare-attackers' | 'declare-blockers' | 'first-strike-damage' | 'combat-damage' | 'combat-end' | 'main2' | 'end' | 'cleanup';
 
 export interface TokenSpec { name: string; power: number; toughness: number; colors: Color[]; types: string[]; subtypes: string[]; keywords: Keyword[]; treasure?: boolean; clue?: boolean; spawn?: boolean; dynamicPT?: Amount }
@@ -42,8 +42,10 @@ export interface GameObject {
   activeFace?: 0 | 1;
   /** Abilities granted by effects (Saga chapters); indexed after def.abilities. */
   grantedAbilities?: Ability[];
+  /** This card is one of its owner's commanders (CR 903.3): it may return to the command zone when it would change zones. */
+  commander?: boolean;
 }
-export type CastZone = 'hand' | 'graveyard' | 'exile';
+export type CastZone = 'hand' | 'graveyard' | 'exile' | 'command';
 export type AltCostId = 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start';
 
 export interface DelayedTrigger { id: number; at: 'next-upkeep' | 'next-end-step' | 'your-next-end-step'; controller: PlayerId; sourceId: number; sourceName: string; effects: Effect[]; affected?: StackItem['affected']; createdTurn: number }
@@ -58,6 +60,14 @@ export interface Player {
   graveyard: GameObject[];
   exile: GameObject[];
   battlefield: GameObject[];
+  /** Command zone (Commander / Brawl): the player's commanders while not elsewhere. */
+  command: GameObject[];
+  /** Ids of this player's commanders. */
+  commanders: number[];
+  /** Times each commander was cast from the command zone (the tax counts them, CR 903.8). */
+  commanderCasts: Record<number, number>;
+  /** Combat damage taken from each commander id over the game (21 loses, CR 704.6c). */
+  commanderDamage: Record<number, number>;
   manaPool: ManaSymbol[];
   landsPlayedThisTurn: number;
   lost: boolean;
@@ -155,7 +165,7 @@ export type Decision =
   | { kind: 'attackers'; candidates: number[]; mustAttack: number[]; /** Players that can be attacked (multiplayer). */ defenders?: PlayerId[] }
   | { kind: 'blockers'; attackers: number[]; candidates: number[] }
   | { kind: 'choose-cards'; from: number[]; count: number; reason: string; exact: boolean }
-  | { kind: 'yes-no'; prompt: string; tag?: 'mulligan' | 'shock' | 'unless-pay' | 'dredge' | 'optional' }
+  | { kind: 'yes-no'; prompt: string; tag?: 'mulligan' | 'shock' | 'unless-pay' | 'dredge' | 'optional' | 'commander-zone' }
   | { kind: 'choose-mode'; modes: string[]; count: number }
   | { kind: 'choose-color'; reason: string }
   | { kind: 'choose-option'; options: string[]; reason: string }
@@ -182,7 +192,7 @@ export interface Agent {
 }
 
 export function makePlayer(id: PlayerId, name: string): Player {
-  return { id, name, life: 20, poison: 0, library: [], hand: [], graveyard: [], exile: [], battlefield: [], manaPool: [], landsPlayedThisTurn: 0, lost: false, attackedThisTurn: false, lifeLostThisTurn: 0, creaturesDiedThisTurn: 0, spellsCastThisTurn: 0 };
+  return { id, name, life: 20, poison: 0, library: [], hand: [], graveyard: [], exile: [], battlefield: [], command: [], commanders: [], commanderCasts: {}, commanderDamage: {}, manaPool: [], landsPlayedThisTurn: 0, lost: false, attackedThisTurn: false, lifeLostThisTurn: 0, creaturesDiedThisTurn: 0, spellsCastThisTurn: 0 };
 }
 
 export function makeObject(id: number, def: CardDef, owner: PlayerId, zone: Zone, turn: number): GameObject {

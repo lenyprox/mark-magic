@@ -59,6 +59,7 @@ export function PlaySetup() {
 
   const [seed, setSeed] = useState<string>(() => String(last?.options.seed ?? randomSeed()));
   const [life, setLife] = useState<number>(last?.options.startingLife ?? DEFAULT_START_OPTIONS.startingLife);
+  const [lifeTouched, setLifeTouched] = useState(false);
   const [mulligans, setMulligans] = useState<boolean>(last?.options.mulligans ?? DEFAULT_START_OPTIONS.mulligans);
   const [strength, setStrength] = useState<Strength>(String(last?.options.ai.maxSims ?? 300) as Strength);
   const [knowsList, setKnowsList] = useState<boolean>(last?.options.ai.knowsOpponentList ?? false);
@@ -75,6 +76,7 @@ export function PlaySetup() {
   const oppRef = oppRefs.find(r => refKey(r) === oppKey) ?? null;
   const formatOf = (r: DeckRef | null) => r?.kind === 'saved' ? ([...(mine.data ?? []), ...(opps.data ?? [])].find(d => d.id === r.id)?.format ?? null) : null;
   const commanderDecks = [myRef, oppRef].filter(r => /^(commander|edh|cedh|brawl)$/i.test(formatOf(r) ?? '')).map(r => r!.name);
+  useEffect(() => { if (!lifeTouched) setLife(commanderDecks.length ? 40 : DEFAULT_START_OPTIONS.startingLife); }, [commanderDecks.length, lifeTouched]);
   const seedNum = Number(seed);
   const seedOk = Number.isInteger(seedNum) && seedNum >= 0;
 
@@ -141,8 +143,8 @@ export function PlaySetup() {
             <Input aria-label="Your name" value={name} onChange={e => setName(e.target.value)} maxLength={24} />
           </div>
           {commanderDecks.length > 0 && (
-            <Callout variant="engine" title="Commander rules are not in the engine yet">
-              {commanderDecks.join(' and ')} will be played as a two-player game with the commander shuffled into the library. Set starting life to 40 below for a closer feel; the command zone, commander tax and 21-damage rule arrive with the Commander engine work.
+            <Callout variant="info" title="Commander rules are on">
+              {commanderDecks.join(' and ')}: commanders start in the command zone (cast them from the actions menu; the tax adds {'{2}'} per previous cast), a commander that would leave the battlefield returns to the command zone, and 21 combat damage from one commander loses the game. Starting life defaults to 40.
             </Callout>
           )}
         </section>

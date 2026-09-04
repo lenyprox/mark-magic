@@ -25,7 +25,7 @@ interface Bench { name: string; decks: string[]; games: number; ms: number; game
 
 async function bench(name: string, refs: string[], format: MatchSpec['format']): Promise<Bench> {
   const decks = refs.map(r => resolveDeckRef(r, cards, userDb).payload);
-  const spec: MatchSpec = { id: `bench-${name}`, decks, games, baseSeed: seed, seating: 'rotate', agent, aiSims: 30, format, maxTurns: 30, mulligans: 'lands', record: 'summary' };
+  const spec: MatchSpec = { id: `bench-${name}`, decks, games, baseSeed: seed, seating: 'rotate', agent, aiSims: 30, format, maxTurns: format === 'commander' ? 40 : 30, mulligans: 'lands', record: 'summary' };
   const r: MatchResult = await runMatches(spec, { yieldEvery: 1000 });
   const a = r.aggregate;
   console.log(`${name.padEnd(12)} ${a.games} games ${(a.ms / 1000).toFixed(1)} s  ${String(a.gamesPerSecond).padStart(6)} games/s  avg ${a.avgTurns} turns  draws ${a.draws}  errors ${a.errors}  unsimulated ${a.unsimulated}  win ${a.byDeck.map(d => (d.winRate.value * 100).toFixed(0) + '%').join(' / ')}`);
@@ -45,8 +45,8 @@ async function main() {
   fs.writeFileSync(path.join(dir, 'latest.json'), JSON.stringify(record, null, 1));
   fs.writeFileSync(path.join(dir, `bench-${record.at.replace(/[:.]/g, '-')}.json`), JSON.stringify(record, null, 1));
   if (userDb && agent === 'rollout') setSetting(userDb, 'bench_games_per_s', results[0].gamesPerSecond);
-  const slow = results.filter(r => r.gamesPerSecond < budget * (r.name === 'commander' ? 0.5 : 1));
-  if (slow.length) { console.error(`below budget (${budget} games/s for 60-card, half for Commander): ${slow.map(r => `${r.name} ${r.gamesPerSecond}`).join(', ')}`); process.exit(1); }
+  const slow = results.filter(r => r.gamesPerSecond < budget * (r.name === 'commander' ? 0.4 : 1));
+  if (slow.length) { console.error(`below budget (${budget} games/s for 60-card, 40% of that for Commander): ${slow.map(r => `${r.name} ${r.gamesPerSecond}`).join(', ')}`); process.exit(1); }
   console.log(`written ${path.join('data', 'bench', 'latest.json')}`);
 }
 

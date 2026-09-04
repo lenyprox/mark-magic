@@ -9,7 +9,7 @@ import { AiAgent } from '../ai/ai.js';
 import type { CardDef } from '../cards/types.js';
 import { defKey } from '../engine/serialize.js';
 import type { Agent, PlayerId } from '../engine/state.js';
-import { expandPayload } from '../play/payload.js';
+import { expandPayload, splitPayload } from '../play/payload.js';
 import type { DeckPayload } from '../play/protocol.js';
 import { createGame, firstSeat, winnerSeat } from './engineAdapter.js';
 import { InstrumentedAgent, seenNames } from './instrument.js';
@@ -50,12 +50,14 @@ export function specRef(spec: MatchSpec): MatchSpecRef {
   return { ...rest, gameStart: spec.gameStart ?? 0, decks: decks.map(d => ({ deckId: d.deckId, name: d.name, cards: d.main.reduce((a, e) => a + e.count, 0) + d.commander.reduce((a, e) => a + e.count, 0), hash: deckHash(d) })) };
 }
 
-export interface PreparedMatch { arrays: CardDef[][]; commanders: Set<string>[]; seats: number }
+export interface PreparedMatch { arrays: CardDef[][]; commanders: Set<string>[]; commanderDefs: CardDef[][]; seats: number }
 
 export function prepare(spec: MatchSpec): PreparedMatch {
   if (spec.decks.length < 2) throw new Error('a match needs at least two decks');
   const seats = spec.players ?? spec.decks.length;
-  return { arrays: spec.decks.map(deckArray), commanders: spec.decks.map(commanderNames), seats };
+  const commander = spec.format === 'commander';
+  const arrays = spec.decks.map(d => commander ? splitPayload(d).library.sort((a, b) => (defKey(a) < defKey(b) ? -1 : defKey(a) > defKey(b) ? 1 : 0)) : deckArray(d));
+  return { arrays, commanders: spec.decks.map(commanderNames), commanderDefs: spec.decks.map(d => commander ? splitPayload(d).commanders : []), seats };
 }
 
 function makeAgent(spec: MatchSpec, name: string, seat: number, seed: number): Agent {
@@ -76,7 +78,7 @@ export async function playOne(spec: MatchSpec, prepared: PreparedMatch, i: numbe
   const rec: GameRecordLite = { index: i, seed, seatOrder: order, winner: null, firstSeat: 0, turns: 0, mulligans: Array(n).fill(0), openingHand: Array.from({ length: n }, () => []), seen: Array.from({ length: n }, () => []), firstCommanderCastTurn: Array(n).fill(null), lossReason: Array(n).fill(null), unsimulated: 0, ms: 0 };
   let game;
   try {
-    game = createGame(order.map(d => prepared.arrays[d]), agents, { seed, quiet: true, mulligans: spec.mulligans !== 'none', maxTurns: spec.maxTurns, startingLife: spec.startingLife ?? (spec.format === 'commander' ? 40 : 20), fastMana: true });
+    game = createGame(order.map(d => prepared.arrays[d]), agents, { seed, quiet: true, mulligans: spec.mulligans !== 'none', maxTurns: spec.maxTurns, startingLife: spec.startingLife ?? (spec.format === 'commander' ? 40 : 20), fastMana: true, format: spec.format, commanders: order.map(d => prepared.commanderDefs[d]) });
     for (const a of agents) if (a.inner instanceof AiAgent) a.inner.attach(game);
     await game.play();
   } catch (e) {
@@ -197,7 +199,7 @@ export function matchDerivation(spec: MatchSpecRef, agg: MatchAggregate, deck = 
       spec.mulligans === 'none' ? 'every seven is kept' : 'a seven with 0-1 or 6-7 lands is mulliganed once',
       `a game still running after turn ${spec.maxTurns} is a draw (1/${n} of a win each)`,
       'cards with unparsed text play with those lines inert',
-      ...(spec.format === 'commander' ? ['commanders start in the library (the command zone arrives with the Commander milestone)'] : []),
+      ...(spec.format === 'commander' ? ['Commander rules: 40 life, command zone with tax, 21 combat damage from one commander loses, commanders return to the command zone'] : []),
     ],
     sim,
   };

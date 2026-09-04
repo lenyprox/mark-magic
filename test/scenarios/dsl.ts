@@ -13,6 +13,8 @@ import { defaultAnswer } from '../../src/engine/agents/defaults.js';
 
 export interface SeatSetup {
   hand?: string[]; bf?: string[]; graveyard?: string[]; exile?: string[]; libraryTop?: string[]; life?: number;
+  /** Commander games: cards that start in the command zone. */
+  command?: string[];
   /** Per card name: counters to place (first match on the battlefield). */
   counters?: Record<string, Record<string, number>>;
   tapped?: string[];
@@ -33,7 +35,7 @@ export type ScriptStep =
   | { answer: unknown };
 
 export type Expectation =
-  | { zone: [string, 'battlefield' | 'graveyard' | 'exile' | 'hand' | 'library' | 'stack'] }
+  | { zone: [string, 'battlefield' | 'graveyard' | 'exile' | 'hand' | 'library' | 'stack' | 'command'] }
   | { life: [number, number] }
   | { pt: [string, number, number] }
   | { keywords: [string, string[]] }
@@ -50,7 +52,8 @@ export interface Scenario {
   name: string;
   /** Rule and ruling the scenario pins (shown in failures and on the dashboard). */
   cr?: string; ruling?: string;
-  seats: [SeatSetup, SeatSetup];
+  seats: SeatSetup[];
+  format?: 'freeform' | 'commander';
   /** Which seat is active and in which step (default seat 0, main1, turn 5). */
   active?: number; step?: Step; turn?: number;
   script: ScriptStep[];
@@ -92,7 +95,7 @@ function place(g: Game, pid: PlayerId, names: string[] | undefined, zone: 'hand'
 
 function findByName(s: GameState, name: string, seat?: number): GameObject | undefined {
   const players = seat === undefined ? s.players : [s.players[seat as PlayerId]];
-  for (const p of players) for (const z of [p.battlefield, p.hand, p.graveyard, p.exile, p.library]) { const o = z.find(x => x.def.name === name); if (o) return o; }
+  for (const p of players) for (const z of [p.battlefield, p.hand, p.graveyard, p.exile, p.library, p.command]) { const o = z.find(x => x.def.name === name); if (o) return o; }
   for (const it of s.stack) if (it.source.def.name === name) return it.source;
   return undefined;
 }
@@ -111,14 +114,14 @@ function legalFor(g: Game, p: PlayerId, pred: (l: LegalAction) => boolean): Lega
 }
 
 export function buildScenario(sc: Scenario): Game {
-  const agents: [ScenarioAgent, ScenarioAgent] = [new ScenarioAgent('P0'), new ScenarioAgent('P1')];
+  const agents = sc.seats.map((_, i) => new ScenarioAgent(`P${i}`));
   const filler = Array(20).fill(C('Mountain'));
-  const g = new Game([filler, filler], agents, { seed: 1, quiet: true, mulligans: false, events: 'full' });
+  const g = new Game(sc.seats.map(() => filler), agents, { seed: 1, quiet: true, mulligans: false, events: 'full', format: sc.format ?? 'freeform', commanders: sc.seats.map(cfg => (cfg.command ?? []).map(C)) });
   const s = g.state;
   s.turn = sc.turn ?? 5; s.activePlayer = (sc.active ?? 0) as PlayerId; s.step = sc.step ?? 'main1'; s.priority = s.activePlayer;
   sc.seats.forEach((cfg, i) => {
     const pid = i as PlayerId; const pl = s.players[pid];
-    pl.life = cfg.life ?? 20;
+    pl.life = cfg.life ?? (sc.format === 'commander' ? 40 : 20);
     place(g, pid, cfg.bf, 'battlefield'); place(g, pid, cfg.hand, 'hand'); place(g, pid, cfg.graveyard, 'graveyard'); place(g, pid, cfg.exile, 'exile');
     for (const n of [...(cfg.libraryTop ?? [])].reverse()) pl.library.unshift(makeObject(s.nextId++, C(n), pid, 'library', 0));
     for (const [n, cs] of Object.entries(cfg.counters ?? {})) { const o = pl.battlefield.find(x => x.def.name === n); if (o) for (const [k, v] of Object.entries(cs)) o.counters[k] = v; }

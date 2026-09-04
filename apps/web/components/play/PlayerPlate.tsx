@@ -2,7 +2,7 @@
 // A player's plate: name, life (rolling), poison, library count, hand (fanned card backs for the opponent),
 // graveyard / exile stacks that open the zone drawer, and the mana pool. Doubles as a target when it is legal.
 import clsx from 'clsx';
-import { BookOpen, Skull, Sparkles } from 'lucide-react';
+import { BookOpen, Skull, Sparkles, Crown } from 'lucide-react';
 import type { PlayerId } from '@engine/state';
 import type { PlayerView } from '@play/view';
 import { ManaSymbol } from '@/components/text/ManaSymbol';
@@ -24,7 +24,7 @@ export interface PlayerPlateProps {
   dropTarget?: boolean;
   dropOver?: boolean;
   onClick?: (pid: PlayerId) => void;
-  onOpenZone: (pid: PlayerId, zone: 'graveyard' | 'exile') => void;
+  onOpenZone: (pid: PlayerId, zone: 'graveyard' | 'exile' | 'command') => void;
 }
 
 function CardBacks({ n }: { n: number }) {
@@ -65,6 +65,11 @@ export function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, pi
         {player.poison > 0 && <span className={styles.poison} title="Poison counters"><Skull size={12} aria-hidden /> {player.poison}</span>}
       </div>
       <div className={styles.plateZones}>
+        {(player.commanders?.length > 0) && (
+          <button type="button" className={clsx(styles.zoneBtn, !player.command.length && styles.zoneEmpty)} onClick={() => onOpenZone(player.id, 'command')} aria-label={`Command zone, ${player.command.length} cards`} title={`Command zone${Object.values(player.commanderCasts ?? {}).some(Boolean) ? ` · cast ${Object.values(player.commanderCasts).reduce((a, b) => a + b, 0)}× (tax {${2 * Object.values(player.commanderCasts).reduce((a, b) => a + b, 0)}})` : ''}${Object.values(player.commanderDamage ?? {}).length ? ` · commander damage taken ${Object.values(player.commanderDamage).join('/')}` : ''}`} data-testid={`command-zone-${player.id}`}>
+            <Crown size={13} aria-hidden /><span className="mono">{player.command.length}</span>
+          </button>
+        )}
         <span className={styles.zoneStat} title="Library"><BookOpen size={13} aria-hidden /><span className="mono">{player.librarySize}</span><span className="sr-only"> cards in library</span></span>
         <button type="button" className={clsx(styles.zoneBtn, !player.graveyard.length && styles.zoneEmpty)} onClick={() => onOpenZone(player.id, 'graveyard')} aria-label={`Graveyard, ${player.graveyard.length} cards`} title="Graveyard">
           {topGy?.printingId ? <CardImage printingId={topGy.printingId} face={topGy.face} size="small" alt="" className={styles.zoneThumb} /> : <span className={styles.zoneThumbEmpty} />}

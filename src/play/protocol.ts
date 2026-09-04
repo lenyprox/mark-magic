@@ -50,6 +50,8 @@ export interface StartOptions {
   mulligans: boolean;
   /** The seat the human plays (0 today); null = AI vs AI (spectate). */
   humanSeat: number | null;
+  /** Game format; when absent, Commander rules apply whenever a deck has a commander. */
+  format?: 'freeform' | 'commander' | 'brawl';
   ai: AiSettings;
   analysis: AnalysisSettings;
   stops?: Partial<StopPolicy>;

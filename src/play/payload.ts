@@ -23,9 +23,23 @@ export function buildDeckPayload(db: CardDB, list: DeckList, opts: PayloadOption
   return { deckId: opts.deckId ?? null, name: opts.name ?? list.name, defs, main, commander, missing, partial: [...partial].map(([name, unparsed]) => ({ name, unparsed })), list, archetype: opts.archetype ?? null };
 }
 
-/** Expand a payload into the flat CardDef[] the engine takes (commanders included in the library for now). */
+/** Expand a payload into the flat CardDef[] the engine takes, commanders shuffled in (freeform games). */
 export function expandPayload(p: DeckPayload): CardDef[] {
   const out: CardDef[] = [];
   for (const e of [...p.commander, ...p.main]) { const d = p.defs[e.key]; if (!d) continue; for (let i = 0; i < e.count; i++) out.push(d); }
   return out;
+}
+
+/** Library and command-zone cards separately (Commander games). */
+export function splitPayload(p: DeckPayload): { library: CardDef[]; commanders: CardDef[] } {
+  const library: CardDef[] = []; const commanders: CardDef[] = [];
+  for (const e of p.main) { const d = p.defs[e.key]; if (!d) continue; for (let i = 0; i < e.count; i++) library.push(d); }
+  for (const e of p.commander) { const d = p.defs[e.key]; if (!d) continue; for (let i = 0; i < e.count; i++) commanders.push(d); }
+  return { library, commanders };
+}
+
+/** Whether a game between these payloads should use Commander rules. */
+export function isCommanderMatch(decks: DeckPayload[], format?: string | null): boolean {
+  if (format) return /^(commander|edh|cedh|brawl)$/i.test(format);
+  return decks.some(d => d.commander.length > 0);
 }

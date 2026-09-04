@@ -10,7 +10,7 @@ export type EventMode = 'none' | 'counts' | 'full';
 export type ZoneRef = Zone | 'none';
 export type ZoneChangeReason = 'draw' | 'discard' | 'destroy' | 'sacrifice' | 'mill' | 'exile' | 'bounce' | 'cast' | 'resolve' | 'countered' | 'play' | 'enter' | 'token' | 'dredge' | 'search' | 'dig' | 'tuck' | 'mulligan' | 'sba' | 'cost' | 'effect' | 'return';
 
-export type SbaKind = 'lethal-damage' | 'zero-toughness' | 'zero-loyalty' | 'aura-unattached' | 'legend-rule' | 'saga-final' | 'life' | 'poison' | 'counters-cancel' | 'empty-library';
+export type SbaKind = 'lethal-damage' | 'zero-toughness' | 'zero-loyalty' | 'aura-unattached' | 'legend-rule' | 'saga-final' | 'life' | 'poison' | 'counters-cancel' | 'empty-library' | 'commander-damage';
 
 interface Base { seq: number; turn: number; step: Step; /** The log line this event produced (empty for silent events). */ text: string; /** Comprehensive Rules citation, when one applies. */ cr?: string }
 
@@ -41,7 +41,7 @@ export type GameEventBody =
   | { type: 'sba'; kind: SbaKind; id?: number; name?: string; player?: PlayerId; detail?: string }
   | { type: 'player-eliminated'; player: PlayerId; reason: string }
   | { type: 'game-over'; winner: PlayerId | null; reason: string }
-  | { type: 'replaced'; what: 'regenerate' | 'indestructible' | 'protection' | 'rebound' | 'dredge' | 'mox-diamond' | 'exile-instead' | 'shuffle-instead'; id?: number; name?: string }
+  | { type: 'replaced'; what: 'regenerate' | 'indestructible' | 'protection' | 'rebound' | 'dredge' | 'mox-diamond' | 'exile-instead' | 'shuffle-instead' | 'commander-zone'; id?: number; name?: string }
   | { type: 'prevented'; id?: number; name?: string; player?: PlayerId; amount: number | 'all'; by: string }
   | { type: 'mana'; player: PlayerId; added: ManaSymbol[]; source?: string }
   | { type: 'library'; player: PlayerId; action: 'shuffle' | 'scry' | 'surveil' | 'look' | 'reveal' | 'search' | 'dig' | 'order'; count?: number; found?: string[]; cards?: string[] }
@@ -72,10 +72,10 @@ export function citation(ev: GameEventBody): string | undefined {
     case 'block': return '509.1';
     case 'damage': return ev.combat ? '510.2' : '120.3';
     case 'life': return ev.delta < 0 ? '119.3' : '119.3';
-    case 'sba': return { 'lethal-damage': '704.5g', 'zero-toughness': '704.5f', 'zero-loyalty': '704.5i', 'aura-unattached': '704.5m', 'legend-rule': '704.5j', 'saga-final': '714.4', life: '704.5a', poison: '704.5c', 'counters-cancel': '704.5q', 'empty-library': '704.5b' }[ev.kind];
+    case 'sba': return { 'lethal-damage': '704.5g', 'zero-toughness': '704.5f', 'zero-loyalty': '704.5i', 'aura-unattached': '704.5m', 'legend-rule': '704.5j', 'saga-final': '714.4', life: '704.5a', poison: '704.5c', 'counters-cancel': '704.5q', 'empty-library': '704.5b', 'commander-damage': '704.6c' }[ev.kind];
     case 'player-eliminated': return '104.3';
     case 'game-over': return ev.winner === null ? '104.4' : '104.2';
-    case 'replaced': return ev.what === 'regenerate' ? '701.19' : ev.what === 'indestructible' ? '702.12b' : ev.what === 'protection' ? '702.16' : ev.what === 'rebound' ? '702.88' : ev.what === 'dredge' ? '702.52' : '614.1';
+    case 'replaced': return ev.what === 'regenerate' ? '701.19' : ev.what === 'indestructible' ? '702.12b' : ev.what === 'protection' ? '702.16' : ev.what === 'rebound' ? '702.88' : ev.what === 'dredge' ? '702.52' : ev.what === 'commander-zone' ? '903.9a' : '614.1';
     case 'prevented': return '615.1';
     case 'mulligan': return '103.5';
     case 'transform': return '712.1';
@@ -129,6 +129,7 @@ export function renderEvent(ev: GameEventBody, pname: (p: PlayerId) => string): 
         case 'legend-rule': return `Legend rule: ${ev.name}#${ev.id} is put into the graveyard.`;
         case 'saga-final': return `${ev.name} is sacrificed (final chapter).`;
         case 'lethal-damage': return `${ev.name}#${ev.id} is destroyed.`;
+        case 'commander-damage': return `${pname(ev.player!)} has taken 21 or more combat damage from ${ev.name}.`;
         default: return ev.detail ?? '';
       }
     }
@@ -141,6 +142,7 @@ export function renderEvent(ev: GameEventBody, pname: (p: PlayerId) => string): 
         case 'protection': return `${ev.name} has protection; damage prevented.`;
         case 'rebound': return `${ev.name} is exiled (rebound); it may be cast for free during its owner's next upkeep.`;
         case 'mox-diamond': return `${ev.name} is put into its owner's graveyard instead of entering.`;
+        case 'commander-zone': return `${ev.name} is put into the command zone instead.`;
         default: return `${ev.name ?? 'It'} is replaced (${ev.what}).`;
       }
     }
@@ -175,7 +177,7 @@ function zoneChangeText(ev: Extract<GameEventBody, { type: 'zone-change' }>, pna
 }
 
 /** Public-knowledge rule for a zone change: identity is public when either end is a public zone (CR 400.2). */
-export function zoneIsPublic(z: ZoneRef): boolean { return z === 'battlefield' || z === 'graveyard' || z === 'exile' || z === 'stack'; }
+export function zoneIsPublic(z: ZoneRef): boolean { return z === 'battlefield' || z === 'graveyard' || z === 'exile' || z === 'stack' || z === 'command'; }
 
 /** Redact an event for a viewer: hide the identity of cards the viewer may not know. */
 export function redactEvent(ev: GameEvent, viewer: PlayerId | null): GameEvent {

@@ -18,12 +18,15 @@ export interface PermanentView extends CardView {
 export interface PlayerView {
   id: PlayerId; name: string; life: number; poison: number; librarySize: number; handSize: number;
   hand: CardView[] | null; battlefield: PermanentView[]; graveyard: CardView[]; exile: CardView[];
+  /** Commander: the command zone, the ids of this player's commanders, casts so far (tax) and combat damage taken per commander id. */
+  command: CardView[]; commanders: number[]; commanderCasts: Record<number, number>; commanderDamage: Record<number, number>;
   manaPool: ManaSymbol[]; landsPlayedThisTurn: number; lost: boolean; lossReason?: string;
 }
 export interface StackItemView { id: number; kind: StackItem['kind']; name: string; controller: PlayerId; text: string; sourceId: number; source: CardView; targets: TargetRef[]; targetLabels: string[]; countered: boolean }
 export interface ViewState {
   gameId: string; viewer: PlayerId | null; turn: number; activePlayer: PlayerId; step: Step; priority: PlayerId; winner: PlayerId | null;
   players: PlayerView[]; turnOrder: PlayerId[]; stack: StackItemView[]; attackers: number[]; logLength: number; passesInRow: number;
+  format: 'freeform' | 'commander' | 'brawl';
 }
 
 function defOf(o: GameObject): CardDef { return o.def; }
@@ -61,6 +64,7 @@ export function buildView(g: Game, viewer: PlayerId | null, gameId = ''): ViewSt
       id: p.id, name: p.name, life: p.life, poison: p.poison, librarySize: p.library.length, handSize: p.hand.length,
       hand: show ? p.hand.map(o => cardView(s, o)) : null,
       battlefield: p.battlefield.map(o => permanentView(s, o)), graveyard: p.graveyard.map(o => cardView(s, o)), exile: p.exile.map(o => cardView(s, o)),
+      command: (p.command ?? []).map(o => cardView(s, o)), commanders: [...(p.commanders ?? [])], commanderCasts: { ...(p.commanderCasts ?? {}) }, commanderDamage: { ...(p.commanderDamage ?? {}) },
       manaPool: [...p.manaPool], landsPlayedThisTurn: p.landsPlayedThisTurn, lost: p.lost, lossReason: p.lossReason,
     };
     return pv;
@@ -69,5 +73,5 @@ export function buildView(g: Game, viewer: PlayerId | null, gameId = ''): ViewSt
     const targets = [...it.targetsByEffect.values()].flat();
     return { id: it.id, kind: it.kind, name: it.name, controller: it.controller, text: it.text, sourceId: it.source.id, source: cardView(s, it.source), targets, targetLabels: targets.map(t => g.refName(t)), countered: !!it.countered } satisfies StackItemView;
   });
-  return { gameId, viewer, turn: s.turn, activePlayer: s.activePlayer, step: s.step, priority: s.priority, winner: s.winner, players, turnOrder: [...(s.turnOrder ?? players.map(p => p.id))], stack, attackers: [...s.attackers], logLength: s.log.length, passesInRow: s.passesInRow };
+  return { gameId, viewer, turn: s.turn, activePlayer: s.activePlayer, step: s.step, priority: s.priority, winner: s.winner, players, turnOrder: [...(s.turnOrder ?? players.map(p => p.id))], stack, attackers: [...s.attackers], logLength: s.log.length, passesInRow: s.passesInRow, format: g.opts.format ?? (g.commanderRules ? 'commander' : 'freeform') };
 }

@@ -69,7 +69,7 @@ export function Table({ gameId }: { gameId: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [boot, setBoot] = useState<'idle' | 'loading' | 'missing' | 'ready' | 'failed'>('idle');
   const [bootError, setBootError] = useState<string | null>(null);
-  const [zone, setZone] = useState<{ pid: PlayerId; zone: 'graveyard' | 'exile' } | null>(null);
+  const [zone, setZone] = useState<{ pid: PlayerId; zone: 'graveyard' | 'exile' | 'command' } | null>(null);
   const [panels, setPanels] = useState<{ log: boolean; analysis: boolean }>({ log: false, analysis: true });
   const [sheet, setSheet] = useState<'analysis' | 'log' | null>(null);
   const [help, setHelp] = useState(false);

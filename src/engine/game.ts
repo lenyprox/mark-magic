@@ -31,6 +31,12 @@ export interface GameOptions {
   fastMana?: boolean;
   /** Event recording: 'counts' (default) keeps per-type counts, 'full' keeps the typed stream in state.events. */
   events?: EventMode;
+  /** Format rules: 'commander' = 40 life, command zone, tax, 21 commander damage, commander zone replacement. */
+  format?: 'freeform' | 'commander' | 'brawl';
+  /** Per seat: the cards that start in the command zone (Commander / Brawl). */
+  commanders?: CardDef[][];
+  /** The first mulligan costs nothing (CR 103.5c multiplayer; default: commander games with three or more players). */
+  freeFirstMulligan?: boolean;
 }
 
 export class Game {
@@ -48,13 +54,17 @@ export class Game {
     this.state = { turn: 0, activePlayer: 0, step: 'untap', priority: 0, players: agents.map((a, i) => makePlayer(i, a.name)), turnOrder: agents.map((_, i) => i), stack: [], nextId: 1, log: [], winner: null, attackers: [], extraTurns: [], passesInRow: 0, knowledge: makeKnowledge(agents.length), version: 0, eventCounts: {} };
     if ((opts.events ?? 'counts') === 'full') this.state.events = [];
     if (opts.events === 'none') delete this.state.eventCounts;
+    const startingLife = opts.startingLife ?? (opts.format === 'commander' ? 40 : opts.format === 'brawl' ? 25 : 20);
     decks.forEach((deck, i) => {
       const p = this.state.players[i];
-      p.life = opts.startingLife ?? 20;
+      p.life = startingLife;
       for (const def of deck) p.library.push(makeObject(this.state.nextId++, def, i as PlayerId, 'library', 0));
       this.shuffle(p.id);
+      for (const def of opts.commanders?.[i] ?? []) { const o = makeObject(this.state.nextId++, def, i as PlayerId, 'command', 0); o.commander = true; p.command.push(o); p.commanders.push(o.id); }
     });
   }
+  /** Whether Commander rules (command zone, tax, 21 damage, zone replacement) are in force. */
+  get commanderRules(): boolean { return this.opts.format === 'commander' || this.opts.format === 'brawl' || this.state.players.some(p => p.commanders?.length); }
 
   /** Build a Game around an existing (cloned) state; used for AI simulations. */
   static fromState(state: GameState, agents: Agent[], opts: GameOptions = {}): Game {
@@ -189,6 +199,7 @@ export class Game {
   async play(): Promise<PlayerId | null> {
     const s = this.state;
     s.activePlayer = s.turnOrder[this.rng.int(s.turnOrder.length)];
+    const freeMulligan = this.opts.freeFirstMulligan ?? (this.commanderRules && s.players.length > 2);
     for (const p of s.players) {
       let mulls = 0;
       for (;;) {
@@ -199,7 +210,8 @@ export class Game {
         mulls++; this.emit({ type: 'mulligan', player: p.id, count: mulls });
         for (const c of [...p.hand]) this.moveTo(c, 'library', 'top', 'mulligan'); this.shuffle(p.id);
       }
-      if (mulls > 0) { const ids = await this.ask(p.id, { kind: 'choose-cards', from: p.hand.map(c => c.id), count: mulls, reason: `Put ${mulls} card(s) on the bottom of your library`, exact: true }) as number[]; for (const id of ids) { const c = p.hand.find(x => x.id === id); if (c) this.moveTo(c, 'library', 'bottom'); } }
+      const bottom = Math.max(0, mulls - (freeMulligan ? 1 : 0));
+      if (bottom > 0) { const ids = await this.ask(p.id, { kind: 'choose-cards', from: p.hand.map(c => c.id), count: bottom, reason: `Put ${bottom} card(s) on the bottom of your library`, exact: true }) as number[]; for (const id of ids) { const c = p.hand.find(x => x.id === id); if (c) this.moveTo(c, 'library', 'bottom'); } }
     }
     this.emit({ type: 'game-start', first: s.activePlayer, players: s.players.map(p => p.name) });
     while (s.winner === null) {
@@ -362,7 +374,7 @@ export class Game {
     if (a.alt && !alt) return false;
     if (alt && alt.from !== from) return false;
     const window = card.castableFromExile;
-    if (!alt && from !== 'hand' && !(from === 'exile' && window && exileWindowOpen(s, p, window))) return false;
+    if (!alt && from !== 'hand' && from !== 'command' && !(from === 'exile' && window && exileWindowOpen(s, p, window))) return false;
     if (alt?.condition && !conditionHolds(s, { ...card, controller: p }, alt.condition)) return false;
     const spellAb = def.abilities.find(ab => ab.kind === 'spell');
     const effects = spellAb ? spellAb.effects : [];
@@ -370,7 +382,8 @@ export class Game {
     const free = from === 'exile' && !alt && !!window?.free;
     if (!free && !alt && !def.manaCost) return false;
     const cost = free ? ZERO_COST : spellManaCost(def, alt, a.kicked);
-    const adjust = costAdjust(s, p, card, from);
+    const tax = from === 'command' ? 2 * (pl.commanderCasts[card.id] ?? 0) : 0;
+    const adjust = costAdjust(s, p, card, from) - tax;
     const genericNeeded = Math.max(0, cost.generic + cost.x * x - adjust);
     const gy = pl.graveyard.filter(o => o.id !== card.id);
     const regular = manaSources(s, pl, { forSpell: card });
@@ -416,7 +429,8 @@ export class Game {
     const colorsSpent = new Set([...pay.pool, ...pay.taps.flatMap(t => t.option)].filter(c => c !== 'C')).size;
     card.castWith = { alt: alt?.id, from, kicked: !!a.kicked, x, delved: delveIds.length, colorsSpent };
     pl.spellsCastThisTurn++;
-    const how = [alt ? alt.label : '', from === 'graveyard' && !alt ? 'from graveyard' : from === 'exile' ? 'from exile' : '', delveIds.length ? `delve ${delveIds.length}` : '', a.kicked ? 'kicked' : ''].filter(Boolean);
+    if (from === 'command') pl.commanderCasts[card.id] = (pl.commanderCasts[card.id] ?? 0) + 1;
+    const how = [alt ? alt.label : '', from === 'graveyard' && !alt ? 'from graveyard' : from === 'exile' ? 'from exile' : from === 'command' ? (tax ? `from command zone, tax ${tax}` : 'from command zone') : '', delveIds.length ? `delve ${delveIds.length}` : '', a.kicked ? 'kicked' : ''].filter(Boolean);
     this.emit({ type: 'cast', itemId: item.id, id: card.id, name: def.name, player: p, targets: this.targetNames(item), how, x: x || undefined });
     this.queueTriggers('cast', { obj: card, player: p });
     // prowess-style keyword
@@ -1070,7 +1084,9 @@ export class Game {
     if ((this.state as GameState & { fog?: number }).fog === this.state.turn && this.state.step.includes('combat')) { this.emit({ type: 'prevented', player: p, amount: n, by: 'fog' }, ''); return; }
     const pl = this.state.players[p];
     pl.life -= n; pl.lifeLostThisTurn += n;
-    this.emit({ type: 'damage', sourceId: src.id, source: name(src), player: p, amount: n, combat: this.state.step.includes('combat-damage') || this.state.step === 'first-strike-damage', total: pl.life });
+    const combat = this.state.step === 'combat-damage' || this.state.step === 'first-strike-damage';
+    if (combat && src.commander) pl.commanderDamage[src.id] = (pl.commanderDamage[src.id] ?? 0) + n;
+    this.emit({ type: 'damage', sourceId: src.id, source: name(src), player: p, amount: n, combat, total: pl.life });
     if (hasKeyword(this.state, src, 'lifelink')) this.gainLife(src.controller, n);
     this.queueTriggers('life-loss-opponent', { player: p });
   }
@@ -1106,7 +1122,10 @@ export class Game {
   moveTo(o: GameObject, zone: import('./state.js').Zone, libraryPos: 'top' | 'bottom' = 'top', reason: ZoneChangeReason = 'effect') {
     const s = this.state;
     const removeFrom = (arr: GameObject[]) => { const i = arr.indexOf(o); if (i >= 0) arr.splice(i, 1); };
-    for (const p of s.players) { removeFrom(p.hand); removeFrom(p.battlefield); removeFrom(p.graveyard); removeFrom(p.exile); removeFrom(p.library); }
+    for (const p of s.players) { removeFrom(p.hand); removeFrom(p.battlefield); removeFrom(p.graveyard); removeFrom(p.exile); removeFrom(p.library); removeFrom(p.command); }
+    // CR 903.9a-b: a commander headed for the graveyard, exile, hand or library goes to the command zone instead
+    let redirected = false;
+    if (o.commander && !o.token && (zone === 'graveyard' || zone === 'exile' || zone === 'library' || zone === 'hand')) { zone = 'command'; redirected = true; }
     const wasOnBattlefield = o.zone === 'battlefield';
     const fromZone: import('./events.js').ZoneRef = o.zone; const wasController = o.controller;
     if (wasOnBattlefield) {
@@ -1138,9 +1157,10 @@ export class Game {
     const owner = s.players[zone === 'battlefield' ? o.controller : o.owner];
     if (zone === 'library') { if (libraryPos === 'top') owner.library.unshift(o); else owner.library.push(o); }
     else if (zone === 'battlefield') { o.enteredTurn = s.turn; owner.battlefield.push(o); if (isType(o, 'Planeswalker') && defOf(o).loyalty != null) o.counters.loyalty = defOf(o).loyalty!; }
-    else if (zone === 'hand' || zone === 'graveyard' || zone === 'exile') owner[zone].push(o);
+    else if (zone === 'hand' || zone === 'graveyard' || zone === 'exile' || zone === 'command') owner[zone].push(o);
     // the battlefield entry event is emitted by enterBattlefield once the tapped state and counters are known
-    if (zone !== 'battlefield') this.emit({ type: 'zone-change', id: o.id, name: name(o), owner: o.owner, controller: wasController, from: fromZone, to: zone, reason, token: false, public: isPublic, libraryPos: zone === 'library' ? libraryPos : undefined });
+    if (zone !== 'battlefield') this.emit({ type: 'zone-change', id: o.id, name: name(o), owner: o.owner, controller: wasController, from: fromZone, to: zone, reason, token: false, public: isPublic || zone === 'command', libraryPos: zone === 'library' ? libraryPos : undefined });
+    if (redirected) this.emit({ type: 'replaced', what: 'commander-zone', id: o.id, name: name(o) });
   }
 
   // ------------------------------------------------------------------ leaving the game (CR 104, 800.4)
@@ -1186,6 +1206,7 @@ export class Game {
       const lostNow: Player[] = [];
       for (const p of s.players) if (p.life <= 0 && !p.lost) { p.lost = true; p.lossReason = 'life total 0 or less'; this.emit({ type: 'sba', kind: 'life', player: p.id }, ''); lostNow.push(p); }
       for (const p of s.players) if (p.poison >= 10 && !p.lost) { p.lost = true; p.lossReason = 'ten poison counters'; this.emit({ type: 'sba', kind: 'poison', player: p.id }, ''); lostNow.push(p); }
+      for (const p of s.players) if (!p.lost) { const [cid] = Object.entries(p.commanderDamage ?? {}).find(([, d]) => d >= 21) ?? []; if (cid !== undefined) { p.lost = true; p.lossReason = '21 combat damage from a commander'; this.emit({ type: 'sba', kind: 'commander-damage', player: p.id, id: Number(cid), name: findObject(s, Number(cid)) ? name(findObject(s, Number(cid))!) : 'a commander' }); lostNow.push(p); } }
       if (lostNow.length && this.settleEliminations(lostNow)) return;
       if (s.winner !== null) return;
       for (const o of allPermanents(s)) {

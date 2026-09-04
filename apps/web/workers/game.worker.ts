@@ -12,7 +12,7 @@ import { defTable } from '@engine/serialize';
 import { AnalysisPool, inlineWorker, defaultPoolSize, type WorkerLike } from '@analysis/pool';
 import type { AnalysisReport, ListEntry, McRequest, OpponentModel } from '@analysis/types';
 import { buildView } from '@play/view';
-import { expandPayload } from '@play/payload';
+import { expandPayload, isCommanderMatch, splitPayload } from '@play/payload';
 import type { MainToWorker, WorkerToMain, StartOptions, DeckPayload } from '@play/protocol';
 import type { Reasoning } from '@ai/ai';
 
@@ -134,7 +134,9 @@ async function start(id: string, decks: DeckPayload[], opts: StartOptions) {
   }
   const extra = decks.slice(2).map((d, i) => { const a = new AiAgent({ ...aiOpts, name: `AI ${i + 2}`, myList: listOf(d), opponentModel: { kind: 'none' as const } }); a.onLog = onLog; return a; });
   const agents: Agent[] = [seat0, ai, ...extra];
-  game = new Game(decks.map(expandPayload), agents, { seed: opts.seed, startingLife: opts.startingLife, maxTurns: opts.maxTurns, mulligans: opts.mulligans, events: 'full' });
+  const commander = isCommanderMatch(decks, opts.format);
+  const split = decks.map(splitPayload);
+  game = new Game(commander ? split.map(x => x.library) : decks.map(expandPayload), agents, { seed: opts.seed, startingLife: opts.startingLife, maxTurns: opts.maxTurns, mulligans: opts.mulligans, events: 'full', format: commander ? 'commander' : 'freeform', commanders: commander ? split.map(x => x.commanders) : undefined });
   for (const a of agents) if (a instanceof AiAgent) a.attach(game);
   post({ type: 'started', gameId, view: buildView(game, viewer, gameId) });
   try {

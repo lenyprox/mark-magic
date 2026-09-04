@@ -6,7 +6,7 @@ import { opponentsOf } from './players.js';
 
 export function allPermanents(s: GameState): GameObject[] { return s.players.length === 2 ? [...s.players[0].battlefield, ...s.players[1].battlefield] : s.players.flatMap(p => p.battlefield); }
 export function findObject(s: GameState, id: number): GameObject | undefined {
-  for (const p of s.players) for (const z of [p.battlefield, p.hand, p.graveyard, p.exile, p.library]) { const o = z.find(x => x.id === id); if (o) return o; }
+  for (const p of s.players) for (const z of [p.battlefield, p.hand, p.graveyard, p.exile, p.library, p.command]) { const o = z.find(x => x.id === id); if (o) return o; }
   for (const it of s.stack) if (it.source.id === id) return it.source;
   return undefined;
 }
