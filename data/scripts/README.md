@@ -35,9 +35,9 @@ Sibling directories under `data/scripts/`:
 | `confidence` | 0..1 for `generated` / `llm`; reviewed and hand scripts are 1 |
 | `mode` | `replace` (default) or `extend` |
 | `keywords`, `abilities`, `altCosts`, `asEnters`, `costModifiers` | the front face's declarations |
-| `covers` | oracle lines (normalised, `~` for the card name) this script accounts for; with `extend` they are removed from `unparsed`. The single entry `"*"` means *every remaining unparsed line* and is only allowed with `mode: "replace"`. |
-| `backFace` | the same six fields for the back face of a transforming / modal double-faced card; applied to `def.backFace` with the same replace/extend semantics |
-| `ignore` | `[{ line, reason }]` — oracle lines that are deliberately not simulated. They are dropped from `unparsed` and stop blocking `fullyParsed`. The line must match an oracle line **exactly** after the parser's normalisation, and `scripts:check` rejects a line containing a verb the engine can already model (deal / draw / destroy / exile / counter / create / sacrifice / gain / lose / put / return / search / tap / untap / discard / mill). |
+| `covers` | the lines (see **Normalisation**) this script accounts for; with `extend` they are removed from `unparsed`. The single entry `"*"` means *every remaining unparsed line*; it is read only under `mode: "extend"`, and `scripts:check` rejects it under `mode: "replace"`, which already clears every line. |
+| `backFace` | the same six fields for the back face of a transforming / modal double-faced card; applied to `def.backFace` with the same replace/extend semantics. A card counts as fully simulated only when **both** faces do, so a script that finishes the front face of a double-faced card and says nothing about the back leaves it unfinished — `scripts:check` reports the back face's remaining lines. |
+| `ignore` | `[{ line, reason }]` — oracle lines that are deliberately not simulated. They are dropped from `unparsed` and stop blocking `fullyParsed`. The line must be one `scriptableLines(def)` names (see **Normalisation**), and `scripts:check` rejects a line containing a verb the engine can already model (deal / draw / destroy / exile / counter / create / sacrifice / gain / lose / put / return / search / tap / untap / discard / mill) **unless the line proves its own reason** — it carries the word `ante`, `draft`/`booster pack`, `outside the game`/`sideboard`, a deck-construction phrase, an un-set physical action or a digital-only keyword. Contract from Below’s “Discard your hand, ante the top card of your library, then draw seven cards.” is `ante`-ignorable; “Destroy target creature.” is not ignorable under any reason. `reminder-only` gets no exemption. |
 | `scenarios` | names of scenarios in `test/scenarios/` that verify the script behaviourally |
 | `aiHints` | optional `role`, `value`, `timing` for the AI |
 | `notes` | free text |
@@ -50,8 +50,17 @@ Sibling directories under `data/scripts/`:
 
 `covers` and `ignore` lines must be written exactly as the parser sees them: card name replaced by `~`, reminder text
 in parentheses removed, `−` normalised to `-`, ability words and "Flavour — " prefixes stripped, whitespace trimmed.
-`normalizeOracleLines(def)` in `src/cards/scripts.ts` returns that list — modal bullets as `• …` and back-face lines
-as `// …`. Copy from `def.unparsed` when in doubt.
+
+**`scriptableLines(def)` in `src/cards/scripts.ts` returns the authoritative list**, and that is what `scripts:check`
+validates against. It is the union of two things:
+
+* `normalizeOracleLines(def)` — the card's normalised oracle *lines*, modal bullets as `• …` and back-face lines as `// …`;
+* `def.unparsed` (and the back face's own, prefixed `// `) — because `parse.ts` reports some clauses as sub-sentence
+  **fragments** rather than whole lines. 4,736 of the pool's 35,108 unparsed entries (13.5%, over 2,716 cards) are such
+  fragments and appear in no whole line — Veil of Summer's `"Spells you control can't be countered this turn."`,
+  Goblin Barrage's `"If ~ was kicked, it also deals 4 damage to target player or planeswalker."`.
+
+So: **copy from `def.unparsed`**. `normalizeOracleLines` alone is not the contract.
 
 ## Vocabulary and validation
 

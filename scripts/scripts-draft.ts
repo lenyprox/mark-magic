@@ -6,13 +6,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { CardDB } from '../src/cards/db.js';
-import { oracleHash, ScriptStore, type CardScript } from '../src/cards/scripts.js';
-import { DATA_DIR } from '../src/config/paths.js';
+// data/scripts is TRACKED, so it is resolved from this checkout (DEFAULT_SCRIPTS_DIR) and never through DATA_DIR(),
+// which falls back to the main checkout for the gitignored databases.
+import { DEFAULT_SCRIPTS_DIR, oracleHash, ScriptStore, type CardScript } from '../src/cards/scripts.js';
 
 const args = process.argv.slice(2);
 const opt = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const limit = Number(opt('--limit') ?? '200'); const only = opt('--name');
-const outDir = opt('--out') ?? path.join(DATA_DIR(), 'scripts', 'drafts');
+const outDir = opt('--out') ?? path.join(DEFAULT_SCRIPTS_DIR(), 'drafts');
 const canonical = new ScriptStore();
 fs.mkdirSync(outDir, { recursive: true });
 

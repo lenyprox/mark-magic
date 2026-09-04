@@ -14,7 +14,7 @@
 // as the composed discriminated union, and every enum a registry will widen (Keyword, TargetSpec.kind,
 // Amount.count, AltCost.id, AltCost.from) lives in exactly one named constant, so merging is a one-line edit.
 import { z } from 'zod';
-import type { Ability, Amount, Condition, Effect, Filter, Keyword, StaticAbility, StaticEffect, TriggerEvent } from './types.js';
+import type { Ability, Amount, Condition, Effect, Filter, StaticAbility, StaticEffect, TriggerEvent } from './types.js';
 import { IGNORE_REASONS } from './scripts.js';
 
 // ---------------------------------------------------------------------------
@@ -30,8 +30,9 @@ import { IGNORE_REASONS } from './scripts.js';
 //   * six static-effect fields are spread in with `as object` (parse.ts:1059-1078) and read back by the engine:
 //     `anthem.opponentsOnly` (characteristics.ts:175), `self-keywords.mustAttack` (game.ts:1754),
 //     `.doesntUntap` (characteristics.ts:184), `.evasion` / `.blockOnlyFlying` (characteristics.ts:344-346) and
-//     `self-pt.condition`. Extra keys cannot be typed away, so those three variants — and only those three — are
-//     pinned against `ParsedStaticEffect` / `ParsedAbility` below instead of the bare declarations.
+//     `self-pt.condition`. Extra keys cannot be typed away, so those three variants are pinned against
+//     `ParsedStaticEffect` / `ParsedAbility` below — which `Extract` them from `StaticEffect` and add only the six
+//     extra fields, so every field types.ts declares on them stays pinned. Those six NAMES are the whole hole.
 //
 // Everything else is pinned against types.ts exactly. 8a-1 does not touch this block.
 // ---------------------------------------------------------------------------
@@ -39,15 +40,23 @@ import { IGNORE_REASONS } from './scripts.js';
 /** Homomorphic field override: optional/readonly modifiers of `T` are preserved. */
 type Replace<T, R> = { [K in keyof T]: K extends keyof R ? R[K] : T[K] };
 
+/** Flattens an intersection back into one object type (homomorphic, so `?` modifiers survive) — `Equals<>` needs it. */
+type Simplify<T> = { [K in keyof T]: T[K] };
+
+/** One member of `StaticEffect`, selected by its discriminant, so types.ts stays its single declaration. */
+type StaticVariant<K extends StaticEffect['kind']> = Extract<StaticEffect, { kind: K }>;
+
 /**
- * The three static-effect variants parse.ts extends past types.ts. Everything else is `Exclude`d straight out of
- * `StaticEffect`, so adding or removing a variant still breaks the compile-time assertion; only the extra FIELDS of
- * these three members are unpinned.
+ * The three static-effect variants parse.ts extends past types.ts. Each is `Extract`ed from `StaticEffect` and only
+ * the extra FIELDS are added here, so every field types.ts declares on them stays pinned: retype or drop
+ * `anthem.scope` or `self-keywords.cantBlock` in types.ts and `typecheck:all` fails, exactly as for a normal
+ * variant. Everything else is `Exclude`d straight out of `StaticEffect`, so adding or removing a whole variant
+ * breaks the assertion too. The six field names listed below are the entire hole.
  */
 export type ParsedStaticEffect =
-  | { kind: 'anthem'; power: number; toughness: number; filter: Filter; scope: 'you-control' | 'all' | 'other-you-control'; keywords?: Keyword[]; condition?: Condition; anyPermanent?: boolean; whileInGraveyard?: boolean; landwalk?: string[]; opponentsOnly?: boolean }
-  | { kind: 'self-pt'; power: Amount; toughness: Amount; condition?: Condition }
-  | { kind: 'self-keywords'; keywords: Keyword[]; condition?: Condition; cantBlock?: boolean; mustAttack?: boolean; doesntUntap?: boolean; blockOnlyFlying?: boolean; evasion?: Filter }
+  | Simplify<StaticVariant<'anthem'> & { opponentsOnly?: boolean }>
+  | Simplify<StaticVariant<'self-pt'> & { condition?: Condition }>
+  | Simplify<StaticVariant<'self-keywords'> & { mustAttack?: boolean; doesntUntap?: boolean; blockOnlyFlying?: boolean; evasion?: Filter }>
   | Exclude<StaticEffect, { kind: 'anthem' | 'self-pt' | 'self-keywords' }>;
 
 /** `Ability` with the widened static effect; the other three members are taken from types.ts unchanged. */
@@ -612,16 +621,18 @@ export const CardScriptSchema = z.strictObject({
 });
 
 /**
- * `CardScriptSchema` plus the cross-field rules the plan states: `covers: ['*']` ("every remaining unparsed line")
- * is only allowed with `mode: 'replace'`. Use this in tooling; use `CardScriptSchema` where the plain object schema
- * is needed (`z.toJSONSchema`, type pinning).
+ * `CardScriptSchema` plus the cross-field rules: `covers: ['*']` ("every remaining unparsed line") is only allowed
+ * with `mode: 'extend'` — that is the mode `applyScript` reads `covers` in at all, and under `mode: 'replace'` every
+ * line is cleared anyway, so a `'*'` there would be a no-op that reads like a claim. Use this in tooling; use
+ * `CardScriptSchema` where the plain object schema is needed (`z.toJSONSchema`, type pinning).
  */
+const STAR_ONLY_WITH_EXTEND = "covers: ['*'] is only allowed with mode 'extend' (mode 'replace' already accounts for every line)";
 export const CardScriptChecked = CardScriptSchema.refine(
-  s => !(s.covers ?? []).includes('*') || (s.mode ?? 'replace') === 'replace',
-  { message: "covers: ['*'] is only allowed with mode 'replace'", path: ['covers'] },
+  s => !(s.covers ?? []).includes('*') || s.mode === 'extend',
+  { message: STAR_ONLY_WITH_EXTEND, path: ['covers'] },
 ).refine(
-  s => !(s.backFace?.covers ?? []).includes('*') || (s.mode ?? 'replace') === 'replace',
-  { message: "backFace.covers: ['*'] is only allowed with mode 'replace'", path: ['backFace', 'covers'] },
+  s => !(s.backFace?.covers ?? []).includes('*') || s.mode === 'extend',
+  { message: `backFace.${STAR_ONLY_WITH_EXTEND}`, path: ['backFace', 'covers'] },
 );
 
 // Convenience aliases for the tooling (test/schema-types.test.ts pins each of these to its types.ts counterpart).

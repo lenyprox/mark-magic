@@ -9,14 +9,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { CardDB } from '../src/cards/db.js';
-import { DATA_DIR } from '../src/config/paths.js';
+import { projectRoot } from '../src/config/paths.js';
 import {
-  AbilityCostSchema, AbilitySchema, AltCostSchema, AsEntersSchema, CardScriptSchema, ConditionSchema, CostModifierSchema,
+  AbilityCostSchema, AbilitySchema, AltCostSchema, AsEntersSchema, CardScriptChecked, CardScriptSchema, ConditionSchema, CostModifierSchema,
   EFFECT_VARIANTS, EffectSchema, FilterSchema, ManaCostSchema, ScriptFaceSchema, StaticEffectSchema, TargetSpecSchema,
   TriggerEventSchema, VerificationSchema, AmountSchema,
 } from '../src/cards/schema.js';
 import type { ParsedAbility, ParsedStaticEffect } from '../src/cards/schema.js';
-import { oracleHash, type CardScript, type ScriptFace, type Verification } from '../src/cards/scripts.js';
+import { DEFAULT_SCRIPTS_DIR, oracleHash, type CardScript, type ScriptFace, type Verification } from '../src/cards/scripts.js';
 import type { AbilityCost, AltCost, Amount, AsEnters, Condition, CostModifier, Effect, Filter, ManaCost, TargetSpec, TriggerEvent } from '../src/cards/types.js';
 import type { z } from 'zod';
 
@@ -41,9 +41,11 @@ const _trigger: Equals<z.infer<typeof TriggerEventSchema>, TriggerEvent> = true;
 // NARROWED (2 of the 16). parse.ts spreads four undeclared fields into `self-keywords`, one into `anthem` and a
 // `condition` into `self-pt` with `as object` casts, and the engine reads them back (see the header of
 // src/cards/schema.ts). The schema must accept what the parser really emits, so these two members are pinned against
-// `ParsedStaticEffect` / `ParsedAbility` — which are themselves derived from types.ts with `Exclude<>` / `Replace<>`,
-// so a variant added to or removed from types.ts still breaks the assertion; only the extra FIELDS of those three
-// static variants are unpinned. Nothing else is weakened.
+// `ParsedStaticEffect` / `ParsedAbility` — which are derived from types.ts with `Extract<>` / `Exclude<>` /
+// `Replace<>`: a variant added to or removed from types.ts breaks the assertion, and so does adding, removing or
+// retyping any FIELD of those three static variants, because they are `Extract`ed rather than re-declared. The hole
+// is exactly six field NAMES (anthem.opponentsOnly, self-pt.condition, self-keywords.mustAttack / .doesntUntap /
+// .blockOnlyFlying / .evasion), which the schema may declare without types.ts knowing. Nothing else is weakened.
 const _static: Equals<z.infer<typeof StaticEffectSchema>, ParsedStaticEffect> = true;
 const _ability: Equals<z.infer<typeof AbilitySchema>, ParsedAbility> = true;
 const _face: Equals<z.infer<typeof ScriptFaceSchema>, ScriptFace> = true;
@@ -104,12 +106,18 @@ test('schema: strict objects reject a typo\'d field', () => {
 });
 
 test('schema: CardScriptSchema accepts the documented example and rejects a bad ignore reason', () => {
-  const raw = fs.readFileSync(path.join(DATA_DIR(), 'scripts', '_example.json.txt'), 'utf8');
-  assert.ok(!raw.includes('\r'), '_example.json.txt must be LF');
+  // DEFAULT_SCRIPTS_DIR(), not DATA_DIR(): scripts are tracked and live in this checkout. DATA_DIR() falls back to
+  // the main checkout when a linked worktree has no master.db, which would validate a *different* example file.
+  const file = path.join(DEFAULT_SCRIPTS_DIR(), '_example.json.txt');
+  assert.ok(file.startsWith(projectRoot()), `the example must be read from this checkout (${projectRoot()}), got ${file}`);
+  const raw = fs.readFileSync(file, 'utf8');
+  assert.ok(!raw.includes('\r'), `${file} must be LF`);
   const example = JSON.parse(raw) as CardScript;
   example.oracleHash = oracleHash('Whenever this creature attacks, you gain 1 life.');
   const ok = CardScriptSchema.safeParse(example);
   assert.equal(ok.success, true, ok.success ? '' : JSON.stringify(ok.error.issues, null, 1));
+  const checked = CardScriptChecked.safeParse(example);   // the cross-field rules scripts:check applies
+  assert.equal(checked.success, true, checked.success ? '' : JSON.stringify(checked.error.issues, null, 1));
 
   const bad = { ...example, ignore: [{ line: 'Draft this card face up.', reason: 'because-i-say-so' }] };
   assert.ok(!CardScriptSchema.safeParse(bad).success, 'unknown ignore reason must be rejected');

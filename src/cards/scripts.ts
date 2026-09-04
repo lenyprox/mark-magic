@@ -30,9 +30,41 @@ export const IGNORE_REASONS = [
 export type IgnoreReason = typeof IGNORE_REASONS[number];
 
 export interface IgnoredLine {
-  /** The oracle line, normalised exactly as `normalizeOracleLines` produces it. */
+  /** The line exactly as `scriptableLines(def)` names it (a normalised oracle line, or a fragment the parser itself reported). */
   line: string;
   reason: IgnoreReason;
+}
+
+/** A verb the engine can already model. A line an author calls unsimulable is suspect when it contains one. */
+const SIMULABLE_VERB = /\b(deal|deals|dealt|draw|draws|drawn|destroy|destroys|exile|exiles|exiled|counter|counters|create|creates|sacrifice|sacrifices|gain|gains|lose|loses|put|puts|return|returns|search|searches|tap|taps|untap|untaps|discard|discards|mill|mills)\b/i;
+
+/**
+ * …but ante, drafting, wish and deck-construction clauses talk about putting, drawing and exiling cards in zones that
+ * do not exist during a game. Contract from Below is "Discard your hand, ante the top card of your library, then draw
+ * seven cards." and `ante` is a reason that exists for exactly those nine cards, so the verb alone proves nothing
+ * there — the marker below is what makes the line unsimulable. `reminder-only` has no marker and never gets the
+ * exemption, and a line matching no marker still faces the verb gate, so "Destroy target creature." can never be
+ * ignored as `draft-matters`.
+ */
+const REASON_MARKER: Record<IgnoreReason, RegExp | null> = {
+  'draft-matters': /\b(draft|drafts|drafted|drafting|booster pack|draft round)\b/i,
+  'ante': /\bante[sd]?\b/i,
+  'outside-the-game': /\b(outside the game|sideboard|your collection|owns? outside)\b/i,
+  'deck-construction': /\b(any number of cards named|starting deck|your opening hand|deck can have|companion)\b/i,
+  'reminder-only': null,
+  'un-physical': /\b(assemble|assembling|contraption|sticker|dexterity|physically|the table|behind your back|die roll|roll a six-sided)\b/i,
+  'digital-only': /\b(conjure|conjures|conjured|perpetually|seek|seeks|spellbook)\b/i,
+};
+
+/**
+ * Whether a line may be ignored for the reason given: `null` when it may, otherwise the reason it may not.
+ * `scripts:check` turns a non-null result into a problem.
+ */
+export function ignoreLineProblem(line: string, reason: IgnoreReason): string | null {
+  const marker = REASON_MARKER[reason];
+  if (marker && marker.test(line)) return null;   // the line proves its own reason
+  const m = line.match(SIMULABLE_VERB);
+  return m ? `hides a simulable verb "${m[0]}" and carries no ${reason} marker` : null;
 }
 
 /**
@@ -68,9 +100,9 @@ export interface ScriptFace {
   asEnters?: AsEnters[];
   costModifiers?: CostModifier[];
   /**
-   * Oracle lines (normalised, `~` for the card name) this face accounts for; with mode 'extend' they are removed
-   * from `unparsed`. The single entry `'*'` means "every remaining unparsed line" and is only allowed with
-   * mode 'replace' (where it is implied anyway).
+   * Lines (as `scriptableLines(def)` names them) this face accounts for; with mode 'extend' they are removed from
+   * `unparsed`. The single entry `'*'` means "every remaining unparsed line"; it is read only in mode 'extend' and
+   * `CardScriptChecked` rejects it in mode 'replace', where every line is cleared anyway.
    */
   covers?: string[];
 }
@@ -156,21 +188,45 @@ export function normalizeOracleLine(line: string): string {
 }
 
 /**
- * Every oracle line of a card in the exact form `covers` / `ignore` must name it: the front face's normalised lines,
- * each modal bullet, and the back face's lines prefixed with `// ` (the marker `parse.ts` uses for back-face text).
+ * Every oracle LINE of a card as the parser normalises it: the front face's lines, any modal bullet embedded in a
+ * line, and the back face's lines prefixed with `// ` (the marker `parse.ts` uses for back-face text). Deduplicated
+ * and order-preserving — a line that is itself a bullet is emitted once, not twice.
+ *
+ * This is not by itself the set an authored `covers` / `ignore` may name: `parse.ts` also reports sub-sentence
+ * FRAGMENTS in `unparsed` (`e.text` at parse.ts:1357 and `• ${e.text}` at parse.ts:1401), and 4,736 of the pool's
+ * 35,108 unparsed entries — 13.5%, across 2,716 cards, e.g. Veil of Summer's "Spells you control can't be countered
+ * this turn." — are such fragments and appear in no whole line. Use `scriptableLines(def)` for the authoring
+ * contract; this function is the oracle-text half of it.
  */
 export function normalizeOracleLines(def: Pick<CardDef, 'name' | 'oracleText' | 'layout' | 'faces' | 'backFace'>): string[] {
   const text = (def.faces && def.faces.length > 1 && ['adventure', 'split', 'transform', 'modal_dfc', 'flip'].includes(def.layout))
     ? (def.faces[0].oracleText ?? '')
     : (def.oracleText ?? '');
   const out: string[] = [];
+  const push = (l: string) => { const t = l.trim(); if (t && !out.includes(t)) out.push(t); };
   for (const raw of normalizeOracleText(text, def.name).split('\n')) {
     const line = normalizeOracleLine(raw);
     if (!line) continue;
-    out.push(line);
-    for (const bullet of line.split(/\n?• /).slice(1)) if (bullet.trim()) out.push('• ' + bullet.trim());
+    push(line);
+    // a line that *starts* with a bullet is already the bullet; only split a line that embeds further ones
+    if (line.indexOf('• ') > 0) for (const bullet of line.split(/\n?• /).slice(1)) push('• ' + bullet.trim());
   }
-  if (def.backFace) for (const l of normalizeOracleLines(def.backFace)) out.push('// ' + l);
+  if (def.backFace) for (const l of normalizeOracleLines(def.backFace)) push('// ' + l);
+  return out;
+}
+
+/**
+ * The exact set of strings a script's `covers` / `ignore` may name for this card, and what `scripts:check` validates
+ * against: every normalised oracle line (above) plus every entry the parser actually put in `unparsed` — including
+ * the back face's own, prefixed with `// `. The parser's `unparsed` is authoritative because it reports some clauses
+ * as fragments rather than whole lines (see `normalizeOracleLines`); copying from `def.unparsed` is always correct.
+ */
+export function scriptableLines(def: Pick<CardDef, 'name' | 'oracleText' | 'layout' | 'faces' | 'backFace' | 'unparsed'>): string[] {
+  const out: string[] = [];
+  const push = (l: string) => { const t = l.trim(); if (t && !out.includes(t)) out.push(t); };
+  for (const l of normalizeOracleLines(def)) push(l);
+  for (const u of def.unparsed) push(u);
+  if (def.backFace) for (const u of def.backFace.unparsed) push('// ' + u.trim());
   return out;
 }
 
@@ -275,10 +331,27 @@ export function useScriptStore(store: ScriptStore | null) { shared = store; }
 
 const hasUnknownEffect = (abilities: Ability[]) => abilities.some(a => 'effects' in a && a.effects.some(e => e.op === 'unknown'));
 
-/** Apply one face's declarations to a def (front face or `def.backFace`); returns a copy, the input is untouched. */
-function applyFace(def: CardDef, face: ScriptFace, mode: 'replace' | 'extend', ignored: Set<string>): CardDef {
+/** How much of a face a script actually declares. Zero means the script says nothing about this face. */
+function declarationCount(face: ScriptFace | null | undefined): number {
+  if (!face) return 0;
+  return (face.abilities?.length ?? 0) + (face.keywords?.length ?? 0) + (face.altCosts?.length ?? 0)
+    + (face.asEnters?.length ?? 0) + (face.costModifiers?.length ?? 0) + (face.covers?.length ?? 0);
+}
+
+/**
+ * Apply one face's declarations to a def (front face or `def.backFace`); returns a copy, the input is untouched.
+ *
+ * `mode: 'replace'` means "this face's declarations stand in for the parser's", so it clears `unparsed`. That is only
+ * true of a face that declares SOMETHING: a script with no abilities, keywords, alt costs, as-enters, cost modifiers
+ * or covers accounts for nothing, and clearing `unparsed` for it would silently mark the card simulated (and inflate
+ * coverage) without a line of behaviour behind it. Such a face — including the missing `backFace` of a script that
+ * only covers the front — falls through to the additive branch, where the parser's own output stands and only
+ * covered / ignored lines are dropped. That is what makes an `ignore`-only script (the ante cards) do the right
+ * thing in either mode.
+ */
+function applyFace(def: CardDef, face: ScriptFace | null | undefined, mode: 'replace' | 'extend', ignored: Set<string>): CardDef {
   const out: CardDef = { ...def, keywords: [...def.keywords], abilities: [...def.abilities], unparsed: [...def.unparsed], producesMana: [...def.producesMana] };
-  if (mode === 'replace') {
+  if (mode === 'replace' && face && declarationCount(face) > 0) {
     if (face.keywords) out.keywords = [...face.keywords];
     if (face.abilities) out.abilities = [...face.abilities];
     if (face.altCosts) out.altCosts = [...face.altCosts];
@@ -286,16 +359,16 @@ function applyFace(def: CardDef, face: ScriptFace, mode: 'replace' | 'extend', i
     if (face.costModifiers) out.costModifiers = [...face.costModifiers];
     out.unparsed = []; out.fullyParsed = true;
   } else {
-    if (face.keywords) for (const k of face.keywords) if (!out.keywords.includes(k)) out.keywords.push(k);
-    if (face.abilities) out.abilities.push(...face.abilities);
-    if (face.altCosts) out.altCosts = [...(out.altCosts ?? []), ...face.altCosts];
-    if (face.asEnters) out.asEnters = [...(out.asEnters ?? []), ...face.asEnters];
-    if (face.costModifiers) out.costModifiers = [...(out.costModifiers ?? []), ...face.costModifiers];
-    const covers = (face.covers ?? []).map(c => c.trim());
+    if (face?.keywords) for (const k of face.keywords) if (!out.keywords.includes(k)) out.keywords.push(k);
+    if (face?.abilities) out.abilities.push(...face.abilities);
+    if (face?.altCosts) out.altCosts = [...(out.altCosts ?? []), ...face.altCosts];
+    if (face?.asEnters) out.asEnters = [...(out.asEnters ?? []), ...face.asEnters];
+    if (face?.costModifiers) out.costModifiers = [...(out.costModifiers ?? []), ...face.costModifiers];
+    const covers = (face?.covers ?? []).map(c => c.trim());
     const covered = new Set(covers);
     out.unparsed = covers.includes('*') ? [] : out.unparsed.filter(u => {
       const t = u.trim();
-      return !covered.has(t) && !ignored.has(t) && !ignored.has(t.replace(/^\/\/ /, ''));
+      return !covered.has(t) && !ignored.has(t);
     });
     out.fullyParsed = out.unparsed.length === 0 && !hasUnknownEffect(out.abilities);
   }
@@ -308,10 +381,14 @@ function applyFace(def: CardDef, face: ScriptFace, mode: 'replace' | 'extend', i
  * Apply a card's script to the parser's output. A stale script (oracle text changed since it was written) is not
  * applied; the def records the status either way so coverage reports can list stale scripts.
  *
- * `ignore` lines are dropped from `unparsed` and therefore stop blocking `fullyParsed`. `covers: ['*']` clears every
- * remaining unparsed line. `backFace` is applied to `def.backFace` (set by parse.ts for transform / modal
- * double-faced cards) with the same replace/extend semantics; the back face's `// `-prefixed entries in the front
- * face's `unparsed` are cleared as the back face's own lines are. `verification` is tool-owned and ignored here.
+ * `ignore` lines are dropped from `unparsed` and therefore stop blocking `fullyParsed`; an entry may be written with
+ * or without the `// ` back-face marker. `covers: ['*']` clears every remaining unparsed line (mode 'extend' only).
+ *
+ * `backFace` is applied to `def.backFace` (set by parse.ts for transform / modal double-faced cards) with the same
+ * replace/extend semantics, and the back face is applied WHETHER OR NOT the script declares one: a card is fully
+ * simulated only when both of its faces are, so a script that finishes the front and says nothing about the back
+ * leaves `fullyParsed` false rather than clearing the front face's `// `-prefixed lines and claiming the card.
+ * `verification` is tool-owned and ignored here.
  */
 export function applyScript(def: CardDef, script: CardScript | null): CardDef {
   if (!script) return def;
@@ -319,16 +396,16 @@ export function applyScript(def: CardDef, script: CardScript | null): CardDef {
   // types.ts still carries the pre-8a `source` union; 'llm' is written at runtime and read back by the tooling.
   if (script.oracleHash !== oracleHash(def.oracleText)) { status.stale = true; def.script = status as CardDef['script']; return def; }
   const mode = script.mode ?? 'replace';
-  const ignored = new Set((script.ignore ?? []).map(i => i.line.trim()));
+  const ignoreLines = (script.ignore ?? []).map(i => i.line.trim());
+  // a back-face line may be named either as the parser reports it on the front ("// X") or as the back face sees it ("X")
+  const ignored = new Set([...ignoreLines, ...ignoreLines.map(l => l.replace(/^\/\/ /, ''))]);
   const out = applyFace(def, script, mode, ignored);
-  if (script.backFace && def.backFace) {
+  if (def.backFace) {
     const back = applyFace(def.backFace, script.backFace, mode, ignored);
     out.backFace = back;
-    if (mode === 'extend') {
-      const stillUnparsed = new Set(back.unparsed.map(u => '// ' + u.trim()));
-      out.unparsed = out.unparsed.filter(u => !u.trim().startsWith('// ') || stillUnparsed.has(u.trim()));
-      out.fullyParsed = out.unparsed.length === 0 && !hasUnknownEffect(out.abilities);
-    }
+    const stillUnparsed = new Set(back.unparsed.map(u => '// ' + u.trim()));
+    out.unparsed = out.unparsed.filter(u => !u.trim().startsWith('// ') || stillUnparsed.has(u.trim()));
+    out.fullyParsed = out.fullyParsed && out.unparsed.length === 0 && back.fullyParsed;
   }
   status.applied = true; out.script = status as CardDef['script'];
   return out;

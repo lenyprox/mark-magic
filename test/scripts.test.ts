@@ -7,9 +7,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { CardDB } from '../src/cards/db.js';
 import {
-  applyScript, normalizeOracleLines, oracleHash, scriptHash, shardOf, ScriptStore, useScriptStore,
-  type CardScript, type ScriptSource, type Verification,
+  applyScript, ignoreLineProblem, normalizeOracleLines, oracleHash, scriptableLines, scriptHash, shardOf, ScriptStore,
+  useScriptStore, type CardScript, type ScriptSource, type Verification,
 } from '../src/cards/scripts.js';
+import { CardScriptChecked } from '../src/cards/schema.js';
 import { db } from './helpers.js';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'scripts-'));
@@ -78,12 +79,107 @@ test('applyScript: backFace is applied to def.backFace and clears the front face
   assert.equal(hunt.backFace!.abilities[0].text !== 'back', true, 'the input def is untouched');
 });
 
-test('normalizeOracleLines reproduces exactly the lines the parser reports as unparsed', () => {
+test('normalizeOracleLines: whole lines, back-face lines as "// …", no duplicate entries anywhere in the pool', () => {
   for (const name of ['Delver of Secrets', 'Huntmaster of the Fells', 'Thing in the Ice']) {
     const d = db.get(name)!;
     const lines = new Set(normalizeOracleLines(d));
     for (const u of d.unparsed) assert.ok(lines.has(u.trim()), `${name}: unparsed line not produced by normalizeOracleLines: ${u}`);
+    assert.ok(normalizeOracleLines(d).some(l => l.startsWith('// ')), `${name}: the back face's lines must be listed as "// …"`);
   }
+  // a modal bullet used to be emitted twice (pushed as a line, then re-pushed by the bullet split)
+  const all = new CardDB();
+  let cards = 0, entries = 0;
+  try {
+    for (const d of all.all()) {
+      if (cards++ % 7) continue;
+      const lines = normalizeOracleLines(d);
+      entries += lines.length;
+      assert.equal(new Set(lines).size, lines.length, `${d.name}: normalizeOracleLines emitted a duplicate: ${JSON.stringify(lines)}`);
+    }
+  } finally { all.close(); }
+  assert.ok(entries > 5000, `expected thousands of normalised lines, got ${entries}`);
+});
+
+test('scriptableLines names every entry the parser reports as unparsed — which normalizeOracleLines alone does not', () => {
+  // parse.ts reports some clauses as sentence FRAGMENTS (parse.ts:1357 / :1401), so covers/ignore are validated
+  // against scriptableLines = normalised lines ∪ def.unparsed ∪ the back face's own unparsed as "// …".
+  const veil = db.get('Veil of Summer')!;
+  const fragment = veil.unparsed.find(u => !normalizeOracleLines(veil).includes(u.trim()));
+  assert.ok(fragment, 'Veil of Summer must still show the fragment normalizeOracleLines cannot reproduce');
+  assert.ok(scriptableLines(veil).includes(fragment!.trim()), 'scriptableLines must name it');
+
+  const all = new CardDB();
+  let cards = 0, missing = 0, checked = 0;
+  try {
+    for (const d of all.all()) {
+      if (cards++ % 7) continue;
+      const lines = new Set(scriptableLines(d));
+      for (const u of d.unparsed) { checked++; if (!lines.has(u.trim())) missing++; }
+      for (const u of d.backFace?.unparsed ?? []) { checked++; if (!lines.has('// ' + u.trim())) missing++; }
+    }
+  } finally { all.close(); }
+  assert.ok(checked > 2000, `expected thousands of unparsed entries, got ${checked}`);
+  assert.equal(missing, 0, `${missing} of ${checked} unparsed entries are unnameable by a script`);
+});
+
+test('applyScript: a replace script that says nothing about the back face does not finish a double-faced card', () => {
+  const hunt = db.get('Huntmaster of the Fells')!;
+  assert.ok(hunt.backFace && !hunt.backFace.fullyParsed, 'Huntmaster\'s back face must start unfinished');
+  const frontOnly = applyScript(hunt, {
+    oracleId: hunt.oracleId, name: hunt.name, oracleHash: oracleHash(hunt.oracleText), source: 'hand', mode: 'replace',
+    abilities: [{ kind: 'triggered', event: { on: 'etb', self: true }, effects: [{ op: 'gain-life', amount: 2, who: 'you' }], text: 'front' }],
+  });
+  assert.equal(frontOnly.fullyParsed, false, 'a card is fully simulated only when BOTH faces are');
+  assert.equal(frontOnly.backFace!.fullyParsed, false);
+  assert.ok(frontOnly.backFace!.unparsed.length > 0, 'the back face keeps its own unparsed lines');
+});
+
+test('applyScript: an empty authored script never marks a card fully simulated', () => {
+  const bears = db.get('Grizzly Bears')!;
+  const base = { ...bears, unparsed: ['~ has an unmodelled line.'], fullyParsed: false };
+  for (const source of ['hand', 'reviewed', 'llm'] as ScriptSource[]) {
+    for (const mode of ['replace', 'extend'] as const) {
+      const empty = applyScript(base, { oracleId: bears.oracleId, name: bears.name, oracleHash: oracleHash(bears.oracleText), source, mode, notes: 'empty script' });
+      assert.equal(empty.fullyParsed, false, `${source}/${mode}: an empty script declares nothing and must not finish the card`);
+      assert.deepEqual(empty.unparsed, ['~ has an unmodelled line.']);
+    }
+  }
+  // …but an ignore-only script still works, in either mode: the line stops blocking without anything being claimed
+  const ante = { ...bears, unparsed: ['Remove ~ from your deck before playing if you are not playing for ante.'], fullyParsed: false };
+  for (const mode of ['replace', 'extend'] as const) {
+    const only = applyScript(ante, {
+      oracleId: bears.oracleId, name: bears.name, oracleHash: oracleHash(bears.oracleText), source: 'hand', mode,
+      ignore: [{ line: 'Remove ~ from your deck before playing if you are not playing for ante.', reason: 'ante' }],
+    });
+    assert.equal(only.fullyParsed, true, `${mode}: an ignore-only script finishes a card whose only gap is ignorable`);
+  }
+});
+
+test("covers ['*'] is honoured in the mode the schema allows it in", () => {
+  const bears = db.get('Grizzly Bears')!;
+  const base: CardScript = { oracleId: bears.oracleId, name: bears.name, oracleHash: oracleHash(bears.oracleText), source: 'hand', covers: ['*'], abilities: [{ kind: 'static', effect: { kind: 'self-keywords', keywords: ['haste'] }, text: 'x' }] };
+  assert.ok(CardScriptChecked.safeParse({ ...base, mode: 'extend' }).success, "mode 'extend' is where applyScript reads covers");
+  assert.ok(!CardScriptChecked.safeParse({ ...base, mode: 'replace' }).success, "mode 'replace' clears every line anyway");
+  assert.ok(!CardScriptChecked.safeParse(base).success, 'the default mode is replace, so bare "*" is rejected too');
+  assert.ok(!CardScriptChecked.safeParse({ ...base, mode: 'replace', backFace: { covers: ['*'] } }).success);
+  assert.ok(CardScriptChecked.safeParse({ ...base, mode: 'extend', backFace: { covers: ['*'] } }).success);
+});
+
+test('ignoreLineProblem: a simulable verb blocks a line unless the line proves its own reason', () => {
+  // the ante and draft-matters reasons exist for lines that read exactly like this
+  assert.equal(ignoreLineProblem('Discard your hand, ante the top card of your library, then draw seven cards.', 'ante'), null);
+  assert.equal(ignoreLineProblem('As you draft a card, you may draft an additional card from that booster pack. If you do, put ~ into that booster pack.', 'draft-matters'), null);
+  assert.equal(ignoreLineProblem('You may exile ~ from your hand. If you do, search for a card you own from outside the game.', 'outside-the-game'), null);
+  assert.equal(ignoreLineProblem('A deck can have any number of cards named ~.', 'deck-construction'), null);
+  assert.equal(ignoreLineProblem('Conjure a card into your hand.', 'digital-only'), null);
+  assert.equal(ignoreLineProblem('Assemble a Contraption.', 'un-physical'), null);
+  // …but the reason may not be used as a blanket excuse
+  assert.ok(ignoreLineProblem('Destroy target creature.', 'draft-matters')?.includes('simulable verb'));
+  assert.ok(ignoreLineProblem('Draw a card.', 'ante')?.includes('simulable verb'));
+  assert.ok(ignoreLineProblem('You gain 3 life.', 'reminder-only')?.includes('simulable verb'), 'reminder-only has no marker exemption');
+  // a line with no simulable verb at all is always fine
+  assert.equal(ignoreLineProblem('Draft ~ face up.', 'draft-matters'), null);
+  assert.equal(ignoreLineProblem('~ is every creature type.', 'reminder-only'), null);
 });
 
 test('ScriptStore: sharded layout, flat fallback, pathFor and the CardDB hook', () => {
