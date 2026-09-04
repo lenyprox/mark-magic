@@ -33,4 +33,10 @@ export const keywords: Scenario[] = [
     script: [{ cast: 'Zurgo Bellstriker', alt: 'dash' }, { resolve: true }, attackWith(['Zurgo Bellstriker']), { turns: 1 }],
     expect: [{ zone: ['Zurgo Bellstriker', 'hand'] }],
   },
+  {
+    name: 'A werewolf transforms at upkeep when no spells were cast last turn', cr: '701.28',
+    seats: [{ bf: ['Reckless Waif'] }, {}],
+    script: [{ turns: 2 }],
+    expect: [{ log: /transforms/ }],
+  },
 ];

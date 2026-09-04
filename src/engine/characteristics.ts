@@ -179,6 +179,13 @@ export function conditionHolds(s: GameState, src: GameObject, c: unknown): boole
     case 'hand-has': return me.hand.some(o => matchesFilter(s, o, cond.filter, src));
     case 'opponents-lands-ge': return opps.reduce((a, pl) => a + pl.battlefield.filter(isLand).length, 0) >= cond.value;
     case 'opponent-more-lands': return opps.some(pl => pl.battlefield.filter(isLand).length > me.battlefield.filter(isLand).length);
+    case 'spells-cast-last-turn': return cond.who === 'none' ? s.players.every(pl => (pl.spellsCastLastTurn ?? 0) === 0) : s.players.some(pl => (pl.spellsCastLastTurn ?? 0) >= (cond.value ?? 2));
+    case 'self-was-cast': return !!src.castWith;
+    case 'self-is-type': return types(src).includes(cond.type);
+    case 'self-in-graveyard': return src.zone === 'graveyard';
+    case 'self-had-counters': { const c = src.zone !== 'battlefield' && src.lastKnown?.counters ? src.lastKnown.counters : src.counters; return (c[cond.counter] ?? 0) > 0; }
+    case 'life-gained-ge': return (me.lifeGainedThisTurn ?? 0) >= cond.value;
+    case 'descended-this-turn': return !!me.descendedThisTurn;
     case 'life-le': return cond.who === 'any' ? [me, ...opps].some(pl => pl.life <= cond.value) : side(cond.who, pl => pl.life <= cond.value);
     case 'opponents-ge': return opps.length >= cond.value;
     case 'controls': return side(cond.who, pl => pl.battlefield.filter(o => matchesFilter(s, o, cond.filter, src)).length >= cond.atLeast);

@@ -207,6 +207,13 @@ export type Condition =
   | { kind: 'hand-has'; filter: Filter }
   | { kind: 'opponents-lands-ge'; value: number }
   | { kind: 'opponent-more-lands' }
+  | { kind: 'spells-cast-last-turn'; who: 'none' | 'any-player-ge'; value?: number }   // werewolves (CR 701.28 daybound is separate)
+  | { kind: 'self-was-cast' }
+  | { kind: 'self-is-type'; type: CardType }
+  | { kind: 'self-in-graveyard' }
+  | { kind: 'self-had-counters'; counter: string }
+  | { kind: 'life-gained-ge'; value: number }
+  | { kind: 'descended-this-turn' }
   | { kind: 'life-le'; who: 'you' | 'opponent' | 'any'; value: number }
   | { kind: 'opponents-ge'; value: number }
   | { kind: 'controls'; who: 'you' | 'opponent'; filter: Filter; atLeast: number }

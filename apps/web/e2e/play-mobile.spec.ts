@@ -24,6 +24,7 @@ async function startGame(page: Page, seed = 42) {
 
 /** Press, hold past the touch long-press threshold, then travel: works for both pointer types. */
 async function dragCard(page: Page, card: Locator, to: { x: number; y: number }) {
+  await card.scrollIntoViewIfNeeded();
   const b = await card.boundingBox();
   if (!b) throw new Error('card has no box');
   const sx = b.x + b.width / 2; const sy = b.y + b.height / 2;
@@ -76,7 +77,7 @@ test('mobile: the phone table collapses the seats, drags a land from the hand st
   const before = await myLands(page).count();
   const bf = page.getByTestId('battlefield-me');
   await expect(bf).toBeVisible();
-  await dragCard(page, handCard(page, 'Mountain').last(), await centre(bf));
+  await dragCard(page, handCard(page, 'Mountain').first(), await centre(bf));
   await expect(myLands(page)).toHaveCount(before + 1, { timeout: 30_000 });
 
   // ---- the right rail is a bottom sheet with a grab handle

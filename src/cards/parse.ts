@@ -614,6 +614,7 @@ export function parseEffectSentence(sentence: string): Effect {
   const optional = /^you may /i.test(s);
   s = s.replace(/^you may /i, '').replace(/^then /i, '');
   s = s.replace(/^(?:it|that creature|that permanent|this creature|this permanent)\b/i, '~');
+  s = s.replace(/\bon it$/i, 'on ~');
   s = s.replace(/^each other player /i, 'each opponent ');
   for (const r of EFFECT_RULES) {
     const m = s.match(r.re);
@@ -731,6 +732,19 @@ function parseCondition(s: string): Condition {
   if ((m = t.match(/^you've drawn (\w+) or more cards this turn$/))) return { kind: 'cards-drawn-ge', value: num(m[1]) as number };
   if ((m = t.match(/^you control (\w+) or more lands$/))) return { kind: 'lands-ge', value: num(m[1]) as number };
   if (t === 'you control no creatures') return { kind: 'controls-le', who: 'you', filter: { types: ['Creature'] }, atMost: 0 };
+  if (t === 'no spells were cast last turn') return { kind: 'spells-cast-last-turn', who: 'none' };
+  if ((m = t.match(/^a player cast (\w+) or more spells last turn$/))) return { kind: 'spells-cast-last-turn', who: 'any-player-ge', value: num(m[1]) as number };
+  if (t === 'you cast it' || t === 'you cast ~' || t === 'it was cast' || t === '~ was cast') return { kind: 'self-was-cast' };
+  if ((m = t.match(/^(?:~|it) (?:is|was) an? (artifact|creature|enchantment|land|planeswalker|instant|sorcery|battle)$/))) return { kind: 'self-is-type', type: (m[1][0].toUpperCase() + m[1].slice(1)) as CardType };
+  if (t === '~ is in your graveyard' || t === 'it is in your graveyard') return { kind: 'self-in-graveyard' };
+  if ((m = t.match(/^(?:it|~) had (?:a |an |one or more )?([+-]1\/[+-]1|[a-z]+) counters? on it$/))) return { kind: 'self-had-counters', counter: m[1] };
+  if (t === 'it had counters on it' || t === '~ had counters on it') return { kind: 'self-had-counters', counter: '+1/+1' };
+  if ((m = t.match(/^you gained (\w+) or more life this turn$/))) return { kind: 'life-gained-ge', value: num(m[1]) as number };
+  if (t === 'a creature died this turn') return { kind: 'morbid' };
+  if (t === 'you attacked this turn' || t === 'you attacked with a creature this turn') return { kind: 'raid' };
+  if (t === 'it was kicked' || t === '~ was kicked') return { kind: 'kicked' };
+  if (t === 'there are four or more card types among cards in your graveyard') return { kind: 'delirium' };
+  if (t === 'you descended this turn') return { kind: 'descended-this-turn' };
   if ((m = t.match(/^you control no (.+)$/))) { const f = parseFilterWords(singular(m[1])); if (f) return { kind: 'controls-le', who: 'you', filter: f, atMost: 0 }; }
   if (t === 'an opponent controls more lands than you') return { kind: 'opponent-more-lands' };
   if ((m = t.match(/^(.+?) or if (.+)$/))) { const a = parseCondition(m[1]); const b = parseCondition(m[2]); if (a.kind !== 'unknown' && b.kind !== 'unknown') return { kind: 'or', conditions: [a, b] }; }

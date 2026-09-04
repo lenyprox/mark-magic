@@ -96,6 +96,10 @@ export interface Player {
   spellsCastThisTurn: number;
   turnsTaken?: number;
   permanentsLeftThisTurn?: number;
+  /** Spells this player cast during the previous turn (werewolves). */
+  spellsCastLastTurn?: number;
+  /** A permanent card was put into this player's graveyard from anywhere this turn (descend). */
+  descendedThisTurn?: boolean;
   cardsDrawnThisTurn?: number;
   lifeGainedThisTurn?: number;
 }

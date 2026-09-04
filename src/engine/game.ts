@@ -250,7 +250,7 @@ export class Game {
   private async runTurn() {
     const s = this.state;
     this.emit({ type: 'turn', player: s.activePlayer, number: s.turn });
-    for (const p of s.players) { p.landsPlayedThisTurn = 0; p.attackedThisTurn = false; p.attackedWithThisTurn = 0; p.lifeLostThisTurn = 0; p.creaturesDiedThisTurn = 0; p.spellsCastThisTurn = 0; p.permanentsLeftThisTurn = 0; p.cardsDrawnThisTurn = 0; p.lifeGainedThisTurn = 0; for (const o of p.battlefield) { o.activatedThisTurn.clear(); o.triggeredThisTurn?.clear(); } }
+    for (const p of s.players) { p.spellsCastLastTurn = p.spellsCastThisTurn; p.descendedThisTurn = false; p.landsPlayedThisTurn = 0; p.attackedThisTurn = false; p.attackedWithThisTurn = 0; p.lifeLostThisTurn = 0; p.creaturesDiedThisTurn = 0; p.spellsCastThisTurn = 0; p.permanentsLeftThisTurn = 0; p.cardsDrawnThisTurn = 0; p.lifeGainedThisTurn = 0; for (const o of p.battlefield) { o.activatedThisTurn.clear(); o.triggeredThisTurn?.clear(); } }
     s.players[s.activePlayer].turnsTaken = (s.players[s.activePlayer].turnsTaken ?? 0) + 1;
     await this.runTurnFrom('untap');
   }
@@ -1436,6 +1436,7 @@ export class Game {
       s.players[ctl].permanentsLeftThisTurn = (s.players[ctl].permanentsLeftThisTurn ?? 0) + 1;
       delete o.grantedAbilities; delete o.chosen; delete o.warpExileTurn; if (o.activeFace) o.activeFace = 0;
     }
+    if (zone === 'graveyard' && !o.token && defOf(o).types.some(t => t === 'Artifact' || t === 'Creature' || t === 'Enchantment' || t === 'Land' || t === 'Planeswalker' || t === 'Battle')) s.players[o.owner].descendedThisTurn = true;
     if (o.zone === 'graveyard' && zone !== 'graveyard' && !o.token) this.queueTriggers('leaves-graveyard', { obj: o, player: o.owner });
     // public knowledge: cards leaving a hidden zone are forgotten there; cards entering one from a public zone stay known
     const fromPublic = o.zone !== 'hand' && o.zone !== 'library';
