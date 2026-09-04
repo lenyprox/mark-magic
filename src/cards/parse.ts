@@ -2,6 +2,20 @@
 // Template based. Anything it does not understand becomes {op:'unknown'} and marks the card partially parsed,
 // so the engine and AI always know exactly what they can and cannot simulate.
 import type { Ability, ActivatedAbility, AbilityCost, Amount, CardDef, CardType, Color, Condition, Effect, Filter, Keyword, ManaCost, ManaSymbol, StaticEffect, TargetSpec, TriggerEvent, TriggeredAbility } from './types.js';
+// The parser rule registry (src/cards/rules/<family>.ts, folded by `npm run gen:registry`). Every dispatch point below
+// tries its built-in table FIRST and the registry only where it would otherwise give up, so a family can add wordings
+// but never move an existing parse — see docs/vocabulary/README.md and `npm run parse:diff`.
+import { CONDITION_RULES, COST_RULES, EFFECT_RULES as REGISTRY_EFFECT_RULES, LINE_RULES, STATIC_RULES, TRIGGER_RULES } from './rules/_registry.js';
+import type { LineCtx } from './rules/types.js';
+
+/**
+ * Version of the *built-in* parser. Bump it whenever a built-in rule or the normalisation above a rule changes — that
+ * is, anything that can move a card's parsed `CardDef` without a rule family being added. It is stamped into
+ * data/master/parse-snapshot.json, so a mismatch tells `npm run parse:diff` that the diff it is about to print is an
+ * expected re-baseline rather than an accident. Adding a family under src/cards/rules/ does **not** bump it: that
+ * shows up as a different `rulesHash` instead.
+ */
+export const PARSER_VERSION = 1;
 
 // ---------------------------------------------------------------------------
 // Mana
@@ -665,6 +679,11 @@ export function parseEffectSentence(sentence: string): Effect {
     const m = s.match(r.re);
     if (m) { const e = r.make(m); if (e) { if (optional && (e.op === 'search' || e.op === 'dig' || e.op === 'shuffle' || e.op === 'counters' || e.op === 'put-from-hand')) e.optional = true; return e; } }
   }
+  // Registry hook: family sentence templates, tried only once the built-in table above has declined the sentence.
+  for (const r of REGISTRY_EFFECT_RULES) {
+    const m = s.match(r.re);
+    if (m) { const e = r.make(m); if (e) { if (optional && (e.op === 'search' || e.op === 'dig' || e.op === 'shuffle' || e.op === 'counters' || e.op === 'put-from-hand')) e.optional = true; return e; } }
+  }
   // "Choose one —" modal spells handled at line level.
   return { op: 'unknown', text: sentence.trim() };
 }
@@ -799,6 +818,8 @@ function parseCondition(s: string): Condition {
   if ((m = t.match(/^creatures you control have total toughness (\d+) or greater$/))) return { kind: 'total-toughness-ge', value: Number(m[1]) };
   if ((m = t.match(/^your opponents control (\w+) or more lands$/))) return { kind: 'opponents-lands-ge', value: num(m[1]) as number };
   if ((m = t.match(/^you control (?:a|an) (.+)$/))) { const f = parseFilterWords(m[1]); if (f) return { kind: 'controls', who: 'you', filter: f, atLeast: 1 }; }
+  // Registry hook: family condition clauses, after every built-in clause above has declined.
+  for (const r of CONDITION_RULES) { const c = r.make(s); if (c) return c; }
   return { kind: 'unknown', text: s };
 }
 
@@ -875,6 +896,8 @@ function parseTrigger(head: string): TriggerEvent {
   if (/^whenever you sacrifice a permanent$/.test(t)) return { on: 'sacrifice' };
   if (/^whenever ~ becomes tapped$/.test(t)) return { on: 'tapped', self: true };
   if (/^whenever you discard a card$/.test(t)) return { on: 'discard' };
+  // Registry hook: family trigger heads, after every built-in head above has declined.
+  for (const r of TRIGGER_RULES) { const ev = r.make(head); if (ev) return ev; }
   return { on: 'unknown', text: head };
 }
 
@@ -908,7 +931,8 @@ function parseCostPhrase(p: string): AbilityCost | null {
   else if ((m = pl.match(/^return (?:a|an) (.+?) you control to its owner's hand$/))) { const f = parseFilterWords(m[1]); if (!f) return null; cost.returnToHand = f; }
   else if ((m = pl.match(/^tap an untapped (.+?) you control$/))) { const f = parseFilterWords(m[1]); if (!f) return null; cost.tapUntappedCreature = f; }
   else if ((m = pl.match(/^tap any number of (other )?(?:untapped )?creatures you control with total power (\d+) or (?:more|greater)$/))) cost.tapCreaturesTotalPower = { power: Number(m[2]), other: !!m[1] };
-  else return null;
+  // Registry hook: family cost phrases, after every built-in phrase above has declined.
+  else { for (const r of COST_RULES) { const c = r.make(raw); if (c) return c; } return null; }
   return cost;
 }
 
@@ -1125,6 +1149,8 @@ function parseStatic(line: string, card: { types: CardType[]; subtypes: string[]
     if ((m = t.match(/^equipped creature gets ([+-]\d+)\/([+-]\d+)(?: and has (.+))?$/i))) { const kw = m[3] ? kwList(m[3]) : []; if (kw === null) return null; return { kind: 'equipment', power: Number(m[1]), toughness: Number(m[2]), keywords: kw, equipCost: parseManaCost('{0}')! }; }
     if ((m = t.match(/^equipped creature has (.+)$/i))) { const kw = kwList(m[1]); if (!kw) return null; return { kind: 'equipment', power: 0, toughness: 0, keywords: kw, equipCost: parseManaCost('{0}')! }; }
   }
+  // Registry hook: family static lines, after every built-in static template above has declined.
+  for (const r of STATIC_RULES) { const st = r.make(line, card); if (st) return st; }
   return null;
 }
 
@@ -1139,6 +1165,26 @@ export interface OracleRow {
 }
 
 const BASIC_LAND_MANA: Record<string, ManaSymbol> = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' };
+
+/**
+ * Registry hook for whole lines: build the `LineCtx` (the built-in sub-parsers plus the mutators a rule needs) and
+ * offer the line to each registered `LineRule` in family order. Returns true when one claimed it. The `LINE_RULES`
+ * length is checked by the callers, so a card parsed with no rule families registered never builds this object.
+ */
+function tryLineRules(def: CardDef, line: string, rawLine: string, row: OracleRow, isSpell: boolean): boolean {
+  const ctx: LineCtx = {
+    def, line, rawLine, row, keywords: row.keywords ?? [], isSpell,
+    parseEffects, parseCost, parseCostPhrase, parseCondition, parseManaCost, parseTrigger,
+    addAbility: a => { def.abilities.push(a); },
+    addAltCost: a => { (def.altCosts ??= []).push(a); },
+    addKeyword: k => { def.keywords.push(k); },
+    addAsEnters: a => { (def.asEnters ??= []).push(a); },
+    addCostModifier: c => { (def.costModifiers ??= []).push(c); },
+    markUnparsed: (l = line) => { def.fullyParsed = false; def.unparsed.push(l); },
+  };
+  for (const r of LINE_RULES) if (r.match(line, ctx)) return true;
+  return false;
+}
 
 export function parseCard(row: OracleRow): CardDef {
   const shortName = row.name.split(' // ')[0];
@@ -1299,7 +1345,11 @@ export function parseCard(row: OracleRow): CardDef {
     if ((m = line.match(/^~ enters with (?:a|an) ([+-]1\/[+-]1|[a-z]+) counter on it for each (.+?) card in your graveyard\.?$/i))) { const f = parseFilterWords(m[2].replace(/ and /g, ' or ')); if (f) { (def.asEnters ??= []).push({ kind: 'counters', counter: m[1].toLowerCase(), amount: { count: 'cards-in-graveyard', filter: f } }); continue; } }
     if ((m = line.match(/^as ~ enters, choose a (creature type|color)\.?$/i))) { (def.asEnters ??= []).push({ kind: 'choose', what: m[1].toLowerCase() === 'color' ? 'color' : 'creature-type' }); continue; }
     if ((m = line.match(/^if ~ would enter, you may discard (?:a|an) (.+?) card instead\. if you do, put ~ onto the battlefield\. if you don't, put it into its owner's graveyard\.?$/i))) { const f = parseFilterWords(m[1]); if (f) { (def.asEnters ??= []).push({ kind: 'discard-or-graveyard', filter: f }); continue; } }
-    if (/^(flashback|escape|adventure|mutate|cascade|storm|convoke|delve|affinity|riot|adapt|amass|exploit|embalm|eternalize|afflict|afterlife|mentor|companion|crew|foretell|boast|daybound|nightbound|disturb|decayed|cleave|training|reconfigure|blitz|casualty|connive|backup|bargain|craft|discover|offspring|gift|impending|exhaust|harmonize|max speed|start your engines!|mobilize|renew|endure|station|void|warp|devoid|emerge|escalate|surge|awaken|ingest|rebound|miracle|overload|scavenge|unleash|detain|populate|evolve|extort|cipher|bloodrush|battalion|heroic|monstrosity|outlast|dash|exploit|megamorph|morph|manifest|renown|ninjutsu|split second|suspend|vanishing|fading|buyback|madness|flanking|shadow|horsemanship|banding|rampage|cumulative upkeep|echo|phasing|multikicker|entwine|splice|bushido|soulshift|offering|ninjutsu|epic|sunburst|modular|graft|forecast|transmute|dredge|haunt|replicate|recover|ripple|bloodthirst|vanishing|frenzy|level up|totem armor|infect|battle cry|living weapon|undying|miracle|soulbond|unleash|bestow|tribute|inspired|constellation|outlast|dash|exploit|awaken|rally|support|meld|crew|fabricate|improvise|aftermath|exert|eternalize|ascend|assist|jump-start|undergrowth|spectacle|riot|proliferate|escape|companion|mutate|foretell|learn|magecraft|coven|daybound|disturb|training|cleave|blood|reconfigure|hideaway|channel|compleated|casualty|blitz|read ahead|enlist|squad|prototype|unearth|toxic|for mirrodin!|convoke|backup|the ring tempts you|bargain|celebration|role|adventure|craft|descend|explore|discover|map|outlaw|plot|spree|saddle|forage|gift|offspring|impending|manifest dread|eerie|survival|start your engines!|exhaust|mobilize|harmonize|renew|endure|behold|job select|station|warp|void|umbra armor|constellation|addendum|parley|alliance|pack tactics|will of the council|council's dilemma|secret council|fateful hour|spell mastery|lieutenant|chroma|grandeur|sweep|radiance|kinship|imprint|join forces|tempting offer|bloodrush|strive|adamant|eminence|enrage|hero's reward|undaunted|legacy|fathomless descent|corrupted|paradox|coven|magecraft|max speed|flurry|heist|mayhem|rally|devour|exalted|persist|wither|changeling|ravenous|vanishing|dethrone|melee|partner|assist|myriad|evoke|prowl|retrace|conspire|frenzy|cascade|annihilator|hideaway|desertwalk|forestwalk|islandwalk|mountainwalk|plainswalk|swampwalk|landwalk|absorb|provoke|renown|amplify|double team|encore|goad|monarch|initiative|day|night)\b/i.test(line)) { unknown(def, line); continue; }
+    // Registry hook (1 of 2) is INSIDE the next line's `if`, not before it: that line is the keyword bail-out, where a
+    // line naming a keyword the built-ins know *of* but do not implement ("Bestow {3}{W}", "Suspend 4—{1}{U}") is
+    // recorded as unparsed and never reaches the trigger / activated / static ladder below. A family's keyword lines
+    // therefore have to be offered there — after the built-ins have given up on the line, and never before them.
+    if (/^(flashback|escape|adventure|mutate|cascade|storm|convoke|delve|affinity|riot|adapt|amass|exploit|embalm|eternalize|afflict|afterlife|mentor|companion|crew|foretell|boast|daybound|nightbound|disturb|decayed|cleave|training|reconfigure|blitz|casualty|connive|backup|bargain|craft|discover|offspring|gift|impending|exhaust|harmonize|max speed|start your engines!|mobilize|renew|endure|station|void|warp|devoid|emerge|escalate|surge|awaken|ingest|rebound|miracle|overload|scavenge|unleash|detain|populate|evolve|extort|cipher|bloodrush|battalion|heroic|monstrosity|outlast|dash|exploit|megamorph|morph|manifest|renown|ninjutsu|split second|suspend|vanishing|fading|buyback|madness|flanking|shadow|horsemanship|banding|rampage|cumulative upkeep|echo|phasing|multikicker|entwine|splice|bushido|soulshift|offering|ninjutsu|epic|sunburst|modular|graft|forecast|transmute|dredge|haunt|replicate|recover|ripple|bloodthirst|vanishing|frenzy|level up|totem armor|infect|battle cry|living weapon|undying|miracle|soulbond|unleash|bestow|tribute|inspired|constellation|outlast|dash|exploit|awaken|rally|support|meld|crew|fabricate|improvise|aftermath|exert|eternalize|ascend|assist|jump-start|undergrowth|spectacle|riot|proliferate|escape|companion|mutate|foretell|learn|magecraft|coven|daybound|disturb|training|cleave|blood|reconfigure|hideaway|channel|compleated|casualty|blitz|read ahead|enlist|squad|prototype|unearth|toxic|for mirrodin!|convoke|backup|the ring tempts you|bargain|celebration|role|adventure|craft|descend|explore|discover|map|outlaw|plot|spree|saddle|forage|gift|offspring|impending|manifest dread|eerie|survival|start your engines!|exhaust|mobilize|harmonize|renew|endure|behold|job select|station|warp|void|umbra armor|constellation|addendum|parley|alliance|pack tactics|will of the council|council's dilemma|secret council|fateful hour|spell mastery|lieutenant|chroma|grandeur|sweep|radiance|kinship|imprint|join forces|tempting offer|bloodrush|strive|adamant|eminence|enrage|hero's reward|undaunted|legacy|fathomless descent|corrupted|paradox|coven|magecraft|max speed|flurry|heist|mayhem|rally|devour|exalted|persist|wither|changeling|ravenous|vanishing|dethrone|melee|partner|assist|myriad|evoke|prowl|retrace|conspire|frenzy|cascade|annihilator|hideaway|desertwalk|forestwalk|islandwalk|mountainwalk|plainswalk|swampwalk|landwalk|absorb|provoke|renown|amplify|double team|encore|goad|monarch|initiative|day|night)\b/i.test(line)) { if (LINE_RULES.length && tryLineRules(def, line, rawLine, row, isSpell)) continue; unknown(def, line); continue; }
 
     // --- planeswalker loyalty abilities
     if ((m = line.match(/^([+-]\d+|0): (.+)$/))) {
@@ -1350,6 +1400,10 @@ export function parseCard(row: OracleRow): CardDef {
       if (effs.some(e => e.op === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
       continue;
     }
+    // Registry hook (2 of 2): the last chance before the line is recorded as unparsed. Every built-in shape — saga
+    // chapter, mode, keyword, alternative cost, as-enters, loyalty, trigger, activated, static and (on an instant or
+    // sorcery) spell text — has already declined, so nothing a family claims here can change an existing parse.
+    if (LINE_RULES.length && tryLineRules(def, line, rawLine, row, isSpell)) continue;
     unknown(def, line);
   }
   if (isSpell) {

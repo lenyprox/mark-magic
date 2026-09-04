@@ -9,6 +9,7 @@ data/master/*.db
 !data/master/summary.json
 !data/master/parser-coverage.json
 !data/master/meta-coverage.json
+!data/master/parse-snapshot.json
 data/rules/
 data/user.db*
 data/images/
