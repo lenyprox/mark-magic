@@ -22,3 +22,6 @@ apps/web/playwright-report/
 data/bench/
 data/optimizer/
 data/scripts/drafts/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
