@@ -439,6 +439,15 @@ const EFFECT_RULES: Rule[] = [
   { re: /^search your library for an? (.+?) card(?: with mana value (\w+) or less)?, reveal it, put it into your hand(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[1]); if (!f) return null; const mv = m[2] ? num(m[2]) : undefined; return { op: 'search', filter: f, to: 'hand', count: 1, reveal: true, ...(mv !== undefined ? { mvLE: mv } : {}) }; } },
   { re: /^untap all (.+?) you control$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'untap-all', filter: f }; } },
   { re: /^proliferate$/i, make: () => ({ op: 'proliferate' }) },
+  { re: new RegExp(`^~ deals damage to ${TGT} equal to (.+)$`, 'i'), make: m => { const t = parseTarget(m[1]); const a = parseAmountPhrase(m[2]); return t && a !== null ? { op: 'damage', target: t, amount: a } : null; } },
+  { re: /^~ deals damage to each opponent equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'damage', target: 'each-opponent', amount: a } : null; } },
+  { re: /^~ deals damage to each creature equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'damage', target: 'each-creature', amount: a } : null; } },
+  { re: /^draw cards equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'draw', amount: a, who: 'you' } : null; } },
+  { re: /^you gain life equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'gain-life', amount: a, who: 'you' } : null; } },
+  { re: /^you lose life equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'lose-life', amount: a, who: 'you' } : null; } },
+  { re: /^target (player|opponent) loses life equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[2]); return a !== null ? { op: 'lose-life', amount: a, who: m[1].toLowerCase() === 'opponent' ? 'each-opponent' : 'target-player' } : null; } },
+  { re: /^each opponent loses life equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'lose-life', amount: a, who: 'each-opponent' } : null; } },
+  { re: new RegExp(`^${TGT} deals damage to itself equal to its power$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'bite', target: t }; } },
   { re: /^if (?:that|the) (?:creature|permanent)(?: or planeswalker)? would die this turn, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'that' }) },
   { re: /^if a creature dealt damage (?:this way|by ~ this turn) would die(?: this turn)?, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'affected' }) },
   { re: /^if a creature would die this turn, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'all-creatures' }) },
@@ -552,9 +561,10 @@ function scaleAmount(a: Amount, k: number, sign: string): Amount {
   const mult = (sign === '-' ? -1 : 1) * k;
   return mult === 1 ? a : { ...(a as object), times: mult } as Amount;
 }
+const NOT_SUBTYPES = new Set(['and', 'or', 'the', 'a', 'an', 'card', 'cards', 'permanent', 'permanents', 'other', 'each', 'all']);
 function subtypeFilter(words: string): Filter | null {
   const w = words.trim();
-  if (!/^[A-Za-z]+s?$/.test(w)) return null;
+  if (!/^[A-Za-z]+s?$/.test(w) || NOT_SUBTYPES.has(w.toLowerCase())) return null;
   const one = singular(w);
   return { subtypes: [one[0].toUpperCase() + one.slice(1).toLowerCase()] };
 }
@@ -585,7 +595,7 @@ function parseAmountPhrase(p: string): Amount | null {
   let m: RegExpMatchArray | null; const t = p.trim().toLowerCase();
   if (/^(each|every) /.test(t)) return parseEachPhrase(t);
   if ((m = t.match(/^the number of (.+?) you control$/))) { const f = parseFilterWords(m[1]) ?? subtypeFilter(m[1]); return f && { count: 'permanents-you-control', filter: singularSubtypes(f) }; }
-  if ((m = t.match(/^the number of (.+?) cards? in your graveyard$/))) { const f = parseFilterWords(m[1]); return f && { count: 'cards-in-graveyard', filter: f }; }
+  if ((m = t.match(/^the number of (.+?) cards? in your graveyard$/))) { const f = parseFilterWords(m[1].replace(/ and /g, ' ').replace(/ or /g, ' ')); return f && { count: 'cards-in-graveyard', filter: singularSubtypes(f) }; }
   if (t === 'the number of cards in your graveyard') return { count: 'cards-in-graveyard' };
   if (t === 'the number of cards in your hand') return { count: 'cards-in-hand' };
   if (t === 'the number of lands you control') return { count: 'lands-you-control' };
@@ -594,6 +604,17 @@ function parseAmountPhrase(p: string): Amount | null {
   if ((m = t.match(/^the number of ([a-z]+) counters you have$/))) return { count: 'player-counters', counter: m[1] };
   if (t === 'the number of cards you have drawn this turn' || t === "the number of cards you've drawn this turn") return { count: 'cards-drawn-this-turn' };
   if (t === "~'s power") return { count: 'power-of-source' };
+  if (t === 'its power' || t === "that creature's power" || t === "that card's power") return { count: 'power-of-that' };
+  if (t === 'its mana value' || t === "that card's mana value" || t === "that spell's mana value") return { count: 'mv-of-that' };
+  if (t === "the number of cards in that player's hand" || t === "the number of cards in target player's hand" || t === "the number of cards in their hand") return { count: 'cards-in-hand', filter: { other: true } };
+  if (t === 'the number of cards in all hands') return { count: 'cards-in-all-hands' };
+  if (t === 'the number of creatures on the battlefield') return { count: 'permanents-on-battlefield', filter: { types: ['Creature'] } };
+  if (t === 'the number of permanents you control') return { count: 'permanents-you-control' };
+  if (t === 'the number of creatures that died this turn') return { count: 'creatures-died-this-turn' };
+  if (t === 'the number of spells you’ve cast this turn' || t === "the number of spells you've cast this turn") return { count: 'spells-cast-this-turn' };
+  if ((m = t.match(/^the number of (.+?) cards? in all graveyards$/))) { const f = parseFilterWords(m[1]) ?? subtypeFilter(m[1]); return f && { count: 'card-types-in-all-graveyards' }; }
+  if ((m = t.match(/^the number of (.+?) on the battlefield$/))) { const f = parseFilterWords(m[1]) ?? subtypeFilter(m[1]); return f && { count: 'permanents-on-battlefield', filter: singularSubtypes(f) }; }
+  if ((m = t.match(/^the number of ([+-]1\/[+-]1|[a-z]+) counters on (?:it|~|this creature)$/))) return { count: 'counters-on-source', counter: m[1] };
   return null;
 }
 function kwList(s: string): Keyword[] | null {
@@ -911,6 +932,8 @@ function spellTypeFilter(word: string): Filter {
 }
 
 /** Parse the text inside quotes on a granting static ('Creatures you control have "When this creature dies, draw a card."'). */
+/** Modes often carry a flavour name ("Cure Wounds — You gain 2 life."); the name is not rules text. */
+function stripModeName(mode: string): string { return mode.replace(/^[A-Z][^—.]{0,34} — (?=[A-Z~])/, '').trim(); }
 function parseGrantedAbility(text: string): Ability | null {
   const body = text.trim().replace(/\.$/, '');
   const act = parseActivatedLine(body + '.');
@@ -1052,6 +1075,10 @@ function parseStatic(line: string, card: { types: CardType[]; subtypes: string[]
   if ((m = t.match(/^all (\w+) creatures get ([+-]\d+)\/([+-]\d+)$/i))) return { kind: 'anthem', power: Number(m[2]), toughness: Number(m[3]), filter: { subtypes: [m[1][0].toUpperCase() + m[1].slice(1)] }, scope: 'all' };
   if ((m = t.match(/^(other )?creatures you control with flying get ([+-]\d+)\/([+-]\d+)$/i))) return { kind: 'anthem', power: Number(m[2]), toughness: Number(m[3]), filter: { types: ['Creature'], flying: true }, scope: m[1] ? 'other-you-control' : 'you-control' };
   if ((m = t.match(/^~ gets ([+-])(\d+)\/([+-])(\d+) for each (.+)$/i))) { const a = parseEachPhrase(m[5]); if (!a) return null; const mk = (k: number, sign: string): Amount => k === 0 ? 0 : ({ ...(a as object), times: (sign === '-' ? -1 : 1) * k } as Amount); return { kind: 'self-pt', power: mk(Number(m[2]), m[1]), toughness: mk(Number(m[4]), m[3]) }; }
+  if ((m = t.match(/^~'s power and toughness are each equal to (.+)$/i))) { const a = parseAmountPhrase(m[1]); if (a !== null) return { kind: 'self-pt', power: a, toughness: a }; }
+  if ((m = t.match(/^~'s power is equal to (.+?) and its toughness is equal to that number plus (\d+)$/i))) { const a = parseAmountPhrase(m[1]); if (a !== null && typeof a === 'object') return { kind: 'self-pt', power: a, toughness: { ...a, plus: (a.plus ?? 0) + Number(m[2]) } }; }
+  if ((m = t.match(/^~'s power is equal to (.+)$/i))) { const a = parseAmountPhrase(m[1]); if (a !== null) return { kind: 'self-pt', power: a, toughness: 0 }; }
+  if ((m = t.match(/^~'s toughness is equal to (.+)$/i))) { const a = parseAmountPhrase(m[1]); if (a !== null) return { kind: 'self-pt', power: 0, toughness: a }; }
   if ((m = t.match(/^~'s power is equal to the number of creatures you control$/i))) return { kind: 'self-pt', power: { count: 'creatures-you-control' }, toughness: 0 };
   if ((m = t.match(/^~'s power is equal to the number of (.+?) you control$/i))) { const f = parseFilterWords(m[1]); if (!f) return null; return { kind: 'self-pt', power: { count: 'permanents-you-control', filter: f }, toughness: 0 }; }
   if ((m = t.match(/^~'s power is equal to the number of (.+?) cards? in your graveyard$/i))) { const f = parseFilterWords(m[1].replace(/ and /g, ' ')); if (!f) return null; return { kind: 'self-pt', power: { count: 'cards-in-graveyard', filter: f }, toughness: 0 }; }
@@ -1152,7 +1179,7 @@ export function parseCard(row: OracleRow): CardDef {
     // --- Modal "Choose one —" blocks
     if (/^choose (one|two|one or both|one or more|any number)( —|\.)/i.test(line)) {
       const cnt = /choose two/i.test(line) ? 2 : 1;
-      const modes = line.split(/\n?• /).slice(1).map(m => foldMarkers(parseEffects(m), true));
+      const modes = line.split(/\n?• /).slice(1).map(m => foldMarkers(parseEffects(stripModeName(m)), true));
       const eff: Effect = { op: 'choose-mode', modes, count: cnt };
       for (const md of modes) noteUnknownMode(def, md);
       if (isSpell) spellEffects.push(eff); else def.abilities.push({ kind: 'spell', effects: [eff], text: line });
@@ -1160,7 +1187,7 @@ export function parseCard(row: OracleRow): CardDef {
     }
     if (line.startsWith('• ')) { // modes split across lines by Scryfall
       const last = isSpell ? spellEffects[spellEffects.length - 1] : undefined;
-      const mode = foldMarkers(parseEffects(line.slice(2)), true);
+      const mode = foldMarkers(parseEffects(stripModeName(line.slice(2))), true);
       if (last && last.op === 'choose-mode') { last.modes.push(mode); noteUnknownMode(def, mode); continue; }
       const lastAb = def.abilities[def.abilities.length - 1];
       const lastEff = lastAb && lastAb.kind !== 'static' ? lastAb.effects[lastAb.effects.length - 1] : undefined;
