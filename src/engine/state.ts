@@ -130,6 +130,8 @@ export interface StackItem {
   alt?: AltCostId;
   /** For triggers: the id of the object that triggered them (the spell cast, the card drawn, ...). */
   triggeringId?: number;
+  /** The player the trigger was about (the one dealt damage, the one who drew, ...) — "that player" in the body. */
+  triggeringPlayer?: PlayerId;
   /** Objects this item moved/affected while resolving, with their last known values ("that creature's controller gains life equal to its power"). */
   affected?: { id: number; lastKnown: { power: number; toughness: number; controller: PlayerId; manaValue: number } }[];
 }

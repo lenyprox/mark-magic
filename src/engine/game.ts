@@ -851,7 +851,7 @@ export class Game {
         }
         break;
       }
-      case 'draw': { const n = amt(e.amount); const who = e.who === 'you' || e.who === 'controller' ? [p] : e.who === 'opponent' ? [opp] : e.who === 'each-player' ? everyone : this.players(T); for (const w of who) for (let i = 0; i < n; i++) await this.draw(w); break; }
+      case 'draw': { const n = amt(e.amount); const who = e.who === 'that-player' && item.triggeringPlayer !== undefined ? [item.triggeringPlayer] : e.who === 'you' || e.who === 'controller' ? [p] : e.who === 'opponent' ? [opp] : e.who === 'each-player' ? everyone : this.players(T); for (const w of who) for (let i = 0; i < n; i++) await this.draw(w); break; }
       case 'loot': {
         const pl = s.players[p];
         if (e.discardFirst) {
@@ -988,7 +988,7 @@ export class Game {
         break;
       }
       case 'energy': { const n = amt(e.amount); if (n > 0) { s.players[p].energy = (s.players[p].energy ?? 0) + n; this.note(`${this.pname(p)} gets ${n} energy (${s.players[p].energy}).`); } break; }
-      case 'poison': { const who = e.who === 'each-opponent' ? opps : this.players(T); const n = amt(e.amount); for (const w of who) this.addPoison(w, n, item.name); break; }
+      case 'poison': { const who = e.who === 'that-player' && item.triggeringPlayer !== undefined ? [item.triggeringPlayer] : e.who === 'each-opponent' ? opps : this.players(T); const n = amt(e.amount); for (const w of who) this.addPoison(w, n, item.name); break; }
       case 'shuffle-self-into-library': { if (src.zone === 'stack' || src.zone === 'battlefield' || src.zone === 'graveyard') { this.moveTo(src, 'library', 'top', 'tuck'); this.shuffle(src.owner); this.note(`${name(src)} is shuffled into its owner's library.`); } break; }
       case 'reveal-hand-discard': {
         const w = this.players(T)[0] ?? opp; const pl = s.players[w];
@@ -1077,6 +1077,7 @@ export class Game {
         const who = e.who === 'you' ? [p] : e.who === 'each-player' ? everyone : this.players(T); for (const w of who) this.gainLife(w, amt(e.amount)); break;
       }
       case 'lose-life': {
+        if (e.who === 'that-player' && item.triggeringPlayer !== undefined) { this.loseLife(item.triggeringPlayer, amt(e.amount), item.name); break; }
         if (e.who === 'that-controller') { for (const a of item.affected ?? []) this.loseLife(a.lastKnown.controller, evalAmount(s, e.amount, p, item.x, src, { that: a.lastKnown }), item.name); break; }
         const who = e.who === 'you' ? [p] : e.who === 'opponent' ? [opp] : e.who === 'each-opponent' ? opps : e.who === 'each-player' ? everyone : e.who === 'defending-player' ? [src.attacking ?? opp] : this.players(T); for (const w of who) this.loseLife(w, amt(e.amount), item.name); break;
       }
@@ -1151,7 +1152,7 @@ export class Game {
         break;
       }
       case 'sacrifice-self': if (src.zone === 'battlefield') this.sacrifice(src); break;
-      case 'mill': { const who = e.who === 'you' ? [p] : e.who === 'each-opponent' ? opps : this.players(T); for (const w of who) this.mill(w, amt(e.amount)); break; }
+      case 'mill': { const who = e.who === 'that-player' && item.triggeringPlayer !== undefined ? [item.triggeringPlayer] : e.who === 'you' ? [p] : e.who === 'each-opponent' ? opps : this.players(T); for (const w of who) this.mill(w, amt(e.amount)); break; }
       case 'scry': { const pl = s.players[p]; const top = pl.library.slice(0, e.amount); if (!top.length) break; const keep = await this.ask(p, { kind: 'choose-cards', from: top.map(c => c.id), count: top.length, reason: `Scry ${e.amount}: choose cards to keep on top`, exact: false }) as number[]; const bottom = top.filter(c => !keep.includes(c.id)); const kept = top.filter(c => keep.includes(c.id)); pl.library.splice(0, top.length); pl.library.unshift(...kept); pl.library.push(...bottom); this.noteTop(p, kept.map(c => c.id), top.length); for (const c of bottom) this.forgetTop(c.id); this.emit({ type: 'library', player: p, action: 'scry', count: top.length }, ''); break; }
       case 'surveil': { const pl = s.players[p]; const top = pl.library.slice(0, e.amount); if (!top.length) break; const keep = await this.ask(p, { kind: 'choose-cards', from: top.map(c => c.id), count: top.length, reason: `Surveil ${e.amount}: choose cards to keep on top`, exact: false }) as number[]; const gy = top.filter(c => !keep.includes(c.id)); const kept = top.filter(c => keep.includes(c.id)); pl.library.splice(0, top.length); pl.library.unshift(...kept); this.noteTop(p, kept.map(c => c.id), top.length); for (const c of gy) { this.forgetTop(c.id); c.zone = 'graveyard'; pl.graveyard.push(c); this.emit({ type: 'zone-change', id: c.id, name: c.def.name, owner: c.owner, controller: c.controller, from: 'library', to: 'graveyard', reason: 'mill', token: false, public: true }, ''); } this.emit({ type: 'library', player: p, action: 'surveil', count: top.length }, ''); break; }
       case 'search-land': {
@@ -1655,6 +1656,7 @@ export class Game {
       if (t.ability.intervening && !conditionHolds(s, t.source, t.ability.intervening)) continue;
       const item = this.makeStackItem('trigger', t.source, t.controller, t.ability.effects, `${name(t.source)} trigger: ${t.ability.text}`, 0, undefined, t.ability.text);
       item.ability = t.ability; if (t.affected) item.affected = t.affected; if (t.triggerCtx?.obj) item.triggeringId = t.triggerCtx.obj.id;
+      if (t.triggerCtx?.player !== undefined) item.triggeringPlayer = t.triggerCtx.player;
       // auto-choose targets for triggers: ask the controller
       const reqs = targetingEffects(this.effectiveEffects(item));
       const chosen: TargetRef[][] = [];

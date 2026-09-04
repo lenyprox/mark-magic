@@ -446,6 +446,12 @@ const EFFECT_RULES: Rule[] = [
   { re: /^you gain life equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'gain-life', amount: a, who: 'you' } : null; } },
   { re: /^you lose life equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'lose-life', amount: a, who: 'you' } : null; } },
   { re: /^target (player|opponent) loses life equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[2]); return a !== null ? { op: 'lose-life', amount: a, who: m[1].toLowerCase() === 'opponent' ? 'each-opponent' : 'target-player' } : null; } },
+  { re: /^that player gets (\w+) poison counters?$/i, make: m => ({ op: 'poison', amount: num(m[1]), who: 'that-player' }) },
+  { re: /^that player gets an additional poison counter$/i, make: () => ({ op: 'poison', amount: 1, who: 'that-player' }) },
+  { re: /^that player draws (\w+) cards?$/i, make: m => ({ op: 'draw', amount: num(m[1]), who: 'that-player' }) },
+  { re: /^that player discards (\w+) cards?$/i, make: m => ({ op: 'discard', amount: num(m[1]), who: 'that-player' }) },
+  { re: /^that player mills (\w+) cards?$/i, make: m => ({ op: 'mill', amount: num(m[1]), who: 'that-player' }) },
+  { re: /^that player loses (\w+) life$/i, make: m => ({ op: 'lose-life', amount: num(m[1]), who: 'that-player' }) },
   { re: /^each opponent loses life equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'lose-life', amount: a, who: 'each-opponent' } : null; } },
   { re: new RegExp(`^${TGT} deals damage to itself equal to its power$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'bite', target: t }; } },
   { re: /^if (?:that|the) (?:creature|permanent)(?: or planeswalker)? would die this turn, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'that' }) },
@@ -807,7 +813,7 @@ function parseTrigger(head: string): TriggerEvent {
   if (/^whenever one or more cards leave your graveyard$/.test(t)) return { on: 'leaves-graveyard' };
   if ((m = t.match(/^whenever one or more (.+?) cards leave your graveyard$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'leaves-graveyard', filter: f }; }
   if ((m = t.match(/^whenever you discard an? (.+?) card$/))) { const f = parseFilterWords(m[1].replace(/, /g, ' ')); if (f) return { on: 'discard', filter: f }; }
-  if ((m = t.match(/^whenever an? (.+?) you control deals combat damage to a player(?: or battle)?$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'combat-damage-player', self: false, filter: f }; }
+  if ((m = t.match(/^whenever an? (.+?) you control(?: with ([a-z ]+))? deals combat damage to a player(?: or battle| or planeswalker)?$/))) { const f = parseFilterWords(m[1]); if (f) { if (m[2]) { const k = keywordFromText(m[2].trim()); if (!k) return { on: 'unknown', text: t }; f.withKeyword = k; } return { on: 'combat-damage-player', self: false, filter: f }; } }
   if ((m = t.match(/^whenever an? (.+?) you control becomes the target of a spell$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'targeted', self: false, filter: f }; }
   if (/^whenever a creature you control of the chosen type enters or attacks$/.test(t)) return { on: 'or', events: [{ on: 'etb', self: false, filter: { types: ['Creature'], chosenType: true }, controller: 'you' }, { on: 'attacks', self: false, filter: { types: ['Creature'], chosenType: true } }] };
   if ((m = t.match(/^whenever an? (.+?) card leaves your graveyard$/))) { const f = parseFilterWords(m[1].replace(/ or /g, ' ')); if (f) return { on: 'leaves-graveyard', filter: f }; }

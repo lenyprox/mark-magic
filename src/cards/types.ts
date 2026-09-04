@@ -107,10 +107,10 @@ export type Effect =
   | { op: 'destroy'; target: TargetSpec | 'all-creatures' | 'all-artifacts' | 'all-enchantments' | 'all-lands' | 'all-nonland' | 'all-opponent-creatures' | 'all-tapped-creatures' | 'enchanted'; noRegenerate?: boolean; filter?: Filter; ifTarget?: Filter; ifTargetAlt?: { condition: Condition; filter: Filter } }
   | { op: 'exile'; target: TargetSpec | 'all-creatures'; from?: 'graveyard' | 'battlefield'; until?: 'leaves'; ifTarget?: Filter; ifTargetAlt?: { condition: Condition; filter: Filter } }
   | { op: 'counter'; target: TargetSpec; unlessPay?: number; toExile?: boolean }
-  | { op: 'draw'; amount: Amount; who: 'you' | 'target-player' | 'each-player' | 'opponent' | 'controller' }
-  | { op: 'discard'; amount: Amount | 'hand'; who: 'you' | 'target-player' | 'each-opponent' | 'each-player'; random?: boolean }
-  | { op: 'gain-life'; amount: Amount; who: 'you' | 'target-player' | 'each-player' | 'that-controller' }
-  | { op: 'lose-life'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' | 'each-player' | 'opponent' | 'that-controller' | 'defending-player' }
+  | { op: 'draw'; amount: Amount; who: 'you' | 'target-player' | 'each-player' | 'opponent' | 'controller' | 'that-player' }
+  | { op: 'discard'; amount: Amount | 'hand'; who: 'you' | 'target-player' | 'each-opponent' | 'each-player' | 'that-player'; random?: boolean }
+  | { op: 'gain-life'; amount: Amount; who: 'you' | 'target-player' | 'each-player' | 'that-controller' | 'that-player' }
+  | { op: 'lose-life'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' | 'each-player' | 'opponent' | 'that-controller' | 'defending-player' | 'that-player' }
   /** Look at the top `look` cards, put `take` of them into your hand (or none, Ponder-style), the rest to `rest`. */
   | { op: 'dig'; look: Amount; take: number; rest: 'bottom' | 'top' | 'graveyard'; order: 'any' | 'random'; reveal?: boolean; filter?: Filter; optional?: boolean; altTake?: { condition: Condition; take: number } }
   | { op: 'put-from-hand'; amount: Amount; to: 'library-top' | 'library-bottom' | 'battlefield'; filter?: Filter; optional?: boolean; who?: 'you' | 'each-player'; tapped?: boolean }
@@ -133,7 +133,7 @@ export type Effect =
   | { op: 'no-untap-self' }                                                  // "~ doesn't untap during your next untap step" (mana side effect)
   | { op: 'no-untap-that' }                                                  // "That creature doesn't untap during its controller's next untap step"
   | { op: 'energy'; amount: Amount }
-  | { op: 'poison'; amount: Amount; who: 'target-player' | 'each-opponent' }
+  | { op: 'poison'; amount: Amount; who: 'target-player' | 'each-opponent' | 'that-player' }
   | { op: 'shuffle-self-into-library' }
   | { op: 'reveal-hand-discard'; who: 'target-player' | 'target-opponent'; filter: Filter; count: 1 | 'all-named' }
   | { op: 'look-top'; who: 'target-player' | 'you'; amount: number }
@@ -164,7 +164,7 @@ export type Effect =
   | { op: 'untap'; target: TargetSpec | 'self' | 'all-you-control' | 'lands-you-control' | 'that' | 'enchanted' }
   | { op: 'sacrifice'; who: 'you' | 'target-player' | 'each-opponent' | 'each-player'; what: Filter; amount: number }
   | { op: 'sacrifice-self' }
-  | { op: 'mill'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' }
+  | { op: 'mill'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' | 'that-player' }
   | { op: 'search-land'; toBattlefield: boolean; tapped: boolean; basic: boolean; count: number; subtypes?: string[] }
   | { op: 'add-mana'; mana: ManaSymbol[] | 'any' | 'any-one' | 'commander-identity' | 'opponent-lands'; choices?: ManaSymbol[][]; amount?: number; perEach?: Amount; /** Firebending: the mana stays in the pool until end of turn. */ sticky?: boolean; options?: ManaSymbol[] | 'exiled-with-colors' | 'chosen-color' | 'permanent-colors'; restriction?: 'creature-spell' | 'instant-sorcery' | 'chosen-type-creature' | 'colorless-eldrazi'; altIf?: { condition: Condition; mana: ManaSymbol[] } }
   | { op: 'scry'; amount: number }
