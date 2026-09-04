@@ -27,6 +27,8 @@
     "sim:batch": "tsx scripts/sim-batch.ts",
     "bench:games": "tsx scripts/bench-games.ts",
     "verify:scenarios": "node --test --import tsx test/scenarios.test.ts",
+    "optimize": "tsx scripts/optimize.ts",
+    "optimize:daemon": "tsx scripts/optimizer-daemon.ts",
     "test:e2e": "npm run test:e2e -w apps/web",
     "typecheck:all": "npm run typecheck && npm run web:typecheck",
     "demo:pack": "node demo/pack.mjs",

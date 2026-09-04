@@ -51,14 +51,14 @@
       "@decks/*": [
         "../../src/decks/*"
       ],
+      "@optimizer/*": [
+        "../../src/optimizer/*"
+      ],
       "@user/*": [
         "../../src/user/*"
       ],
       "@images/*": [
         "../../src/images/*"
-      ],
-      "@decks/*": [
-        "../../src/decks/*"
       ],
       "@config/*": [
         "../../src/config/*"

@@ -21,6 +21,7 @@ const ACTIONS = [
   { id: 'sets', label: 'Sets', href: '/sets', icon: <Layers /> },
   { id: 'decks', label: 'Decks', href: '/decks', icon: <Library /> },
   { id: 'collection', label: 'Collection', href: '/collection', icon: <Package /> },
+  { id: 'optimize', label: 'Optimise a deck', href: '/optimize', icon: <Package /> },
   { id: 'owned', label: 'Browse owned cards', href: '/cards?own=1', icon: <Package /> },
   { id: 'play', label: 'Play', href: '/play', icon: <Play /> },
 ];

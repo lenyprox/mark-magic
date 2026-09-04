@@ -25,12 +25,14 @@ export interface BatchRunOptions {
   onProgress?: (p: BatchProgress) => void;
   /** Minimum ms between onProgress calls (default 150). */
   throttleMs?: number;
+  /** Play exactly these game indexes (spec.games is then ignored for chunking). */
+  indices?: number[];
 }
 export interface BatchHandle { jobId: string; result: Promise<MatchResult>; cancel(): void; readonly cancelled: boolean }
 
 interface Slot { worker: BatchWorkerLike; busy: string | null; ready: boolean }
 interface Job {
-  id: string; spec: MatchSpec; chunks: { id: string; gameStart: number; games: number }[]; pendingChunks: number; loaded: number;
+  id: string; spec: MatchSpec; chunks: { id: string; gameStart: number; games: number; indices?: number[] }[]; pendingChunks: number; loaded: number;
   records: GameRecordLite[]; started: number; cancelled: boolean; opts: BatchRunOptions; lastEmit: number; emitTimer: ReturnType<typeof setTimeout> | null;
   resolve: (r: MatchResult) => void; reject: (e: Error) => void; errors: string[];
 }
@@ -63,7 +65,8 @@ export class BatchPool {
     const start = spec.gameStart ?? 0;
     const chunkSize = Math.max(2, opts.chunk ?? Math.ceil(spec.games / (this.size * 4)));
     const chunks: Job['chunks'] = [];
-    for (let g = 0, k = 0; g < spec.games; g += chunkSize, k++) chunks.push({ id: `${id}/${k}`, gameStart: start + g, games: Math.min(chunkSize, spec.games - g) });
+    if (opts.indices) { const list = opts.indices; const size = Math.max(2, opts.chunk ?? Math.ceil(list.length / (this.size * 4))); for (let g = 0, k = 0; g < list.length; g += size, k++) { const part = list.slice(g, g + size); chunks.push({ id: `${id}/${k}`, gameStart: part[0], games: part.length, indices: part }); } }
+    else for (let g = 0, k = 0; g < spec.games; g += chunkSize, k++) chunks.push({ id: `${id}/${k}`, gameStart: start + g, games: Math.min(chunkSize, spec.games - g) });
     let resolve!: Job['resolve'], reject!: Job['reject'];
     const result = new Promise<MatchResult>((res, rej) => { resolve = res; reject = rej; });
     const job: Job = { id, spec, chunks, pendingChunks: chunks.length, loaded: 0, records: [], started: Date.now(), cancelled: false, opts, lastEmit: 0, emitTimer: null, resolve, reject, errors: [] };
@@ -90,7 +93,7 @@ export class BatchPool {
       const job = [...this.jobs.values()].find(j => j.chunks.length && j.loaded >= this.size && !j.cancelled);
       if (!job) return;
       const c = job.chunks.shift()!; slot.busy = c.id;
-      slot.worker.postMessage({ type: 'run', jobId: job.id, chunkId: c.id, gameStart: c.gameStart, games: c.games });
+      slot.worker.postMessage({ type: 'run', jobId: job.id, chunkId: c.id, gameStart: c.gameStart, games: c.games, indices: c.indices });
     }
   }
 
@@ -117,7 +120,7 @@ export class BatchPool {
     if (final || now - job.lastEmit >= gap) {
       if (job.emitTimer) { clearTimeout(job.emitTimer); job.emitTimer = null; }
       job.lastEmit = now;
-      job.opts.onProgress({ done: job.records.length, total: job.spec.games, records: job.records, partial: assembleResult(job.spec, job.records, now - job.started) });
+      job.opts.onProgress({ done: job.records.length, total: job.opts.indices?.length ?? job.spec.games, records: job.records, partial: assembleResult(job.spec, job.records, now - job.started) });
       return;
     }
     if (!job.emitTimer) job.emitTimer = setTimeout(() => { job.emitTimer = null; this.emit(job, true); }, gap - (now - job.lastEmit));

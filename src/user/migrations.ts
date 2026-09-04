@@ -75,4 +75,28 @@ CREATE INDEX idx_collection_cards_source ON collection_cards(source_id);
 CREATE VIEW collection_owned AS
   SELECT oracle_id, min(name) AS name, sum(count) AS count, count(DISTINCT source_id) AS sources FROM collection_cards GROUP BY oracle_id;
 `,
+  // 3: deck optimiser runs, candidate lists and their games (checkpointed, resumable, re-runnable).
+  `
+CREATE TABLE optimizer_runs (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('queued','running','cancelling','paused','done','cancelled','failed')),
+  deck_id TEXT, commander TEXT, spec TEXT NOT NULL, seed INTEGER NOT NULL,
+  progress TEXT NOT NULL, checkpoint TEXT, report TEXT, error TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, finished_at TEXT
+);
+CREATE TABLE optimizer_candidates (
+  run_id TEXT NOT NULL REFERENCES optimizer_runs(id) ON DELETE CASCADE, id TEXT NOT NULL,
+  list_hash TEXT NOT NULL, list TEXT NOT NULL, parent_id TEXT, swap_out TEXT, swap_in TEXT, "order" TEXT NOT NULL,
+  block INTEGER NOT NULL, iteration INTEGER NOT NULL, status TEXT NOT NULL, games INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0, draws INTEGER NOT NULL DEFAULT 0, bulk INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (run_id, id)
+);
+CREATE TABLE optimizer_games (
+  run_id TEXT NOT NULL REFERENCES optimizer_runs(id) ON DELETE CASCADE, candidate_id TEXT NOT NULL, game_index INTEGER NOT NULL,
+  seed INTEGER NOT NULL, seat_order TEXT NOT NULL, opponent TEXT NOT NULL, winner INTEGER, first_seat INTEGER NOT NULL, turns INTEGER NOT NULL,
+  mulligans TEXT NOT NULL, opening_hand TEXT NOT NULL, seen TEXT NOT NULL, first_commander_cast_turn TEXT NOT NULL, loss_reason TEXT NOT NULL,
+  unsimulated INTEGER NOT NULL, reused_from TEXT, error TEXT, ms REAL NOT NULL,
+  PRIMARY KEY (run_id, candidate_id, game_index)
+);
+CREATE INDEX idx_optimizer_games_candidate ON optimizer_games(run_id, candidate_id);
+`,
 ];

@@ -24,7 +24,7 @@ export function createBatchHandler(): BatchHandler {
           const stop = () => cancelled.has(msg.jobId) || cancelled.has('*');
           let n = 0;
           await runMatches({ ...spec, gameStart: msg.gameStart, games: msg.games }, {
-            shouldStop: stop, batch: 2,
+            shouldStop: stop, batch: 2, indices: msg.indices,
             onProgress: records => { n += records.length; if (!stop()) post({ type: 'progress', jobId: msg.jobId, chunkId: msg.chunkId, records }); },
           });
           post({ type: 'chunk-done', jobId: msg.jobId, chunkId: msg.chunkId, games: n, cancelled: stop() });

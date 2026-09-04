@@ -3,6 +3,7 @@
 // shows win rates with Wilson intervals, seat/play-draw splits, mulligan rates and (for Commander) commander cast
 // turns. Every number carries a derivation; "Replay to verify" runs the same seeds again and compares the win count.
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Play, RefreshCw, Square } from 'lucide-react';
 import type { DeckList } from '@cards/db';
@@ -80,7 +81,7 @@ export function SimulateSection({ deckId }: { deckId: string }) {
   const agg = result?.aggregate;
   return (
     <section className={styles.section} aria-label="Simulate" data-testid="simulate-section">
-      <div className={styles.sectionHead}><h3>Simulate</h3><span className="faint small">whole games in the background, seeded and reproducible</span></div>
+      <div className={styles.sectionHead}><h3>Simulate</h3><span className="faint small">whole games in the background, seeded and reproducible · <Link href={`/optimize?deck=${encodeURIComponent(deckId)}`} data-testid="optimize-this-deck">optimise this deck</Link></span></div>
       <div className={styles.simControls}>
         <Select label="Opponent" size="sm" options={options} value={opp} onChange={e => setOpp(e.target.value)} disabled={running || !options.length} placeholder={options.length ? undefined : 'No other decks yet'} data-testid="simulate-opponent" />
         <Segmented size="sm" label="Games" value={games} onChange={setGames} options={GAME_OPTIONS} />

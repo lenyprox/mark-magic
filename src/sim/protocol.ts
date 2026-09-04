@@ -5,7 +5,7 @@ import type { GameRecordLite, MatchSpec } from './types.js';
 export type ToBatchWorker =
   | { type: 'init' }
   | { type: 'load'; jobId: string; spec: MatchSpec }
-  | { type: 'run'; jobId: string; chunkId: string; gameStart: number; games: number }
+  | { type: 'run'; jobId: string; chunkId: string; gameStart: number; games: number; indices?: number[] }
   | { type: 'unload'; jobId: string }
   | { type: 'cancel'; jobId?: string };
 

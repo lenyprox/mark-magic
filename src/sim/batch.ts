@@ -56,7 +56,8 @@ export function prepare(spec: MatchSpec): PreparedMatch {
   if (spec.decks.length < 2) throw new Error('a match needs at least two decks');
   const seats = spec.players ?? spec.decks.length;
   const commander = spec.format === 'commander';
-  const arrays = spec.decks.map(d => commander ? splitPayload(d).library.sort((a, b) => (defKey(a) < defKey(b) ? -1 : defKey(a) > defKey(b) ? 1 : 0)) : deckArray(d));
+  const fromOrder = (d: DeckPayload, order: string[]): CardDef[] => { const byName = new Map<string, CardDef>(); for (const x of Object.values(d.defs)) byName.set(x.name, x); return order.map(n => byName.get(n)).filter((x): x is CardDef => !!x); };
+  const arrays = spec.decks.map((d, i) => { const order = spec.orders?.[i]; if (order) return fromOrder(d, order); return commander ? splitPayload(d).library.sort((a, b) => (defKey(a) < defKey(b) ? -1 : defKey(a) > defKey(b) ? 1 : 0)) : deckArray(d); });
   return { arrays, commanders: spec.decks.map(commanderNames), commanderDefs: spec.decks.map(d => commander ? splitPayload(d).commanders : []), seats };
 }
 
@@ -105,6 +106,10 @@ export async function playOne(spec: MatchSpec, prepared: PreparedMatch, i: numbe
 export interface RunOptions {
   onProgress?: (records: GameRecordLite[], done: number, total: number) => void | Promise<void>;
   shouldStop?: () => boolean;
+  /** Play exactly these absolute game indexes instead of gameStart..gameStart+games. */
+  indices?: number[];
+  /** Use these prepared arrays (explicit library order per deck) instead of the canonical sort. */
+  prepared?: PreparedMatch;
   /** Records per onProgress call (default 5). */
   batch?: number;
   /** Yield to the event loop every this many games (default 1) so cancel messages get through. */
@@ -115,13 +120,13 @@ const yieldToLoop = () => new Promise<void>(r => setTimeout(r, 0));
 
 /** Run the games of a spec in order and assemble the result. */
 export async function runMatches(spec: MatchSpec, opts: RunOptions = {}): Promise<MatchResult> {
-  const prepared = prepare(spec);
-  const start = spec.gameStart ?? 0; const total = spec.games; const batch = Math.max(1, opts.batch ?? 5); const yieldEvery = Math.max(1, opts.yieldEvery ?? 1);
+  const prepared = opts.prepared ?? prepare(spec);
+  const start = spec.gameStart ?? 0; const list = opts.indices ?? Array.from({ length: spec.games }, (_, k) => start + k); const total = list.length; const batch = Math.max(1, opts.batch ?? 5); const yieldEvery = Math.max(1, opts.yieldEvery ?? 1);
   const records: GameRecordLite[] = []; let pending: GameRecordLite[] = [];
   const t0 = now();
   for (let k = 0; k < total; k++) {
     if (opts.shouldStop?.()) break;
-    const rec = await playOne(spec, prepared, start + k);
+    const rec = await playOne(spec, prepared, list[k]);
     records.push(rec); pending.push(rec);
     if (pending.length >= batch) { await opts.onProgress?.(pending, records.length, total); pending = []; }
     if (k % yieldEvery === yieldEvery - 1) await yieldToLoop();

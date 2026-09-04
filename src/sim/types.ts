@@ -29,6 +29,8 @@ export interface MatchSpec {
   maxTurns: number;
   mulligans: MulliganPolicy;
   record: 'summary' | 'events';
+  /** Optional explicit library order (card names, one per copy) per deck; null keeps the canonical sorted order. */
+  orders?: (string[] | null)[];
 }
 
 /** The spec without the card definitions: what a result carries and what a re-run needs alongside the decks. */

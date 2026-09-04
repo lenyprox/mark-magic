@@ -8,10 +8,11 @@ import { CardQueryDB } from '@cards/query';
 import { openUserDb } from '@user/db';
 import { DeckStore, GameStore } from '@user/decks';
 import { CollectionStore } from '@collection/store';
+import { OptimizerStore } from '@optimizer/store';
 import { DATA_DIR, MASTER_DB, USER_DB, projectRoot } from '@config/paths';
 import type Database from 'better-sqlite3';
 
-interface Registry { cards?: CardDB; query?: CardQueryDB; user?: Database.Database; decks?: DeckStore; games?: GameStore; collection?: CollectionStore }
+interface Registry { cards?: CardDB; query?: CardQueryDB; user?: Database.Database; decks?: DeckStore; games?: GameStore; collection?: CollectionStore; optimizer?: OptimizerStore }
 const g = globalThis as unknown as { __mtg?: Registry };
 const reg: Registry = (g.__mtg ??= {});
 
@@ -44,6 +45,7 @@ export function getUserDb(): Database.Database { return (reg.user ??= openUserDb
 export function getDecks(): DeckStore { return (reg.decks ??= new DeckStore(getUserDb())); }
 export function getGames(): GameStore { return (reg.games ??= new GameStore(getUserDb())); }
 export function getCollection(): CollectionStore { return (reg.collection ??= new CollectionStore(getUserDb(), getCards())); }
+export function getOptimizer(): OptimizerStore { return (reg.optimizer ??= new OptimizerStore(getUserDb())); }
 
 export interface CollectionSummary { distinct: number; copies: number; sources: number; decks: number; updatedAt: string | null }
 

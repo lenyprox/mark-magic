@@ -1,0 +1,3 @@
+2026-09-04T08:08:56.686Z start run ea22cb0b-af9b-4b30-8c64-1cd27f751fff (E2E opt seed vs Burn test) with 2 worker(s), pid 34944
+2026-09-04T08:08:58.109Z pool: 449 cards (0 unregistered)
+2026-09-04T08:08:59.086Z finished: best 100.0% vs baseline 100.0% (120 games simulated, 0 reused)
