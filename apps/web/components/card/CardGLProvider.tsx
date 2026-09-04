@@ -32,7 +32,7 @@ const DEFAULT_TUNING: Tuning = { relief: 1, foil: 1, glare: 1, tiltScale: 1, rad
 
 /** Hard budget of simultaneously registered live cards. Beyond it `register` returns null and Card3D stays on its
  *  CSS/image fallback — this is what keeps a four-seat table from putting forty cards on the GPU at once. */
-export const MAX_LIVE_CARDS = 100000;
+export const MAX_LIVE_CARDS = 12;
 
 /** Wrap a handle so releasing it gives the budget back exactly once. */
 function budgeted(h: CardHandle, release: () => void): CardHandle {

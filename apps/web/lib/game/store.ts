@@ -211,7 +211,12 @@ export const useGameStore = create<GameStore>((set, get) => {
             if (m.events?.length) ingest(m.events, m.view);
             break;
           }
-          case 'view': ingest(m.events, m.view); break;
+          case 'view': {
+            if (m.events?.length) pendingEvents.push(...m.events);
+            pendingView = m.view;
+            batcher.schedule();
+            break;
+          }
           case 'decision': {
             batcher.cancel(); flushSideChannels();
             const buffered = takeEvents();
@@ -231,8 +236,8 @@ export const useGameStore = create<GameStore>((set, get) => {
             set(st => ({ events: st.events.slice(0, keep), log: st.log.filter(l => l.index < logKeep), decision: null, undoAvailable: null, analysis: null, analysisPhase: 'idle', analysisFor: null, reruns: {}, settled: false, fx: EMPTY_FX, playback: { ...st.playback, cursor: st.eventBase + keep, paused: false, rushing: false } }));
             break;
           }
-          case 'log': set(s => ({ log: [...s.log, { index: m.index, line: m.line, turn: m.turn, step: m.step, kind: classify(m.line) }] })); break;
-          case 'reasoning': set(s => ({ reasoning: [...s.reasoning.slice(-200), m.reasoning] })); break;
+          case 'log': pendingLog.push({ index: m.index, line: m.line, turn: m.turn, step: m.step, kind: classify(m.line) }); batcher.schedule(); break;
+          case 'reasoning': pendingReasoning.push(m.reasoning); batcher.schedule(); break;
           case 'analysis': set(s => (s.decision?.requestId === m.requestId || s.analysisFor === m.requestId) ? { analysis: m.report, analysisPhase: m.phase, analysisFor: m.requestId } : {}); break;
           case 'analysis-rerun-result': set(s => ({ reruns: { ...s.reruns, [`${m.req.candidateId}:${m.req.trialStart}:${m.req.trialCount}:${m.req.baseSeed}`]: { identical: m.identical, results: m.results } } })); break;
           case 'finished': {

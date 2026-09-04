@@ -116,7 +116,52 @@ export function findPayment(s: GameState, p: Player, cost: ManaCost, x = 0, redu
   // Enumerate: small search over source options (branching kept low by trying the most-constrained pips first).
   const pool = [...p.manaPool, ...(p.stickyMana ?? [])];
   const best = solve(pool, sources, needPips, hybrid, phyrexian, generic, limit);
-  return best;
+  if (best) return best;
+  // Mana abilities that themselves cost mana (filter lands, Cabal Coffers): fund one of them, then pay with its output.
+  if (!p.battlefield.some(o => !o.tapped && abilitiesOf(o).some(ab => ab.kind === 'activated' && ab.manaAbility && ab.cost.tap && ab.cost.mana))) return null;
+  const boosts = boostSources(s, p, opts).slice(0, 2);
+  const subLimit = Math.min(limit, 200);
+  for (const boost of boosts) {
+    if (opts.onlyIds && !opts.onlyIds.includes(boost.source.obj.id)) continue;
+    const others = sources.filter(r => r.obj.id !== boost.source.obj.id);
+    const fund = solve(pool, others, [...boost.cost.pips], boost.cost.hybrid.map(h => h), [...boost.cost.phyrexian], boost.cost.generic, subLimit);
+    if (!fund) continue;
+    const usedIds = new Set(fund.taps.map(t => t.source.obj.id));
+    const rest = others.filter(r => !usedIds.has(r.obj.id));
+    const leftPool = [...pool];
+    for (const m of fund.pool) { const i = leftPool.indexOf(m); if (i >= 0) leftPool.splice(i, 1); }
+    const main = solve(leftPool, [boost.source, ...rest], needPips, hybrid, phyrexian, generic, subLimit);
+    if (!main) continue;
+    return { pool: [...fund.pool, ...main.pool], taps: [...fund.taps, ...main.taps] };
+  }
+  return null;
+}
+
+/** Untapped permanents whose mana ability costs mana as well as {T} (filter lands, Cabal Coffers, Nykthos). */
+function boostSources(s: GameState, p: Player, opts: ManaSourceOptions): { source: ManaSource; cost: ManaCost }[] {
+  const out: { source: ManaSource; cost: ManaCost }[] = [];
+  for (const o of p.battlefield) {
+    if (o.tapped) continue;
+    if (isCreature(o) && o.enteredTurn === s.turn && !hasKeyword(s, o, 'haste')) continue;
+    abilitiesOf(o).forEach((ab, i) => {
+      if (ab.kind !== 'activated' || !ab.manaAbility || !ab.cost.tap || !ab.cost.mana) return;
+      if (ab.cost.sacrificeSelf || ab.cost.sacrifice || ab.cost.discard || ab.cost.discardHand || ab.cost.payLife || ab.cost.removeCounters) return;
+      if (ab.activateOnlyIf && !conditionHolds(s, o, ab.activateOnlyIf)) return;
+      const options: ManaSymbol[][] = [];
+      for (const e of ab.effects) {
+        if (e.op !== 'add-mana' || e.restriction) continue;
+        const per = e.perEach ? evalAmount(s, e.perEach, o.controller, 0, o) : 1;
+        if (per <= 0) continue;
+        const rep = (m: ManaSymbol[]): ManaSymbol[] => per === 1 ? m : Array.from({ length: per }, () => m).flat();
+        if (e.choices) options.push(...e.choices.map(rep));
+        else if (Array.isArray(e.mana)) options.push(rep(e.mana));
+        else if (e.mana === 'any' || e.mana === 'any-one') options.push(...ALL.map(c => rep([c])));
+        else if (e.mana === 'commander-identity') commanderIdentity(s, o.controller).forEach(c => options.push(rep([c])));
+      }
+      if (options.length) out.push({ source: { obj: o, abilityIndex: i, options }, cost: ab.cost.mana! });
+    });
+  }
+  return opts.onlyIds ? out.filter(b => opts.onlyIds!.includes(b.source.obj.id)) : out;
 }
 
 function solve(pool: ManaSymbol[], sources: ManaSource[], pips: ManaSymbol[], hybrid: ManaSymbol[][], phyrexian: ManaSymbol[], generic: number, limit: number): Payment | null {

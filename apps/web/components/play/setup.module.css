@@ -3,8 +3,9 @@
 .head h1 { font-size: var(--t-2xl); margin: 0; }
 .lede { color: var(--ink-2); max-width: 60ch; margin-top: var(--s-2); }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-4); }
-@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+/* auto-fit with a min() track: the columns collapse to one on a phone and never force the page wider than the
+   viewport (a fixed 1fr 1fr grid made the layout viewport grow, which then defeated the media query). */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: var(--s-4); }
 
 .card { background: var(--bg-2); box-shadow: var(--catch), 0 0 0 1px var(--line); border-radius: var(--r-3); padding: var(--s-4) var(--s-5); display: flex; flex-direction: column; gap: var(--s-3); background-image: var(--lamp); }
 .card h2 { font-size: var(--t-lg); margin: 0; display: flex; align-items: center; gap: var(--s-2); }
@@ -21,9 +22,18 @@
 .toggle input { accent-color: var(--brass-2); width: 16px; height: 16px; }
 .toggle b { color: var(--ink-1); font-weight: 500; }
 .toggleHint { color: var(--ink-3); font-size: var(--t-xs); }
-.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-4) var(--s-5); }
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: var(--s-4) var(--s-5); }
 .deal { display: flex; align-items: center; justify-content: flex-end; gap: var(--s-3); margin-top: var(--s-4); }
 .dealBtn { min-width: 160px; font-size: var(--t-md); }
 .deckMeta { font-size: var(--t-xs); color: var(--ink-3); display: flex; gap: var(--s-2); align-items: center; }
 .lastGame { font-size: var(--t-sm); color: var(--ink-2); }
 select.native { width: 100%; }
+
+@media (max-width: 768px) {
+  .page { padding-block: var(--s-4) var(--s-6); }
+  .card { padding: var(--s-3) var(--s-4); }
+  .head { margin-bottom: var(--s-4); }
+  .deal { flex-wrap: wrap; justify-content: stretch; }
+  .dealBtn { flex: 1 1 100%; }
+  .settings { grid-template-columns: minmax(0, 1fr); }
+}

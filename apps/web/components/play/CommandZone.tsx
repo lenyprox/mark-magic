@@ -11,8 +11,6 @@ import { TableCard, type TableCardProps } from './TableCard';
 import type { DragBindProps } from './useDragIntent';
 import styles from './table.module.css';
 
-const identity = <T,>(c: T): T => c;
-
 export interface CommandZoneProps {
   player: PlayerView;
   mine: boolean;
@@ -26,7 +24,7 @@ export interface CommandZoneProps {
   reducedMotion?: boolean;
 }
 
-export const CommandZone = identity(function CommandZone({ player, mine, cardWidth = 56, cardState, onActivate, bindDrag, whereIs, layoutKey, reducedMotion }: CommandZoneProps) {
+export const CommandZone = memo(function CommandZone({ player, mine, cardWidth = 56, cardState, onActivate, bindDrag, whereIs, layoutKey, reducedMotion }: CommandZoneProps) {
   void layoutKey; void reducedMotion;
   if (!player.commanders?.length) return null;
   const casts = player.commanderCasts ?? {};

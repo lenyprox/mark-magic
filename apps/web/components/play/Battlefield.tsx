@@ -14,8 +14,6 @@ import { TableCard, type TableCardProps } from './TableCard';
 import type { DragBindProps } from './useDragIntent';
 import styles from './table.module.css';
 
-const identity = <T,>(c: T): T => c;
-
 export interface BattlefieldProps {
   permanents: PermanentView[];
   mine: boolean;
@@ -38,7 +36,7 @@ export interface BattlefieldProps {
   reducedMotion?: boolean;
 }
 
-export const Battlefield = identity(function Battlefield({ permanents, mine, player, cardWidth = 88, cardState, onActivate, actionsFor, menuCard, onMenuOpenChange, onPickAction, bindDrag, dropTarget, dropOver, layoutKey, reducedMotion }: BattlefieldProps) {
+export const Battlefield = memo(function Battlefield({ permanents, mine, player, cardWidth = 88, cardState, onActivate, actionsFor, menuCard, onMenuOpenChange, onPickAction, bindDrag, dropTarget, dropOver, layoutKey, reducedMotion }: BattlefieldProps) {
   const { lands, creatures, others } = useMemo(() => {
     const lands: PermanentView[] = []; const creatures: PermanentView[] = []; const others: PermanentView[] = [];
     for (const p of permanents) { if (p.isCreature) creatures.push(p); else if (p.isLand) lands.push(p); else others.push(p); }
@@ -81,7 +79,7 @@ export const Battlefield = identity(function Battlefield({ permanents, mine, pla
   // Order: for the opponent, lands nearest the middle would be far; keep creatures nearest the centre strip.
   const ordered = mine ? rows : [...rows].reverse();
   return (
-    <div className={clsx(styles.battlefield, mine ? styles.bfMine : styles.bfOpp, dropTarget && styles.dropZone, dropOver && styles.dropZoneOver)} aria-label={mine ? 'Your battlefield' : "Opponent's battlefield"}
+    <div role="group" className={clsx(styles.battlefield, mine ? styles.bfMine : styles.bfOpp, dropTarget && styles.dropZone, dropOver && styles.dropZoneOver)} aria-label={mine ? 'Your battlefield' : "Opponent's battlefield"}
       data-drop-zone={player !== undefined ? `battlefield:${player}` : undefined} data-testid={mine ? 'battlefield-me' : 'battlefield-opp'} data-drop-target={dropTarget ? '' : undefined}>
       {ordered.length === 0 && <div className={styles.bfEmpty} aria-hidden />}
       {ordered.map(r => (

@@ -29,13 +29,18 @@ export function DrawOdds({ report, reruns, onRerun }: { report: DrawOddsReport; 
             const d = byId.get(o.derivationId); const isOpen = open === o.name;
             return (
               <li key={o.name} className={clsx(styles.ohRow, isOpen && styles.ohOpen)}>
-                <button type="button" className={styles.ohMain} aria-expanded={!!d && isOpen} onClick={() => d && setOpen(isOpen ? null : o.name)}>
+                {/* the card name is a link, so the expander is its own button beside it (never around it) */}
+                <div className={styles.ohMain}>
                   <span className={styles.ohLabel}><CardRef name={o.name} className={styles.cardRef} /></span>
                   <Meter value={o.prob.value} label={pct(o.prob.value)} showValue={false} className={styles.ohMeter} />
                   <span className={clsx('mono', styles.ohProb)}>{pct(o.prob.value)}</span>
                   <span className={clsx('mono', styles.ohCopies)} title="Draws considered">{o.draws}d</span>
-                  {d && <ChevronDown size={12} className={styles.chev} aria-hidden />}
-                </button>
+                  {d ? (
+                    <button type="button" className={styles.ohChev} aria-expanded={isOpen} aria-label={`How the odds for ${o.name} were derived`} onClick={() => setOpen(isOpen ? null : o.name)}>
+                      <ChevronDown size={12} className={styles.chev} aria-hidden />
+                    </button>
+                  ) : <span aria-hidden />}
+                </div>
                 {d && isOpen && <div className={styles.ohDeriv}><DerivationView d={d} reruns={reruns} onRerun={onRerun} defaultOpen /></div>}
               </li>
             );

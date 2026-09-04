@@ -14,8 +14,6 @@ import { CardImage } from '@/components/card/CardImage';
 import { NumberRoll } from './NumberRoll';
 import styles from './table.module.css';
 
-const identity = <T,>(c: T): T => c;
-
 export interface PlayerPlateProps {
   player: PlayerView;
   isMe: boolean;
@@ -52,7 +50,7 @@ function CardBacks({ n }: { n: number }) {
 
 export const COMMANDER_DAMAGE_LETHAL = 21;
 
-export const PlayerPlate = identity(function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, picked, dimmed, hovered, thinking, dropTarget, dropOver, pulsed, compact, nameOf, onClick, onOpenZone, layoutKey, reducedMotion }: PlayerPlateProps) {
+export const PlayerPlate = memo(function PlayerPlate({ player, isMe, active, hasPriority, legalTarget, picked, dimmed, hovered, thinking, dropTarget, dropOver, pulsed, compact, nameOf, onClick, onOpenZone, layoutKey, reducedMotion }: PlayerPlateProps) {
   const clickable = !!onClick && legalTarget;
   const topGy = player.graveyard[player.graveyard.length - 1];
   const topEx = player.exile[player.exile.length - 1];

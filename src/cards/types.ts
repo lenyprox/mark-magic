@@ -51,7 +51,8 @@ export interface Filter {
 export type Amount = number | 'X' | {
   count: 'creatures-you-control' | 'cards-in-hand' | 'lands-you-control' | 'power-of-source' | 'creatures-attacking' | 'opponent-creatures' | 'life-lost-this-turn'
     | 'permanents-you-control' | 'domain' | 'exiled-with' | 'cards-in-graveyard' | 'power-of-that' | 'mv-of-that' | 'colors-spent' | 'card-types-in-graveyard' | 'card-types-in-all-graveyards' | 'counters-on-source'
-    | 'counters-on-permanents' | 'that-many' | 'commander-casts' | 'opponents' | 'player-counters' | 'cards-drawn-this-turn';
+    | 'counters-on-permanents' | 'that-many' | 'commander-casts' | 'opponents' | 'player-counters' | 'cards-drawn-this-turn'
+    | 'permanents-on-battlefield' | 'creatures-died-this-turn' | 'attached-to-source' | 'blocking-source' | 'cards-in-all-hands' | 'spells-cast-this-turn';
   filter?: Filter; plus?: number; times?: number; counter?: string;
 };
 
@@ -302,6 +303,8 @@ export interface CardDef {
   toxic?: number;
   /** Storm (CR 702.40). */
   storm?: boolean;
+  /** This card has a static ability that works from the graveyard (Anger, Filth) — a fast gate for the layer scan. */
+  graveyardStatic?: boolean;
   /** Firebending N: whenever this creature attacks, add N {R} that lasts until end of turn. */
   firebending?: number; bushido?: number; rampage?: number; landwalk?: string[];
   /** Cascade (CR 702.85): on cast, exile from the top until a cheaper nonland card and cast it free. */

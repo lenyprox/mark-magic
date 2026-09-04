@@ -15,8 +15,6 @@ import { TableCard, type TableCardProps } from './TableCard';
 import type { DragBindProps } from './useDragIntent';
 import styles from './table.module.css';
 
-const identity = <T,>(c: T): T => c;
-
 export const LIVE_HAND_POOL = 8;
 
 export interface HandProps {
@@ -36,7 +34,7 @@ export interface HandProps {
   reducedMotion?: boolean;
 }
 
-export const Hand = identity(function Hand({ cards, cardState, onActivate, onPickAction, actionsFor, menuCard, onMenuOpenChange, compact, bindDrag, layoutKey, reducedMotion }: HandProps) {
+export const Hand = memo(function Hand({ cards, cardState, onActivate, onPickAction, actionsFor, menuCard, onMenuOpenChange, compact, bindDrag, layoutKey, reducedMotion }: HandProps) {
   const [hovered, setHovered] = useState<number | null>(null);
   const n = cards.length;
   const width = compact ? 96 : 116;

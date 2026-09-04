@@ -21,7 +21,7 @@ export function LogPanel({ log, className }: { log: LogLine[]; className?: strin
   const lines = filter === 'all' ? log : log.filter(l => l.kind === filter);
   let lastTurn = -1;
   return (
-    <div className={clsx(styles.log, className)} aria-label="Game log">
+    <section className={clsx(styles.log, className)} aria-label="Game log">
       <div className={styles.logHead}>
         <span className={styles.logTitle}>Log</span>
         <div className={styles.logFilters} role="group" aria-label="Filter log">
@@ -47,6 +47,6 @@ export function LogPanel({ log, className }: { log: LogLine[]; className?: strin
         })}
         {!lines.length && <div className="faint small" style={{ padding: 12 }}>Nothing yet.</div>}
       </div>
-    </div>
+    </section>
   );
 }

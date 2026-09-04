@@ -79,8 +79,10 @@
 .ohList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
 .ohRow { border-radius: var(--r-1); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
 .ohOpen { box-shadow: inset 0 0 0 1px var(--brass-line); }
-.ohMain { display: grid; grid-template-columns: minmax(80px, 1.1fr) minmax(60px, 1fr) auto auto 14px; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; text-align: left; color: var(--ink-1); font-size: var(--t-xs); cursor: pointer; border-radius: var(--r-1); }
-.ohMain:hover, .ohMain:focus-visible { background: var(--bg-3); outline: none; }
+.ohMain { display: grid; grid-template-columns: minmax(80px, 1.1fr) minmax(60px, 1fr) auto auto 22px; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; text-align: left; color: var(--ink-1); font-size: var(--t-xs); cursor: pointer; border-radius: var(--r-1); }
+.ohMain:hover, .ohMain:focus-within { background: var(--bg-3); outline: none; }
+.ohChev { display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--r-1); color: var(--ink-2); cursor: pointer; }
+.ohChev:hover, .ohChev:focus-visible { color: var(--ink-1); background: var(--bg-4); outline: none; }
 .ohOpen .ohMain .chev { transform: rotate(180deg); }
 .ohLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ohMeter { min-width: 0; }
@@ -101,3 +103,8 @@
 .crackbackLethal { color: var(--danger); }
 
 @media (prefers-reduced-motion: reduce) { .playRunning, .dot_update, .running, .spin { animation: none; } }
+
+@media (max-width: 768px) {
+  .ohMain { grid-template-columns: minmax(60px, 1.1fr) minmax(50px, 1fr) auto auto 44px; }
+  .ohChev { width: 44px; height: 44px; }
+}

@@ -62,7 +62,7 @@ export function ExplainPanel({ events, eventBase, cursor, view, explain, onToggl
   const onScroll = () => { const el = ref.current; if (!el) return; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; };
   let lastTurn = -1;
   return (
-    <div className={styles.explain} data-testid="explain-panel" aria-label="Explain">
+    <section className={styles.explain} data-testid="explain-panel" aria-label="Explain">
       <div className={styles.railHead}>
         <span className={styles.railTitle}>Explain</span>
         <span className="faint small">{rows.length} events</span>
@@ -102,6 +102,6 @@ export function ExplainPanel({ events, eventBase, cursor, view, explain, onToggl
         {!rows.length && <div className="faint small" style={{ padding: 12 }}>Events appear here as the game plays.</div>}
       </div>
       <footer className={styles.railFoot}>{ATTRIBUTION}</footer>
-    </div>
+    </section>
   );
 }

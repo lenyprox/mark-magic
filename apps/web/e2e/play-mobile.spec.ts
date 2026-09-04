@@ -4,7 +4,10 @@ import { test, expect, devices, type Locator, type Page } from '@playwright/test
 // opponent seat collapses to a plate with a tap-to-expand battlefield sheet, the hand is a horizontal snap-scroll
 // strip, a land drags from that strip onto the battlefield, and the right rail opens as a bottom sheet.
 
-test.use({ ...devices['iPhone 13'] });
+// `devices['iPhone 13']` names WebKit as its browser; this repo only installs Chromium, so the engine choice is
+// dropped and the rest (390 x 664 viewport, DPR 3, touch, mobile user agent) is kept.
+const { defaultBrowserType: _engine, ...iPhone13 } = devices['iPhone 13'];
+test.use(iPhone13);
 
 async function startGame(page: Page, seed = 42) {
   await page.goto('/play');
@@ -52,12 +55,12 @@ test('mobile: the phone table collapses the seats, drags a land from the hand st
   const hand = page.getByTestId('hand');
   await expect(hand).toHaveAttribute('data-layout', 'strip');
   await expect(page.getByTestId('seat')).toHaveAttribute('data-collapsed', '');
-  await expect(page.getByTestId('right-rail')).toHaveCount(0);
+  await expect(page.getByTestId('right-rail')).toBeHidden(); // it lives in the closed bottom sheet, not beside the table
   // the strip scrolls horizontally rather than overflowing the viewport
   const width = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   expect(width, 'the table must not scroll horizontally').toBe(true);
   // every tool button clears the 44 px touch target
-  const small = await page.getByTestId('play-table').locator('button:visible').evaluateAll(els => els.filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.height < 44 && !e.closest('[data-testid=phase-strip]'); }).map(e => `${e.getAttribute('aria-label') ?? e.textContent?.trim()}: ${Math.round(e.getBoundingClientRect().height)}px`));
+  const small = await page.getByTestId('play-table').locator('button:visible').evaluateAll(els => els.filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.height < 44 || r.width < 44); }).map(e => `${e.getAttribute('aria-label') ?? e.textContent?.trim()}: ${Math.round(e.getBoundingClientRect().width)}x${Math.round(e.getBoundingClientRect().height)}px`));
   expect(small, small.join(' | ')).toEqual([]);
 
   // ---- the opponent battlefield lives in a tap-to-expand sheet

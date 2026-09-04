@@ -16,17 +16,22 @@ const MODEL_LABEL = { exact: 'exact list', archetype: 'archetype', none: 'no mod
 export function OpponentModel({ report, reruns, onRerun }: { report: CouldHaveReport; reruns: Record<string, { identical: boolean; results: unknown[] }>; onRerun: (req: McRequest) => void }) {
   const [open, setOpen] = useState<string | null>(null);
   const byId = new Map(report.derivations.map(d => [d.id, d]));
-  const row = (key: string, label: React.ReactNode, prob: Estimate, copies: number, derivationId: string) => {
+  const row = (key: string, label: React.ReactNode, prob: Estimate, copies: number, derivationId: string, name: string) => {
     const d = byId.get(derivationId); const isOpen = open === key; const half = ciHalfWidth(prob);
     return (
       <li key={key} className={clsx(styles.ohRow, isOpen && styles.ohOpen)}>
-        <button type="button" className={styles.ohMain} aria-expanded={!!d && isOpen} onClick={() => d && setOpen(isOpen ? null : key)}>
+        {/* the label can itself be a link, so the expander is its own button beside it (never around it) */}
+        <div className={styles.ohMain}>
           <span className={styles.ohLabel}>{label}</span>
           <Meter value={prob.value} label={`${pct(prob.value)}`} showValue={false} className={styles.ohMeter} />
           <span className={clsx('mono', styles.ohProb)}>{pct(prob.value)}{half != null && <span className="faint"> ±{(half * 100).toFixed(1)}</span>}</span>
           <span className={clsx('mono', styles.ohCopies)} title="Copies unseen">×{copies}</span>
-          {d && <ChevronDown size={12} className={styles.chev} aria-hidden />}
-        </button>
+          {d ? (
+            <button type="button" className={styles.ohChev} aria-expanded={isOpen} aria-label={`How the odds for ${name} were derived`} onClick={() => setOpen(isOpen ? null : key)}>
+              <ChevronDown size={12} className={styles.chev} aria-hidden />
+            </button>
+          ) : <span aria-hidden />}
+        </div>
         {d && isOpen && <div className={styles.ohDeriv}><DerivationView d={d} reruns={reruns} onRerun={onRerun} defaultOpen /></div>}
       </li>
     );
@@ -46,12 +51,12 @@ export function OpponentModel({ report, reruns, onRerun }: { report: CouldHaveRe
         <>
           {report.classes.length > 0 && (
             <ul className={styles.ohList} aria-label="Interaction classes">
-              {report.classes.map(c => row(`c:${c.cls}`, <span className={styles.cls}>{c.cls}</span>, c.prob, c.copiesUnseen, c.derivationId))}
+              {report.classes.map(c => row(`c:${c.cls}`, <span className={styles.cls}>{c.cls}</span>, c.prob, c.copiesUnseen, c.derivationId, c.cls))}
             </ul>
           )}
           {report.cards.length > 0 && (
             <ul className={styles.ohList} aria-label="Most likely cards">
-              {report.cards.slice(0, 8).map(c => row(`k:${c.name}`, <CardRef name={c.name} className={styles.cardRef} />, c.prob, c.copiesUnseen, c.derivationId))}
+              {report.cards.slice(0, 8).map(c => row(`k:${c.name}`, <CardRef name={c.name} className={styles.cardRef} />, c.prob, c.copiesUnseen, c.derivationId, c.name))}
             </ul>
           )}
         </>

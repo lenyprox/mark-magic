@@ -142,8 +142,8 @@
 .phaseMine { color: var(--brass-2); }
 .steps { display: flex; gap: 2px; list-style: none; margin: 0; padding: 0; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .step { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1 1 0; min-width: 34px; }
-.stepLabel { display: block; width: 100%; text-align: center; padding: 3px 0; border-radius: var(--r-1); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; color: var(--ink-3); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); transition: color var(--d-2) var(--ease), background var(--d-2) var(--ease), box-shadow var(--d-2) var(--ease); cursor: default; }
-.stepPast .stepLabel { color: var(--ink-3); background: var(--bg-1); }
+.stepLabel { display: block; width: 100%; text-align: center; padding: 3px 0; border-radius: var(--r-1); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; color: var(--ink-2); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); transition: color var(--d-2) var(--ease), background var(--d-2) var(--ease), box-shadow var(--d-2) var(--ease); cursor: default; }
+.stepPast .stepLabel { color: var(--ink-2); background: var(--bg-1); }
 .stepCur .stepLabel { color: var(--ink-on-brass); background: var(--brass-2); box-shadow: 0 0 0 1px var(--brass-1), 0 0 12px var(--brass-glow); font-weight: 600; }
 .stopBtn, .stopNone { width: 10px; height: 10px; border-radius: 50%; }
 .stopBtn { background: var(--bg-1); box-shadow: inset 0 0 0 1px var(--line-strong); cursor: pointer; transition: background var(--d-1) var(--ease), box-shadow var(--d-1) var(--ease); }
@@ -368,7 +368,7 @@
 .explainBody { flex: 1 1 auto; overflow: auto; padding: 6px 8px 12px; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
 .explainMore { align-self: center; margin: 4px 0 8px; }
 .evCard { display: flex; gap: 8px; padding: 6px 8px; border-radius: var(--r-2); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); margin-bottom: 4px; transition: opacity var(--d-2) var(--ease); }
-.evFuture { opacity: 0.45; }
+.evFuture { opacity: 0.62; }
 .evStep { background: transparent; box-shadow: none; padding: 2px 8px; }
 .evStep .evText { color: var(--ink-3); font-size: var(--t-xs); }
 .evIcon { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-3); background: var(--bg-3); margin-top: 1px; }
@@ -496,7 +496,7 @@
 .tlRow:disabled { cursor: default; opacity: 0.7; }
 .tlRowStep { flex: none; width: 26px; font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
 .tlRowText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tlRowFuture { opacity: 0.45; }
+.tlRowFuture { opacity: 0.72; }
 .tlRowNow { background: var(--bg-3); color: var(--ink-1); box-shadow: inset 0 0 0 1px var(--brass-line); }
 
 /* ---- reorder lists (damage assignment order, trigger order) ------------------------------------ */
@@ -552,11 +552,10 @@
   .phaseRow > :first-child { flex: 1 1 100%; }
   .steps { gap: 0; }
   .step { min-width: 44px; }
-  .stepLabel { min-height: 30px; display: flex; align-items: center; justify-content: center; }
-  .stopBtn, .stopNone { width: 44px; height: 14px; border-radius: var(--r-1); background: none; box-shadow: none; position: relative; }
-  .stopBtn::after { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--bg-1); box-shadow: inset 0 0 0 1px var(--line-strong); }
-  .stopOn { background: none; box-shadow: none; }
-  .stopOn::after { background: var(--brass-1); box-shadow: 0 0 6px var(--brass-glow); }
+  .stepLabel { min-height: 44px; display: flex; align-items: center; justify-content: center; }
+  /* Per-step stop toggles are a 10 px dot: too small to hit on a phone and not worth 44 px of the strip, so
+     they are desktop-only. Tapping a later step to pass until it still works. */
+  .stopBtn, .stopNone { display: none; }
 
   .bfMine { order: 3; flex: 1 1 auto; min-height: 88px; overflow-y: auto; padding: 6px 10px; }
   .castSlot { order: 4; position: static; left: auto; bottom: auto; transform: none; margin: 0 10px 4px; align-self: stretch; }
@@ -578,8 +577,12 @@
   .miniCard, .miniStatic { width: 84px; }
   .payTray { max-height: 46dvh; overflow-y: auto; }
   .abTargets, .prioActions { gap: 6px; }
-  .abTarget, .prioAction, .showMe, .logFilter, .explainBtn, .zoneBtn, .modeItem, .miniCard, .orderBtn, .tlRow { min-height: 44px; }
-  .orderBtn { width: 44px; }
+  .abTarget, .prioAction, .showMe, .logFilter, .explainBtn, .zoneBtn, .modeItem, .miniCard, .orderBtn, .tlRow, .seatExpand { min-height: 44px; min-width: 44px; }
+  .zoneBtn { justify-content: center; padding: 2px 8px; }
+  .orderBtn, .abClear { width: 44px; height: 44px; }
+  .tip button { min-height: 44px; }
+  .tipClose { width: 44px; height: 44px; }
+  .tipLink { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; }
   .tlLog { max-height: 40dvh; }
   .inspector { display: none; }
   .tip { width: min(320px, calc(100vw - 24px)); }

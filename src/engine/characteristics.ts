@@ -67,6 +67,12 @@ export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, sourc
     case 'opponents': n = opponentsOf(s, ctrl).length; break;
     case 'player-counters': n = me.counters?.[a.counter ?? ''] ?? 0; break;
     case 'cards-drawn-this-turn': n = me.cardsDrawnThisTurn ?? 0; break;
+    case 'permanents-on-battlefield': n = s.players.flatMap(pl => pl.battlefield).filter(o => !a.filter || matchesFilter(s, o, a.filter, source)).length; break;
+    case 'creatures-died-this-turn': n = s.players.reduce((t, pl) => t + pl.creaturesDiedThisTurn, 0); break;
+    case 'attached-to-source': n = source ? s.players.flatMap(pl => pl.battlefield).filter(o => o.attachedTo === source.id && (!a.filter || matchesFilter(s, o, a.filter, source))).length : 0; break;
+    case 'blocking-source': n = source ? (source.blockedBy ?? []).length : 0; break;
+    case 'cards-in-all-hands': n = s.players.reduce((t, pl) => t + pl.hand.length, 0); break;
+    case 'spells-cast-this-turn': n = me.spellsCastThisTurn; break;
     case 'card-types-in-graveyard': n = new Set(me.graveyard.flatMap(o => o.def.types.filter(t => t !== 'Kindred' && t !== 'Tribal'))).size; break;
     case 'card-types-in-all-graveyards': n = new Set(s.players.flatMap(p => p.graveyard).flatMap(o => o.def.types.filter(t => t !== 'Kindred' && t !== 'Tribal'))).size; break;
     case 'counters-on-source': n = source?.counters[a.counter ?? '+1/+1'] ?? 0; break;
@@ -150,8 +156,8 @@ function staticMods(s: GameState, o: GameObject): Mods {
       }
     }
   }
-  // Anger / Filth: anthems that work from the graveyard
-  if (isCreature(o)) for (const src of s.players[o.controller].graveyard) for (const ab of abilitiesOf(src)) {
+  // Anger / Filth: anthems that work from the graveyard (the def flag keeps this off the hot path)
+  if (isCreature(o)) for (const src of s.players[o.controller].graveyard) if (src.def.graveyardStatic) for (const ab of abilitiesOf(src)) {
     if (ab.kind !== 'static' || ab.effect.kind !== 'anthem' || !ab.effect.whileInGraveyard) continue;
     const e = ab.effect;
     if (e.condition && !conditionHolds(s, src, e.condition)) continue;

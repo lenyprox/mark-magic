@@ -10,15 +10,21 @@
 .navLink[aria-current='page'] { color: var(--ink-1); }
 .navLink[aria-current='page']::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 2px; height: 2px; border-radius: 1px; background: var(--brass-2); }
 .spacer { flex: 1; }
-.searchBtn { display: inline-flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px 0 12px; border-radius: var(--r-2); background: var(--bg-1); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); font-size: var(--t-sm); min-width: 220px; transition: box-shadow var(--d-2) var(--ease), color var(--d-2) var(--ease); }
+.searchBtn { display: inline-flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px 0 12px; border-radius: var(--r-2); background: var(--bg-1); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-2); font-size: var(--t-sm); min-width: 220px; transition: box-shadow var(--d-2) var(--ease), color var(--d-2) var(--ease); }
 .searchBtn:hover { color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .searchBtn > svg { width: 15px; height: 15px; }
 .searchBtn .kbds { margin-left: auto; display: inline-flex; gap: 3px; }
-@media (max-width: 760px) {
-  .topbar { gap: 12px; }
-  .searchBtn { min-width: 0; padding: 0 8px; }
+@media (max-width: 768px) {
+  /* The nav scrolls sideways rather than forcing the layout viewport wider than the phone (which would then
+     defeat every max-width media query on the page). */
+  .topbar { gap: 8px; padding-inline: 8px; }
+  .brand { font-size: 18px; flex: none; }
+  .nav { flex: 1 1 auto; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .nav::-webkit-scrollbar { display: none; }
+  .navLink { padding: 8px 8px; flex: none; }
+  .spacer { display: none; }
+  .searchBtn { min-width: 0; padding: 0 8px; flex: none; }
   .searchBtn .label, .searchBtn .kbds { display: none; }
-  .navLink { padding: 8px 8px; }
 }
 
 .main { min-height: calc(100vh - var(--topbar-h)); }
