@@ -6,8 +6,10 @@ export const mechanics: Scenario[] = [
   {
     name: 'Shadow cannot be blocked by a creature without shadow', cr: '702.28',
     seats: [{ bf: ['Dauthi Slayer'] }, { bf: ['Grizzly Bears'] }],
-    script: [attackWith(['Dauthi Slayer'], [['Grizzly Bears', 'Dauthi Slayer']])],
-    expect: [{ life: [1, 18] }, { zone: ['Dauthi Slayer', 'battlefield'] }],
+    // The block is really offered and must be turned down: a pair in `refused` fails the scenario if the engine
+    // ever accepts it, so this cannot decay into "nobody blocked" the way a simply omitted block would.
+    script: [attackWith(['Dauthi Slayer'], [], [['Grizzly Bears', 'Dauthi Slayer']])],
+    expect: [{ life: [1, 18] }, { zone: ['Dauthi Slayer', 'battlefield'] }, { zone: ['Grizzly Bears', 'battlefield'] }],
   },
   {
     name: 'Infect deals damage to players as poison counters', cr: '702.90',

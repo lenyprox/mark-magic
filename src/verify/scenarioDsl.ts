@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { CardDB } from '../cards/db.js';
 import type { CardDef } from '../cards/types.js';
-import { findObject, isCreature, keywords, power, toughness } from '../engine/characteristics.js';
+import { canBlock, findObject, isCreature, keywords, power, toughness } from '../engine/characteristics.js';
 import type { GameEventType } from '../engine/events.js';
 import { Game } from '../engine/game.js';
 import { legalActions } from '../engine/legal.js';
@@ -19,6 +19,17 @@ import { defaultAnswer } from '../engine/agents/defaults.js';
 // file loader) never touches master.db.
 let cards: CardDB | null = null;
 const C = (n: string): CardDef => { const d = (cards ??= CardDB.shared()).get(n); if (!d) throw new Error('missing card ' + n); return d; };
+let noCardDb = false;
+/**
+ * Does the database know this card name? `null` means there is no database (CI, a fresh clone), in which case the
+ * name checks are skipped rather than reported as missing cards.
+ */
+function cardKnown(n: string): boolean | null {
+  if (noCardDb) return null;
+  try { return !!(cards ??= CardDB.shared()).get(n); } catch { noCardDb = true; return null; }
+}
+/** Card names are compared the way CardDB looks them up: trimmed and case-insensitively. */
+const sameName = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 export interface SeatSetup {
   hand?: string[]; bf?: string[]; graveyard?: string[]; exile?: string[]; libraryTop?: string[]; life?: number;
@@ -33,17 +44,29 @@ export const SEAT_ZONE_FIELDS = ['hand', 'bf', 'graveyard', 'exile', 'libraryTop
 
 export type Ref = string | `P${number}`;
 
+/**
+ * The steps `passUntil` can stop at: every step except `untap`, in which no player ever receives priority
+ * (CR 502.3), so there is nowhere in it for the script to stand.
+ */
+export const PASS_STEPS: Step[] = STEPS.filter(st => st !== 'untap');
+export type PassStep = Exclude<Step, 'untap'>;
+
 export type ScriptStep =
   | { cast: string; targets?: Ref[][]; x?: number; by?: number; modes?: number[]; alt?: string }
   | { activate: string; ability?: number; targets?: Ref[][]; by?: number }
   | { playLand: string; by?: number }
-  /** Declare attackers, and optionally the defending seat's blocks as [blocker, attacker] pairs (see attackWith). */
-  | { attack: string[]; blocks?: [string, string][] }
+  /**
+   * Declare attackers, and optionally the defending seat's blocks as [blocker, attacker] pairs (see attackWith).
+   * Every pair in `blocks` must be accepted by the engine; every pair in `refused` must be rejected by it (that is
+   * how evasion is tested — the block is really offered, not merely left out).
+   */
+  | { attack: string[]; blocks?: [string, string][]; refused?: [string, string][] }
   | { block: [string, string][] }
   | { resolve: true }
   | { sba: true }
   | { turnFaceUp: string; by?: number }
-  | { passUntil: Step }
+  /** Advance to that step of this turn (or of the next turn when it is not still ahead) and stop there. */
+  | { passUntil: PassStep }
   | { turns: number }
   | { answer: unknown };
 
@@ -129,6 +152,7 @@ const oneOf = (...vals: unknown[]): Guard => v => vals.includes(v);
 const ZONE_NAMES: Zone[] = ['library', 'hand', 'battlefield', 'graveyard', 'exile', 'stack', 'command'];
 const isZone: Guard = v => ZONE_NAMES.includes(v as Zone);
 const isStep: Guard = v => STEPS.includes(v as Step);
+const isPassStep: Guard = v => PASS_STEPS.includes(v as Step);
 const isTargets: Guard = arrOf(arrOf(isStr));                  // one group per targeting clause
 const isBlocks: Guard = arrOf(tuple(isStr, isStr));            // [blocker, attacker] pairs
 
@@ -147,12 +171,12 @@ const SCRIPT_STEPS: Record<string, { value: Guard; opts: Record<string, Guard> }
   cast: { value: isStr, opts: { targets: isTargets, x: isInt, by: isInt, modes: arrOf(isInt), alt: isStr } },
   activate: { value: isStr, opts: { ability: isInt, targets: isTargets, by: isInt } },
   playLand: { value: isStr, opts: { by: isInt } },
-  attack: { value: arrOf(isStr), opts: { blocks: isBlocks } },
+  attack: { value: arrOf(isStr), opts: { blocks: isBlocks, refused: isBlocks } },
   block: { value: isBlocks, opts: {} },
   resolve: { value: oneOf(true), opts: {} },
   sba: { value: oneOf(true), opts: {} },
   turnFaceUp: { value: isStr, opts: { by: isInt } },
-  passUntil: { value: isStep, opts: {} },
+  passUntil: { value: isPassStep, opts: {} },
   turns: { value: isInt, opts: {} },
   answer: { value: anything, opts: {} },
 };
@@ -250,6 +274,39 @@ export function scenarioShape(sc: Scenario): string[] {
 }
 
 /**
+ * Seat setup names, checked statically. A name that is not a real card seeds nothing, and a `counters` or `tapped`
+ * entry that names no permanent on that seat's `bf` list changes nothing — either way the scenario would run a board
+ * that is not the one it describes, which is exactly the "green while testing nothing" failure the corpus must not
+ * have. `buildScenario` repeats the battlefield check against the objects it really placed and throws the same way.
+ */
+export function seatSetupProblems(sc: Scenario): string[] {
+  const out: string[] = [];
+  for (const [i, cfg] of (Array.isArray(sc?.seats) ? sc.seats : []).entries()) {
+    if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) continue;
+    const at = (f: string) => `scenario: seats[${i}].${f}`;
+    for (const f of SEAT_ZONE_FIELDS) {
+      const list = cfg[f]; if (!Array.isArray(list)) continue;
+      for (const n of list) if (typeof n === 'string' && cardKnown(n) === false) out.push(`${at(f)} names ${n} but there is no card of that name`);
+    }
+    const bf = (Array.isArray(cfg.bf) ? cfg.bf : []).filter((n): n is string => typeof n === 'string');
+    const board = `that seat's battlefield is [${bf.join(', ')}]`;
+    for (const n of isPlainObj(cfg.counters) ? Object.keys(cfg.counters as object) : []) {
+      if (cardKnown(n) === false) out.push(`${at('counters')} names ${n} but there is no card of that name`);
+      else if (!bf.some(b => sameName(b, n))) out.push(`${at('counters')} names ${n} but ${board}`);
+    }
+    const untapped = [...bf];
+    if (Array.isArray(cfg.tapped)) for (const n of cfg.tapped) {
+      if (typeof n !== 'string') continue;
+      if (cardKnown(n) === false) { out.push(`${at('tapped')} names ${n} but there is no card of that name`); continue; }
+      const j = untapped.findIndex(b => sameName(b, n));
+      if (j < 0) out.push(`${at('tapped')} names ${n} but ${board}${bf.some(b => sameName(b, n)) ? ' and every copy of it is already tapped' : ''}`);
+      else untapped.splice(j, 1);
+    }
+  }
+  return out;
+}
+
+/**
  * Static checks a scenario must pass before it is worth running: it has to be built from the vocabulary above, cite a
  * rule, do something and assert something, and (for a card's own file) actually put that card on the table. Returns a
  * list of problems.
@@ -264,6 +321,7 @@ export function validateScenario(sc: Scenario, opts: { card?: string } = {}): st
   if (!Array.isArray(sc.script) || !sc.script.length) out.push(`${where}: script is empty`);
   if (!Array.isArray(sc.expect) || !sc.expect.length) out.push(`${where}: expect is empty`);
   out.push(...scenarioShape(sc).map(p => `${where}: ${p}`));
+  out.push(...seatSetupProblems(sc));
   if (opts.card) {
     const placed = (sc.seats ?? []).some(seat => SEAT_ZONE_FIELDS.some(z => (seat[z] ?? []).includes(opts.card!)));
     if (!placed) out.push(`${where}: never puts ${opts.card} into a seat zone (hand/bf/graveyard/exile/libraryTop/command)`);
@@ -271,11 +329,22 @@ export function validateScenario(sc: Scenario, opts: { card?: string } = {}): st
   return out;
 }
 
+/** Where a `passUntil` step wants the game to stop: the first decision the active player is asked at or after it. */
+interface StopAt { turn: number; step: Step; hit: boolean }
+/** Thrown by the scenario agent to stop the engine at that point; caught by `passUntilStep`, never seen elsewhere. */
+class PassUntilStop extends Error { constructor(at: Step) { super(`passUntil ${at}`); } }
+const atOrAfter = (s: GameState, stop: StopAt): boolean =>
+  s.turn > stop.turn || (s.turn === stop.turn && STEPS.indexOf(s.step) >= STEPS.indexOf(stop.step));
+
 /** An agent that answers with defaults and lets the script pre-load one-off answers (yes/no, choose-cards...). */
 class ScenarioAgent implements Agent {
   name: string; queue: unknown[] = [];
+  /** Set by `passUntilStep` while the game runs; refusing a decision is how the DSL stops the engine at a step. */
+  stop: StopAt | null = null;
   constructor(name: string) { this.name = name; }
   async decide(_s: GameState, _me: PlayerId, d: Decision): Promise<unknown> {
+    const stop = this.stop;
+    if (stop && !stop.hit && _me === _s.activePlayer && atOrAfter(_s, stop)) { stop.hit = true; throw new PassUntilStop(_s.step); }
     if (this.queue.length) return this.queue.shift();
     switch (d.kind) {
       case 'priority': return { type: 'pass' };
@@ -311,6 +380,21 @@ function findByName(s: GameState, name: string, seat?: number): GameObject | und
   return undefined;
 }
 
+/**
+ * The commander of that name that has actually dealt this seat commander damage. Names repeat across seats — two
+ * opponents can play the same legend — and the damaged seat's *own* commander never deals it damage, so a plain
+ * name search would resolve `commanderDamage` to the wrong object and read 0. Falls back to `undefined` when no
+ * commander of that name has damaged the seat, and the caller then asserts against any object of that name (which
+ * is how `{ commanderDamage: [i, name, 0] }` still means something).
+ */
+function commanderNamed(s: GameState, p: GameState['players'][number], name: string): GameObject | undefined {
+  for (const id of Object.keys(p.commanderDamage ?? {})) {
+    const o = findObject(s, Number(id));
+    if (o && o.def.name === name) return o;
+  }
+  return undefined;
+}
+
 function toRef(s: GameState, r: Ref): TargetRef {
   const m = /^P(\d)$/.exec(r); if (m) return { kind: 'player', id: Number(m[1]) as PlayerId };
   const st = s.stack.find(i => i.source.def.name === r || i.name === r); if (st) return { kind: 'stack', id: st.id };
@@ -325,6 +409,10 @@ function legalFor(g: Game, p: PlayerId, pred: (l: LegalAction) => boolean): Lega
 }
 
 export function buildScenario(sc: Scenario): Game {
+  // Before a single card is placed: a seat that names a card that does not exist, or puts counters on / taps a
+  // permanent that is not on its battlefield, describes a board the run would never build.
+  const badSeats = seatSetupProblems(sc);
+  if (badSeats.length) throw new Error(badSeats.join('\n'));
   const agents = sc.seats.map((_, i) => new ScenarioAgent(`P${i}`));
   const filler = Array(20).fill(C('Mountain'));
   const g = new Game(sc.seats.map(() => filler), agents, { seed: 1, quiet: true, mulligans: false, events: 'full', format: sc.format ?? 'freeform', commanders: sc.seats.map(cfg => (cfg.command ?? []).map(C)) });
@@ -335,8 +423,16 @@ export function buildScenario(sc: Scenario): Game {
     pl.life = cfg.life ?? (sc.format === 'commander' ? 40 : 20);
     place(g, pid, cfg.bf, 'battlefield'); place(g, pid, cfg.hand, 'hand'); place(g, pid, cfg.graveyard, 'graveyard'); place(g, pid, cfg.exile, 'exile');
     for (const n of [...(cfg.libraryTop ?? [])].reverse()) pl.library.unshift(makeObject(s.nextId++, C(n), pid, 'library', 0));
-    for (const [n, cs] of Object.entries(cfg.counters ?? {})) { const o = pl.battlefield.find(x => x.def.name === n); if (o) for (const [k, v] of Object.entries(cs)) o.counters[k] = v; }
-    for (const n of cfg.tapped ?? []) { const o = pl.battlefield.find(x => x.def.name === n && !x.tapped); if (o) o.tapped = true; }
+    for (const [n, cs] of Object.entries(cfg.counters ?? {})) {
+      const o = pl.battlefield.find(x => sameName(x.def.name, n));
+      if (!o) throw new Error(`scenario: seats[${i}].counters names ${n} but no permanent of that name was placed on that seat's battlefield`);
+      for (const [k, v] of Object.entries(cs)) o.counters[k] = v;
+    }
+    for (const n of cfg.tapped ?? []) {
+      const o = pl.battlefield.find(x => !x.tapped && sameName(x.def.name, n));
+      if (!o) throw new Error(`scenario: seats[${i}].tapped names ${n} but no untapped permanent of that name was placed on that seat's battlefield`);
+      o.tapped = true;
+    }
   });
   return g;
 }
@@ -382,12 +478,12 @@ export async function runScript(g: Game, steps: ScriptStep[]) {
     }
     if ('resolve' in st) { await g.resolveStackFully(); continue; }
     if ('sba' in st) { g.checkSBA(); continue; }
-    if ('attack' in st) { await declareCombat(g, st.attack, st.blocks ?? []); continue; }
+    if ('attack' in st) { await declareCombat(g, st.attack, st.blocks ?? [], st.refused ?? []); continue; }
     if ('block' in st) {
       // attackers must already be declared through `attack`; blocks are applied by re-running combat from scratch
       throw new Error('scenario: blocks belong on the { attack, blocks } step (see attackWith)');
     }
-    if ('passUntil' in st) { await g.resumeTurn(); continue; }
+    if ('passUntil' in st) { await passUntilStep(g, st.passUntil); continue; }
     if ('turns' in st) { await g.playTurns(st.turns); continue; }
     // No silent skips: an unknown step is a typo, and a typo that ran nothing would make the scenario green.
     throw new Error(`scenario: unknown script step ${show(st)} (one of: ${SCRIPT_STEP_KEYS.join(', ')})`);
@@ -395,25 +491,80 @@ export async function runScript(g: Game, steps: ScriptStep[]) {
 }
 
 /**
+ * `{ passUntil: <step> }` — advance to that step of the current turn, or of the *next* turn when it is not still
+ * ahead of the current one, and stop there with priority back on the active player. The engine exposes no "run to
+ * step" entry point (`resumeTurn` runs to the end of the turn, `playTurns` runs whole turns), so the stop is made
+ * where a real game already pauses: the scenario's own agent refuses the first decision the active player is asked
+ * at or after the target, which unwinds `resumeTurn`/`playTurns` at a decision boundary — after that step's
+ * turn-based actions, with its triggers already on the stack, and never beyond it. A step in which the active
+ * player is asked nothing at all (an empty combat, or `cleanup` with a legal hand) cannot be stood in: if the run
+ * ends up somewhere else this throws instead of leaving the scenario in a position it never asked for.
+ */
+async function passUntilStep(g: Game, target: PassStep) {
+  const s = g.state;
+  const ahead = STEPS.indexOf(target) > STEPS.indexOf(s.step);
+  const stop: StopAt = { turn: ahead ? s.turn : s.turn + 1, step: target, hit: false };
+  const agents = g.agents.filter((a): a is ScenarioAgent => a instanceof ScenarioAgent);
+  if (agents.length !== g.agents.length) throw new Error('scenario: passUntil needs the scenario agents');
+  for (const a of agents) a.stop = stop;
+  try {
+    await g.resumeTurn();                                  // stops early if the target is in this turn
+    if (!stop.hit && !ahead && s.winner === null) await g.playTurns(1);
+  } catch (e) {
+    if (!(e instanceof PassUntilStop)) throw e;
+  } finally { for (const a of agents) a.stop = null; }
+  if (s.winner === null && s.step !== target) throw new Error(`scenario: passUntil ${target} stopped in ${s.step} on turn ${s.turn} — the active player is never asked anything in ${target} from this position`);
+  s.priority = s.activePlayer;
+}
+
+/**
  * Attack + block declaration in one go (the engine's simulateCombat takes both at once). The defending seat is the
  * one the engine actually sends the attackers at (primaryOpponent, CR 506.2) — never seat 1 — so blocks are looked up
  * on the right player in a multiplayer scenario (CR 509.1a: only the defending player declares blockers).
  */
-async function declareCombat(g: Game, attackers: string[], blocks: [string, string][]) {
+async function declareCombat(g: Game, attackers: string[], blocks: [string, string][], refused: [string, string][] = []) {
   const s = g.state; const ap = s.activePlayer; const dp = primaryOpponent(s, ap);
   const ids = attackers.map(n => { const o = findByName(s, n, ap); if (!o) throw new Error(`scenario: no attacker named ${n}`); return o.id; });
-  const pairs = blocks.map(([b, a]) => {
+  const resolve = ([b, a]: [string, string]) => {
     const blocker = findByName(s, b, dp); if (!blocker) throw new Error(`scenario: no blocker named ${b}`);
     const attacker = findByName(s, a, ap); if (!attacker) throw new Error(`scenario: no attacker named ${a}`);
-    return { blocker: blocker.id, attacker: attacker.id };
-  });
+    return { blocker: blocker.id, attacker: attacker.id, why: blockRefusal(s, blocker, attacker) };
+  };
+  const pairs = blocks.map(resolve); const nope = refused.map(resolve);
   s.step = 'declare-attackers';
-  await g.simulateCombat(ids, pairs);
+  const mark = s.events?.length ?? 0;
+  await g.simulateCombat(ids, [...pairs, ...nope]);
+  // simulateCombat silently drops a block the rules do not allow (flying, tapped, already blocking) and clears
+  // every attacking/blocking field once damage is done, so the declarations are read back off the typed event it
+  // emitted. A scenario that meant to test a blocked attacker must never quietly test the unblocked path instead,
+  // and one testing evasion must see the block it offered actually turned down.
+  if ((pairs.length || nope.length) && s.events) {
+    const declared: { blocker: number; attacker: number }[] = [];
+    for (const ev of s.events.slice(mark)) if (ev.type === 'block') declared.push(...ev.blocks);
+    const accepted = (p: { blocker: number; attacker: number }) => declared.some(d => d.blocker === p.blocker && d.attacker === p.attacker);
+    for (const [i, p] of pairs.entries()) if (!accepted(p)) throw new Error(`scenario: block ${blocks[i][0]} → ${blocks[i][1]} was not accepted by the engine (${p.why})`);
+    for (const [i, p] of nope.entries()) if (accepted(p)) throw new Error(`scenario: block ${refused[i][0]} → ${refused[i][1]} was listed as refused but the engine accepted it`);
+  }
+}
+
+/** Evasion keywords worth naming when a block is refused (CR 509.1b): the reason an author most likely missed. */
+const EVASION = ['flying', 'unblockable', 'shadow', 'horsemanship', 'landwalk', 'fear', 'intimidate', 'skulk', 'menace'];
+/** Why the engine would refuse this block, read off the board as it stands when the block is declared. */
+function blockRefusal(s: GameState, blocker: GameObject, attacker: GameObject): string {
+  const bk = keywords(s, blocker) as string[]; const ak = keywords(s, attacker) as string[];
+  const why: string[] = [];
+  if (blocker.zone !== 'battlefield') why.push(`${blocker.def.name} is in the ${blocker.zone}`);
+  if (!isCreature(blocker)) why.push(`${blocker.def.name} is not a creature`);
+  if (blocker.tapped) why.push(`${blocker.def.name} is tapped`);
+  for (const k of EVASION) if (ak.includes(k)) why.push(`${attacker.def.name} has ${k}`);
+  if (ak.includes('flying') && !bk.includes('flying') && !bk.includes('reach')) why.push(`${blocker.def.name} has neither flying nor reach`);
+  if (!why.length && canBlock(s, blocker, attacker)) why.push('the block was legal when declared but another declared blocker took its place');
+  return why.join('; ') || `${blocker.def.name} [${bk.join(', ') || 'no keywords'}] cannot block ${attacker.def.name} [${ak.join(', ') || 'no keywords'}]`;
 }
 
 /** Combined attack + block declaration in one step; plain data, so it also works from a JSON scenario file. */
-export function attackWith(attackers: string[], blocks: [string, string][] = []): ScriptStep {
-  return { attack: attackers, ...(blocks.length ? { blocks } : {}) };
+export function attackWith(attackers: string[], blocks: [string, string][] = [], refused: [string, string][] = []): ScriptStep {
+  return { attack: attackers, ...(blocks.length ? { blocks } : {}), ...(refused.length ? { refused } : {}) };
 }
 
 export function checkExpectations(g: Game, sc: Scenario): string[] {
@@ -445,7 +596,7 @@ export function checkExpectations(g: Game, sc: Scenario): string[] {
       else if ('mana' in e) { const p = seat(e.mana[0]); const got = [...p.manaPool, ...(p.stickyMana ?? [])].sort().join(''); assert.equal(got, [...e.mana[1]].sort().join(''), `P${e.mana[0]} mana pool`); }
       else if ('attachedTo' in e) { const o = need(e.attachedTo[0]); const host = o.attachedTo == null ? null : findObject(s, o.attachedTo)?.def.name ?? null; assert.equal(host, e.attachedTo[1], `${e.attachedTo[0]} attached to`); }
       else if ('faceDown' in e) assert.equal(!!need(e.faceDown[0]).faceDown, e.faceDown[1], `${e.faceDown[0]} face down`);
-      else if ('commanderDamage' in e) { const [i, from, n] = e.commanderDamage; const cmd = need(from); assert.equal(seat(i).commanderDamage?.[cmd.id] ?? 0, n, `P${i} commander damage from ${from}`); }
+      else if ('commanderDamage' in e) { const [i, from, n] = e.commanderDamage; const p = seat(i); const cmd = commanderNamed(s, p, from) ?? need(from); assert.equal(p.commanderDamage?.[cmd.id] ?? 0, n, `P${i} commander damage from ${from}`); }
       else if ('ext' in e) { const [n, key, want] = e.ext; const bag = (need(n) as { ext?: Record<string, unknown> }).ext; assert.deepEqual(bag?.[key], want, `${n} ext.${key}`); }
       // No silent skips: an unchecked expectation is a typo, and a typo that checked nothing would make it green.
       else throw new Error(`unknown expectation ${show(e)} (one of: ${EXPECTATION_KEYS.join(', ')})`);

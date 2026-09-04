@@ -9,6 +9,9 @@
 //   npm run verify:scenarios -- --family mechanics   # one TS suite
 //   npm run verify:scenarios -- --file data/scenarios/44/4457ed35-....json
 //   npm run verify:scenarios -- --json data/master/verify-scenarios.json
+//   npm run verify:scenarios -- --limit=20          # the first 20 scenarios in report order (a smoke run)
+//
+// Exit codes: 0 nothing failed, 1 a scenario failed or a file would not load, 2 the arguments are wrong.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,15 +21,43 @@ import { changed, forIds, listScenarioFiles, readScenarioFile, scenarioDir } fro
 import { nodeScenarioWorker, type ScenarioResult, type ScenarioTask } from '../src/verify/scenarioWorker.js';
 import type { Scenario } from '../src/verify/scenarioDsl.js';
 
+// ---- arguments ---------------------------------------------------------------------------------
+// Parsed strictly, and wrong arguments exit 2 rather than quietly running a different set of scenarios: a typo that
+// selects nothing and still exits 0 is the same "green while nothing ran" failure this slice exists to prevent.
+// Every value flag takes both "--flag value" and "--flag=value".
 const args = process.argv.slice(2);
-const opt = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
-const has = (k: string) => args.includes(k);
+const usage = 'usage: verify-scenarios [--workers N] [--limit N] [--ids a,b] [--family name,name] [--file path,path] [--changed] [--json path]';
+const die = (msg: string): never => { console.error(msg); console.error(usage); process.exit(2); };
+const VALUE_FLAGS = ['--workers', '--limit', '--ids', '--family', '--file', '--json'];
+const BOOL_FLAGS = ['--changed'];
+const values = new Map<string, string>();
+const bools = new Set<string>();
+for (let i = 0; i < args.length; i++) {
+  const a = args[i]; const eq = a.indexOf('=');
+  const key = eq > 0 ? a.slice(0, eq) : a;
+  if (BOOL_FLAGS.includes(key)) { if (eq > 0) die(`${key} takes no value`); bools.add(key); continue; }
+  if (!VALUE_FLAGS.includes(key)) die(`unknown argument ${JSON.stringify(a)}`);
+  const v = eq > 0 ? a.slice(eq + 1) : args[++i];
+  if (v === undefined) die(`${key} needs a value`);
+  values.set(key, values.has(key) ? `${values.get(key)},${v}` : v);
+}
+const opt = (k: string) => values.get(k);
+const has = (k: string) => bools.has(k);
+/** A count flag: whole numbers from 1 up, so `--workers 0`, `--limit 2.5` and `--workers x` all stop the run. */
+const count = (k: string, dflt: number): number => {
+  const raw = opt(k); if (raw === undefined) return dflt;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) die(`${k} must be a whole number ≥ 1 (got ${JSON.stringify(raw)})`);
+  return n;
+};
+const list = (k: string) => (opt(k) ?? '').split(',').map(s => s.trim()).filter(Boolean);
 
 const root = projectRoot();
-const workers = Math.max(1, Number(opt('--workers') ?? Math.max(1, os.cpus().length - 1)));
-const idList = (opt('--ids') ?? '').split(',').map(s => s.trim()).filter(Boolean);
-const families = (opt('--family') ?? '').split(',').map(s => s.trim().replace(/\.ts$/, '')).filter(Boolean);
-const onlyFiles = (opt('--file') ?? '').split(',').map(s => s.trim()).filter(Boolean);
+const workers = count('--workers', Math.max(1, os.cpus().length - 1));
+const limit = count('--limit', Number.MAX_SAFE_INTEGER);
+const idList = list('--ids');
+const families = list('--family').map(s => s.replace(/\.ts$/, ''));
+const onlyFiles = list('--file');
 const outPath = path.resolve(root, opt('--json') ?? 'data/master/verify-scenarios.json');
 const filtered = idList.length > 0 || families.length > 0 || onlyFiles.length > 0 || has('--changed');
 const rel = (p: string) => path.relative(root, p).split(path.sep).join('/');
@@ -38,6 +69,13 @@ const problems: string[] = [];
 /** Is this exported value a list of scenarios? (Suites export one array; other exports are ignored.) */
 function isScenarioList(v: unknown): v is Scenario[] {
   return Array.isArray(v) && v.length > 0 && v.every(x => !!x && typeof x === 'object' && typeof (x as Scenario).name === 'string' && Array.isArray((x as Scenario).script) && Array.isArray((x as Scenario).expect));
+}
+
+/** The TS suite names that exist, in report order (also what an unknown --family is listed against). */
+function suiteNames(): string[] {
+  const dir = path.join(root, 'test', 'scenarios');
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter(f => f.endsWith('.ts') && f !== 'dsl.ts' && !f.endsWith('.test.ts')).map(f => f.replace(/\.ts$/, '')).sort();
 }
 
 /** The TS suites: every module in test/scenarios/ except the DSL re-export itself, imported the way the test does. */
@@ -55,6 +93,9 @@ async function tsSuites(): Promise<void> {
   }
 }
 
+/** True when `--changed` was asked for and the working tree has no edited scenario file: a no-op, not a failure. */
+let nothingChanged = false;
+
 /** The JSON corpus, validated as it is read (a bad file is a hard error, not a silent skip). */
 function jsonFiles(): void {
   let files: string[];
@@ -63,7 +104,7 @@ function jsonFiles(): void {
     files = forIds(idList);
     const missing = idList.filter(id => !files.some(f => path.basename(f) === `${id}.json`));
     for (const id of missing) problems.push(`--ids: no scenario file for ${id} (expected ${rel(path.join(scenarioDir(), id.slice(0, 2), `${id}.json`))})`);
-  } else if (has('--changed')) files = changed();
+  } else if (has('--changed')) { files = changed(); nothingChanged = files.length === 0; }
   else files = listScenarioFiles();
   for (const f of files) {
     try {
@@ -73,13 +114,24 @@ function jsonFiles(): void {
   }
 }
 
+if (families.length) {
+  const known = suiteNames();
+  const unknown = families.filter(f => !known.includes(f));
+  if (unknown.length) die(`--family: no suite named ${unknown.join(', ')} (available: ${known.join(', ') || 'none'})`);
+}
+
 if (!filtered || families.length) await tsSuites();
 if (!filtered || idList.length || onlyFiles.length || has('--changed')) jsonFiles();
 
 if (problems.length) { for (const p of problems) console.error(`! ${p}`); if (!tasks.length) process.exit(1); }
+// `--changed` with a clean tree asks for nothing and finds nothing: that is a successful no-op, not a failed run.
+if (nothingChanged && !tasks.length) { console.log('no changed scenario files'); process.exit(0); }
 if (!tasks.length) { console.error('no scenarios selected'); process.exit(1); }
 
 // ---- shard round-robin over the workers ------------------------------------------------------
+// Sorted first, so --limit takes the same scenarios the report would list first whatever order they were collected in.
+tasks.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+if (tasks.length > limit) tasks.length = limit;
 const shards: ScenarioTask[][] = Array.from({ length: Math.min(workers, tasks.length) }, () => []);
 tasks.forEach((t, i) => shards[i % shards.length].push(t));
 

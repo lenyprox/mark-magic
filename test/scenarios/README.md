@@ -61,8 +61,8 @@ Each entry of `seats` is one player, seat 0 first. Every field is optional.
 | `libraryTop` | card names to stack on top of the library, first entry drawn first |
 | `command` | card names that start in the command zone (use with `"format": "commander"`) |
 | `life` | starting life total (default 20, or 40 in commander) |
-| `tapped` | names of permanents from `bf` that start tapped |
-| `counters` | `{ "Card Name": { "+1/+1": 2 } }` — counters on the first matching permanent |
+| `tapped` | names of permanents from `bf` that start tapped (list a name twice to tap two copies of it) |
+| `counters` | `{ "Card Name": { "+1/+1": 2 } }` — counters on the first permanent of that name on this seat's `bf` |
 
 ```json
 "seats": [
@@ -71,8 +71,16 @@ Each entry of `seats` is one player, seat 0 first. Every field is optional.
 ]
 ```
 
-Cards are looked up **by exact printed name**. Give the seat enough untapped lands of the right colours to pay for
-everything the script casts — the engine taps them for you, but it will not invent mana.
+Cards are looked up **by exact printed name**, and every name is checked before the game starts:
+
+* a name in `hand`, `bf`, `graveyard`, `exile`, `libraryTop` or `command` that is not a real card is an error
+  (`scenario: seats[0].hand names Lightnng Bolt but there is no card of that name`) — it is never seeded silently;
+* a name in `counters` or `tapped` must also be a permanent **this seat put on its own `bf`**, and `tapped` may not
+  name more copies than `bf` holds. Otherwise the scenario would run a board it does not describe: the counters would
+  land nowhere, the permanent would be untapped, and the run would pass while testing something else.
+
+Give the seat enough untapped lands of the right colours to pay for everything the script casts — the engine taps them
+for you, but it will not invent mana.
 
 ## 3. Script steps
 
@@ -90,12 +98,13 @@ Steps run in order. `by` is a seat index and defaults to the player who currentl
 | `{ "activate": "Name", "ability": 1, "targets": [["P1"]] }` | pick the ability by index when a card has several |
 | `{ "playLand": "Name" }` | play a land from hand |
 | `{ "attack": ["Grizzly Bears", "Hill Giant"] }` | declare attackers and run the whole combat phase |
-| `{ "attack": ["Hill Giant"], "blocks": [["Grizzly Bears", "Hill Giant"]] }` | …with blocks, as `[blocker, attacker]` pairs. Only the **defending seat** blocks (CR 509.1a): attackers go at the next seat still in the game after the active one, so in a three-player scenario with `"active": 1` the blockers are seat 2's |
+| `{ "attack": ["Hill Giant"], "blocks": [["Grizzly Bears", "Hill Giant"]] }` | …with blocks, as `[blocker, attacker]` pairs. Only the **defending seat** blocks (CR 509.1a): attackers go at the next seat still in the game after the active one, so in a three-player scenario with `"active": 1` the blockers are seat 2's. Every pair listed here **must** be accepted — if the engine turns one down the scenario fails with `block X → Y was not accepted by the engine (…)` rather than quietly running the unblocked attack |
+| `{ "attack": ["Serra Angel"], "refused": [["Grizzly Bears", "Serra Angel"]] }` | the other half: pairs the engine **must** turn down. This is how evasion is tested — the block is really offered, and the scenario fails if it is ever accepted. Use `refused`, not a missing `blocks`, or the test degrades into "nobody blocked" |
 | `{ "resolve": true }` | resolve the stack completely (both players pass) |
 | `{ "sba": true }` | run state-based actions now |
 | `{ "turnFaceUp": "Name" }` | turn a face-down (morph/megamorph/disguise) permanent face up |
-| `{ "passUntil": "end" }` | finish the current turn |
-| `{ "turns": 2 }` | play out that many further turns |
+| `{ "passUntil": "end" }` | run the game on to that step and stop there, with priority back on the active player, its turn-based actions done and its triggers on the stack but **not resolved** (put a `{ "resolve": true }` after it if you want them to). The step must still be ahead in this turn; if it is not, the next turn is played and the stop happens in *its* copy of that step, so `passUntil` always moves forward. Legal targets: every step except `untap`, in which nobody ever holds priority. If the active player is asked nothing at all in that step (an empty combat has no `declare-blockers`), the scenario fails rather than stopping somewhere else |
+| `{ "turns": 2 }` | play out that many *complete* further turns — use this, not `passUntil`, when you only care that time passed |
 | `{ "answer": true }` | queue one answer for the next choice the engine asks the player with priority (a yes/no, a colour like `"R"`, a mode list, a card choice) — put it *before* the step that asks |
 
 Blocks always belong on the `attack` step; there is no separate block step. Combat runs to completion (damage,
@@ -132,17 +141,36 @@ are checked, so one scenario reports every mismatch at once.
 | `events` | `{ "events": { "type": "damage", "min": 1, "max": 1 } }` | how many typed events fired (`damage`, `countered`, `fizzle`, `sba`, `zone-change`, `create-token`, `library`, `attack`, `block`, `replaced`, …) |
 | `log` | `{ "log": "deals 3 damage" }` | some line of the game log matches this regular expression (a string is read as a regex *source*, so escape `/` and `+` as in `"as -1\\/-1 counters"`) |
 | `noLog` | `{ "noLog": "Hill Giant is destroyed" }` | **no** log line matches — the way to assert something did not happen |
+| `winner` | `{ "winner": 0 }` | the game has been won by that seat (`null` = nobody yet) |
+| `unsimulated` | `{ "unsimulated": 0 }` | how many clauses the engine had to skip; `0` proves the card was fully simulated |
+| `ext` | `{ "ext": ["Grizzly Bears", "suspended", true] }` | deep-equals one entry of a permanent's engine extension bag |
 
 The log disambiguates permanents by object id — it prints `Hill Giant#43 is destroyed.` — which you cannot predict, so
 every line is matched twice: as printed, and with the `#43` removed. `"Hill Giant is destroyed"` therefore means what
 it says (and `"Hill Giant#\\d+ is destroyed"` works too). This matters most for `noLog`: a pattern that could never
 match would pass no matter what happened, which is worse than having no expectation at all.
-| `winner` | `{ "winner": 0 }` | the game has been won by that seat (`null` = nobody yet) |
-| `unsimulated` | `{ "unsimulated": 0 }` | how many clauses the engine had to skip; `0` proves the card was fully simulated |
-| `ext` | `{ "ext": ["Grizzly Bears", "suspended", true] }` | deep-equals one entry of a permanent's engine extension bag |
 
-Names in expectations are searched across every zone of every seat, so `{ "zone": ["Lightning Bolt", "graveyard"] }`
-works after the spell resolved.
+### Which object a name means
+
+An expectation names a card, not a seat, so when the same name is on the table twice the harness has to choose. The
+rule is one fixed search order, and the **first** match wins: seat 0 before seat 1 before seat 2, and within a seat
+`battlefield`, `hand`, `graveyard`, `exile`, `library`, `command`, then the stack. That is why
+`{ "zone": ["Lightning Bolt", "graveyard"] }` works after the spell resolved.
+
+Three expectations deserve spelling out:
+
+* **`attachedTo`** — `{ "attachedTo": ["Rancor", "Grizzly Bears"] }` finds the *first* Rancor in that order and reads
+  the permanent it is attached to; the host is reported by name, and `null` means it is attached to nothing (which is
+  also what a permanent that is not an Aura or Equipment reads as). With two Rancors in play, the expectation is about
+  whichever the search reaches first — give the second one a different card if you need to tell them apart.
+* **`faceDown`** — `{ "faceDown": ["Ainok Survivalist", true] }` uses the same first match. A face-down permanent
+  still knows its real name here, so you name the card, not "Morph".
+* **`commanderDamage`** — `{ "commanderDamage": [1, "Ragavan, Nimble Pilferer", 3] }` is read the other way round: the
+  seat is the player who **took** the damage, and the commander is the object of that name that has actually dealt
+  that seat commander damage, wherever it now is. Two opponents may command the same legend, and a seat's own
+  commander never damages it, so the plain search order would find the wrong copy and read 0. When no commander of
+  that name has damaged the seat, the first match in the order above is used, so `[i, "Name", 0]` still means
+  "that seat has taken nothing from it".
 
 ## 5. Safe helper cards
 
@@ -196,11 +224,23 @@ npm run verify:scenarios -- --ids 4457ed35-7c10-48c8-9776-456485fdf070,cc187110-
 npm run verify:scenarios -- --changed          # only the JSON files you have edited
 npm run verify:scenarios -- --family keywords  # one TypeScript suite
 npm run verify:scenarios -- --file data/scenarios/44/4457ed35-7c10-48c8-9776-456485fdf070.json
+npm run verify:scenarios -- --limit 20         # the first 20 scenarios in report order (a smoke run)
 npm run verify:scenarios -- --json data/master/verify-scenarios.json   # where the machine-readable report goes
 
 npm run test:scenarios                         # only the TypeScript suites, through node --test
 npm test                                       # the whole test suite, including a sample of the JSON corpus
 ```
+
+Every value flag also takes the `--flag=value` spelling. The arguments are checked before anything runs, because a
+mistyped flag that selects nothing and still exits 0 is the same lie as a scenario that asserts nothing:
+
+* `--workers` and `--limit` must be a whole number of at least 1; anything else prints
+  `--workers must be a whole number ≥ 1` and **exits 2**.
+* an unknown flag, or a value flag with no value, also **exits 2**.
+* `--family` with a name that is not a suite lists the suites that exist and **exits 2** — it never runs zero suites.
+* `--changed` when nothing under `data/scenarios/` has been edited prints `no changed scenario files` and **exits 0**:
+  asking for the files you changed and having changed none is a no-op, not a failure.
+* a scenario that fails, or a corpus file that will not load, **exits 1**.
 
 `npm test` runs a sample of the corpus, not all of it: every card in the owner's decks plus 200 more files drawn with
 a fixed seed (`SAMPLE_SEED` in `src/verify/scenarioFiles.ts`), so the fast run stays fast, always covers the cards the
