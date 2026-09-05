@@ -16,8 +16,11 @@ import type {
 /** One family with the file it came from (runtime registrations report `(runtime)`). */
 export interface RegistryEntry { file: string; mod: FamilyModule }
 
+import family_copy_clone from './copy-clone.js';
 
-const GENERATED: RegistryEntry[] = [];
+const GENERATED: RegistryEntry[] = [
+  { file: "copy-clone.ts", mod: family_copy_clone },
+];
 
 // ---------------------------------------------------------------- flat lookups (mutated in place by rebuild())
 export type EffectOp = (e: never, c: OpCtx) => void | Promise<void>;
