@@ -4,11 +4,15 @@ import fs from 'node:fs';
 import { MASTER_DB } from '../config/paths.js';
 import { parseCard, type OracleRow } from './parse.js';
 import { applyScript, scriptStore } from './scripts.js';
+import { inTier, tierSql, type PoolTier } from './tiers.js';
 import type { CardDef } from './types.js';
 
 const NON_PLAYABLE = "layout NOT IN ('art_series','token','double_faced_token','emblem','vanguard','planar','scheme','front_card') AND type_line NOT LIKE 'Card%' AND type_line NOT LIKE 'Stickers%' AND type_line NOT LIKE 'Dungeon%' AND type_line NOT LIKE 'Phenomenon%' AND type_line NOT LIKE 'Conspiracy%'";
 
 const PLAYABLE_LAYOUT = "layout NOT IN ('art_series','token','double_faced_token','emblem')";
+
+/** `CardDB.all()` options: a pool tier and/or a rowid window (used to shard the scan across worker threads). */
+export interface ScanOptions { from?: number; to?: number; tier?: PoolTier }
 
 export class CardDB {
   readonly db: Database.Database;
@@ -58,11 +62,11 @@ export class CardDB {
   /** Parse a row and apply its script (data/scripts/<oracle_id>.json) when one exists and is not stale. */
   private parse(o: OracleRow): CardDef { const def = parseCard(o); return applyScript(def, scriptStore().get(o.oracle_id)); }
 
-  /** Lookup by oracle id. */
+  /** Lookup by oracle id. `oracle_id` is the primary key and the statement is reused: a sharded scan calls this often. */
   getByOracleId(oracleId: string): CardDef | null {
     const key = 'oid:' + oracleId;
     if (this.cache.has(key)) return this.cache.get(key)!;
-    const row = this.db.prepare('SELECT json FROM oracle_cards WHERE oracle_id = ?').get(oracleId) as { json: string } | undefined;
+    const row = this.stmt('oid', 'SELECT json FROM oracle_cards WHERE oracle_id = ?').get(oracleId) as { json: string } | undefined;
     const def = row ? this.parse(this.rowToOracle(row.json)) : null;
     this.cache.set(key, def);
     return def;
@@ -72,10 +76,25 @@ export class CardDB {
     return this.db.prepare("SELECT name, type_line, mana_cost FROM oracle_cards WHERE name LIKE ? COLLATE NOCASE AND layout NOT IN ('art_series','token','double_faced_token','emblem') ORDER BY name LIMIT ?").all(`%${pattern}%`, limit) as { name: string; type_line: string; mana_cost: string | null }[];
   }
 
-  /** Iterate every playable oracle card (used by the coverage report). */
-  *all(): Generator<CardDef> {
-    const stmt = this.db.prepare(`SELECT json FROM oracle_cards WHERE ${NON_PLAYABLE}`);
-    for (const r of stmt.iterate() as Iterable<{ json: string }>) yield this.parse(this.rowToOracle(r.json));
+  /**
+   * Iterate playable oracle cards (the coverage report and the pool sandbox). `tier` narrows the pool (see
+   * src/cards/tiers.ts); `from`/`to` restrict it to a rowid window, which is how the pool sandbox splits the scan
+   * over its worker threads — the windows partition the table, so together they yield exactly the unwindowed scan.
+   */
+  *all(opts: ScanOptions = {}): Generator<CardDef> {
+    const tier = opts.tier ?? 'all';
+    const windowed = opts.from !== undefined || opts.to !== undefined;
+    const extra = tierSql(tier);
+    const sql = `SELECT json FROM oracle_cards WHERE ${NON_PLAYABLE}${extra ? ` AND ${extra}` : ''}${windowed ? ' AND rowid BETWEEN ? AND ?' : ''}`;
+    const stmt = this.stmt(`all:${tier}:${windowed}`, sql);
+    const rows = (windowed ? stmt.iterate(opts.from ?? 0, opts.to ?? Number.MAX_SAFE_INTEGER) : stmt.iterate()) as Iterable<{ json: string }>;
+    for (const r of rows) { const def = this.parse(this.rowToOracle(r.json)); if (inTier(def, tier)) yield def; }
+  }
+
+  /** The rowid bounds of the playable rows, so a caller can cut `all()` into equal windows. */
+  rowIdBounds(): { min: number; max: number } {
+    const r = this.stmt('bounds', `SELECT MIN(rowid) AS min, MAX(rowid) AS max FROM oracle_cards WHERE ${NON_PLAYABLE}`).get() as { min: number | null; max: number | null };
+    return { min: r.min ?? 1, max: r.max ?? 0 };
   }
 
   rulings(oracleId: string): { published_at: string; comment: string }[] {
