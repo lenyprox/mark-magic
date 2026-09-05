@@ -59,9 +59,32 @@ finds and drops the flag, after which the cheap short-circuit is back. A game wi
 
 These are the honest limits; the parser rules **decline** every wording that needs them rather than half-claiming it.
 
-1. **No removal.** `types()` and `subtypes()` UNION `o.animated` with the printed values, so
-   "becomes an artifact **and loses all other card types**" and CR 305.7's "the land loses its old land types"
-   cannot be expressed: a layer only ever adds. `REMOVES` in the parser rules declines every wording that says so.
+1. **No removal — and *setting* a type is a removal (CR 205.1a).** `types()` and `subtypes()` UNION `o.animated`
+   with the printed values, so a layer only ever adds. Two families of wording need the other half:
+   * the ones that say so — "becomes an artifact **and loses all other card types**", "loses all creature types",
+     CR 305.7's "the land loses its old land types". `REMOVES` in the parser rules declines every one of them.
+   * the ones that do **not** say so, which is the trap. CR 205.1a: "the new card type(s) replaces any existing card
+     types … when an effect sets one or more of an object's subtypes, the new subtype(s) replaces any existing
+     subtypes from the appropriate set". "Target creature becomes a Frog" makes the Bear a Frog and *only* a Frog;
+     an additive layer leaves the Bear on and every Bear lord still reaches it, which is strictly **more** than the
+     card grants. `replacesPrinted()` in `src/cards/rules/layers.ts` is the test, and `typeChange()` / `becomeRule()`
+     are the two choke points that read it. What stays claimable is the additive half CR 205.1b names — "… in
+     addition to its other types", and 205.1b's own carve-out for "becomes an artifact creature" with no subtype
+     named ("these effects also allow the object to retain all of its prior card types and subtypes") — plus the
+     layers where nothing is replaced at all: colours (layer 5 replaces by rule anyway, CR 613.1e), base P/T, granted
+     keywords, and changeling (every creature type is a superset of whatever the permanent had, CR 702.73a).
+     The cost is 21 lines on 20 cards, 6 of them fully parsed until now: Omnibian, Mimic, Dire Mimic, Serpentine
+     Ambush, Startling Development and Oni Possession, plus Boldwyr Intimidator ("Cowards can't block Warriors" — an
+     additive Coward would still be a Warrior), Scale Up, Warden of the First Tree, Evolved Sleeper, Figure of
+     Destiny, Figure of Fable, Ascendant Spirit, Coalition Flag, Mild-Mannered Librarian and the two card-type cases
+     Opal Acrolith and Hidden Stag ("~ becomes an enchantment" leaves it a creature); the other three (Syx, Robot
+     Overlord, The Fearsome Flock, Astroquarium) are outside the paper tier. Scenarios: *a "becomes a
+     &lt;creature type&gt;" that does not say "in addition" is DECLINED* and *an Aura's "Enchanted creature is a Demon
+     Spirit." is DECLINED*. `becomeRule` also declines the CR 205.1b retention clause "It's still a land", which is
+     honest but conservative: that clause is its own **sentence**, and a registry effect rule is handed one sentence
+     at a time, so it cannot see it. (The built-in templates in parse.ts that match the whole
+     "… becomes a 3/3 creature. It's still a land." line are matched first and are unaffected.)
+     A hand-written script may still write such a layer — the layer is real, it just adds rather than replaces.
 2. **No basic land type from the parser at all** (CR 305.6 + CR 305.7). A layer that grants `Plains` / `Island` /
    `Swamp` / `Mountain` / `Forest` carries two rules with no shape here: the intrinsic `{T}: Add {B}` that comes with
    the type (parse.ts builds that ability once, from the **printed** subtypes) and, unless the sentence says "in
@@ -98,8 +121,8 @@ These are the honest limits; the parser rules **decline** every wording that nee
 { op: 'become';
   target: TargetSpec | Ref | 'creatures-you-control' | 'lands-you-control' | 'permanents-you-control'
         | 'all-creatures' | 'all-lands';
-  types?: CardType[];          // gained, in addition to the printed ones (CR 205.1b)
-  subtypes?: string[];         // gained (CR 205.3)
+  types?: CardType[];          // gained, always IN ADDITION to the printed ones (CR 205.1b; 205.1a is limit 1)
+  subtypes?: string[];         // gained, in addition to the printed ones (CR 205.3; the replacement half is limit 1)
   colors?: Color[];            // the permanent's new colours — layer 5 REPLACES (CR 105.2, 613.1e)
   power?: Amount; toughness?: Amount;   // base P/T, layer 7b (CR 613.4b); both or neither
   keywords?: Keyword[];        // layer 6

@@ -36,8 +36,10 @@
 //
 // Known approximations (docs/vocabulary/layers.md lists them with the cards they cost):
 //   * REMOVAL. `types()` and `subtypes()` UNION `o.animated` with the printed values, so "loses all other card types"
-//     and CR 305.7's "the land loses its old land types" are not expressible; a `become` only ever adds. The core
-//     patch that would fix it is in this wave's `coreChangeNeeded`.
+//     and CR 305.7's "the land loses its old land types" are not expressible; a `become` only ever adds. Nor is CR
+//     205.1a, where SETTING a type is itself a removal ("becomes a Frog" replaces the creature types): every printed
+//     wording that would need it is declined by `replacesPrinted` in src/cards/rules/layers.ts, and a script that
+//     writes one gets the additive reading. The core patch that would fix all three is in `coreChangeNeeded`.
 //   * BASIC LAND TYPES. Neither CR 305.6 (the intrinsic mana ability that comes with the type) nor CR 305.7 (the
 //     land loses its old land types) is expressible here, so the parser rules DECLINE every printed wording that
 //     grants one (src/cards/rules/layers.ts:isBasicLandLayer). A script may still write one — the layer is real, it
@@ -59,8 +61,8 @@ export type LayerTarget = TargetSpec | Ref | 'creatures-you-control' | 'lands-yo
 /** One-shot layer change with a duration (CR 613.1c-e, 613.4b). Every field adds except `colors` (layer 5 replaces). */
 export interface BecomeEffect {
   op: 'become'; target: LayerTarget;
-  /** Card types gained, in addition to the printed ones (CR 205.1b). */ types?: CardType[];
-  /** Subtypes gained (CR 205.3). */ subtypes?: string[];
+  /** Card types gained, always IN ADDITION to the printed ones (CR 205.1b; CR 205.1a's replacement is limit 1). */ types?: CardType[];
+  /** Subtypes gained, in addition to the printed ones (CR 205.3; the replacement half is limit 1). */ subtypes?: string[];
   /** The permanent's new colours (CR 105.2, 613.1e); an empty list says nothing. */ colors?: Color[];
   /** Base power / toughness (layer 7b, CR 613.4b); both or neither. */ power?: Amount; toughness?: Amount;
   /** Keywords the layer grants (layer 6, CR 613.1f). */ keywords?: Keyword[];

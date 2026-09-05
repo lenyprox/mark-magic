@@ -12,6 +12,16 @@
 //     card types", "loses all creature types" — is declined outright rather than parsed into something that keeps
 //     them. Every word of a type/colour phrase must be a known type word, a known colour word or a real subtype;
 //     one unknown word makes the whole rule decline.
+//   * SETTING A TYPE IS ITSELF A REMOVAL (CR 205.1a), which is the same discipline again and the one that is easy to
+//     miss: a wording does not have to say "loses" to take something away. "…the new card type(s) replaces any
+//     existing card types … when an effect sets one or more of an object's subtypes, the new subtype(s) replaces any
+//     existing subtypes from the appropriate set". So "Target creature becomes a Frog" makes the Bear a Frog and
+//     ONLY a Frog; under an additive layer it stays a Bear as well, and every Bear lord keeps pumping it. Only the
+//     additive half CR 205.1b names is claimable — "in addition to its other types", and the rule's own carve-out
+//     for "becomes an artifact creature" (no subtype named), which retains every prior card type and subtype —
+//     plus the layers where nothing is replaced at all: colours (layer 5 replaces by rule, CR 613.1e, which is what
+//     the engine does), base P/T, granted keywords, and changeling (CR 702.73a: every creature type is a superset of
+//     whatever the permanent had). `replacesPrinted` below is that test.
 //   * BASIC LAND TYPES are declined wholesale, whatever the wording (`typeChange` below is the single choke point).
 //     A layer that grants one carries two rules this engine has no term for: CR 305.6, the intrinsic "{T}: Add {B}"
 //     that comes with the type (parse.ts builds that ability from the PRINTED subtypes, once, at parse time), and CR
@@ -97,9 +107,34 @@ function grantsBasicLandType(subtypes: unknown): boolean {
   if (typeof subtypes === 'string') return subtypes === 'chosen-basic-land-type';
   return Array.isArray(subtypes) && subtypes.some(t => typeof t === 'string' && BASIC_LAND_TYPES.has(t));
 }
-/** Build a `type-change`, or decline the whole wording when it grants a basic land type (CR 305.6 / 305.7). */
-const typeChange = (fields: Record<string, unknown>): StaticEffect | null =>
-  (grantsBasicLandType(fields.subtypes) ? null : { kind: 'type-change', ...fields } as unknown as StaticEffect);
+/**
+ * CR 205.1b's own carve-out: an effect that says an object "becomes an artifact creature" — those two card types and
+ * no subtype — "allow[s] the object to retain all of its prior card types and subtypes". Naming a subtype as well
+ * ("becomes a Shapeshifter artifact creature") keeps the card types but REPLACES the creature types, so that case is
+ * caught by the subtype arm below, not here.
+ */
+const isArtifactCreature = (t: unknown): boolean =>
+  Array.isArray(t) && t.length === 2 && t.includes('Artifact') && t.includes('Creature');
+
+/**
+ * CR 205.1a: would this layer have to take a printed type or subtype AWAY? `retained` is "the wording said the object
+ * keeps what it had" — "in addition to its other types" (CR 205.1b). Setting any subtype replaces the existing
+ * subtypes of that set; setting card types replaces the existing card types. The engine unions, so a layer that
+ * answers true is declined rather than half-claimed (see the second discipline in the header).
+ */
+function replacesPrinted(fields: Record<string, unknown>, retained: boolean): boolean {
+  if (retained) return false;
+  const subs = fields.subtypes;
+  if (typeof subs === 'string' || (Array.isArray(subs) && subs.length > 0)) return true;   // CR 205.1a, 4th sentence
+  return Array.isArray(fields.types) && fields.types.length > 0 && !isArtifactCreature(fields.types);
+}
+
+/**
+ * Build a `type-change`, or decline the whole wording: a basic land type (CR 305.6 / 305.7) or a set that would have
+ * to replace what is printed (CR 205.1a). The single choke point for both — every static wording below goes through it.
+ */
+const typeChange = (fields: Record<string, unknown>, retained: boolean): StaticEffect | null =>
+  (grantsBasicLandType(fields.subtypes) || replacesPrinted(fields, retained) ? null : { kind: 'type-change', ...fields } as unknown as StaticEffect);
 
 /** "each land" / "each creature you control" → the scope and filter of a `type-change`. */
 function scopeOf(subject: string): { scope: 'all' | 'you-control'; filter?: { types: CardType[] } } | null {
@@ -120,15 +155,16 @@ function eachIsInAddition(l0: string): StaticEffect | null {
   if (m === null) return null;
   const sc = scopeOf(m[1]); if (sc === null) return null;
   const w = layerWords(m[2]); if (w === null) return null;
-  return typeChange({ ...sc, ...layerFields(w) });
+  return typeChange({ ...sc, ...layerFields(w) }, true);                // `addition` above is what got us here
 }
 
 /** "~ is the chosen type [in addition to its other types]." / "~ is the chosen color." */
 function selfIsChosen(l0: string, card: StaticCard): StaticEffect | null {
-  const m = stripAddition(l0)[0].match(new RegExp(`^${SELF} is the chosen (type|color)$`, 'i'));
+  const [l, addition] = stripAddition(l0);
+  const m = l.match(new RegExp(`^${SELF} is the chosen (type|color)$`, 'i'));
   if (m === null) return null;
-  if (m[1].toLowerCase() === 'color') return typeChange({ scope: 'self', colors: 'chosen' });
-  return typeChange({ scope: 'self', subtypes: card.types.includes('Land') ? 'chosen-basic-land-type' : 'chosen-creature-type' });
+  if (m[1].toLowerCase() === 'color') return typeChange({ scope: 'self', colors: 'chosen' }, true);   // layer 5 replaces anyway
+  return typeChange({ scope: 'self', subtypes: card.types.includes('Land') ? 'chosen-basic-land-type' : 'chosen-creature-type' }, addition);
 }
 
 /**
@@ -141,28 +177,32 @@ function selfIsChosen(l0: string, card: StaticCard): StaticEffect | null {
  * and the branch is what keeps "Equipped creature is the chosen type" pointed at the creature-type slot.
  */
 function attachedIsChosen(l0: string): StaticEffect | null {
-  const m = stripAddition(l0)[0].match(/^(enchanted|equipped) ([a-z]+) is the chosen (type|color)$/i);
+  const [l, addition] = stripAddition(l0);
+  const m = l.match(/^(enchanted|equipped) ([a-z]+) is the chosen (type|color)$/i);
   if (m === null) return null;
   const scope = m[1].toLowerCase() === 'enchanted' ? 'enchanted' : 'equipped';
-  if (m[3].toLowerCase() === 'color') return typeChange({ scope, colors: 'chosen' });
-  return typeChange({ scope, subtypes: m[2].toLowerCase() === 'land' ? 'chosen-basic-land-type' : 'chosen-creature-type' });
+  if (m[3].toLowerCase() === 'color') return typeChange({ scope, colors: 'chosen' }, true);           // layer 5 replaces anyway
+  return typeChange({ scope, subtypes: m[2].toLowerCase() === 'land' ? 'chosen-basic-land-type' : 'chosen-creature-type' }, addition);
 }
 
 /** "~ is every creature type." (Mistform Ultimus) / "Enchanted creature is every creature type." (CR 702.73a) */
 function isEveryCreatureType(l: string): StaticEffect | null {
-  if (new RegExp(`^${SELF} is every creature type$`, 'i').test(l)) return typeChange({ scope: 'self', everyCreatureType: true });
+  // `retained` is true because nothing is lost: the new creature-type set is EVERY creature type, a superset of
+  // whatever the permanent had, so CR 205.1a's replacement is a no-op here.
+  if (new RegExp(`^${SELF} is every creature type$`, 'i').test(l)) return typeChange({ scope: 'self', everyCreatureType: true }, true);
   const m = l.match(/^(enchanted|equipped) [a-z]+ is every creature type$/i);
   if (m === null) return null;
-  return typeChange({ scope: m[1].toLowerCase() === 'enchanted' ? 'enchanted' : 'equipped', everyCreatureType: true });
+  return typeChange({ scope: m[1].toLowerCase() === 'enchanted' ? 'enchanted' : 'equipped', everyCreatureType: true }, true);
 }
 
 /** "Enchanted land is a Swamp." / "Enchanted creature is a Demon in addition to its other types." */
 function attachedIsType(l0: string): StaticEffect | null {
   if (REMOVES.test(l0)) return null;
-  const m = stripAddition(l0)[0].match(/^(enchanted|equipped) [a-z]+ is an? ([A-Za-z][A-Za-z ]*)$/i);
+  const [l, addition] = stripAddition(l0);
+  const m = l.match(/^(enchanted|equipped) [a-z]+ is an? ([A-Za-z][A-Za-z ]*)$/i);
   if (m === null) return null;
   const w = layerWords(m[2]); if (w === null) return null;
-  return typeChange({ scope: m[1].toLowerCase() === 'enchanted' ? 'enchanted' : 'equipped', ...layerFields(w) });
+  return typeChange({ scope: m[1].toLowerCase() === 'enchanted' ? 'enchanted' : 'equipped', ...layerFields(w) }, addition);
 }
 
 /** Every simple static wording of this family, in order. Returns null when none of them claims the line. */
@@ -193,14 +233,16 @@ const lines: LineRule[] = [
       if (ctx.isSpell) return false;
       const l = staticLine(line);
       if (REMOVES.test(l)) return false;
-      const m = stripAddition(l)[0].match(/^enchanted (creature|permanent|land|artifact) gets ([+-]\d+)\/([+-]\d+)(?:, has ([a-z][a-z, ]*))?,? and is an? ([A-Za-z][A-Za-z ]*)$/i);
+      const [body, addition] = stripAddition(l);
+      const m = body.match(/^enchanted (creature|permanent|land|artifact) gets ([+-]\d+)\/([+-]\d+)(?:, has ([a-z][a-z, ]*))?,? and is an? ([A-Za-z][A-Za-z ]*)$/i);
       if (m === null) return false;
       const kws = m[4] === undefined ? [] : kwListOf(m[4]);
       if (kws === null) return false;
       const w = layerWords(m[5]); if (w === null) return false;
-      // The type half is built FIRST: when it is declined (a basic land type) the whole line is, so the card keeps
-      // the sentence in `unparsed` instead of quietly losing its second clause.
-      const tc = typeChange({ scope: 'enchanted', ...layerFields(w) }); if (tc === null) return false;
+      // The type half is built FIRST: when it is declined (a basic land type, or a set that would have to replace
+      // what is printed) the whole line is, so the card keeps the sentence in `unparsed` instead of quietly losing
+      // its second clause.
+      const tc = typeChange({ scope: 'enchanted', ...layerFields(w) }, addition); if (tc === null) return false;
       const enchant = m[1].toLowerCase() === 'creature' ? 'creature' : m[1].toLowerCase() === 'land' ? 'land' : 'permanent';
       ctx.addAbility({ kind: 'static', effect: { kind: 'aura', power: Number(m[2]), toughness: Number(m[3]), keywords: kws, enchant: { kind: enchant } } as unknown as StaticEffect, text: line });
       ctx.addAbility({ kind: 'static', effect: tc, text: line });
@@ -273,7 +315,7 @@ function becomeRule(subject: string, body0: string, eotPrefix: boolean, ctx: Eff
   let rest = body0.trim().replace(/\.$/, '');
   const eotSuffix = / until end of turn$/i.test(rest);
   if (eotSuffix) rest = rest.replace(/ until end of turn$/i, '');
-  rest = stripAddition(rest)[0].trim();
+  const [body, addition] = stripAddition(rest); rest = body.trim();
   const tgt = becomeTarget(subject, ctx); if (tgt === null) return null;
   let keywords: Keyword[] | null = null;
   let power: number | undefined; let toughness: number | undefined;
@@ -288,10 +330,16 @@ function becomeRule(subject: string, body0: string, eotPrefix: boolean, ctx: Eff
   const every = /^every creature type$/i.test(rest);
   const w = every ? { types: [], subtypes: [], colors: [] } : layerWords(rest);
   if (w === null) return null;
+  const fields = layerFields(w);
   if (grantsBasicLandType(w.subtypes)) return null;      // CR 305.6 / 305.7 — see the second discipline in the header
+  // CR 205.1a, the same discipline: "becomes a Frog" / "becomes a Shapeshifter artifact creature" / "becomes an
+  // enchantment" REPLACE what is printed, and an additive layer would leave the old types on. `everyCreatureType`
+  // is exempt (`w` is empty for it — a superset, CR 702.73a) and so is the "It's still a land" retention, but that
+  // clause is its own SENTENCE, which a sentence rule cannot see, so it declines here too (limit 1 in the family doc).
+  if (replacesPrinted(fields, addition)) return null;
   const eot = eotPrefix || eotSuffix;
   return {
-    op: 'become', target: tgt, ...layerFields(w),
+    op: 'become', target: tgt, ...fields,
     ...(every ? { everyCreatureType: true } : {}),
     ...(power !== undefined && toughness !== undefined ? { power, toughness } : {}),
     ...(keywords !== null && keywords.length ? { keywords } : {}),

@@ -384,4 +384,35 @@ export const layers: Scenario[] = [
     script: [{ activate: 'Liquimetal Coating', targets: [['Forest']] }, { resolve: true }, { cast: 'Shatter', targets: [['Forest']] }, { resolve: true }],
     expect: [{ zone: ['Forest', 'graveyard'] }, { unsimulated: 0 }],
   },
+  {
+    name: 'a "becomes a <creature type>" that does not say "in addition" is DECLINED (Mild-Mannered Librarian)', cr: '205.1a',
+    ruling: 'CR 205.1a: "when an effect sets one or more of an object’s subtypes, the new subtype(s) replaces any '
+      + 'existing subtypes from the appropriate set (creature types, …)". "This creature becomes a Werewolf" therefore '
+      + 'makes the printed HUMAN a Werewolf and only a Werewolf. Three readings, three numbers, and this scenario '
+      + 'separates all of them: the card is 1/1, the ability puts two +1/+1 counters on it, a scripted Werewolf anthem '
+      + 'gives +2/+2 and a scripted Human anthem +1/+1. CR-correct is 5/5 (Werewolf, not Human). The additive engine '
+      + 'cannot take the Human away — `characteristics.ts:subtypes()` UNIONS `o.animated` with the printed list — so '
+      + 'claiming the line gave 6/6, BOTH lords, strictly more than the card grants; that is the same over-claim the '
+      + 'basic-land-type decline above removes (CR 305.7), applied to creature types. Declined, the clause is reported '
+      + 'as unsimulated text and the rest of the ability still resolves: 1/1 + two counters + the Human anthem = 4/4. '
+      + 'Omnibian, Mimic, Dire Mimic, Serpentine Ambush and Startling Development leave `fullyParsed` for the same '
+      + 'reason; their abilities are ALL-unknown, so the engine does not even offer them (legal.ts).',
+    seats: [{ bf: ['Mild-Mannered Librarian', 'Hill Giant', 'Runeclaw Bear', 'Forest', 'Forest', 'Forest', 'Forest'] }, {}],
+    scripts: { ...staticOn('Hill Giant', anthem({ subtypes: ['Werewolf'] }, 2, 2)), ...staticOn('Runeclaw Bear', anthem({ subtypes: ['Human'] })) },
+    script: [{ activate: 'Mild-Mannered Librarian' }, { resolve: true }],
+    expect: [{ pt: ['Mild-Mannered Librarian', 4, 4] }, { counters: ['Mild-Mannered Librarian', { '+1/+1': 2 }] }, { log: /unsimulated text: "~ becomes a Werewolf/ }],
+  },
+  {
+    name: 'an Aura’s "Enchanted creature is a Demon Spirit." is DECLINED (Oni Possession)', cr: '205.1a',
+    ruling: 'The static half of the same rule. Oni Possession SETS the creature types, so under CR 205.1a the enchanted '
+      + 'Bear is a Demon Spirit and nothing else — a Demon anthem reaches it and a Bear anthem no longer does. The '
+      + 'engine can only add, so the claimed reading (Bear + Demon + Spirit) was strictly more than the card grants: '
+      + 'the Demon anthem AND every Bear lord. Declined, the type line is left in `unparsed` and the Aura’s other '
+      + 'line still works: the Bear is 2/2 + the printed +3/+3 = 5/5 with trample, and the Demon anthem misses it '
+      + '(it read 6/6 while the line was claimed).',
+    seats: [{ bf: ['Hill Giant', 'Swamp', 'Swamp', 'Swamp', 'Swamp'], hand: ['Oni Possession'] }, { bf: ['Grizzly Bears'] }],
+    scripts: staticOn('Hill Giant', anthem({ subtypes: ['Demon'] })),
+    script: [{ cast: 'Oni Possession', targets: [['Grizzly Bears']] }, { resolve: true }],
+    expect: [{ pt: ['Grizzly Bears', 5, 5] }, { keywords: ['Grizzly Bears', ['trample']] }, { attachedTo: ['Oni Possession', 'Grizzly Bears'] }],
+  },
 ];
