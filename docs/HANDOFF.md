@@ -154,8 +154,14 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     pinned under `deadEvents` in `test/fixtures/op-allowlist.json`; fixing them is a `game.ts` change (add the
     dispatch / raise the event) after which the allowlist entry must be removed.
 12. Op-coverage strictness gaps (8h re-review): the probe's `unknown` assertion can false-positive on cards whose
-    parser output carries the `unknown` sentinel; keywords/alt-cost/cost-modifier vocabularies have no runtime source
-    (type-only registries) — derive them from the zod schema barrel once 8a-3 lands.
+    parser output carries the `unknown` sentinel (**still open**). ~~keywords/alt-cost/cost-modifier vocabularies
+    have no runtime source (type-only registries)~~ — **done in 8c**: `src/cards/lint.ts` derives every vocabulary at
+    run time from the zod schema barrel and the op registries (`discriminators(EFFECT_VARIANTS, 'op')` and friends
+    for ops / conditions / triggers / statics / as-enters / cost modifiers, the named `z.enum` constants for
+    `KEYWORDS` / `TARGET_KINDS` / `AMOUNT_COUNTS`, `Object.keys` of `EFFECT_OPS` / `CONDITIONS` / `TRIGGERS` /
+    `STATICS` / `AMOUNTS` / `TARGET_KINDS` for the family additions), and `discriminators` THROWS when it cannot read
+    a discriminator rather than returning a short list that would accept anything. `test/lint.test.ts` pins the
+    derivation and one case per rule; `scripts:verify`'s registry stage uses the same sets.
 13. Parser-registry purity gap (8a-2 re-review): the built-in `EFFECT_RULES` entry `~ gains "(.+)"` (parse.ts ~472)
     calls `parseActivatedLine` with the registry enabled even during the built-ins-only pass, and four line-loop
     condition slots consult condition rules in place (documented in parse.ts's header). With catch-all claiming
@@ -181,14 +187,19 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     three seeded baselines reproduced exactly, and the fidelity pod improved (20.52 → 20.38 hits/game). If pods
     with attackers aimed at several defenders ever matter to the AI's combat evaluation, `simulateCombat`'s
     `targets` parameter must be used instead of the primary-opponent default.
-18. Script accounting — residual mechanical bypasses (8a-3 round-5 re-review; deliberately left to 8c): the
-    structural gate in `src/cards/scripts.ts` (claims, per-line substantive-effect budget, marker ops, zero
-    magnitudes, typed covers) still accepts an `Amount` object with `times: 0`, negative magnitudes, `add-mana` with
-    `mana: []`, zero-valued statics (`cost-adjust 0`, `extra-land 0`, `equipment 0/0`, `aura 0/0` with no flags),
-    `costModifiers` covers whose printed reduction has non-numeric symbols, and all-empty `animate`/`token` bodies.
-    The structural gate is the first filter only: 8c's round-trip renderer rejects every one of these because the
-    rendered text cannot match the oracle line's numbers, and the blind scenario and judge follow. When writing 8c,
-    also extend `MAGNITUDE_RULES`/`EMPTY_LIST_RULES` for these cases so the cheap gate catches them too.
+18. ~~Script accounting — residual mechanical bypasses (8a-3 round-5 re-review; deliberately left to 8c)~~ —
+    **done in 8c**. `src/cards/scripts.ts` now rejects all seven at the cheap gate: `isZeroMagnitude` reads an
+    `Amount` object with `times: 0` (or `max: 0`) as a zero; `MagnitudeRule.nonNegative` rejects a negative count
+    (`draw -1`, `search count -2`) on every count-like magnitude while leaving the signed ones (`pump`, `set-pt`,
+    `anthem`, `self-pt`) alone; `EMPTY_LIST_RULES` covers `add-mana` with `mana: []`; `STATIC_MAGNITUDE_RULES` gained
+    `cost-adjust 0`, `extra-land 0`, `equipment 0/0` and `aura 0/0` (the last two with `unlessAny` so a 0/0 aura that
+    says `cantAttack` / `doesntUntap` stays alive); a new `EMPTY_BODY` table rejects an all-empty `token` body (0/0
+    with no type, colour, keyword or name) and an all-empty `animate`; and `COVER_RULES.costModifiers` refuses a
+    printed reduction with non-numeric symbols (`~ costs {W} less to cast`) outright instead of reading
+    "no number to compare" as "anything matches". `unlessAny` now means "the field carries something" (a non-empty
+    list, a non-empty string, `true`, a non-zero number) rather than "a non-empty list". One rejected fixture per
+    case in `test/scripts.test.ts` ("the structural gate rejects the item-18 bypasses…" and "covers: a costModifier
+    cannot cover a reduction printed with a non-numeric symbol"); `npm run scripts:check` still reports 0 problems.
 19. **Fight targets fizzle** (found while building 9.0a): `targetingEffects` registers a `fight`'s two requirements
     under the same effect index and `assignTargets` overwrites the first pick with the second, so `Prey Upon`
     ("target creature you control fights target creature you don't control") is cast with only the opposing creature
@@ -329,14 +340,57 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     permanent you control" counts PERMANENTS with `other: true` (`eachYouControl` in parse.ts; Spirit of the
     Aldergard is 2/4 with two Snow-Covered Forests — the old template counted creatures and the source itself).
     Both pinned in test/parser-composition.test.ts and test/scenarios/composition-cards.ts.
+26. **A family op cannot be scripted at all yet** (found while building 8c): `CardScriptChecked`'s effect union is
+    the hand-written, core-only `EFFECT_VARIANTS` in `src/cards/schema.ts`, so a script naming an op a family
+    registered at run time fails stage 1 (schema) before stage 3 (registry) — which is the only stage that consults
+    the registries — ever sees it. `scripts:verify` therefore cannot verify a family-op script, and
+    `test/scripts-verify.test.ts` reaches the `sandbox: 'throws'` branch through an injected `trial` rather than
+    through a family op that throws. The fix is plan 1.5's generated `_schemas.ts`
+    (`EffectSchema = z.discriminatedUnion('op', [...core, ...families])`, one `<family>.schema.ts` per family), which
+    no slice has built; it belongs with 8k's `gen:registry` extension. Until then every op a script uses must be core.
+27. ~~**8c's round trip is weak on printed keyword lines that the parser expands into abilities**~~ — **closed by
+    review fixes 2**. Review fixes 1 recognised the class (`printedKeywordLine` in `src/cards/render.ts`: a
+    capitalised name of at most three words, an optional number or mana-cost parameter, no sentence punctuation) but
+    scored it on its MAGNITUDE alone, which was a false-PASS machine: a number-free line scored an unconditional 1.00
+    whatever the claiming ability did, so `Futurist Sentinel` ("Crew 3") scripted as a draw-three-on-ETB trigger came
+    out `verified` at 1.00 through the shipped CLI, and a number-bearing line passed on any rendering that happened
+    to print the same digit. The class now needs POSITIVE EVIDENCE, of one of two kinds:
+      * a DECLARATION on the face implements the line — `declarationCovers` asks `COVER_RULES` (scripts.ts) the same
+        question `scripts:check` asks of a `covers` entry, so "Flashback {4}{G}" is claimed by the face's `altCosts`,
+        "Kicker {R}" by `kicker`, "Improvise" by `costModifiers`, with the declared value checked against the printed
+        one. The line is then not the renderer's business at all.
+      * otherwise the rendering is scored against what the keyword MEANS: `KEYWORD_EXPANSIONS` (22 entries — the 21
+        keyword names the pool prints this way on a face that declares nothing, plus one spelling alias), with the
+        line's parameter substituted in, scored by CONTAINMENT of the expansion's content words, the magnitude gate
+        still hard on top. A simple keyword falls back to `~ has <keyword>`. Crew 3 -> 1.00 for the crew ability and
+        0.20 for the draw-3 trigger; Persist / Undying / Extort / Living weapon / Battle cry / Echo / Soulshift /
+        Afflict / Fabricate all 1.00 from the parser's own expansion.
+      * a keyword in neither place scores 0 and is reported as a renderer GAP (`keyword:<name>`), never a pass.
+    Over the seeded 1500: 64 printed keyword lines scored, 5 below the gate, and the card-level below-gate rate moves
+    7.1% -> 7.2%. What is left of the class is the cards whose magnitude lives on a DIFFERENT declaration than the
+    ability that claims the line — `Fading 2` / `Vanishing 4` / `Modular 3` put their count in `asEnters`, which the
+    renderer does not see from the ability — plus `devoid`, which no field of `ScriptFace` can express (the card's
+    colourlessness lives in `colors: []` on the `CardDef`). Adding the missing `CoverKind`s (`asEnters`-for-keyword,
+    `devoid`) is still the tidier fix, and it belongs with whoever owns `src/cards/schema.ts` next.
+28. **The reachability probes cannot reach `tapped` or `turned-face-up`** — not a probe defect, item 11: the engine
+    raises `tapped` from nowhere and dispatches `turned-face-up` from nowhere, so a script with either trigger is
+    reported "never reached" forever. `test/scripts-verify.test.ts`'s Ainok Survivalist fixture pins exactly that.
+    Fixing item 11 in `game.ts` makes both probes start working with no change here.
 
 ## 4. Remaining Phase 8 slices (8k done; the rest not started)
 
-- **8c `scripts:verify`** — the mechanical gate for a batch of scripts: strict schema → freshness (`oracleHash`,
-  `PARSER_VERSION`, `registryHash`, `scriptHash`) → registry → lint → 2p/4p sandbox with per-ability reachability
-  probes → round-trip renderer `src/cards/render.ts` (numbers exact, keyword/zone tokens present, Jaccard ≥ 0.55) →
-  `verification` block written into the script + batch report `data/scripts/reports/<batch>.json`. Depends on
-  8a-3 (schema, script format), 8e (sandbox), 8a-1 (registry), 8a-2 (`PARSER_VERSION`).
+- ~~**8c `scripts:verify`**~~ — **done**: `scripts/scripts-verify.ts` (`npm run scripts:verify -- --batch | --ids |
+  --changed | --stale [--dir --report --json --no-write --no-sandbox --seats]`) around `verifyCards` in
+  `src/verify/scriptVerify.ts`, the seven stages in order; `src/cards/lint.ts` (stage 4, every vocabulary derived at
+  run time — item 12), `src/verify/probes.ts` (stage 5, per-ability reachability by making the event happen; shared
+  setups, ~10 ms a card; a static is probed by rebuilding the same board from a def with THAT ability removed),
+  `src/cards/render.ts` (stage 6, a template per core op + the registry's `RENDERERS`, every face scored including
+  `secondFace`, the score calibrated by `test/render.test.ts` over a seeded sample of parser-finished cards: median
+  0.917, 1.6% zeros, 7.1% below the gate),
+  `scripts/scripts-render.ts` (`npm run scripts:render -- --ids … [--parsed]`) for the judge and for humans, the
+  `verification` block written back and the batch report at `data/scripts/reports/<batch>.json` (gitignored).
+  Documented in `data/scripts/README.md` § Verification. Measured: a 30-card batch is 0.5 s of work, 2.5 s wall
+  clock (target 15 s). Open behind it: items 24, 25 and 26.
 - **8i speed ladder** — `verify:quick` (≤ 15 s), `verify:all` (≤ 2.5 min full, incremental ≈ 70 s), `verify:deep`
   (fuzz + goldens + fidelity + Playwright against `next build --webpack` + `next start -p 3199`); the parse cache
   `data/master/parse-cache.sqlite` keyed by `(oracleId, oracleHash, scriptHash, PARSER_VERSION, registryHash)`;
@@ -394,7 +448,7 @@ message with the co-author trailer your session is instructed to use.
   `scripts:check`, `coverage:pool`, `parse:diff` 0, `verify:pool` 11064/477, bench 45.4 / 4.66 games/s);
   `npm run golden:check` reproduces exactly; `npm run fidelity:check` 13.28 / 16.12 / 8.33 / 20.38 hits per game;
   `npm run fuzz -- --games 300 --seed 1` 0 buckets; `npm run coverage:ops` 0 not allowlisted.
-- Not done in Phase 8: 8c (`scripts:verify` + renderer), 8i (speed ladder, parse cache, Playwright leg of
+- Not done in Phase 8 as of the end of that session (8c has landed since — see section 4): 8i (speed ladder, parse cache, Playwright leg of
   `verify:deep`), 8k (queue/promote/needs/vocab tooling), 8j (dashboard v2), the Phase 8 gate and the owner
   check-in. `verify:deep` today = `golden:check && fidelity:check`; the fuzz legs are `npm run fuzz:deep`.
 - Cost of this session: ≈ 15 workflows, ≈ 55 Opus agents, ≈ 14 M subagent tokens, ≈ 20 h wall-clock including

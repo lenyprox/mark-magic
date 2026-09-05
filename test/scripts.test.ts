@@ -10,12 +10,12 @@ import {
   abilityClaimProblem, applyScript, COVER_KINDS, COVER_LINE_RE, coverProblem, faceClaimProblems, IGNORE_REASONS,
   ignoreLineProblem, insubstantiveReasons, keywordLineClaimed, keywordPartProblem, MARKER_OPS, normalizeOracleLines,
   oracleHash, scriptableLines, scriptHash, secondFaceLines, secondFaceUnclaimed, shardOf, ScriptStore,
-  substantiveCount, unmatchedAbilityTexts, useScriptStore, zeroMagnitudeReason,
+  substantiveCount, unmatchedAbilityTexts, useScriptStore, zeroMagnitudeReason, zeroStaticMagnitudeReason,
   type CardScript, type CoverKind, type ScriptFace, type ScriptSource, type Verification,
 } from '../src/cards/scripts.js';
 import { CardScriptChecked } from '../src/cards/schema.js';
 import { LIST_LIMIT, NESTING_LIMIT } from '../src/engine/legal.js';
-import type { CardDef, Effect, Keyword, ManaCost } from '../src/cards/types.js';
+import type { CardDef, Effect, Keyword, ManaCost, StaticEffect } from '../src/cards/types.js';
 import { db } from './helpers.js';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'scripts-'));
@@ -378,6 +378,70 @@ test('substantiveCount: an effect with a zero MAGNITUDE is not behaviour', () =>
   assert.equal(abilityClaimProblem(anthem({ power: 1 }), 'x'), null);
   const noKeywords: ScriptAbility = { kind: 'static', effect: { kind: 'self-keywords', keywords: [] }, text: 'x' };
   assert.match(abilityClaimProblem(noKeywords, 'x')!, /self-keywords grants no keyword/);
+});
+
+/**
+ * The residual structural bypasses docs/HANDOFF.md item 18 listed, one rejected fixture each (phase 8c). Every one
+ * of them is a shape the cheap gate accepted although it changes nothing in the game: 8c's round-trip renderer
+ * catches them all too (the rendered text cannot print the line's numbers), but the structural gate is the FIRST
+ * filter and it must not hand out a free line claim before the renderer ever runs.
+ */
+const ITEM_18_EFFECTS: [label: string, effect: Effect, reason: string][] = [
+  ['times: 0', { op: 'draw', amount: { count: 'creatures-you-control', times: 0 }, who: 'you' }, 'draw 0'],
+  ['max: 0', { op: 'draw', amount: { count: 'creatures-you-control', max: 0 }, who: 'you' }, 'draw 0'],
+  ['a negative amount', { op: 'draw', amount: -1, who: 'you' }, 'draw amount is -1, a negative magnitude'],
+  ['a negative count', { op: 'search', filter: { types: ['Creature'] }, to: 'hand', count: -2 }, 'search count is -2, a negative magnitude'],
+  ['add-mana with no mana', { op: 'add-mana', mana: [] }, 'add-mana adds no mana'],
+  ['an all-empty token body', { op: 'token', count: 2, power: 0, toughness: 0, colors: [], types: [], subtypes: [], keywords: [] },
+    'token creates 0/0 tokens with no type, colour, keyword or name'],
+  ['an all-empty animate', { op: 'animate', target: 'self', power: 0, toughness: 0, colors: [], types: [], subtypes: [], keywords: [], duration: 'eot' },
+    'animate animates nothing: 0/0 with no type, colour or keyword'],
+];
+
+const ITEM_18_STATICS: [label: string, effect: StaticEffect, reason: string][] = [
+  ['cost-adjust 0', { kind: 'cost-adjust', filter: { types: ['Creature'] }, amount: 0, who: 'you' }, 'cost-adjust adjusts the cost by 0'],
+  ['extra-land 0', { kind: 'extra-land', amount: 0 }, 'extra-land grants 0 additional land drops'],
+  ['equipment 0/0', { kind: 'equipment', power: 0, toughness: 0, equipCost: mana('{2}') }, 'equipment +0/+0 and grants no keyword'],
+  ['aura 0/0 with no flags', { kind: 'aura', power: 0, toughness: 0, enchant: { kind: 'creature' } }, 'aura +0/+0 with no keyword and no restriction'],
+];
+
+test('the structural gate rejects the item-18 bypasses: times 0, negatives, empty mana, zero statics, empty bodies', () => {
+  for (const [label, effect, reason] of ITEM_18_EFFECTS) {
+    assert.equal(zeroMagnitudeReason(effect), reason, label);
+    assert.equal(substantiveCount([effect]), 0, `${label}: it changes nothing, so it claims no line`);
+    assert.deepEqual(insubstantiveReasons([effect]), [`effect has zero magnitude: ${reason}`], label);
+    // the file-level schema still accepts every one of them — only the gate can see them, which is why it must
+    assert.ok(CardScriptChecked.safeParse(scriptFor('Refocus', { abilities: [{ kind: 'spell', effects: [effect], text: 'Draw a card.' }] })).success, label);
+  }
+  for (const [label, effect, reason] of ITEM_18_STATICS) {
+    assert.equal(zeroStaticMagnitudeReason(effect), reason, label);
+    const why = abilityClaimProblem({ kind: 'static', effect, text: 'x' }, 'x');
+    assert.equal(why, `ability has no substantive effect: static effect has zero magnitude: ${reason}`, label);
+  }
+
+  // …and the same shapes with real content are untouched
+  assert.equal(zeroMagnitudeReason({ op: 'draw', amount: { count: 'creatures-you-control', times: 2 }, who: 'you' }), null);
+  assert.equal(zeroMagnitudeReason({ op: 'draw', amount: { count: 'creatures-you-control', times: 0, plus: 1 }, who: 'you' }), null, 'times 0 plus 1 still draws a card');
+  assert.equal(zeroMagnitudeReason({ op: 'add-mana', mana: 'any' }), null);
+  assert.equal(zeroMagnitudeReason({ op: 'add-mana', mana: ['G'] }), null);
+  assert.equal(zeroMagnitudeReason({ op: 'token', count: 1, power: 0, toughness: 0, colors: [], types: ['Creature'], subtypes: [], keywords: [] }), null, 'a 0/0 creature token still enters');
+  assert.equal(zeroMagnitudeReason({ op: 'token', count: 1, power: 0, toughness: 0, colors: [], types: [], subtypes: [], keywords: [], treasure: true }), null, 'a Treasure is a real token');
+  assert.equal(zeroMagnitudeReason({ op: 'animate', target: 'self', power: 0, toughness: 0, colors: [], types: ['Creature'], subtypes: [], keywords: [], duration: 'eot' }), null);
+  assert.equal(zeroStaticMagnitudeReason({ kind: 'cost-adjust', filter: {}, amount: -1, who: 'opponent' }), null, 'a tax is a real cost adjustment');
+  assert.equal(zeroStaticMagnitudeReason({ kind: 'equipment', power: 0, toughness: 0, keywords: ['flying'], equipCost: mana('{2}') }), null);
+  assert.equal(zeroStaticMagnitudeReason({ kind: 'aura', power: 0, toughness: 0, cantAttack: true, enchant: { kind: 'creature' } }), null, 'a 0/0 aura that stops attacks is real behaviour');
+});
+
+test('covers: a costModifier cannot cover a reduction printed with a non-numeric symbol (item 18)', () => {
+  // `genericTotal` returns null for "{W}" / "{X}" / "{1}{R}", and that used to read as "nothing to compare", so any
+  // declared amount claimed the line
+  for (const line of ['~ costs {W} less to cast.', '~ costs {X} less to cast.', '~ costs {1}{R} less to cast.']) {
+    for (const amount of [1, 2, { count: 'cards-in-graveyard' } as const]) {
+      assert.match(coverProblem({ costModifiers: [{ kind: 'reduce', amount }] }, { line, by: 'costModifiers' })!,
+        /non-numeric reduction/, `${line} / ${JSON.stringify(amount)}`);
+    }
+  }
+  assert.equal(coverProblem({ costModifiers: [{ kind: 'reduce', amount: 2 }] }, { line: '~ costs {2} less to cast.', by: 'costModifiers' }), null);
 });
 
 test('applyScript: a zero-magnitude effect claims no line — one "draw 0" per line finishes nothing', () => {

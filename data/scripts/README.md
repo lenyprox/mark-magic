@@ -394,3 +394,123 @@ verification block (`INFO`).
 `_example.json.txt` shows the shape and `_example-split.json.txt` the `secondFace` half of a split / adventure /
 flip card; rename such a file to `<2-hex>/<oracle_id>.json` and set `oracleHash` to `oracleHash(def.oracleText)` to
 activate it.
+
+## Verification
+
+`npm run scripts:check` says the file is *well formed*. `npm run scripts:verify` says the script *is the card*: it
+runs the script in the engine and compares what it does with what the oracle line says. Seven stages, in order; a
+failure records a problem and the run **continues**, except schema, which stops that card because nothing downstream
+can be trusted about a file that does not parse.
+
+| # | Stage | What it does | Fails on |
+|---|---|---|---|
+| 1 | **schema** | `CardScriptChecked` — the strict zod mirror, the `covers` refinement and the composition nesting limits | a typo'd field or op name |
+| 2 | **freshness** | `oracleHash` against the card's text today; `parserVersion` / `registryHash` / `scriptHash` against the last verification | a Scryfall refresh changed the text (**stale**: the script is not applied). The other three are warnings — the verification is out of date, the script is not |
+| 3 | **registry** | every `op` / `kind` / `on` / `count` exists in a core union or a family registry; no `unknown` outside a `generated` script; `applyScript(def).fullyParsed` | a script naming a family that is not installed, or one that claims nothing |
+| 4 | **lint** (`src/cards/lint.ts`) | counter names, `Filter.subtypes` against the generated subtype vocabulary, keywords / target kinds / amount counts / condition kinds against the schema's own enums, every `covers` / `ignore` line, triggers the card can never raise, `aiHints.role` | an unknown name, or a trigger that can never fire |
+| 5 | **sandbox** | `src/verify/sandbox.ts` at 2 and 4 seats, then the per-ability reachability probes in `src/verify/probes.ts` | the engine throws or breaks an invariant. An **unreached ability is a warning**, never a failure — it is the list the blind-scenario author works from |
+| 6 | **round trip** | `src/cards/render.ts` renders the ability that claims a line back into English and scores it against the line | a card score below **0.55** |
+| 7 | **write-back** | the `verification` block into the script file, and the batch report | — |
+
+### Statuses
+
+`scripts:verify` writes `verification.status`; the dashboard derives the rest from the files (plan 2.4):
+
+* **`scripted`** — a script exists and is applied, but a stage reported a problem (or it has never been verified);
+* **`verified`** — every stage passed: schema ok, fresh, registry ok, lint not `fail`, neither seat count threw or
+  broke an invariant, round trip >= 0.55;
+* **`stale`** — the oracle text changed since the script was written, so the script is **not applied** at all;
+* `tested` (a blind scenario per ability passes, slice 8d) and `judged` (an independent judge, Phase 10) are written
+  by the later stages and are never cleared by a re-verification: `scripts:verify` carries `scenarios` and `judge`
+  through untouched.
+
+### The round-trip score
+
+Per oracle line, against the rendering of the ability whose `text` claims it. A line claimed by **keywords**, by a
+`covers` entry or by an `ignore` entry is not scored — a declaration implements it, and `scripts:check` already
+compares the declared value with the printed one.
+
+1. Every **number** the line prints (`\d+`, `X`, and a spelled-out number: "Draw **two** cards.", "**twice** the
+   number of …") must appear in the rendering, or the line scores **0**. This is the rule that catches "the script
+   says 2 and the card says 3", and every zero-magnitude, `times: 0` and empty-body bypass with it. Two exceptions:
+   a **count expression** is printed either as "1 … for each …" or as "+X/+X, where X is …", so when the rendering
+   carries one the tokens `1` and `X` alone are not gated; and "**one or more**" is an English idiom for "any", not
+   a magnitude, so its `1` is not gated either.
+2. Every **keyword, zone and counter name** the line prints must appear too, or the score is halved per miss.
+3. Otherwise the **Jaccard overlap** of the two lemmatised word sets (reminder text, punctuation and `the`/`a`/`an`
+   dropped; spelled-out numbers written as digits; `enters the battlefield` and `enters` are the same event,
+   CR 603.6a, and so are "is put into a graveyard from the battlefield" and "dies", CR 700.4).
+
+A **printed keyword line** — a capitalised name of at most three words with an optional number or mana-cost
+parameter and no sentence punctuation: `Persist`, `Crew 3`, `Cumulative upkeep {U}`, `Enchant creature` — is not
+prose, and rules 2-3 say nothing about it: the rendering it faces is the keyword's reminder-text expansion ("Crew 3"
+-> "tap any number of creatures you control with total power 3 or greater: crew ~"), which shares almost no words
+with the two words the card prints. Such a line needs POSITIVE EVIDENCE that the face implements the keyword, and
+there are exactly two kinds:
+
+* **a declaration**: the face's `keywords` (with their parameters), a valid `covers` entry, or — for a printed
+  keyword line only — any declaration the [cover table](#covers-kinds) says implements that line, whether or not a
+  `covers` entry names it. "Flashback {4}{G}" is an `altCosts` entry, "Kicker {R}" is `kicker`, "Improvise" is a
+  `costModifiers` entry; the parser hangs those lines off the spell ability whose text contains them, and no ability
+  ever implements them. The declared VALUE has to be the printed one, exactly as `scripts:check` requires.
+* **the keyword's rules text**: with no such declaration, an ability has to expand the keyword, and the rendering is
+  scored against what the keyword MEANS (`KEYWORD_EXPANSIONS` in `src/cards/render.ts`, with the line's parameter
+  substituted in) — the fraction of the expansion's own content words the rendering carries, rule 1 still hard on
+  top. A simple keyword falls back to `~ has <keyword>`, which is what `self-keywords` renders. So the real Persist
+  expansion scores 1.00, an ability that crews for 2 scores 0 against a line that prints `Crew 3`, and an ETB
+  trigger that draws three cards scores **0.20** for `Crew 3` rather than the 1.00 it was given before.
+
+A keyword in neither place scores 0 and is reported as a renderer **gap** (a warning naming `keyword:<name>`), not
+as a fault of the card: an unknown keyword is a line this tool cannot check, and the one thing it must never do is
+call such a line verified. `devoid` is the only one in the pool today — the format has no field for "this card has
+no color", so nothing can carry that evidence.
+
+The **card score is the minimum over its lines**, on **every** face — front, `backFace` and `secondFace`. >= 0.55 is
+`verified`, and every line under 0.4 is listed in `verification.roundTrip.lowest` for the judge.
+`test/render.test.ts` calibrates the gate against a seeded sample of cards the parser alone finishes: the median
+must stay >= 0.55, fewer than 5% may score 0, and — the number a median cannot see — fewer than **10%** may fall
+BELOW the gate, because every card that does is a script an agent is told to fix and cannot. Measured after the
+review fixes: median 0.917, 1.6% zeros, 7.2% below the gate (was 0.864 / 2.8% / 17.8%).
+
+### Running it
+
+```
+npm run scripts:verify -- --ids a,b,c              # exactly these oracle ids; never parses the whole pool
+npm run scripts:verify -- --batch data/scripts/batches/S1/01.json   # the 8k queue format (or any JSON with oracle ids)
+npm run scripts:verify -- --changed                # scripts git reports as modified / untracked
+npm run scripts:verify -- --stale                  # scripts whose verification block is missing or out of date
+npm run scripts:verify -- --ids … --report <path> --json --no-write --no-sandbox --seats 2 --dir <scripts dir>
+```
+
+`--no-sandbox` and a partial `--seats` are **debugging flags, not shortcuts**: stage 5 not running is recorded as a
+problem on every card of the run, so those cards come out `scripted`, the run exits 1, and nothing they touch can be
+promoted. (`verification.sandbox` has one word, `unreachable`, for "the trial ran and reached nothing" and for "no
+trial ran", and `--stale` compares only the parser version, the registry hash and the script hash — so without the
+recorded problem a `--no-sandbox` run would mint `verified` for a card nothing ever simulated and `--stale` would
+never look at it again.)
+
+Exit 1 when any card has a problem, 2 when the arguments are wrong. A 30-card batch costs about 0.5 s of work
+(2.5 s wall clock including the `tsx` start-up), well inside the 15 s target.
+
+### Reading a report
+
+`data/scripts/reports/<batch>.json` (gitignored — tool output, never a tracked artefact):
+
+```
+{
+  "batch": "S1-3", "at": "…", "parserVersion": 3, "registryHash": "…",
+  "cards": [{
+    "oracleId": "…", "name": "Lightning Bolt", "status": "verified",
+    "schema": "ok", "lint": "ok",
+    "sandbox": { "seats2": "ok", "seats4": "ok", "abilities": [{ "index": 0, "reached": true, "how": "cast" }] },
+    "roundTrip": { "score": 1, "lowest": [] },
+    "problems": [], "warnings": [], "rendererGaps": [], "ms": 115
+  }],
+  "summary": { "total": 30, "verified": 20, "scripted": 10, "stale": 0, "missing": 0, "problems": 13, "unreached": 3, "ms": 500 }
+}
+```
+
+Read it in this order: **`problems`** (what has to change), then **`roundTrip.lowest`** (the lines whose rendering
+does not look like the card — often the real defect even when nothing else failed), then **`warnings`**, whose
+`was never reached` entries are the abilities a blind scenario has to cover by hand, then **`rendererGaps`**, which
+names a family that shipped ops without a `render` entry: its cards' scores are a lower bound until it does.

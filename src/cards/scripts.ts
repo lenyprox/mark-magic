@@ -485,16 +485,26 @@ const CONTAINER_OPS: ReadonlySet<string> = new Set<string>([
 // oracle line — "draw 0" twice on a two-line card — and satisfy the whole line budget with a card that never
 // changes the game state.
 
-/** One way an effect can be dead: every field in `zero` is a literal 0 and no field in `unlessAny` is a non-empty list. */
+/**
+ * One way an effect can be dead: every field in `zero` is a zero magnitude, and no field in `unlessAny` CARRIES
+ * anything (a non-empty list, a non-empty string, `true`, or a non-zero number — an aura that is +0/+0 but says
+ * `cantAttack` is alive on the flag alone, a 0/0 token named "Treasure" is alive on its name).
+ */
 interface MagnitudeRule {
   zero: readonly string[];
   unlessAny?: readonly string[];
+  /**
+   * The `zero` fields are COUNTS, so a negative value is not "less than nothing" — it is nonsense the engine would
+   * either clamp to 0 or run backwards. `draw -1` is rejected exactly like `draw 0`. Signed magnitudes (`pump`,
+   * `set-pt`, `anthem`, `self-pt`) deliberately do not set it.
+   */
+  nonNegative?: true;
   /** How the reason reads after the op: "draw 0", "token count 0", "pump 0/0 and grants no keyword". */
   label: string;
 }
 
-const AMOUNT: MagnitudeRule = { zero: ['amount'], label: '0' };
-const COUNT: MagnitudeRule = { zero: ['count'], label: 'count 0' };
+const AMOUNT: MagnitudeRule = { zero: ['amount'], nonNegative: true, label: '0' };
+const COUNT: MagnitudeRule = { zero: ['count'], nonNegative: true, label: 'count 0' };
 
 /**
  * The magnitude of every op that carries one, named EXPLICITLY, because the field that gates an op is not always
@@ -520,42 +530,88 @@ const MAGNITUDE_RULES: Record<string, readonly MagnitudeRule[]> = {
   'add-mana': [AMOUNT],
   token: [COUNT], 'token-copy': [COUNT], impulse: [COUNT], 'return-own': [COUNT], search: [COUNT],
   'search-land': [COUNT], 'untap-choose': [COUNT], 'extra-land': [COUNT],
-  dig: [{ zero: ['look'], label: 'look 0' }],
-  loot: [{ zero: ['draw', 'discard'], label: 'draw 0, discard 0' }],
+  dig: [{ zero: ['look'], nonNegative: true, label: 'look 0' }],
+  loot: [{ zero: ['draw', 'discard'], nonNegative: true, label: 'draw 0, discard 0' }],
   pump: [{ zero: ['power', 'toughness'], unlessAny: ['keywords'], label: '0/0 and grants no keyword' }],
   // composition core: a `move` of a chosen set moves nothing when `what.count` is 0 (a dotted field reads a nested
   // holder); `set-pt` 0/0 is deliberately NOT listed — a creature that becomes 0/0 dies, like `set-life 0`
-  move: [{ zero: ['what.count'], label: 'count 0' }],
+  move: [{ zero: ['what.count'], nonNegative: true, label: 'count 0' }],
 };
+
+/**
+ * The BODY rules (8c, docs/HANDOFF.md item 18): an op whose count is fine but whose body describes nothing. A
+ * `token` with `count: 2` that creates two 0/0s with no type, colour, keyword or name creates two nothings, and an
+ * `animate` that turns a permanent into a 0/0 with no type changes nothing about it. Both were accepted by the
+ * count-only rules above, and both are now dead on the same terms as `draw 0`.
+ */
+const EMPTY_BODY: Record<string, MagnitudeRule> = {
+  token: { zero: ['power', 'toughness'], unlessAny: ['types', 'subtypes', 'keywords', 'colors', 'name', 'text', 'treasure', 'clue', 'food', 'spawn', 'dynamicPT'], label: 'creates 0/0 tokens with no type, colour, keyword or name' },
+  animate: { zero: ['power', 'toughness'], unlessAny: ['types', 'subtypes', 'keywords', 'colors'], label: 'animates nothing: 0/0 with no type, colour or keyword' },
+};
+for (const [op, rule] of Object.entries(EMPTY_BODY)) MAGNITUDE_RULES[op] = [...(MAGNITUDE_RULES[op] ?? []), rule];
 
 /** Ops whose whole content is a LIST: an empty one grants nothing. */
 const EMPTY_LIST_RULES: Record<string, { field: string; label: string; /** Dead only when the list is PRESENT and empty (an absent list means something else — `lose-abilities` without `keywords` loses every ability). */ optional?: true }> = {
   'grant-keyword': { field: 'keywords', label: 'grants no keyword' },
   'multi-counters': { field: 'counters', label: 'puts no counter' },
   'lose-abilities': { field: 'keywords', label: 'loses no ability', optional: true },
+  // `add-mana` with `mana: []` adds nothing; the word forms ('any', 'commander-identity', …) are strings, so the
+  // rule is `optional` — only a PRESENT, empty array is dead (8c, docs/HANDOFF.md item 18)
+  'add-mana': { field: 'mana', label: 'adds no mana', optional: true },
 };
 
 /**
  * The same for a `static` ability's effect, keyed by its `kind`: an anthem of +0/+0 that grants no keyword and no
- * landwalk changes nothing, and neither does `self-pt` +0/+0 or `self-keywords` with an empty list. `aura` and
- * `equipment` are deliberately NOT listed: a 0/0 aura can still say `cantAttack` / `doesntUntap`, which is real
- * behaviour.
+ * landwalk changes nothing, and neither does `self-pt` +0/+0 or `self-keywords` with an empty list.
+ *
+ * `aura` and `equipment` ARE listed (8c, docs/HANDOFF.md item 18) — a 0/0 aura that also says `cantAttack` or
+ * `doesntUntap` is alive on that flag, and `unlessAny` covers exactly that, so listing them costs nothing and
+ * closes "a 0/0 Aura with no flags is real behaviour". So are `cost-adjust 0` and `extra-land 0`, both of which
+ * were a free line claim for a static that adjusts nothing.
  */
 const STATIC_MAGNITUDE_RULES: Record<string, readonly MagnitudeRule[]> = {
   anthem: [{ zero: ['power', 'toughness'], unlessAny: ['keywords', 'landwalk'], label: '+0/+0 and grants nothing' }],
   'self-pt': [{ zero: ['power', 'toughness'], label: '+0/+0' }],
   'extra-blocks': [AMOUNT],
+  'cost-adjust': [{ zero: ['amount'], label: 'adjusts the cost by 0' }],
+  'extra-land': [{ zero: ['amount'], nonNegative: true, label: 'grants 0 additional land drops' }],
+  aura: [{ zero: ['power', 'toughness'], unlessAny: ['keywords', 'cantAttackOrBlock', 'cantAttack', 'cantBlock', 'doesntUntap', 'controlEnchanted', 'text'], label: '+0/+0 with no keyword and no restriction' }],
+  equipment: [{ zero: ['power', 'toughness'], unlessAny: ['keywords'], label: '+0/+0 and grants no keyword' }],
 };
 
 const STATIC_EMPTY_LIST_RULES: Record<string, { field: string; label: string; optional?: true }> = {
   'self-keywords': { field: 'keywords', label: 'grants no keyword' },
 };
 
-/** A literal zero: `0` or the numeric string `"0"`. `'X'`, `'all'`, `'hand'` and count expressions are not. */
+/**
+ * A zero magnitude: the literal `0`, the numeric string `"0"`, or a COUNT EXPRESSION that is multiplied by zero or
+ * capped at zero. `{ count: 'creatures-you-control', times: 0 }` is a legal `Amount` whose value is always 0
+ * whatever the board looks like, and before 8c it bought a line claim for nothing (docs/HANDOFF.md item 18).
+ * `'X'`, `'all'`, `'hand'` and an ordinary count expression are not zero.
+ */
 function isZeroMagnitude(v: unknown): boolean {
   if (typeof v === 'number') return v === 0;
   if (typeof v === 'string') { const t = v.trim(); return t !== '' && Number(t) === 0; }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+  const a = v as { times?: unknown; max?: unknown; count?: unknown; plus?: unknown };
+  if (a.times === 0 && a.plus === undefined) return true;
+  return a.max === 0 && a.count !== undefined;
+}
+
+/** A magnitude that is negative — nonsense for a count field (`draw -1`), and rejected exactly like a zero. */
+function isNegativeMagnitude(v: unknown): boolean {
+  if (typeof v === 'number') return v < 0;
+  if (typeof v === 'string') { const t = v.trim(); return t !== '' && Number(t) < 0; }
   return false;
+}
+
+/** Whether a field CARRIES something: a non-empty list or string, `true`, or a non-zero number (`unlessAny`). */
+function carries(v: unknown): boolean {
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === 'string') return v.trim() !== '';
+  if (typeof v === 'number') return v !== 0;
+  if (v && typeof v === 'object') return true;
+  return v === true;
 }
 
 /** The shared lookup behind `zeroMagnitudeReason` and `zeroStaticMagnitudeReason`. */
@@ -573,8 +629,14 @@ function zeroReason(
   // a dotted field name reads a nested holder (`what.count` on a `move`)
   const read = (f: string): unknown => f.split('.').reduce<unknown>((v, k) => (v && typeof v === 'object' ? (v as Record<string, unknown>)[k] : undefined), holder);
   for (const rule of rules[key] ?? []) {
-    if (!rule.zero.length || !rule.zero.every(f => isZeroMagnitude(read(f)))) continue;
-    if (rule.unlessAny?.some(f => Array.isArray(holder[f]) && (holder[f] as unknown[]).length > 0)) continue;
+    if (!rule.zero.length) continue;
+    // a negative COUNT is dead the same way a zero one is: nothing happens, and the claim would be free
+    if (rule.nonNegative) {
+      const neg = rule.zero.find(f => isNegativeMagnitude(read(f)));
+      if (neg !== undefined) return `${key} ${neg} is ${String(read(neg))}, a negative magnitude`;
+    }
+    if (!rule.zero.every(f => isZeroMagnitude(read(f)))) continue;
+    if (rule.unlessAny?.some(f => carries(read(f)))) continue;
     return `${key} ${rule.label}`;
   }
   return null;
@@ -1097,10 +1159,18 @@ export const COVER_RULES: Record<CoverKind, CoverRule> = {
       // only ever printed by a "for each …" line, and is scaled by the printed number (parse.ts:1284-1289)
       const printed = genericTotal(m[1]);
       const forEach = /^for each\b/i.test((m[2] ?? '').trim());
+      // A reduction the line prints with a NON-NUMERIC symbol — "~ costs {W} less to cast", "{X} less" — has no
+      // number a `reduce.amount` could equal, and `CostModifier` is a generic-mana reduction only. Before 8c
+      // `printed === null` was read as "no number to compare, so anything matches" and any declared amount claimed
+      // the line (docs/HANDOFF.md item 18). Nothing matches it now: the line has to be scripted, not covered.
+      if (printed === null) {
+        return `the line prints the non-numeric reduction ${m[1]}, and a costModifier of kind 'reduce' carries a `
+          + 'generic-mana amount — this format cannot express it, so script the line instead of covering it';
+      }
       const matches = (a: Amount): boolean => {
-        if (typeof a === 'number') return printed === null || a === printed;
+        if (typeof a === 'number') return a === printed;
         if (!forEach) return false;
-        return typeof a === 'object' && printed !== null ? (a.times ?? 1) === printed : true;
+        return typeof a === 'object' ? (a.times ?? 1) === printed : true;
       };
       if (amounts.some(matches)) return null;
       const expression = !forEach && amounts.some(a => typeof a !== 'number');
