@@ -159,8 +159,60 @@ actions and lists expectations, each pinned to a CR number.
 ```
 
 Add a file per family, export its array, and run `npm run verify:scenarios`. Use real cards — the scenario runner
-looks names up in `master.db`. Every op, condition, trigger, static and amount a family registers must be exercised by
-at least one scenario or unit test (`test/lint-op-coverage.test.ts`, phase 8e).
+looks names up in `master.db`.
+
+---
+
+## Op coverage ratchet
+
+**Every op, condition, trigger, static, amount, as-enters kind and cost part a family registers must be *executed* by at
+least one scenario.** `test/lint-op-coverage.test.ts` enforces it, and neither half is a grep for op names:
+
+* the **vocabulary** is read out of the engine itself — the `case` labels of the switches that dispatch on each
+  discriminator (`Game.applyEffect`, `conditionHolds`, `evalAmount`, `Game.queueTriggers`, the as-enters switch), the
+  `kind === '…'` tests that apply static effects, every event `queueTriggers('…')` is *called* with, and the live
+  registry lookups in `src/engine/ops/_registry.ts`;
+* the **exercised** set is measured by running the harness: `src/verify/opProbe.ts` runs every scenario
+  (`test/scenarios/*.ts` and `data/scenarios/**`) in-process behind a probe that records `e.op` as `applyEffect`
+  executes it, `cond.kind` as `conditionHolds` reads it, a trigger's event as it fires, a cost part as it is paid.
+  **Naming a card in a file is not coverage**: most of a played card's AST never runs, and a name in a string literal
+  runs nothing at all.
+
+`uncovered = vocabulary \ exercised \ dead` must be a subset of `test/fixtures/op-allowlist.json`, the baseline
+generated once in phase 8h. **That list may only shrink**: the lint also fails when an allowlisted name has become
+covered and is still listed, or when it names something the engine no longer executes. Never regenerate it to make the
+lint pass — `npm run coverage:ops -- --write-allowlist` exists for a reviewed reset, nothing else.
+
+**Dead trigger events** are counted apart, under `"deadEvents"`. An event the engine raises that nothing dispatches on
+(`turned-face-up`, raised by `Game.turnFaceUp`, which every morph card's trigger keys off), or a `case` label for an
+event the engine never raises (`tapped`), can never fire: no scenario could cover it, and a card whose trigger keys off
+it is silently inert. Those are engine defects, so the lint pins the list exactly — a new one fails, and fixing one in
+the engine forces its entry out of the allowlist.
+
+Two self-checks keep the two halves honest: the lint fails if the engine dispatches on a discriminator the vocabulary
+does not list (that is how the `turned-face-up` hole was found: the tool scored an op it refused to enumerate), and if
+any scenario fails while coverage is being measured — coverage read off a red harness, or off a run the probe
+perturbed, means nothing.
+
+A key a family registers is by definition not in the allowlist, so **a family that lands without a scenario fails the
+lint**. To find out what to write the scenario with, run `npm run coverage:ops`: it prints the per-category counts and,
+for every uncovered op, up to five real cards from the whole pool that use it, and writes the same thing to
+`data/master/op-coverage.json`.
+
+```
+$ npm run coverage:ops
+harness: 74 scenarios ran under the probe (8 TS suites, 3 JSON files)
+
+category        vocab  exercised  uncovered
+effects            93         32         61
+...
+dead trigger events (no scenario can ever cover these — they are engine defects):
+  turned-face-up — raised but nothing dispatches on it
+  tapped — dispatched on but the engine never raises it
+
+uncovered statics:
+  tokens-replacement — e.g. Doubling Season, Adrix and Nev, Twincasters, Anointed Procession
+```
 
 ---
 
@@ -181,5 +233,6 @@ which emit its ops directly, and `npm run coverage:pool` does not move when a fa
 | `npm run typecheck:example` | typecheck `_example.ts` on its own (it is excluded from the main program) |
 | `npm run verify:quick` | typecheck + `lint-*` + `registry` + `scripts` tests + `scripts:check` |
 | `npm run verify:scenarios` | the behavioural scenario suite |
+| `npm run coverage:ops` | the op-coverage ratchet report: uncovered ops with exemplar cards to write scenarios with |
 | `npm run verify:all` | typecheck:all, full test suite, scripts check, `coverage:pool`, `verify:pool`, `bench:games` |
 | `npm run bench:games` | the performance gate: ≥ 45 games/s 60-card, ≥ 4.8 games/s Commander |
