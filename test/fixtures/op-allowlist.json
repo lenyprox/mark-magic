@@ -181,7 +181,6 @@
     "ward"
   ],
   "deadEvents": [
-    "tapped",
-    "turned-face-up"
+    "tapped"
   ]
 }
