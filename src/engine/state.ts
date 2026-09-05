@@ -1,5 +1,5 @@
 // Game state types shared by the engine, the AI and the CLI.
-import type { Amount, AltCostId, CardDef, CastZone, Color, Effect, Keyword, ManaSymbol, Ability, ActivatedAbility, TriggeredAbility } from '../cards/types.js';
+import type { Amount, AltCostId, CardDef, CastZone, Color, CoreDelayedAtId, Effect, Keyword, ManaSymbol, Ability, ActivatedAbility, TriggeredAbility } from '../cards/types.js';
 import type { GameEvent, GameEventType } from './events.js';
 
 /** A seat index (0..3). Two-player code that assumed 0 | 1 should use the helpers in players.ts. */
@@ -70,11 +70,24 @@ export interface GameObject {
 }
 export type { CastZone, AltCostId };
 
-export type CoreDelayedAt = 'next-upkeep' | 'next-end-step' | 'your-next-end-step' | 'end-of-combat';
+/**
+ * Where a delayed trigger fires (CR 603.7). Core points: the next upkeep / end step / the controller's next end step /
+ * end of combat; `this-turn:dies` and `this-turn:ltb` fire once per bound object that dies or leaves the battlefield
+ * this turn (from moveTo) and expire at cleanup; `next-turn:upkeep` fires at the first upkeep of a LATER turn (never
+ * the turn it was created in); `until-eot:end` fires in the cleanup step's end-of-turn wipe (CR 514.2 / 514.3a).
+ */
+export type CoreDelayedAt = CoreDelayedAtId;
 /** Families add delayed-trigger firing points by augmenting DelayedAtRegistry; a STEP_HOOK flushes them. */
 export interface DelayedAtRegistry {}
 export type DelayedAt = CoreDelayedAt | keyof DelayedAtRegistry;
-export interface DelayedTrigger { id: number; at: DelayedAt; controller: PlayerId; sourceId: number; sourceName: string; effects: Effect[]; affected?: StackItem['affected']; createdTurn: number }
+export interface DelayedTrigger {
+  id: number; at: DelayedAt; controller: PlayerId; sourceId: number; sourceName: string; effects: Effect[];
+  /** The objects the trigger is about ('that' / 'those' in its effects; the watched set for `this-turn:*`). */
+  affected?: StackItem['affected'];
+  /** How the effects refer to `affected` (documentary: both bind the whole set; a `this-turn:*` firing binds the one object). */
+  bind?: 'that' | 'those';
+  createdTurn: number;
+}
 
 export interface Player {
   id: PlayerId;
@@ -131,6 +144,7 @@ export interface StackItem {
   effects: Effect[];
   targets: (number | PlayerId | { player: PlayerId })[]; // one entry per targeting effect, in order
   targetsByEffect: Map<number, TargetRef[]>;             // effect index -> chosen targets
+  targetParts?: Record<number, number[]>;                // effect index -> how many of those each requirement (a `multi` part, exchange's second permanent) chose, in requirement order (CR 608.2b checks each pick against its own requirement)
   x: number;
   modes?: number[];
   ability?: Ability;
@@ -144,8 +158,12 @@ export interface StackItem {
   triggeringId?: number;
   /** The player the trigger was about (the one dealt damage, the one who drew, ...) — "that player" in the body. */
   triggeringPlayer?: PlayerId;
-  /** Objects this item moved/affected while resolving, with their last known values ("that creature's controller gains life equal to its power"). */
-  affected?: { id: number; lastKnown: { power: number; toughness: number; controller: PlayerId; manaValue: number } }[];
+  /** Objects this item moved/affected while resolving, with their last known values ("that creature's controller gains life equal to its power"). `zone` is where the object was when it was bound (CR 400.7: a later zone change makes it a new object). */
+  affected?: { id: number; lastKnown: { power: number; toughness: number; controller: PlayerId; manaValue: number; zone?: Zone } }[];
+  /** Composition core: the player 'you' currently means while a `scoped` block runs (applyEffect reads `actor ?? controller`). */
+  actor?: PlayerId;
+  /** Ids of the objects sacrificed to pay this item's cost (the 'sacrificed' Ref). */
+  sacrificed?: number[];
 }
 export type TargetRef = { kind: 'object'; id: number } | { kind: 'player'; id: PlayerId } | { kind: 'stack'; id: number };
 
@@ -226,7 +244,11 @@ export type CoreDecision =
   | { kind: 'order-blockers'; attacker: number; blockers: number[] }
   | { kind: 'choose-player'; options: PlayerId[]; reason: string }
   | { kind: 'choose-number'; min: number; max: number; reason: string }
-  | { kind: 'order-triggers'; items: number[]; labels: string[] };
+  | { kind: 'order-triggers'; items: number[]; labels: string[] }
+  /** "You may …" (composition core): answer true to do it. `source` names the resolving spell or ability. */
+  | { kind: 'may'; prompt: string; source: string }
+  /** "… unless you pay [cost]": answer true to pay `cost` (a printed cost string) and avoid the `otherwise` effects. */
+  | { kind: 'unless-pays'; prompt: string; cost: string; source: string };
 /** Families add decisions by augmenting DecisionRegistry; DECISION_DEFAULTS[kind] answers them. */
 export interface DecisionRegistry {}
 export type Decision = CoreDecision | DecisionRegistry[keyof DecisionRegistry];

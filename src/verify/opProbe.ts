@@ -12,6 +12,10 @@
 //                               switch, a cost part key by the payer. Reading it *is* the dispatch.
 //   Game.prototype.applyEffect        — one record per effect the engine executes (nested and family `ctx.apply` ones
 //                               included, since those re-enter the same method).
+//   scenarioCards.def           — the same wrapping for the defs a scenario builds itself (its `scripts` field applies a
+//                               script to a real card, and the result is a fresh object the database never saw).
+//   Game.prototype.flushDelayed / fireLeaveDelayed — one record per delayed-trigger point that actually FIRED (the
+//                               delayed list shrank, or `pendingTriggers` grew), never per delayed trigger created.
 //   Game.prototype.putTriggersOnStack — one record per trigger that actually FIRED, read off `pendingTriggers` before
 //                               they go on the stack. Deliberately not `queueTriggers`: that reads `ev.on` for every
 //                               triggered ability on the battlefield whenever any event is raised, so recording there
@@ -29,8 +33,10 @@ import { CardDB } from '../cards/db.js';
 import type { CardDef } from '../cards/types.js';
 import { projectRoot } from '../config/paths.js';
 import { Game } from '../engine/game.js';
+import { ownTargetSpecs } from '../engine/legal.js';
+import type { DelayedTrigger, GameState } from '../engine/state.js';
 import { HINT, categoryOfKind, emptySets, type Category, type Hint, type Sets } from './opCoverage.js';
-import { runScenario, type Scenario } from './scenarioDsl.js';
+import { runScenario, scenarioCards, type Scenario } from './scenarioDsl.js';
 import { listScenarioFiles, readScenarioFile } from './scenarioFiles.js';
 
 /** Ability kinds are not a category: `kind: 'triggered'` says what the ability is, not what the engine dispatches on. */
@@ -91,15 +97,18 @@ export function installProbe(vocab: Sets): Probe {
   function observe(key: string, val: unknown, hint: Hint, childHint: Hint): void {
     if (typeof val === 'string') {
       if (key === 'op') rec('effects', val);                                      // switch (e.op) in applyEffect
-      else if (key === 'count') rec('amounts', val);                              // switch (a.count) in evalAmount
+      else if (key === 'count') { if (val !== 'all') rec('amounts', val); }        // switch (a.count) in evalAmount ('all' is a `move` count, not an amount)
+      else if (key === 'prop') rec('amounts', 'prop');                            // evalAmountForm's `prop` form
       else if (key === 'id' && hint === 'altCosts') rec('altCosts', val);          // the alt cost the caster chose
-      else if (childHint === 'keywords') rec('keywords', val);                     // withKeyword: 'flying'
+      else if (childHint === 'keywords') { if (val !== 'all') rec('keywords', val); }   // withKeyword: 'flying' ('all' is lose-abilities' "every ability")
       else if (key === 'kind' && hint !== 'skip' && !ABILITY_KINDS.has(val)) {
         const cat = hint && hint !== 'keywords' && hint !== 'costParts' ? hint : categoryOfKind(val, vocab);
         if (cat) rec(cat, val);                                                    // conditions, statics, as-enters, cost modifiers
       }
       return;
     }
+    // the list-shaped amount forms: evalAmountForm reads `diff` / `sum` / `max` / `min` off the expression it dispatches on
+    if ((key === 'diff' || key === 'sum' || key === 'max' || key === 'min') && Array.isArray(val)) { rec('amounts', key); return; }
     // A keyword list is a bag, not a discriminated union: the engine reads the whole list and asks it questions
     // (`keywords(s, o).includes('flying')`), so reading it is as fine-grained as this seam gets.
     if (childHint === 'keywords' && Array.isArray(val)) { for (const k of val) if (typeof k === 'string') rec('keywords', k); return; }
@@ -115,11 +124,36 @@ export function installProbe(vocab: Sets): Probe {
     const def = orig.apply(this, a) as CardDef | null;
     return def ? wrap(def, undefined) as CardDef : def;
   }, 'CardDB'));
+  patches.push(patch(scenarioCards, 'def', orig => function (this: typeof scenarioCards, ...a: never[]) {
+    const def = orig.apply(this, a) as CardDef;
+    return wrap(def, undefined) as CardDef;
+  }, 'scenarioCards'));
   patches.push(patch(Game.prototype, 'applyEffect', orig => function (this: Game, ...a: never[]) {
     const e = a[1] as { op?: unknown } | undefined;
-    if (e && typeof e.op === 'string') rec('effects', e.op);
+    if (e && typeof e.op === 'string') {
+      rec('effects', e.op);
+      // the target kinds this effect resolves with (a `multi` spec counts itself and each of its parts)
+      for (const spec of ownTargetSpecs(e as never)) { rec('targetKinds', spec.kind as string); if (spec.kind === 'multi') for (const sub of spec.specs ?? []) rec('targetKinds', sub.kind as string); }
+    }
     return orig.apply(this, a);
   }, 'Game'));
+  // a delayed-trigger point is exercised when a trigger scheduled at it FIRES: flushDelayed removes it from the list
+  // (and pushes a pending trigger), fireLeaveDelayed does the same for the `this-turn:*` points from moveTo
+  const pendingOf = (g: Game) => (g as unknown as { pendingTriggers: unknown[] }).pendingTriggers;
+  patches.push(patch(Game.prototype, 'flushDelayed', orig => function (this: Game, ...a: never[]) {
+    const at = a[0] as string; const before = pendingOf(this).length;
+    const r = orig.apply(this, a);
+    if (pendingOf(this).length > before) rec('delayedAt', at);
+    return r;
+  }, 'Game'));
+  patches.push(patch(Game.prototype, 'fireLeaveDelayed', orig => function (this: Game, ...a: never[]) {
+    const s = this.state as GameState; const before = (s.delayed ?? []).map(d => ({ at: d.at as string, n: d.affected?.length ?? 0, id: d.id }));
+    const r = orig.apply(this, a);
+    const after = new Map((s.delayed ?? []).map(d => [d.id, d.affected?.length ?? 0] as const));
+    for (const d of before) if ((after.get(d.id) ?? 0) < d.n) rec('delayedAt', d.at);
+    return r;
+  }, 'Game'));
+  void (0 as unknown as DelayedTrigger);
   patches.push(patch(Game.prototype, 'putTriggersOnStack', orig => function (this: Game, ...a: never[]) {
     const pending = (this as unknown as { pendingTriggers?: { ability?: { event?: { on?: unknown } } }[] }).pendingTriggers;
     if (!Array.isArray(pending)) throw new Error('op-coverage: Game.pendingTriggers is no longer an array — re-anchor src/verify/opProbe.ts');

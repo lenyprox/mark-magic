@@ -14,6 +14,7 @@ import {
   type CardScript, type CoverKind, type ScriptFace, type ScriptSource, type Verification,
 } from '../src/cards/scripts.js';
 import { CardScriptChecked } from '../src/cards/schema.js';
+import { LIST_LIMIT, NESTING_LIMIT } from '../src/engine/legal.js';
 import type { CardDef, Effect, Keyword, ManaCost } from '../src/cards/types.js';
 import { db } from './helpers.js';
 
@@ -111,6 +112,29 @@ test('applyScript: an ability that declares no effect claims nothing, and the sc
 
   // the PARSER's own schema stays lenient: 56 of its abilities over the 34,513-card pool have no effect
   assert.equal(applyScript(elves, scriptFor('Llanowar Elves', { abilities: manaAbility(ELVES) })).fullyParsed, true);
+});
+
+test('the script schema rejects composition containers nested past NESTING_LIMIT and container lists past LIST_LIMIT', () => {
+  const dmg: Effect = { op: 'damage', amount: 1, target: { kind: 'creature' } };
+  const nest = (depth: number, inner: Effect[]): Effect[] => depth === 0 ? inner : [{ op: 'scoped', who: 'you', do: nest(depth - 1, inner) }];
+  const script = (effects: Effect[]) => scriptFor('Lightning Bolt', { mode: 'replace', abilities: [{ kind: 'spell', effects, text: 'x' }] });
+  assert.ok(CardScriptChecked.safeParse(script(nest(NESTING_LIMIT, [dmg]))).success, `${NESTING_LIMIT} levels are allowed`);
+  const deep = CardScriptChecked.safeParse(script(nest(NESTING_LIMIT + 1, [dmg])));
+  assert.ok(!deep.success && deep.error!.issues.some(i => /nest at most 6 deep/.test(i.message)), 'one more level is rejected');
+  assert.equal(deep.error!.issues[0].path.filter(p => p === 'do').length, NESTING_LIMIT + 1, 'the issue names the offending list');
+  const list = (n: number): Effect[] => Array.from({ length: n }, () => dmg);
+  assert.ok(CardScriptChecked.safeParse(script([{ op: 'scoped', who: 'you', do: list(LIST_LIMIT) }])).success, `${LIST_LIMIT} effects in a container list are allowed`);
+  const wide = CardScriptChecked.safeParse(script([{ op: 'may', effects: list(LIST_LIMIT + 1) }]));
+  assert.ok(!wide.success && wide.error!.issues.some(i => /a may list holds at most 63 effects/.test(i.message)), 'the 64th is rejected');
+  assert.ok(CardScriptChecked.safeParse(script(list(LIST_LIMIT + 1))).success, 'a top-level list is not keyed by position: no limit');
+  // the older containers share their targets with their children and do not spend a level
+  assert.ok(CardScriptChecked.safeParse(script([{ op: 'conditional', condition: { kind: 'metalcraft' }, then: nest(NESTING_LIMIT, [dmg]) }])).success);
+  assert.ok(!CardScriptChecked.safeParse(script([{ op: 'conditional', condition: { kind: 'metalcraft' }, then: nest(NESTING_LIMIT + 1, [dmg]) }])).success, 'but what is inside them is counted');
+  // their children share ONE target list (they run under the container's index): a second targeting child would overwrite the first's picks
+  const shared = CardScriptChecked.safeParse(script([{ op: 'conditional', condition: { kind: 'kicked' }, then: [dmg], else: [{ op: 'destroy', target: { kind: 'artifact' } }] }]));
+  assert.ok(!shared.success && shared.error!.issues.some(i => /share one target list and 2 of them target/.test(i.message)), 'two targeting children of an older container are rejected');
+  assert.ok(CardScriptChecked.safeParse(script([{ op: 'conditional', condition: { kind: 'kicked' }, then: [dmg], else: [{ op: 'may', effects: [dmg] }] }])).success, 'a composition container keys its children apart');
+  assert.ok(CardScriptChecked.safeParse(script([{ op: 'optional-pay', mana: { generic: 1, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{1}' }, then: [{ op: 'damage', amount: 1, target: { kind: 'multi', specs: [{ kind: 'creature' }, { kind: 'player' }] } }] }])).success, 'one child with several requirements is one list');
 });
 
 /** Copy the named declarations off the parser's own def, so a test face declares exactly what the card really has. */
@@ -889,4 +913,57 @@ test('scriptHash: stable across key order, and unchanged by the verification blo
   assert.notEqual(scriptHash({ ...a, covers: [{ line: 'one', by: 'keywords' }] }), scriptHash(a), 'a real change moves the hash');
   assert.notEqual(scriptHash({ ...a, notes: 'x' }), scriptHash(a));
   assert.equal(scriptHash({ ...a, confidence: undefined }), scriptHash(a), 'explicit undefined is not a change');
+});
+
+// ---------------------------------------------------------------------------
+// Composition core (Phase 9.0): the structural gate on the new ops
+// ---------------------------------------------------------------------------
+
+test('composition core: a content-free script made only of the new container ops is rejected; a real one is accepted', () => {
+  const bears = db.get('Grizzly Bears')!;
+  const line = normalizeOracleLines(db.get('Shock')!)[0];
+  // every container with nothing inside, a `bind` on its own, a `move` of nothing and a `lose-abilities` of nothing
+  const hollow: Effect[] = [
+    { op: 'for-each', over: { types: ['Creature'] }, do: [] },
+    { op: 'bind', as: 'that', from: 'targets' },
+    { op: 'reflexive', when: 'you-do', effects: [] },
+    { op: 'scoped', who: 'each-opponent', do: [] },
+    { op: 'may', effects: [] },
+    { op: 'unless-pays', who: 'you', cost: { mana: { generic: 2, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{2}' } }, otherwise: [] },
+    { op: 'move', what: { filter: { types: ['Creature'] }, zone: 'graveyard', who: 'you', count: 0 }, to: 'battlefield' },
+    { op: 'lose-abilities', target: { kind: 'creature' }, keywords: [], duration: 'eot' },
+    // nested: a container whose only child is another empty container is still nothing
+    { op: 'for-each', over: 'those', do: [{ op: 'may', effects: [{ op: 'scoped', who: 'you', do: [] }] }] },
+  ];
+  assert.equal(substantiveCount(hollow), 0);
+  assert.deepEqual(insubstantiveReasons(hollow.slice(6, 8)), ['effect has zero magnitude: move count 0', 'effect has zero magnitude: lose-abilities loses no ability']);
+  for (const e of hollow) assert.equal(substantiveCount([e]), 0, `${e.op} counted as behaviour`);
+  const shock = db.get('Shock')!;
+  const hollowScript = applyScript(shock, scriptFor('Shock', { abilities: [{ kind: 'spell', effects: hollow, text: line }] }));
+  assert.deepEqual(hollowScript.unparsed, [line], 'a script of empty containers claims no line');
+  assert.equal(hollowScript.fullyParsed, false);
+  // the CardScriptChecked schema refuses the shapes the type system alone would let through
+  for (const e of [{ op: 'set-pt', target: 'self', duration: 'eot' }, { op: 'move', what: 'that' }, { op: 'for-each', do: [] }])
+    assert.equal(CardScriptChecked.safeParse(scriptFor('Shock', { abilities: [{ kind: 'spell', effects: [e as unknown as Effect], text: line }] })).success, false, `schema accepted ${JSON.stringify(e)}`);
+
+  // the real thing: the same ops with behaviour inside them count once each, and claim the line
+  const real: Effect[] = [
+    { op: 'for-each', over: { types: ['Creature'], who: 'you' }, do: [{ op: 'counters', target: 'that', counter: '+1/+1', amount: 1 }] },
+    { op: 'may', effects: [{ op: 'sacrifice', who: 'you', what: { types: ['Creature'] }, amount: 1 }] },
+    { op: 'reflexive', when: 'you-do', effects: [{ op: 'draw', amount: 1, who: 'you' }] },
+    { op: 'scoped', who: 'each-opponent', do: [{ op: 'discard', amount: 1, who: 'you' }] },
+    { op: 'unless-pays', who: 'target-player', cost: { mana: { generic: 2, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{2}' } }, otherwise: [{ op: 'lose-life', amount: 2, who: 'you' }] },
+    { op: 'move', what: 'that', to: 'exile', until: 'eot' },
+    { op: 'move', what: { filter: { types: ['Creature'] }, zone: 'graveyard', who: 'you', count: 1 }, to: 'battlefield', controller: 'you' },
+    { op: 'set-pt', target: 'self', power: 0, toughness: 0, duration: 'eot' },                       // 0/0 is lethal, not empty
+    { op: 'lose-abilities', target: 'all-creatures', duration: 'eot' },                             // no list = every ability
+    { op: 'lose-abilities', target: 'all-creatures', keywords: ['flying'], duration: 'eot' },
+    { op: 'exchange', what: 'life', a: 'you', b: 'target-player' },
+  ];
+  assert.equal(substantiveCount(real), real.length);
+  const realScript = applyScript(shock, scriptFor('Shock', { abilities: [{ kind: 'spell', effects: real, text: line }] }));
+  assert.deepEqual(realScript.unparsed, []);
+  assert.equal(realScript.fullyParsed, true);
+  assert.equal(CardScriptChecked.safeParse(scriptFor('Shock', { abilities: [{ kind: 'spell', effects: real, text: line }] })).success, true);
+  void bears;
 });

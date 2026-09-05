@@ -14,8 +14,9 @@
 // as the composed discriminated union, and every enum a registry will widen (Keyword, TargetSpec.kind,
 // Amount.count, AltCost.id, AltCost.from) lives in exactly one named constant, so merging is a one-line edit.
 import { z } from 'zod';
-import type { Ability, Amount, Condition, Effect, Filter, StaticAbility, StaticEffect, TriggerEvent } from './types.js';
+import type { Ability, Amount, Condition, Effect, Filter, StaticAbility, StaticEffect, TargetSpec, TriggerEvent } from './types.js';
 import { COVER_KINDS, coverProblems, coversValid, IGNORE_REASONS } from './scripts.js';
+import { LIST_LIMIT, NESTING_LIMIT, ownTargetSpecs, sharedLists } from '../engine/legal.js';
 
 // ---------------------------------------------------------------------------
 // What the parser really emits
@@ -97,6 +98,15 @@ export const AMOUNT_COUNTS = [
   'blocking-source', 'cards-in-all-hands', 'spells-cast-this-turn',
 ] as const;
 
+// ---- composition core (Phase 9.0, docs/vocabulary/composition.md): the enums its ops share ----------------------
+/** `Ref` minus the `target:<i>` template form (which `RefSchema` adds). */
+export const REFS = ['self', 'that', 'those', 'triggering', 'enchanted', 'equipped', 'sacrificed', 'exiled-with'] as const;
+export const SCOPE_WHO = ['you', 'each-player', 'each-opponent', 'target-player', 'that-player', 'controller-of-that'] as const;
+export const SET_ZONES = ['battlefield', 'graveyard', 'hand', 'exile', 'library'] as const;
+export const MOVE_ZONES = ['battlefield', 'graveyard', 'exile', 'hand', 'library', 'command'] as const;
+export const DELAYED_AT = ['next-upkeep', 'next-end-step', 'your-next-end-step', 'end-of-combat', 'this-turn:dies', 'this-turn:ltb', 'next-turn:upkeep', 'until-eot:end'] as const;
+export const AMOUNT_PROPS = ['power', 'toughness', 'mv', 'life', 'cards-in-hand'] as const;
+
 export const ALT_COST_IDS = ['pitch', 'life', 'evoke', 'warp', 'impending', 'flashback', 'escape', 'jump-start', 'from-graveyard', 'buyback', 'dash', 'morph'] as const;
 /** 8a-1 widens this to the full `CastZone`. */
 export const ALT_COST_FROM = ['hand', 'graveyard', 'exile', 'command'] as const;   // = CastZone in types.ts (8a-1 widened it for foretell/plot-style casts)
@@ -121,6 +131,7 @@ const NUMX = z.custom<number>(v => typeof v === 'number' || v === 'X', { message
 // ---------------------------------------------------------------------------
 
 const FilterRef: z.ZodType<Filter> = z.lazy(() => FilterSchema);
+const TargetSpecRef: z.ZodType<TargetSpec> = z.lazy(() => TargetSpecSchema);
 const AmountRef: z.ZodType<Amount> = z.lazy(() => AmountSchema);
 const ConditionRef: z.ZodType<Condition> = z.lazy(() => ConditionSchema);
 const EffectRef: z.ZodType<Effect> = z.lazy(() => EffectSchema);
@@ -154,23 +165,54 @@ export const FilterSchema = z.strictObject({
   withKeyword: KeywordSchema.optional(),
 });
 
+/** A `Ref`: one of the named references, or `target:<i>` (the i-th target of the item). */
+export const RefSchema = z.union([z.enum(REFS), z.templateLiteral(['target:', z.number()])]);
+export const ScopeWhoSchema = z.enum(SCOPE_WHO);
+export const SetZoneSchema = z.enum(SET_ZONES);
+/** A filter plus where to look and whose (`ObjectSet` in types.ts). */
+export const ObjectSetSchema = FilterSchema.extend({ zone: SetZoneSchema.optional(), who: ScopeWhoSchema.optional() });
+
+/**
+ * The object form of an `Amount` (`AmountExpr`): every field optional at the type level (the parser and the engine
+ * read `a.count` / `a.plus` on one object type), exactly one FORM required at validation time — `count`, `diff`,
+ * `sum`, `max` as a list, `min` or `prop`. `max` as a number is a cap on a `count` expression.
+ */
+export const AmountExprSchema = z.strictObject({
+  count: z.enum([...AMOUNT_COUNTS, 'objects']).optional(), filter: FilterRef.optional(), zone: SetZoneSchema.optional(), who: ScopeWhoSchema.optional(),
+  plus: N.optional(), times: N.optional(), counter: S.optional(), half: z.enum(['up', 'down']).optional(),
+  max: z.union([N, z.array(AmountRef)]).optional(),
+  diff: z.tuple([AmountRef, AmountRef]).optional(), sum: z.array(AmountRef).optional(), min: z.array(AmountRef).optional(),
+  prop: z.enum(AMOUNT_PROPS).optional(), of: z.union([RefSchema, z.enum(['you', 'that-player', 'target-player'])]).optional(),
+});
+const ONE_FORM = 'an amount carries exactly one of count, diff, sum, max (as a list), min or prop';
 export const AmountSchema = z.union([
   N,
   z.literal('X'),
-  z.strictObject({ count: z.enum(AMOUNT_COUNTS), filter: FilterRef.optional(), plus: N.optional(), times: N.optional(), counter: S.optional() }),
+  AmountExprSchema.superRefine((a, ctx) => {
+    const forms = [a.count !== undefined, a.diff !== undefined, a.sum !== undefined, Array.isArray(a.max), a.min !== undefined, a.prop !== undefined].filter(Boolean).length;
+    if (forms !== 1) ctx.addIssue({ code: 'custom', message: ONE_FORM });
+    if (a.prop !== undefined && a.of === undefined) ctx.addIssue({ code: 'custom', message: 'a prop amount names what it is a property of (`of`)' });
+    if (a.count === undefined && (a.filter !== undefined || a.zone !== undefined || a.who !== undefined || a.counter !== undefined)) ctx.addIssue({ code: 'custom', message: 'filter / zone / who / counter belong to a count amount' });
+  }),
 ]);
 
 export const TargetSpecSchema = z.strictObject({
-  kind: z.enum(TARGET_KINDS),
+  kind: z.enum([...TARGET_KINDS, 'multi']),
   controller: z.enum(['you', 'opponent']).optional(),
   filter: FilterRef.optional(),
   optional: B.optional(),
   count: N.optional(),
   self: B.optional(),
+  specs: z.array(TargetSpecRef).optional(),
+}).superRefine((t, ctx) => {
+  if (t.kind === 'multi' && !(t.specs && t.specs.length >= 2)) ctx.addIssue({ code: 'custom', message: "a 'multi' target spec lists at least two specs" });
+  if (t.kind !== 'multi' && t.specs !== undefined) ctx.addIssue({ code: 'custom', message: "only a 'multi' target spec carries specs" });
 });
 
-/** `TargetSpec | <literal>` — the shape most effect `target` fields use. */
-const targetOr = <const T extends readonly [string, ...string[]]>(extra: T) => z.union([TargetSpecSchema, z.enum(extra)]);
+/** `TargetSpec | Ref | <literal>` — the shape most effect `target` fields use (a Ref names a bound object; composition core). */
+const targetOr = <const T extends readonly [string, ...string[]]>(extra: T) => z.union([TargetSpecSchema, RefSchema, z.enum(extra)]);
+/** `TargetSpec | Ref` — an effect whose target may also be a bound object. */
+const TargetOrRef = z.union([TargetSpecSchema, RefSchema]);
 
 export const AbilityCostSchema = z.strictObject({
   mana: ManaCostSchema.optional(),
@@ -309,6 +351,8 @@ export const ConditionSchema = z.discriminatedUnion('kind', CONDITION_VARIANTS);
 // ---------------------------------------------------------------------------
 
 const DURATION = z.enum(['eot', 'permanent']);
+/** One side of an `exchange`: a permanent (life: a player) — `ExchangeSide` in types.ts. */
+const ExchangeSideSchema = z.union([TargetSpecSchema, RefSchema, z.enum(['you', 'target-player', 'that-player', 'controller-of-that'])]);
 
 export const EFFECT_VARIANTS = [
   z.strictObject({
@@ -353,7 +397,7 @@ export const EFFECT_VARIANTS = [
   z.strictObject({ op: z.literal('optional-then'), first: z.array(EffectRef), then: z.array(EffectRef) }),
   z.strictObject({ op: z.literal('impulse'), count: NUMX, until: z.enum(['eot', 'next-turn']) }),
   z.strictObject({ op: z.literal('return-own'), filter: FilterRef, count: N, to: z.literal('hand') }),
-  z.strictObject({ op: z.literal('cant-block'), target: TargetSpecSchema, duration: z.literal('eot') }),
+  z.strictObject({ op: z.literal('cant-block'), target: TargetOrRef, duration: z.literal('eot') }),
   z.strictObject({ op: z.literal('no-untap-self') }),
   z.strictObject({ op: z.literal('no-untap-that') }),
   z.strictObject({ op: z.literal('energy'), amount: AmountRef }),
@@ -366,7 +410,7 @@ export const EFFECT_VARIANTS = [
     count: NUMX, optional: B.optional(), who: z.enum(['you', 'that-controller']).optional(), reveal: B.optional(),
     mvLE: AmountRef.optional(), split: z.literal('one-battlefield-rest-hand').optional(),
   }),
-  z.strictObject({ op: z.literal('delayed-trigger'), at: z.enum(['next-upkeep', 'next-end-step', 'your-next-end-step', 'end-of-combat']), effects: z.array(EffectRef), bind: z.literal('that').optional() }),
+  z.strictObject({ op: z.literal('delayed-trigger'), at: z.enum(DELAYED_AT), effects: z.array(EffectRef), bind: z.enum(['that', 'those']).optional() }),
   z.strictObject({ op: z.literal('return-to-battlefield'), target: z.literal('that'), underControlOf: z.enum(['owner', 'you']), counterIfYours: z.enum(['that', 'self']).optional() }),
   z.strictObject({ op: z.literal('amass'), subtype: S, amount: AmountRef }),
   z.strictObject({ op: z.literal('gain-ability'), ability: AbilityRef }),
@@ -386,19 +430,19 @@ export const EFFECT_VARIANTS = [
   z.strictObject({ op: z.literal('counter-triggering') }),
   z.strictObject({
     op: z.literal('pump'),
-    target: targetOr(['creatures-you-control', 'self', 'all-creatures', 'other-creatures-you-control', 'attacking-creatures', 'other-attacking-creatures', 'enchanted', 'all-opponent-creatures']),
+    target: targetOr(['creatures-you-control', 'all-creatures', 'other-creatures-you-control', 'attacking-creatures', 'other-attacking-creatures', 'all-opponent-creatures']),
     power: AmountRef, toughness: AmountRef, keywords: z.array(KeywordSchema).optional(), duration: DURATION,
   }),
-  z.strictObject({ op: z.literal('grant-keyword'), target: targetOr(['self', 'creatures-you-control', 'permanents-you-control']), keywords: z.array(KeywordSchema), duration: DURATION }),
-  z.strictObject({ op: z.literal('bounce'), target: targetOr(['all-creatures', 'all-nonland', 'self']), to: z.enum(['hand', 'library-top', 'library-bottom']) }),
+  z.strictObject({ op: z.literal('grant-keyword'), target: targetOr(['creatures-you-control', 'permanents-you-control']), keywords: z.array(KeywordSchema), duration: DURATION }),
+  z.strictObject({ op: z.literal('bounce'), target: targetOr(['all-creatures', 'all-nonland']), to: z.enum(['hand', 'library-top', 'library-bottom']) }),
   z.strictObject({
     op: z.literal('token'), count: AmountRef, power: N, toughness: N, colors: z.array(ColorSchema), types: z.array(CardTypeSchema),
     subtypes: z.array(S), keywords: z.array(KeywordSchema), tapped: B.optional(), attacking: B.optional(), name: S.optional(),
     text: S.optional(), treasure: B.optional(), clue: B.optional(), spawn: B.optional(), food: B.optional(), dynamicPT: AmountRef.optional(),
   }),
-  z.strictObject({ op: z.literal('counters'), target: targetOr(['self', 'creatures-you-control', 'each-other-creature-you-control']), counter: S, amount: AmountRef, optional: B.optional(), filter: FilterRef.optional() }),
-  z.strictObject({ op: z.literal('tap'), target: targetOr(['all-opponent-creatures', 'all-creatures', 'enchanted', 'self']), noUntap: B.optional() }),
-  z.strictObject({ op: z.literal('untap'), target: targetOr(['self', 'all-you-control', 'lands-you-control', 'that', 'enchanted']) }),
+  z.strictObject({ op: z.literal('counters'), target: targetOr(['creatures-you-control', 'each-other-creature-you-control']), counter: S, amount: AmountRef, optional: B.optional(), filter: FilterRef.optional() }),
+  z.strictObject({ op: z.literal('tap'), target: targetOr(['all-opponent-creatures', 'all-creatures']), noUntap: B.optional() }),
+  z.strictObject({ op: z.literal('untap'), target: targetOr(['all-you-control', 'lands-you-control']) }),
   z.strictObject({ op: z.literal('sacrifice'), who: z.enum(['you', 'target-player', 'each-opponent', 'each-player']), what: FilterRef, amount: NUMX }),
   z.strictObject({ op: z.literal('sacrifice-self') }),
   z.strictObject({ op: z.literal('mill'), amount: AmountRef, who: z.enum(['you', 'target-player', 'each-opponent', 'that-player']) }),
@@ -417,15 +461,15 @@ export const EFFECT_VARIANTS = [
   z.strictObject({ op: z.literal('fight'), target: TargetSpecSchema, self: B }),
   z.strictObject({ op: z.literal('bite'), target: TargetSpecSchema }),
   z.strictObject({ op: z.literal('set-life'), amount: N, who: z.enum(['you', 'each-player']) }),
-  z.strictObject({ op: z.literal('gain-control'), target: TargetSpecSchema, duration: DURATION, untapHaste: B.optional() }),
+  z.strictObject({ op: z.literal('gain-control'), target: TargetOrRef, duration: DURATION, untapHaste: B.optional() }),
   z.strictObject({ op: z.literal('copy-spell'), target: TargetSpecSchema, newTargets: B.optional() }),
   z.strictObject({
-    op: z.literal('token-copy'), target: targetOr(['that', 'self']), count: AmountRef, extraTypes: z.array(CardTypeSchema).optional(),
+    op: z.literal('token-copy'), target: z.union([TargetSpecSchema, z.enum(['that', 'self'])]), count: AmountRef, extraTypes: z.array(CardTypeSchema).optional(),
     extraSubtypes: z.array(S).optional(), extraKeywords: z.array(KeywordSchema).optional(), tapped: B.optional(),
     attacking: z.union([z.literal('each-other-opponent'), B]).optional(),
   }),
   z.strictObject({ op: z.literal('remove-those'), how: z.enum(['exile', 'sacrifice']) }),
-  z.strictObject({ op: z.literal('remove-from-combat'), target: TargetSpecSchema, untap: B.optional() }),
+  z.strictObject({ op: z.literal('remove-from-combat'), target: TargetOrRef, untap: B.optional() }),
   z.strictObject({ op: z.literal('play-exiled'), until: z.enum(['eot', 'next-turn']), free: B.optional() }),
   z.strictObject({ op: z.literal('extra-land'), count: N }),
   z.strictObject({ op: z.literal('exile-if-dies'), who: z.enum(['that', 'affected', 'self', 'all-creatures', 'opponent-creatures']) }),
@@ -435,24 +479,40 @@ export const EFFECT_VARIANTS = [
   z.strictObject({ op: z.literal('fold-new-targets') }),
   z.strictObject({ op: z.literal('earthbend'), amount: AmountRef, target: TargetSpecSchema }),
   z.strictObject({
-    op: z.literal('animate'), target: targetOr(['self']), power: N, toughness: N, colors: z.array(ColorSchema),
+    op: z.literal('animate'), target: TargetOrRef, power: N, toughness: N, colors: z.array(ColorSchema),
     types: z.array(CardTypeSchema), subtypes: z.array(S), keywords: z.array(KeywordSchema), duration: DURATION,
   }),
   z.strictObject({ op: z.literal('untap-all'), filter: FilterRef }),
   z.strictObject({ op: z.literal('untap-choose'), filter: FilterRef, count: NUMX }),
-  z.strictObject({ op: z.literal('double-power'), target: TargetSpecSchema }),
-  z.strictObject({ op: z.literal('shuffle-into-library'), target: TargetSpecSchema }),
+  z.strictObject({ op: z.literal('double-power'), target: TargetOrRef }),
+  z.strictObject({ op: z.literal('shuffle-into-library'), target: TargetOrRef }),
   z.strictObject({ op: z.literal('each-self-damage') }),
-  z.strictObject({ op: z.literal('multi-counters'), target: TargetSpecSchema, counters: z.array(S) }),
+  z.strictObject({ op: z.literal('multi-counters'), target: TargetOrRef, counters: z.array(S) }),
   z.strictObject({ op: z.literal('transform-self'), viaExile: B.optional() }),
   z.strictObject({ op: z.literal('choose-mode'), modes: z.array(z.array(EffectRef)), count: N }),
   z.strictObject({ op: z.literal('conditional'), condition: ConditionRef, then: z.array(EffectRef), else: z.array(EffectRef).optional() }),
   z.strictObject({ op: z.literal('attach-self'), target: TargetSpecSchema }),
-  z.strictObject({ op: z.literal('regenerate'), target: targetOr(['self']) }),
-  z.strictObject({ op: z.literal('prevent-damage'), target: targetOr(['self', 'you']), amount: z.union([AmountRef, z.literal('all')]), duration: z.literal('eot') }),
-  z.strictObject({ op: z.literal('cant-attack-or-block'), target: TargetSpecSchema, duration: z.literal('eot') }),
+  z.strictObject({ op: z.literal('regenerate'), target: TargetOrRef }),
+  z.strictObject({ op: z.literal('prevent-damage'), target: targetOr(['you']), amount: z.union([AmountRef, z.literal('all')]), duration: z.literal('eot') }),
+  z.strictObject({ op: z.literal('cant-attack-or-block'), target: TargetOrRef, duration: z.literal('eot') }),
   z.strictObject({ op: z.literal('extra-turn') }),
   z.strictObject({ op: z.literal('loot'), draw: NUMX, discard: NUMX, discardFirst: B.optional(), optional: B.optional() }),
+  // composition core (Phase 9.0): see docs/vocabulary/composition.md
+  z.strictObject({ op: z.literal('for-each'), over: z.union([ObjectSetSchema, z.enum(['those', 'targets'])]), do: z.array(EffectRef) }),
+  z.strictObject({ op: z.literal('bind'), as: z.literal('that'), from: z.enum(['targets', 'affected', 'triggering']) }),
+  z.strictObject({ op: z.literal('reflexive'), when: z.literal('you-do'), effects: z.array(EffectRef) }),
+  z.strictObject({ op: z.literal('scoped'), who: ScopeWhoSchema, do: z.array(EffectRef) }),
+  z.strictObject({ op: z.literal('may'), effects: z.array(EffectRef), prompt: S.optional() }),
+  z.strictObject({ op: z.literal('unless-pays'), who: ScopeWhoSchema, cost: AbilityCostSchema, otherwise: z.array(EffectRef) }),
+  z.strictObject({
+    op: z.literal('move'),
+    what: z.union([TargetSpecSchema, RefSchema, z.strictObject({ filter: FilterRef, zone: SetZoneSchema, who: ScopeWhoSchema, count: z.union([AmountRef, z.literal('all')]), choose: z.enum(['you', 'owner', 'random']).optional() })]),
+    to: z.enum(MOVE_ZONES), pos: z.enum(['top', 'bottom']).optional(), controller: z.enum(['you', 'owner', 'that-player', 'target-player']).optional(),
+    tapped: B.optional(), faceDown: B.optional(), withCounters: z.strictObject({ counter: S, amount: AmountRef }).optional(), until: z.enum(['leaves', 'eot', 'your-next-end-step']).optional(),
+  }),
+  z.strictObject({ op: z.literal('set-pt'), target: z.union([TargetSpecSchema, RefSchema, z.enum(['creatures-you-control', 'all-creatures'])]), power: AmountRef, toughness: AmountRef, base: z.literal(true).optional(), duration: DURATION }),
+  z.strictObject({ op: z.literal('lose-abilities'), target: z.union([TargetSpecSchema, RefSchema, z.enum(['creatures-you-control', 'all-creatures'])]), keywords: z.union([z.array(KeywordSchema), z.literal('all')]).optional(), duration: DURATION }),
+  z.strictObject({ op: z.literal('exchange'), what: z.enum(['life', 'control']), a: ExchangeSideSchema, b: ExchangeSideSchema }),
   z.strictObject({ op: z.literal('unknown'), text: S }),
 ] as const;
 export const EffectSchema = z.discriminatedUnion('op', EFFECT_VARIANTS);
@@ -489,6 +549,7 @@ export const TRIGGER_VARIANTS = [
   z.strictObject({ on: z.literal('targeted'), self: B, bySpellYouCast: B.optional(), filter: FilterRef.optional() }),
   z.strictObject({ on: z.literal('discard'), filter: FilterRef.optional() }),
   z.strictObject({ on: z.literal('end-of-turn') }),
+  z.strictObject({ on: z.literal('reflexive') }),
   z.strictObject({ on: z.literal('unknown'), text: S }),
 ] as const;
 export const TriggerEventSchema = z.discriminatedUnion('on', TRIGGER_VARIANTS);
@@ -701,7 +762,52 @@ export const CardScriptChecked = CardScriptSchema.superRefine((s, ctx) => {
     const path = where === 'covers' ? ['covers'] : [where, 'covers'];
     for (const why of coverProblems(face as never)) ctx.addIssue({ code: 'custom', message: `a covers entry ${why}`, path });
   }
+  for (const [where, face] of faces) {
+    const abilities = (face as { abilities?: unknown[] } | undefined)?.abilities;
+    if (!Array.isArray(abilities)) continue;
+    abilities.forEach((ab, i) => {
+      const effects = (ab as { effects?: unknown } | null)?.effects;
+      if (!Array.isArray(effects)) return;
+      const problems: NestingProblem[] = [];
+      nestingProblems(effects, 0, [...(where === 'covers' ? [] : [where]), 'abilities', i, 'effects'], problems);
+      for (const p of problems) ctx.addIssue({ code: 'custom', message: p.message, path: p.path });
+    });
+  }
 });
+
+/**
+ * The composition containers key the targets of their nested effects by `childIndex` (src/engine/legal.ts): past
+ * `NESTING_LIMIT` levels or `LIST_LIMIT` effects in one of their lists two effects would share one target list, so
+ * the script is rejected here with the offending list's path. Every nested effect list is walked — the older
+ * containers (`conditional`, `optional-then`, …) and a `gain-ability` do not spend a level, but what is inside them may.
+ */
+const COMPOSITION_LISTS: Record<string, string> = { 'for-each': 'do', scoped: 'do', may: 'effects', 'unless-pays': 'otherwise' };
+interface NestingProblem { path: (string | number)[]; message: string }
+const isOpObject = (x: unknown): boolean => !!x && typeof x === 'object' && !Array.isArray(x) && 'op' in (x as object);
+/** How many targeting effects an older container's lists hold, through further older containers — they all run under the container's index and share ONE target list (a composition container inside keys its own children apart, so its subtree is not counted). */
+const sharedTargeting = (e: Effect): number => sharedLists(e).flat().filter(isOpObject).reduce((n, c) => n + (ownTargetSpecs(c).length ? 1 : 0) + sharedTargeting(c), 0);
+function nestingProblems(list: unknown[], depth: number, path: (string | number)[], out: NestingProblem[]): void {
+  list.forEach((e, i) => {
+    if (!isOpObject(e)) return;
+    const op = String((e as { op: unknown }).op); const keyed = COMPOSITION_LISTS[op];
+    const shared = sharedTargeting(e as Effect);   // a second targeting child would overwrite the first's picks (CR 115.1)
+    if (shared > 1) out.push({ path: [...path, i], message: `the children of ${op} share one target list and ${shared} of them target: key them apart with a composition container or split the effect` });
+    const walk = (v: unknown, p: (string | number)[], level: number): void => {
+      if (Array.isArray(v)) {
+        if (v.length && v.every(isOpObject)) {
+          if (level > depth) {
+            if (v.length > LIST_LIMIT) out.push({ path: p, message: `a ${op} list holds at most ${LIST_LIMIT} effects (composition containers key nested targets by position)` });
+            if (level > NESTING_LIMIT) { out.push({ path: p, message: `composition containers nest at most ${NESTING_LIMIT} deep` }); return; }
+          }
+          nestingProblems(v, level, p, out); return;
+        }
+        v.forEach((x, j) => walk(x, [...p, j], level)); return;
+      }
+      if (v && typeof v === 'object') for (const [k, x] of Object.entries(v as Record<string, unknown>)) walk(x, [...p, k], level);
+    };
+    for (const [k, v] of Object.entries(e as Record<string, unknown>)) walk(v, [...path, i, k], keyed === k ? depth + 1 : depth);
+  });
+}
 
 // Convenience aliases for the tooling (test/schema-types.test.ts pins each of these to its types.ts counterpart).
 export type SchemaEffect = z.infer<typeof EffectSchema>;

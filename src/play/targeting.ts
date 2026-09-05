@@ -119,6 +119,7 @@ export function describeDecision(d: { kind: string; reason?: string; prompt?: st
     case 'blockers': return 'Declare blockers';
     case 'choose-cards': return d.reason ?? `Choose ${d.exact ? 'exactly' : 'up to'} ${d.count ?? 1}`;
     case 'yes-no': return d.prompt ?? 'Yes or no?';
+    case 'may': case 'unless-pays': return d.prompt ?? 'Yes or no?';
     case 'choose-mode': return 'Choose a mode';
     case 'choose-color': return `Choose a colour${d.reason ? ` for ${d.reason}` : ''}`;
     case 'choose-option': return d.reason ?? 'Choose an option';

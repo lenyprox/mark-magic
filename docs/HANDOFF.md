@@ -118,6 +118,36 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     The structural gate is the first filter only: 8c's round-trip renderer rejects every one of these because the
     rendered text cannot match the oracle line's numbers, and the blind scenario and judge follow. When writing 8c,
     also extend `MAGNITUDE_RULES`/`EMPTY_LIST_RULES` for these cases so the cheap gate catches them too.
+19. **Fight targets fizzle** (found while building 9.0a): `targetingEffects` registers a `fight`'s two requirements
+    under the same effect index and `assignTargets` overwrites the first pick with the second, so `Prey Upon`
+    ("target creature you control fights target creature you don't control") is cast with only the opposing creature
+    in its target list and fizzles at resolution ("all targets illegal"). Left exactly as it was because fixing it
+    changes AI play and the goldens; the composition core's `part` mechanism (a second requirement appends instead
+    of replacing) is the fix — mark fight's second requirement as `part: 1` and re-baseline the goldens deliberately.
+20. Composition core (9.0a) — deliberately left open, see docs/vocabulary/composition.md §7: control changes with
+    durations (`exchange` is permanent; 9.1's `o.ext.controlReturn`), timestamp order for `lose-abilities` /
+    `set-pt` (approximated: keyword counters and eot grants survive an "all" loss, a later `set-pt` wins), targets
+    inside the older containers (`conditional`, `optional-then`, `optional-pay`) are asked for at cast time as *soft*
+    requirements (an empty option list never refuses the cast; the cast gate does not evaluate which branch will run;
+    `then` and `else` share the container's index, so for the four parser-produced kicker cards that target in both
+    branches — Fight with Fire, Hypnotic Cloud, Tear Asunder, Bog Down — the `else` pick overwrites the `then` pick;
+    the script schema rejects that shape, so scripts are unaffected), a delayed
+    trigger whose source was a token that has ceased to exist cannot fire, `for-each` iterates objects only (players
+    go through `scoped`), and `unless-pays` cannot name "the controller of target spell" (use `counter`'s
+    `unlessPay`). The parser rules for these wordings are slice 9.0b; until then only scripts and the scenario DSL's
+    `scripts` field (test/scenarios/README.md §2) emit them.
+21. Composition core (9.0a) — reviewer minors left to the backlog under the two-fix-round rule (none changes a gate):
+    `cloneStackItem` copies the new `item.sacrificed` array by reference (the `{...it}` spread); a `reflexive` at the
+    head of a NESTED list fires off its container's preceding sibling (`lastHappened` is reset once per item, not
+    per list); `exchange` with `what: 'life'` between a player WORD and a TargetSpec advances the target cursor only
+    in the object branch; the CR 115.3 duplicate-pick guard in `chooseTargets` runs only for `part`-numbered picks,
+    so a plain spec with `count > 1` ("two target creatures") can still accept one object twice; `unless-pays`
+    charges the mana before `payCost` pays the non-mana parts, so a refused non-mana part leaves the mana spent;
+    `move` sets `faceDown` before `enterBattlefield` and does not clear it when the entry is refused; the cleanup
+    step repeats at most once after `until-eot:end` fires (CR 514.3a allows a chain); `resolveTop` falls back to the
+    union check for a stack item without a `targetParts` record (states serialized before 9.0a); `childIndex`'s
+    nesting/list limits (3 levels, 63 effects) are enforced by the helper's throw, not by the schema or the
+    structural gate.
 10. `test/` is not covered by `tsconfig.json` (only `src/**`); test files are transpile-only under tsx. 8a-3 added
     `tsconfig.schema.json` for its type-equality test; a whole-of-test typecheck has ~40 pre-existing errors.
 

@@ -40,6 +40,7 @@ function cloneStackItem(it: StackItem, cl: (o: GameObject) => GameObject): Stack
   c.source = cl(it.source);
   c.targets = [...it.targets];
   c.targetsByEffect = new Map([...it.targetsByEffect].map(([k, v]) => [k, v.map(r => ({ ...r }))]));
+  if (it.targetParts) c.targetParts = Object.fromEntries(Object.entries(it.targetParts).map(([k, v]) => [k, [...v]]));
   if (it.modes) c.modes = [...it.modes];
   if (it.affected) c.affected = it.affected.map(a => ({ id: a.id, lastKnown: { ...a.lastKnown } }));
   return c as StackItem;

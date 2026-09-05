@@ -6,6 +6,7 @@
 // test/scenarios/dsl.ts re-exports this module for the suites under test/.
 import assert from 'node:assert/strict';
 import { CardDB } from '../cards/db.js';
+import { applyScript, oracleHash, type ScriptFace } from '../cards/scripts.js';
 import type { CardDef } from '../cards/types.js';
 import { canBlock, findObject, isCreature, keywords, power, toughness } from '../engine/characteristics.js';
 import type { GameEventType } from '../engine/events.js';
@@ -19,6 +20,26 @@ import { defaultAnswer } from '../engine/agents/defaults.js';
 // file loader) never touches master.db.
 let cards: CardDB | null = null;
 const C = (n: string): CardDef => { const d = (cards ??= CardDB.shared()).get(n); if (!d) throw new Error('missing card ' + n); return d; };
+/**
+ * A per-scenario card script (the `scripts` field): a script face applied to one real card for this scenario only,
+ * `mode` 'extend' (default: the printed abilities stay and these are added) or 'replace'. This is how the engine
+ * vocabulary suites under test/scenarios/ exercise ops no printed card parses into yet — a scenario for a CARD (a
+ * corpus file) must never script the card under test, and `validateScenario` refuses one that does.
+ */
+export type ScenarioScript = ScriptFace & { mode?: 'replace' | 'extend' };
+
+/**
+ * Where a scenario's cards come from. One object, so the op-coverage probe (src/verify/opProbe.ts) can wrap what it
+ * hands out the way it wraps `CardDB.get`: a scripted def is a fresh object the database never saw.
+ */
+export const scenarioCards = {
+  def(name: string, script?: ScenarioScript): CardDef {
+    const base = C(name);
+    if (!script) return base;
+    const { mode, ...face } = script;
+    return applyScript(base, { ...face, oracleId: base.oracleId, name: base.name, oracleHash: oracleHash(base.oracleText), source: 'hand', mode: mode ?? 'extend' });
+  },
+};
 let noCardDb = false;
 /**
  * Does the database know this card name? `null` means there is no database (CI, a fresh clone), in which case the
@@ -124,6 +145,8 @@ export interface Scenario {
   /** Rule and ruling the scenario pins (shown in failures and on the dashboard). */
   cr?: string; ruling?: string;
   seats: SeatSetup[];
+  /** Per card name: a script applied to that card for this scenario only (engine vocabulary suites; see ScenarioScript). */
+  scripts?: Record<string, ScenarioScript>;
   format?: 'freeform' | 'commander';
   /** Which seat is active and in which step (default seat 0, main1, turn 5). */
   active?: number; step?: Step; turn?: number;
@@ -165,6 +188,7 @@ const SEAT_FIELDS: Record<string, Guard> = {
 const SCENARIO_FIELDS: Record<string, Guard> = {
   name: isStr, cr: isStr, ruling: isStr, seats: arrOf(isPlainObj), format: oneOf('freeform', 'commander'),
   active: isInt, step: isStep, turn: isInt, script: arrOf(anything), expect: arrOf(anything),
+  scripts: v => isPlainObj(v) && Object.values(v as Record<string, unknown>).every(isPlainObj),
 };
 /** Script steps: the discriminating key with a guard for its value, plus the extra keys that step may carry. */
 const SCRIPT_STEPS: Record<string, { value: Guard; opts: Record<string, Guard> }> = {
@@ -281,6 +305,12 @@ export function scenarioShape(sc: Scenario): string[] {
  */
 export function seatSetupProblems(sc: Scenario): string[] {
   const out: string[] = [];
+  // a script for a card no seat places changes nothing: the scenario would run without the behaviour it declares
+  if (isPlainObj(sc?.scripts)) for (const n of Object.keys(sc.scripts!)) {
+    if (cardKnown(n) === false) { out.push(`scenario: scripts names ${n} but there is no card of that name`); continue; }
+    const placed = (Array.isArray(sc.seats) ? sc.seats : []).some(seat => seat && typeof seat === 'object' && SEAT_ZONE_FIELDS.some(z => (Array.isArray(seat[z]) ? seat[z]! : []).some(b => typeof b === 'string' && sameName(b, n))));
+    if (!placed) out.push(`scenario: scripts names ${n} but no seat puts a card of that name anywhere`);
+  }
   for (const [i, cfg] of (Array.isArray(sc?.seats) ? sc.seats : []).entries()) {
     if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) continue;
     const at = (f: string) => `scenario: seats[${i}].${f}`;
@@ -325,6 +355,8 @@ export function validateScenario(sc: Scenario, opts: { card?: string } = {}): st
   if (opts.card) {
     const placed = (sc.seats ?? []).some(seat => SEAT_ZONE_FIELDS.some(z => (seat[z] ?? []).includes(opts.card!)));
     if (!placed) out.push(`${where}: never puts ${opts.card} into a seat zone (hand/bf/graveyard/exile/libraryTop/command)`);
+    // a card's own scenarios test the card as printed: scripting it here would test the script, not the card
+    if (isPlainObj(sc.scripts) && Object.keys(sc.scripts!).some(n => sameName(n, opts.card!))) out.push(`${where}: scripts the card under test (${opts.card}); a card's own scenarios use it as printed`);
   }
   return out;
 }
@@ -363,14 +395,22 @@ class ScenarioAgent implements Agent {
 
 export interface ScenarioRun { game: Game; failures: string[] }
 
-function place(g: Game, pid: PlayerId, names: string[] | undefined, zone: 'hand' | 'battlefield' | 'graveyard' | 'exile'): GameObject[] {
+function place(g: Game, pid: PlayerId, names: string[] | undefined, zone: 'hand' | 'battlefield' | 'graveyard' | 'exile', scripts?: Scenario['scripts']): GameObject[] {
   const out: GameObject[] = [];
   for (const n of names ?? []) {
-    const o = makeObject(g.state.nextId++, C(n), pid, zone, zone === 'battlefield' ? 1 : g.state.turn);
+    const o = makeObject(g.state.nextId++, scenarioCards.def(n, scriptFor(scripts, n)), pid, zone, zone === 'battlefield' ? 1 : g.state.turn);
     if (zone === 'battlefield') { o.enteredTurn = 1; if (o.def.types.includes('Planeswalker') && o.def.loyalty != null) o.counters.loyalty = o.def.loyalty; }
     g.state.players[pid][zone].push(o); out.push(o);
   }
   return out;
+}
+
+/** The scenario script for a card name, if any (names compare the way CardDB looks them up). */
+function scriptFor(scripts: Scenario['scripts'], name: string): ScenarioScript | undefined {
+  if (!scripts) return undefined;
+  if (scripts[name]) return scripts[name];
+  const k = Object.keys(scripts).find(n => sameName(n, name));
+  return k ? scripts[k] : undefined;
 }
 
 function findByName(s: GameState, name: string, seat?: number): GameObject | undefined {
@@ -415,14 +455,14 @@ export function buildScenario(sc: Scenario): Game {
   if (badSeats.length) throw new Error(badSeats.join('\n'));
   const agents = sc.seats.map((_, i) => new ScenarioAgent(`P${i}`));
   const filler = Array(20).fill(C('Mountain'));
-  const g = new Game(sc.seats.map(() => filler), agents, { seed: 1, quiet: true, mulligans: false, events: 'full', format: sc.format ?? 'freeform', commanders: sc.seats.map(cfg => (cfg.command ?? []).map(C)) });
+  const g = new Game(sc.seats.map(() => filler), agents, { seed: 1, quiet: true, mulligans: false, events: 'full', format: sc.format ?? 'freeform', commanders: sc.seats.map(cfg => (cfg.command ?? []).map(n => scenarioCards.def(n, scriptFor(sc.scripts, n)))) });
   const s = g.state;
   s.turn = sc.turn ?? 5; s.activePlayer = (sc.active ?? 0) as PlayerId; s.step = sc.step ?? 'main1'; s.priority = s.activePlayer;
   sc.seats.forEach((cfg, i) => {
     const pid = i as PlayerId; const pl = s.players[pid];
     pl.life = cfg.life ?? (sc.format === 'commander' ? 40 : 20);
-    place(g, pid, cfg.bf, 'battlefield'); place(g, pid, cfg.hand, 'hand'); place(g, pid, cfg.graveyard, 'graveyard'); place(g, pid, cfg.exile, 'exile');
-    for (const n of [...(cfg.libraryTop ?? [])].reverse()) pl.library.unshift(makeObject(s.nextId++, C(n), pid, 'library', 0));
+    place(g, pid, cfg.bf, 'battlefield', sc.scripts); place(g, pid, cfg.hand, 'hand', sc.scripts); place(g, pid, cfg.graveyard, 'graveyard', sc.scripts); place(g, pid, cfg.exile, 'exile', sc.scripts);
+    for (const n of [...(cfg.libraryTop ?? [])].reverse()) pl.library.unshift(makeObject(s.nextId++, scenarioCards.def(n, scriptFor(sc.scripts, n)), pid, 'library', 0));
     for (const [n, cs] of Object.entries(cfg.counters ?? {})) {
       const o = pl.battlefield.find(x => sameName(x.def.name, n));
       if (!o) throw new Error(`scenario: seats[${i}].counters names ${n} but no permanent of that name was placed on that seat's battlefield`);

@@ -82,6 +82,19 @@ Cards are looked up **by exact printed name**, and every name is checked before 
 Give the seat enough untapped lands of the right colours to pay for everything the script casts — the engine taps them
 for you, but it will not invent mana.
 
+### `scripts`: a per-scenario card script (engine vocabulary suites only)
+
+```json
+"scripts": { "Grizzly Bears": { "abilities": [{ "kind": "activated", "cost": { "tap": true }, "effects": [ /* … */ ], "text": "…" }] } }
+```
+
+A script face (the same shape as a card script's front face: `abilities`, `keywords`, `altCosts`, …) applied to that
+card **for this scenario only**, `"mode": "extend"` by default (the printed abilities stay and these are added) or
+`"replace"`. It exists so the engine-vocabulary suites under `test/scenarios/` can exercise an op no printed card
+parses into yet (the composition core landed before its parser rules). Every name must be a real card some seat
+places. **A card's own corpus file must not script the card under test** — those scenarios test the card as printed,
+and the validator refuses one that does.
+
 ## 3. Script steps
 
 Steps run in order. `by` is a seat index and defaults to the player who currently has priority.

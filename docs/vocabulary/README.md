@@ -1,5 +1,12 @@
 # Adding a mechanic family to the engine
 
+Vocabulary documents (one per wave; what script authors and the round-trip renderer read):
+
+| document | contents |
+|---|---|
+| [composition.md](composition.md) | Phase 9.0 composition core: `Ref` / `ScopeWho` binding rules, the amount forms (`objects`, `diff`, `sum`, `max`, `min`, `prop`), `multi` targets, and the ops `for-each`, `bind`, `reflexive`, `scoped`, `may`, `unless-pays`, `move`, `set-pt`, `lose-abilities`, `exchange`, plus the delayed-trigger points `this-turn:dies` / `this-turn:ltb` / `next-turn:upkeep` / `until-eot:end` |
+| this file | how a family module extends the engine, the hook table, the lints, the op-coverage ratchet and the parser rule registry |
+
 The engine is extended through **families**: one file per mechanic, `src/engine/ops/<family>.ts`, whose default export
 is a `FamilyModule`. A family adds AST shapes (effects, conditions, triggers, statics, amounts, costs, keywords,
 target kinds, decisions, actions, events) and the behaviour behind them **without editing a single core file**.

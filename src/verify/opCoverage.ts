@@ -35,10 +35,13 @@ import path from 'node:path';
 import { CardDB } from '../cards/db.js';
 import type { CardDef } from '../cards/types.js';
 import { projectRoot } from '../config/paths.js';
-import { AMOUNTS, AS_ENTERS, CONDITIONS, CORE_COST_KEYS, COST_PARTS, EFFECT_OPS, STATICS, TRIGGERS } from '../engine/ops/_registry.js';
+import { AMOUNTS, AS_ENTERS, CONDITIONS, CORE_COST_KEYS, COST_PARTS, EFFECT_OPS, STATICS, TARGET_KINDS, TRIGGERS } from '../engine/ops/_registry.js';
 
 // ------------------------------------------------------------------ categories
-export const CATEGORIES = ['effects', 'conditions', 'triggers', 'statics', 'amounts', 'asEnters', 'altCosts', 'costModifiers', 'costParts', 'keywords'] as const;
+// `targetKinds` and `delayedAt` were added with the composition core (Phase 9.0): a target kind counts as exercised
+// when an effect carrying it RESOLVES (the probe reads the specs off the effect applyEffect runs, never off a card
+// merely sitting in hand where legalActions enumerates it), a delayed-at point when a delayed trigger with it FIRES.
+export const CATEGORIES = ['effects', 'conditions', 'triggers', 'statics', 'amounts', 'asEnters', 'altCosts', 'costModifiers', 'costParts', 'keywords', 'targetKinds', 'delayedAt'] as const;
 export type Category = typeof CATEGORIES[number];
 /** One string list per category (the JSON report shape). */
 export type Lists = Record<Category, string[]>;
@@ -166,10 +169,12 @@ export function deadEvents(): DeadEvent[] {
 /** How each category's core half was derived — echoed into the report so a reader can re-check it by hand. */
 export const SOURCES: Record<Category, string> = {
   effects: "case labels of `switch (e.op)` in Game.applyEffect (src/engine/game.ts) + EFFECT_OPS keys",
+  targetKinds: "case labels of `switch (spec.kind)` in targetOptionsFor (src/engine/legal.ts) + TARGET_KINDS keys",
+  delayedAt: 'the CoreDelayedAtId union in src/cards/types.ts (DelayedAtRegistry is types-only: a family flushes its own points from a step hook)',
   conditions: "case labels of `switch (cond.kind)` in conditionHolds (src/engine/characteristics.ts) + CONDITIONS keys",
   triggers: "case labels of `switch (ev.on)` in Game.queueTriggers, every event `queueTriggers('…')` is called with, the `ev.on === '…'` fan-out and the `event: { on: '…' }` abilities the engine synthesises (src/engine/*.ts) + TRIGGERS keys",
   statics: "CoreStaticEffect kinds that src/engine/*.ts actually tests with `kind === '…'` + STATICS keys",
-  amounts: "case labels of `switch (a.count)` in evalAmount (src/engine/characteristics.ts) + AMOUNTS keys",
+  amounts: "case labels of `switch (a.count)` in evalAmount plus the form labels of `switch (form)` in evalAmountForm (src/engine/characteristics.ts) + AMOUNTS keys",
   asEnters: "case labels of `switch (a.kind)` in Game.enterBattlefield plus the CoreAsEnters kinds src/engine/*.ts tests with `kind === '…'` + AS_ENTERS keys",
   altCosts: 'the CoreAltCostId union in src/cards/types.ts (AltCostIdRegistry is types-only: nothing to enumerate at runtime)',
   costModifiers: 'the CostModifier union kinds in src/cards/types.ts',
@@ -184,6 +189,7 @@ export function vocabulary(): Sets {
   const game = stripComments(srcOf('src/engine/game.ts'));
   const chars = stripComments(srcOf('src/engine/characteristics.ts'));
   const types = stripComments(srcOf('src/cards/types.ts'));
+  const legal = stripComments(srcOf('src/engine/legal.ts'));
   const v = emptySets();
   const add = (c: Category, names: Iterable<string>) => { for (const n of names) v[c].add(n); };
 
@@ -193,6 +199,10 @@ export function vocabulary(): Sets {
   add('triggers', handledEvents(game));
   add('triggers', raisedEvents());
   add('amounts', switchCases(chars, 'src/engine/characteristics.ts', 'export function evalAmount(', 'switch (a.count) {'));
+  // the non-count amount forms (diff / sum / max / min / prop) dispatch on the field they carry; 'none' is the fall-through
+  add('amounts', switchCases(chars, 'src/engine/characteristics.ts', 'function evalAmountForm(', 'switch (form) {').filter(f => f !== 'none'));
+  add('targetKinds', switchCases(legal, 'src/engine/legal.ts', 'export function targetOptionsFor(', 'switch (spec.kind) {'));
+  add('delayedAt', literalsIn(unionBody(types, 'CoreDelayedAtId', 'src/cards/types.ts')));
   add('asEnters', switchCases(game, 'src/engine/game.ts', 'for (const a of def.asEnters ?? []) {', 'switch (a.kind) {'));
 
   // Statics have no single switch: each kind is read where it applies (characteristics, mana, cost, game), and a few
@@ -220,7 +230,7 @@ export function vocabulary(): Sets {
   // vocabulary immediately (which is what makes the lint's mutation check meaningful).
   add('effects', Object.keys(EFFECT_OPS)); add('conditions', Object.keys(CONDITIONS)); add('triggers', Object.keys(TRIGGERS));
   add('statics', Object.keys(STATICS)); add('amounts', Object.keys(AMOUNTS)); add('asEnters', Object.keys(AS_ENTERS));
-  add('costParts', Object.keys(COST_PARTS));
+  add('costParts', Object.keys(COST_PARTS)); add('targetKinds', Object.keys(TARGET_KINDS));
   return (vocabCache = v);
 }
 /** Drop the memoised vocabulary (the lint's mutation check registers a family after the first read). */
@@ -255,8 +265,9 @@ function walk(v: unknown, hint: Category | 'skip' | undefined, out: Sets, vocab:
   if (typeof v === 'string') { if (hint === 'keywords') out.keywords.add(v); return; }
   if (!v || typeof v !== 'object') return;
   const o = v as Record<string, unknown>;
-  if (typeof o.op === 'string') out.effects.add(o.op);
+  if (typeof o.op === 'string') { out.effects.add(o.op); if (o.op === 'delayed-trigger' && typeof o.at === 'string') out.delayedAt.add(o.at); }
   else if (typeof o.on === 'string') out.triggers.add(o.on);
+  else if (hint === 'skip' && typeof o.kind === 'string') out.targetKinds.add(o.kind);
   else if (typeof o.count === 'string') out.amounts.add(o.count);
   else if (hint === 'altCosts' && typeof o.id === 'string') out.altCosts.add(o.id);
   else if (typeof o.kind === 'string' && hint !== 'skip' && !ABILITY_KINDS.has(o.kind)) {

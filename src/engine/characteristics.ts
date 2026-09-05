@@ -1,11 +1,23 @@
 // Derived characteristics: power/toughness/keywords after counters, until-end-of-turn effects,
 // auras, equipment and static anthems (a simplified version of the CR 613 layer system).
-import type { Ability, Amount, CardDef, CardType, Color, Filter, Keyword, StaticEffect } from '../cards/types.js';
-import type { GameObject, GameState, PlayerId } from './state.js';
-import { opponentsOf } from './players.js';
+import type { Ability, Amount, AmountExpr, CardDef, CardType, Color, Filter, Keyword, StaticEffect } from '../cards/types.js';
+import type { GameObject, GameState, PlayerId, TargetRef } from './state.js';
+import { alive, opponentsOf } from './players.js';
 import { AMOUNTS, CAN_ATTACK, CAN_BLOCK, CONDITIONS, HAS, STATICS } from './ops/_registry.js';
 import { bindChars } from './ops/chars.js';
 import type { Mods } from './ops/types.js';
+import { objectsIn, resolveOnePlayer, resolveRef, type RefCtx } from './refs.js';
+
+// ---- Composition-core ext entries (docs/vocabulary/composition.md). Both are JSON-plain and live in `o.ext`:
+//   setPT  { power, toughness, base?, untilTurn? }  layer 7b (CR 613.4b), applied before counters and eot terms
+//   lost   { all?, keywords?, untilTurn? }           layer 6 (CR 613.1f), read by abilitiesOf / keywords / protectedFrom
+// `untilTurn` entries are dropped by the cleanup wipe; both are dropped when the object leaves the battlefield (CR 400.7).
+export interface SetPtExt { power: number; toughness: number; base?: true; untilTurn?: number }
+export interface LostExt { all?: true; keywords?: Keyword[]; untilTurn?: number }
+/** The object's `lost` entry, if it has lost abilities (one property load for the common case of no ext bag). */
+export function lostOf(o: GameObject): LostExt | undefined { const e = o.ext; return e === undefined ? undefined : e.lost as LostExt | undefined; }
+/** True when the object has lost all abilities (CR 613.1f). */
+export function lostAll(o: GameObject): boolean { const l = lostOf(o); return l !== undefined && l.all === true; }
 
 // ---- GameState.ext gates. Every game without families has `s.ext === undefined`, so the phasing gate below is one
 // property load plus a boolean test, read from the state that is actually being scanned (never a module-level cache:
@@ -41,9 +53,9 @@ export function defOf(o: GameObject): CardDef {
 }
 /** The object's abilities: its (active face's) printed abilities followed by any granted ones (Saga chapters). */
 /** Printed abilities only — used when scanning for the statics that hand out abilities (no recursion). */
-export function printedAbilities(o: GameObject): Ability[] { return o.faceDown ? EMPTY_ABILITIES : o.token ? (o.grantedAbilities ?? EMPTY_ABILITIES) : defOf(o).abilities; }
+export function printedAbilities(o: GameObject): Ability[] { return o.faceDown || lostAll(o) ? EMPTY_ABILITIES : o.token ? (o.grantedAbilities ?? EMPTY_ABILITIES) : defOf(o).abilities; }
 export function abilitiesOf(o: GameObject): Ability[] {
-  if (o.faceDown) return EMPTY_ABILITIES;
+  if (o.faceDown || lostAll(o)) return EMPTY_ABILITIES;   // CR 613.1f: "loses all abilities" (granted ones included — timestamp order is approximated)
   const sg = o.staticGranted;
   if (o.token) { const t = o.grantedAbilities ?? EMPTY_ABILITIES; return sg && sg.length ? [...t, ...sg] : t; } // a token's def is only its creator's card
   const g = o.grantedAbilities; const d = defOf(o).abilities;
@@ -77,14 +89,49 @@ function dynamicPT(o: GameObject): number { return dynamicState && o.token?.dyna
 function numOrStar(s: string | null): number { if (s == null) return 0; const n = Number(s); return Number.isFinite(n) ? n : 0; }
 
 /** Extra context for amounts that refer to "that" object or to how the spell was cast. */
-export interface AmountCtx { that?: { power: number; manaValue: number }; colorsSpent?: number; /** "that many": the number the trigger was about (damage dealt, cards, attackers). */ thatMany?: number }
+export interface AmountCtx {
+  that?: { power: number; manaValue: number }; colorsSpent?: number;
+  /** "that many": the number the trigger was about (damage dealt, cards, attackers). */ thatMany?: number;
+  /** The resolving item's binding frame, so `prop`, `objects` and `who` can resolve Refs (src/engine/refs.ts). */ refs?: RefCtx;
+  /** The targets of the effect being applied (for 'target-player'). */ T?: TargetRef[];
+}
+
+/** The object-form amounts that are not a `count` (diff / sum / max / min / prop), dispatched on the field they carry. */
+function evalAmountForm(s: GameState, f: AmountExpr, ctrl: PlayerId, x: number, source: GameObject | undefined, ctx: AmountCtx | undefined): number {
+  const form = f.diff !== undefined ? 'diff' : f.sum !== undefined ? 'sum' : Array.isArray(f.max) ? 'max' : f.min !== undefined ? 'min' : f.prop !== undefined ? 'prop' : 'none';
+  const ev = (b: Amount): number => evalAmount(s, b, ctrl, x, source, ctx);
+  switch (form) {
+    case 'diff': return Math.max(0, ev(f.diff![0]) - ev(f.diff![1]));            // CR 107.1b: a negative result reads as 0
+    case 'sum': { let t = 0; for (const b of f.sum!) t += ev(b); return t; }
+    case 'max': { const l = f.max as Amount[]; return l.length ? Math.max(...l.map(ev)) : 0; }
+    case 'min': return f.min!.length ? Math.min(...f.min!.map(ev)) : 0;
+    case 'prop': {
+      const of = f.of ?? 'self'; const prop = f.prop!;
+      if (prop === 'life' || prop === 'cards-in-hand') {                            // a player property
+        const w = of === 'you' ? ctrl : of === 'self' ? (source?.controller ?? ctrl) : ctx?.refs ? resolveOnePlayer(ctx.refs, of as 'that-player', ctx.T) : undefined;
+        if (w === undefined) return 0;
+        return prop === 'life' ? s.players[w].life : s.players[w].hand.length;
+      }
+      // an object property: the Ref's object, its last known values once it has left the battlefield (CR 608.2h)
+      const o = of === 'self' ? source : of === 'you' || of === 'that-player' || of === 'target-player' ? undefined : ctx?.refs ? resolveRef(ctx.refs, of as 'that')[0] : of === 'that' && ctx?.that ? null : undefined;
+      if (o === null) return prop === 'power' ? ctx!.that!.power : prop === 'mv' ? ctx!.that!.manaValue : 0;   // legacy `that` snapshot (no binding frame)
+      if (!o) return 0;
+      if (prop === 'mv') return manaValueOf(o);
+      const lk = o.zone !== 'battlefield' ? o.lastKnown : undefined;
+      return prop === 'power' ? (lk ? lk.power : power(s, o)) : (lk ? lk.toughness : toughness(s, o));
+    }
+    default: return 0;
+  }
+}
 
 export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, source?: GameObject, ctx?: AmountCtx): number {
   if (typeof a === 'number') return a;
   if (a === 'X') return x;
+  if (a.count === undefined) return finishAmount(evalAmountForm(s, a, ctrl, x, source, ctx), a);
   const me = s.players[ctrl]; const myBf = battlefieldOf(s, ctrl);   // phasing-aware (CR 702.26e); the same array when nothing is phased out
   let n = 0;
   switch (a.count) {
+    case 'objects': n = (ctx?.refs ? objectsIn(ctx.refs, { ...a.filter, zone: a.zone, who: a.who }, ctx.T) : framelessObjects(s, a, ctrl, source)).length; break;
     case 'creatures-you-control': n = myBf.filter(o => isCreature(o) && (!a.filter || matchesFilter(s, o, a.filter, source))).length; break;
     case 'permanents-you-control': n = myBf.filter(o => !a.filter || matchesFilter(s, o, a.filter, source)).length; break;
     case 'cards-in-hand': n = me.hand.length; break;
@@ -116,7 +163,26 @@ export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, sourc
     case 'colors-spent': n = ctx?.colorsSpent ?? source?.castWith?.colorsSpent ?? 0; break;
     default: if (HAS.amounts) { const h = AMOUNTS[(a as { count: string }).count]; if (h) n = h(a as never, s, ctrl, x, source, ctx); } break;
   }
-  return n * (a.times ?? 1) + (a.plus ?? 0);
+  return finishAmount(n, a);
+}
+/** The modifiers EVERY amount form carries (a count, a diff, a sum, a max / min list or a prop alike), in this order: × `times`, + `plus`, halved (`half`, CR 107.1a says which way to round), capped at a numeric `max`. */
+function finishAmount(n: number, a: AmountExpr): number {
+  n = n * (a.times ?? 1) + (a.plus ?? 0);
+  if (a.half !== undefined) n = a.half === 'up' ? Math.ceil(n / 2) : Math.floor(n / 2);
+  if (typeof a.max === 'number' && n > a.max) n = a.max;
+  return n;
+}
+/**
+ * `count: 'objects'` evaluated with no binding frame — a token's `dynamicPT`, a `self-pt` static, a `costModifiers.reduce`,
+ * a mana ability's `perEach`, a filter's `mvLE` / `mvEQ`, an as-enters `counters` amount. `who` is answered from `ctrl`
+ * alone: `you`, `each-player` and `each-opponent` resolve (the same players `resolveWho` would name, order aside), and the
+ * frame-bound words (`target-player`, `that-player`, `controller-of-that`) name nobody, so the count is 0 rather than
+ * silently every player's objects. Zone lists and the filter are read exactly as `objectsIn` reads them.
+ */
+function framelessObjects(s: GameState, a: AmountExpr, ctrl: PlayerId, source: GameObject | undefined): GameObject[] {
+  const zone = a.zone ?? 'battlefield';
+  const players = a.who === undefined || a.who === 'each-player' ? alive(s) : a.who === 'you' ? [ctrl] : a.who === 'each-opponent' ? opponentsOf(s, ctrl) : [];
+  return players.flatMap(q => zone === 'battlefield' ? battlefieldOf(s, q) : s.players[q][zone]).filter(o => matchesFilter(s, o, a.filter, source));
 }
 const BASIC_TYPES = new Set(['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']);
 
@@ -220,6 +286,9 @@ function layer6Mods(s: GameState, o: GameObject, cache: ModCache): Mods {
 
 function computeStaticMods(s: GameState, o: GameObject): Mods {
   const m: Mods = { p: 0, t: 0, kw: [], setPT: undefined, flags: {} };
+  // composition core `set-pt` (layer 7b, CR 613.4b): applied first, so a family static that sets P/T later in this
+  // pass wins — the closest thing to timestamp order (CR 613.7) the engine has
+  const ext = o.ext; if (ext !== undefined) { const sp = ext.setPT as SetPtExt | undefined; if (sp !== undefined) m.setPT = { power: sp.power, toughness: sp.toughness }; }
   for (const src of staticSources(s)) {
     // aura / equipment attached to o
     if (src.attachedTo === o.id) {
@@ -345,12 +414,28 @@ export function toughness(s: GameState, o: GameObject): number {
   return (m.setPT !== undefined ? m.setPT.toughness : baseT(o)) + (o.counters['+1/+1'] ?? 0) - (o.counters['-1/-1'] ?? 0) + o.eotToughness + m.t;
 }
 export function keywords(s: GameState, o: GameObject): Keyword[] {
+  const lost = lostOf(o);
+  if (lost !== undefined) return keywordsAfterLoss(s, o, lost);
   const base = o.token ? o.token.keywords : defOf(o).keywords;
   let fromCounters: Keyword[] | undefined;
   for (const k in o.counters) if (o.counters[k] > 0 && KEYWORD_COUNTERS.has(k)) (fromCounters ??= []).push(k as Keyword);
   const mods = staticMods(s, o).kw;
   if (!fromCounters && !o.animated && !o.eotKeywords.length && !mods.length) return base;
   return [...new Set([...base, ...(o.animated?.keywords ?? []), ...(fromCounters ?? []), ...o.eotKeywords, ...mods])];
+}
+/**
+ * CR 613.1f / 613.7: an ability-removing effect. `all` drops the printed, animated and statically granted keywords
+ * (abilitiesOf is already empty); keyword counters and until-end-of-turn grants are kept — the engine has no
+ * timestamps, so later grants are assumed to be later (Ovinize'd creature that later gets a flying counter flies).
+ * A `keywords` list removes exactly those, from every source.
+ */
+function keywordsAfterLoss(s: GameState, o: GameObject, lost: LostExt): Keyword[] {
+  let fromCounters: Keyword[] | undefined;
+  for (const k in o.counters) if (o.counters[k] > 0 && KEYWORD_COUNTERS.has(k)) (fromCounters ??= []).push(k as Keyword);
+  if (lost.all) return [...new Set([...(fromCounters ?? []), ...o.eotKeywords])];
+  const base = o.token ? o.token.keywords : defOf(o).keywords;
+  const gone = new Set<Keyword>(lost.keywords ?? []);
+  return [...new Set([...base, ...(o.animated?.keywords ?? []), ...(fromCounters ?? []), ...o.eotKeywords, ...staticMods(s, o).kw])].filter(k => !gone.has(k));
 }
 /** CR 122.1: keyword counters grant the keyword. */
 const KEYWORD_COUNTERS = new Set(['flying', 'first strike', 'double strike', 'deathtouch', 'haste', 'hexproof', 'indestructible', 'lifelink', 'menace', 'reach', 'trample', 'vigilance', 'shadow', 'exalted']);
@@ -423,7 +508,7 @@ export function colorName(c: Color): string { return { W: 'white', U: 'blue', B:
 
 /** Protection check: can `source` (spell/permanent) target/damage `o`? */
 export function protectedFrom(s: GameState, o: GameObject, source: GameObject): boolean {
-  const prot = defOf(o).protectionFrom; if (!prot) return false;
+  const prot = defOf(o).protectionFrom; if (!prot || lostAll(o)) return false;
   const sc = colors(source);
   for (const p of prot) {
     if (p === 'everything') return true;

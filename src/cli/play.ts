@@ -45,6 +45,8 @@ async function ask({ decision: d, state: s, me }: AskRequest): Promise<unknown> 
     case 'blockers': return blockers(s, d.attackers, d.candidates);
     case 'choose-cards': return chooseCards(s, d.from, d.count, d.reason, d.exact);
     case 'yes-no': { const a = await prompt(`${d.prompt} (y/n) `); return /^y/i.test(a); }
+    case 'may': { const a = await prompt(`${d.prompt} (y/n) `); return /^y/i.test(a); }
+    case 'unless-pays': { const a = await prompt(`${d.prompt} (y = pay ${d.cost} / n) `); return /^y/i.test(a); }
     case 'choose-mode': { const a = await prompt(`Choose mode ${d.modes.map((m, i) => `[${i + 1}] ${m}`).join('  ')}: `); return [Math.max(0, Number(a) - 1)]; }
     case 'choose-color': { const a = (await prompt(`Choose a colour for ${d.reason} (W/U/B/R/G): `)).toUpperCase(); return 'WUBRG'.includes(a) && a ? a : 'G'; }
     case 'choose-option': { const a = await prompt(`${d.reason}: ${d.options.map((o, i) => `[${i + 1}] ${o}`).join('  ')}: `); return d.options[Math.max(0, Math.min(d.options.length - 1, Number(a) - 1))] ?? d.options[0]; }

@@ -81,6 +81,15 @@ export function DecisionSheet({ decision, view, objects, onAnswer }: { decision:
       }
       break;
     }
+    case 'may': case 'unless-pays': {
+      // composition-core prompts ("you may …", "… unless you pay {2}"): a plain yes/no
+      body = <p className="faint small">{decision.prompt}</p>;
+      footer = <>
+        <Button variant="primary" size="sm" onClick={() => onAnswer(true)} data-testid="yes" icon={<Check size={14} />}>{decision.kind === 'may' ? 'Yes' : `Pay ${decision.cost}`}</Button>
+        <Button variant="quiet" size="sm" onClick={() => onAnswer(false)} data-testid="no">{decision.kind === 'may' ? 'No' : "Don't pay"}</Button>
+      </>;
+      break;
+    }
     case 'choose-mode': {
       const single = decision.count === 1;
       body = (

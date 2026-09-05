@@ -9,17 +9,107 @@ import { type CastZone, type GameObject, type IllegalHint, type LegalAction, typ
 import { alive, opponentsOf } from './players.js';
 import { HAS, LEGAL_PROVIDERS, TARGET_KINDS, tokenAbilityOf } from './ops/_registry.js';
 
+/**
+ * How deep composition containers (`for-each` / `scoped` / `may` / `unless-pays`) may nest, and how many effects one of
+ * their lists may hold. Each level spends one base-64 digit of the effect index (`childIndex`); six levels under a
+ * top-level index below 2^17 stay exact in a double, so no two effects can ever share a target key (CR 115.1: each
+ * "target" is chosen separately). The script schema (src/cards/schema.ts) rejects a script past either limit and
+ * `childIndex` throws, so a collision is never silent.
+ */
+export const NESTING_LIMIT = 6;
+export const LIST_LIMIT = 63;
+
+/**
+ * The effect index a nested effect is applied under: child `k` of the container at `parent` gets `parent + (k+1)/64^d`
+ * where `d` is the child's nesting level (one more base-64 digit per level; exact in binary, so map keys compare
+ * equal). Targets chosen for effects inside a composition container are keyed by this index, which is also what
+ * `applyEffect` hands the child, so `targetsOf(item, idx)` finds them. `NESTING_LIMIT` levels and `LIST_LIMIT`
+ * effects per list; past either the key would collide with a sibling's or the next top-level effect's, so it throws.
+ */
+export function childIndex(parent: number, k: number): number {
+  if (k < 0 || k >= LIST_LIMIT) throw new Error(`childIndex: a nested effect list holds at most ${LIST_LIMIT} effects (child ${k})`);
+  let scale = 1, depth = 1;                                              // scale = 64^(levels `parent` already uses)
+  while ((parent * scale) % 1 !== 0) { scale *= 64; depth++; }
+  if (depth > NESTING_LIMIT) throw new Error(`childIndex: composition containers nest at most ${NESTING_LIMIT} deep`);
+  return parent + (k + 1) / (scale * 64);
+}
+
+/** The nested effect lists of a composition container whose targets are chosen when the item is put on the stack. */
+export function nestedLists(e: Effect): Effect[][] {
+  switch (e.op) {
+    case 'for-each': case 'scoped': return [e.do];
+    case 'may': return [e.effects];
+    case 'unless-pays': return [e.otherwise];
+    default: return [];
+  }
+}
+
+/** The effect lists of an older container (`conditional`, `optional-then`, `optional-pay`): their children run under the container's own index, so what they target is keyed with the container's (see `targetingEffects`). `delayed-trigger` and `reflexive` are not here: their effects become a new stack item that chooses its own targets when it fires. */
+export function sharedLists(e: Effect): Effect[][] {
+  switch (e.op) {
+    case 'conditional': return e.else ? [e.then, e.else] : [e.then];
+    case 'optional-then': return [e.first, e.then];
+    case 'optional-pay': return [e.then];
+    default: return [];
+  }
+}
+
+/** One target requirement. `part` numbers the requirements an effect carries beyond its first (a `multi` spec's parts, `exchange`'s second permanent): their picks are appended to the effect's target list instead of replacing it. */
+export interface TargetReq { index: number; spec: TargetSpec; part?: number; soft?: true }
+
+/** Every effect reachable from `effects` through the composition containers and the older containers, depth-first. */
+export function flattenEffects(effects: Effect[]): Effect[] {
+  const out: Effect[] = [];
+  const visit = (e: Effect) => { out.push(e); for (const l of nestedLists(e)) l.forEach(visit); for (const l of sharedLists(e)) l.forEach(visit); };
+  effects.forEach(visit);
+  return out;
+}
+
+/** The target specs one effect carries itself, in printed order (a `multi` spec is one entry here; `targetingEffects` splits it into parts). Nested containers are not descended. */
+export function ownTargetSpecs(e: Effect): TargetSpec[] {
+  const out: TargetSpec[] = [];
+  const t = (e as { target?: unknown }).target;
+  if (t && typeof t === 'object' && !(t as TargetSpec).self) out.push(t as TargetSpec);
+  if (e.op === 'draw' && e.who === 'target-player') out.push({ kind: 'player' });
+  if ((e.op === 'discard' || e.op === 'lose-life' || e.op === 'gain-life' || e.op === 'mill' || e.op === 'sacrifice' || e.op === 'look-top' || e.op === 'exile-graveyard') && e.who === 'target-player') out.push({ kind: 'player' });
+  if (e.op === 'reveal-hand-discard') out.push({ kind: e.who === 'target-opponent' ? 'opponent' : 'player' });
+  if (e.op === 'fight' && !e.self) out.unshift({ kind: 'creature', controller: 'you' });   // two targets: first is own creature
+  // composition core: `move` targets through `what`, `exchange` through `a` / `b`, and every op whose `who` / `controller` says 'target-player' asks for a player
+  if (e.op === 'move') {
+    if (typeof e.what === 'object' && 'kind' in e.what && !e.what.self) out.push(e.what);
+    if (e.controller === 'target-player' || (typeof e.what === 'object' && !('kind' in e.what) && e.what.who === 'target-player')) out.push({ kind: 'player' });
+  }
+  if (e.op === 'exchange') for (const side of [e.a, e.b]) { if (typeof side === 'object') out.push(side); else if (side === 'target-player') out.push({ kind: 'player' }); }
+  if ((e.op === 'scoped' || e.op === 'unless-pays') && e.who === 'target-player') out.push({ kind: 'player' });
+  if (e.op === 'for-each' && typeof e.over === 'object' && e.over.who === 'target-player') out.push({ kind: 'player' });
+  return out;
+}
+
 /** Which effects of a spell/ability take targets, with their spec. */
-export function targetingEffects(effects: Effect[]): { index: number; spec: TargetSpec }[] {
-  const out: { index: number; spec: TargetSpec }[] = [];
-  effects.forEach((e, index) => {
-    const t = (e as { target?: unknown }).target;
-    if (t && typeof t === 'object' && !(t as TargetSpec).self) out.push({ index, spec: t as TargetSpec });
-    if (e.op === 'draw' && e.who === 'target-player') out.push({ index, spec: { kind: 'player' } });
-    if ((e.op === 'discard' || e.op === 'lose-life' || e.op === 'gain-life' || e.op === 'mill' || e.op === 'sacrifice' || e.op === 'look-top' || e.op === 'exile-graveyard') && e.who === 'target-player') out.push({ index, spec: { kind: 'player' } });
-    if (e.op === 'reveal-hand-discard') out.push({ index, spec: { kind: e.who === 'target-opponent' ? 'opponent' : 'player' } });
-    if (e.op === 'fight' && !e.self) { /* two targets: first is own creature */ out.unshift({ index, spec: { kind: 'creature', controller: 'you' } }); }
-  });
+export function targetingEffects(effects: Effect[]): TargetReq[] {
+  const out: TargetReq[] = [];
+  // `soft`: a requirement inside an older container's branch (`conditional` then/else, `optional-then`, `optional-pay`) may
+  // never apply at resolution (the condition fails, the player declines), so an empty option list must not refuse the cast
+  // or activation the way a plain requirement's does; it is still asked for when options exist.
+  const visit = (e: Effect, index: number, soft: boolean) => {
+    // an effect's own requirements, in printed order; a `multi` spec contributes one part per sub-spec (CR 115.3)
+    let parts = 0;
+    const req = (r: TargetReq): TargetReq => soft ? { ...r, soft: true } : r;
+    const push = (spec: TargetSpec) => {
+      if (spec.kind === 'multi') { for (const sub of spec.specs ?? []) out.push(req({ index, spec: sub, part: parts++ })); return; }
+      if (parts === 0 && e.op !== 'exchange') { out.push(req({ index, spec })); parts = 1; } else out.push(req({ index, spec, part: parts++ }));
+    };
+    const own = ownTargetSpecs(e);
+    for (const spec of own) {
+      // fight's own-creature requirement goes to the FRONT of the whole list (the shape the engine has always produced)
+      if (e.op === 'fight' && !e.self && spec === own[0]) out.unshift(req({ index, spec })); else push(spec);
+    }
+    for (const list of nestedLists(e)) list.forEach((c, k) => visit(c, childIndex(index, k), soft));
+    // an older container does not spend a level: its children are asked for under its own index (the one applyEffect hands
+    // them), so "if <condition>, you may destroy target creature" is a target at cast time and not a silent no-op (CR 115.1)
+    for (const list of sharedLists(e)) for (const c of list) visit(c, index, true);
+  };
+  effects.forEach((e, index) => visit(e, index, false));
   return out;
 }
 
@@ -60,6 +150,8 @@ export function targetOptionsFor(g: Game, controller: PlayerId, spec: TargetSpec
     case 'creature-or-player': addObjs(isCreature); addPlayers(everyone); break;
     case 'creature-or-planeswalker': addObjs(o => isCreature(o) || isType(o, 'Planeswalker')); break;
     case 'ability': for (const it of s.stack) if (it.kind !== 'spell') out.push({ kind: 'stack', id: it.id }); break;
+    // a `multi` spec asked for as a whole (targetingEffects normally splits it into parts): the union of its parts
+    case 'multi': for (const sub of spec.specs ?? []) for (const r of targetOptionsFor(g, controller, sub, source)) if (!out.some(x => x.kind === r.kind && x.id === r.id)) out.push(r); break;
     case 'spell': case 'creature-spell': case 'noncreature-spell':
       for (const it of s.stack) {
         if (it.kind !== 'spell') continue;
@@ -75,6 +167,7 @@ export function targetOptionsFor(g: Game, controller: PlayerId, spec: TargetSpec
 }
 
 export function describeSpec(spec: TargetSpec): string {
+  if (spec.kind === 'multi') return (spec.specs ?? []).map(describeSpec).join(' and ');
   const base = spec.kind.replace(/-/g, ' ');
   const ctl = spec.controller === 'you' ? ' you control' : spec.controller === 'opponent' ? ' an opponent controls' : '';
   return `${spec.optional ? 'up to ' : ''}${spec.count && spec.count > 1 ? spec.count + ' ' : ''}target ${base}${ctl}`;
@@ -109,7 +202,7 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
       if (!nonManaCostPayable(s, pl, ab.cost, c)) return;
       if (ab.effects.every(e => e.op === 'unknown')) return;
       const reqs = targetingEffects(ab.effects);
-      const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, c), optional: !!r.spec.optional, count: r.spec.count ?? 1 }));
+      const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, c), optional: !!r.spec.optional || !!r.soft, count: r.spec.count ?? 1 }));
       if (targetOptions.some(t => !t.optional && t.options.length === 0)) return;
       out.push({ action: { type: 'activate', objectId: c.id, abilityIndex: i }, label: `${d.name}: ${ab.text}`, targetOptions, manaValue: ab.cost.mana ? manaValue(ab.cost.mana) : 0 });
     });
@@ -152,7 +245,7 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
       for (const modes of modeSets) {
         const eff = expandModes(ab.effects, modes);
         const reqs = targetingEffects(eff);
-        const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, o), optional: !!r.spec.optional, count: r.spec.count ?? 1 }));
+        const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, o), optional: !!r.spec.optional || !!r.soft, count: r.spec.count ?? 1 }));
         if (targetOptions.some(t => !t.optional && t.options.length === 0)) continue;
         out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: i, modes }, label: `${name(o)}#${o.id}: ${ab.text}`, targetOptions, manaValue: ab.cost.mana ? manaValue(ab.cost.mana) : 0 });
       }
@@ -252,7 +345,7 @@ export function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZo
     const modes = v.modes;
     const eff = expandModes(effects, modes);
     const reqs = targetingEffects(eff);
-    const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, c), optional: !!r.spec.optional, count: r.spec.count ?? 1 }));
+    const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, c), optional: !!r.spec.optional || !!r.soft, count: r.spec.count ?? 1 }));
     if (auraSpec) targetOptions.unshift({ spec: describeSpec(auraSpec), options: targetOptionsFor(g, p, auraSpec, c), optional: false, count: 1 });
     if (targetOptions.some(t => !t.optional && t.options.length === 0)) continue;
     const modeLabel = modes ? ` [mode ${modes.map(m => m + 1).join('+')}]` : '';

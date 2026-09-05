@@ -490,6 +490,9 @@ const MARKER_OP_SET: ReadonlySet<string> = new Set<string>(MARKER_OPS);
 /** Ops whose whole content is other effects: substantive only when something inside them is. */
 const CONTAINER_OPS: ReadonlySet<string> = new Set<string>([
   'conditional', 'optional-then', 'optional-pay', 'choose-mode', 'delayed-trigger', 'gain-ability',
+  // composition core (docs/vocabulary/composition.md): behaviour only through their children — `bind` has none, so a
+  // script made of nothing but `bind` claims nothing
+  'for-each', 'bind', 'reflexive', 'scoped', 'may', 'unless-pays',
 ]);
 
 // --- magnitudes ------------------------------------------------------------
@@ -538,12 +541,16 @@ const MAGNITUDE_RULES: Record<string, readonly MagnitudeRule[]> = {
   dig: [{ zero: ['look'], label: 'look 0' }],
   loot: [{ zero: ['draw', 'discard'], label: 'draw 0, discard 0' }],
   pump: [{ zero: ['power', 'toughness'], unlessAny: ['keywords'], label: '0/0 and grants no keyword' }],
+  // composition core: a `move` of a chosen set moves nothing when `what.count` is 0 (a dotted field reads a nested
+  // holder); `set-pt` 0/0 is deliberately NOT listed — a creature that becomes 0/0 dies, like `set-life 0`
+  move: [{ zero: ['what.count'], label: 'count 0' }],
 };
 
 /** Ops whose whole content is a LIST: an empty one grants nothing. */
-const EMPTY_LIST_RULES: Record<string, { field: string; label: string }> = {
+const EMPTY_LIST_RULES: Record<string, { field: string; label: string; /** Dead only when the list is PRESENT and empty (an absent list means something else — `lose-abilities` without `keywords` loses every ability). */ optional?: true }> = {
   'grant-keyword': { field: 'keywords', label: 'grants no keyword' },
   'multi-counters': { field: 'counters', label: 'puts no counter' },
+  'lose-abilities': { field: 'keywords', label: 'loses no ability', optional: true },
 };
 
 /**
@@ -558,7 +565,7 @@ const STATIC_MAGNITUDE_RULES: Record<string, readonly MagnitudeRule[]> = {
   'extra-blocks': [AMOUNT],
 };
 
-const STATIC_EMPTY_LIST_RULES: Record<string, { field: string; label: string }> = {
+const STATIC_EMPTY_LIST_RULES: Record<string, { field: string; label: string; optional?: true }> = {
   'self-keywords': { field: 'keywords', label: 'grants no keyword' },
 };
 
@@ -574,15 +581,17 @@ function zeroReason(
   key: string,
   holder: Record<string, unknown>,
   rules: Record<string, readonly MagnitudeRule[]>,
-  lists: Record<string, { field: string; label: string }>,
+  lists: Record<string, { field: string; label: string; optional?: true }>,
 ): string | null {
   const list = lists[key];
   if (list) {
     const v = holder[list.field];
-    if (!Array.isArray(v) || v.length === 0) return `${key} ${list.label}`;
+    if (list.optional ? Array.isArray(v) && v.length === 0 : !Array.isArray(v) || v.length === 0) return `${key} ${list.label}`;
   }
+  // a dotted field name reads a nested holder (`what.count` on a `move`)
+  const read = (f: string): unknown => f.split('.').reduce<unknown>((v, k) => (v && typeof v === 'object' ? (v as Record<string, unknown>)[k] : undefined), holder);
   for (const rule of rules[key] ?? []) {
-    if (!rule.zero.length || !rule.zero.every(f => isZeroMagnitude(holder[f]))) continue;
+    if (!rule.zero.length || !rule.zero.every(f => isZeroMagnitude(read(f)))) continue;
     if (rule.unlessAny?.some(f => Array.isArray(holder[f]) && (holder[f] as unknown[]).length > 0)) continue;
     return `${key} ${rule.label}`;
   }

@@ -30,13 +30,37 @@ export interface TargetKindRegistry {}
 
 /** Who / what an effect can target */
 export interface TargetSpec {
-  kind: CoreTargetKind | keyof TargetKindRegistry;
+  /** 'multi' = several independent instances of the word "target" in one effect ("target creature and target player"): each of `specs` is chosen on its own (CR 115.3). */
+  kind: CoreTargetKind | keyof TargetKindRegistry | 'multi';
   controller?: 'you' | 'opponent';         // "target creature you control" / "an opponent controls"
   filter?: Filter;
   optional?: boolean;                      // "up to one"
   count?: number;                          // "up to two target creatures"
   self?: boolean;                          // targets not needed; refers to this object
+  /** Only with `kind: 'multi'`: the sub-specs, in printed order; their picks land in this effect's target list in that order. */
+  specs?: TargetSpec[];
 }
+
+// ---- Composition core (Phase 9.0, docs/vocabulary/composition.md) ----------------------------------------------
+/**
+ * What an effect refers back to — "it", "that creature", "those cards", "the sacrificed creature" — resolved by
+ * src/engine/refs.ts against the resolving item's binding frame (CR 400.7 decides when a moved object is still "it").
+ *   self        the source of the ability            that / those   the current binding (targets, for-each, delayed bind)
+ *   triggering  the object that caused the trigger   target:<i>     the i-th chosen target of the item, in printed order
+ *   enchanted / equipped   the permanent the source is attached to   sacrificed   what was sacrificed to pay this item's cost
+ *   exiled-with the cards exiled with the source (imprint, delve, "exile until")
+ */
+export type Ref = 'self' | 'that' | 'those' | 'triggering' | `target:${number}` | 'enchanted' | 'equipped' | 'sacrificed' | 'exiled-with';
+/** A player the composition ops act on or for; `each-*` runs in APNAP order starting with the active player (CR 101.4). */
+export type ScopeWho = 'you' | 'each-player' | 'each-opponent' | 'target-player' | 'that-player' | 'controller-of-that';
+/** The zone an object set is drawn from ('battlefield' = the controller's, every other zone = the owner's). */
+export type SetZone = 'battlefield' | 'graveyard' | 'hand' | 'exile' | 'library';
+/** A zone an object can be moved to (never the stack). */
+export type MoveZone = 'battlefield' | 'graveyard' | 'exile' | 'hand' | 'library' | 'command';
+/** A set of objects: a filter plus where to look (default: the battlefield) and whose (default: every player). */
+export interface ObjectSet extends Filter { zone?: SetZone; who?: ScopeWho }
+/** Firing points of a delayed trigger (state.ts re-exports it as CoreDelayedAt). */
+export type CoreDelayedAtId = 'next-upkeep' | 'next-end-step' | 'your-next-end-step' | 'end-of-combat' | 'this-turn:dies' | 'this-turn:ltb' | 'next-turn:upkeep' | 'until-eot:end';
 
 export interface Filter {
   types?: CardType[];
@@ -62,11 +86,26 @@ export type CoreAmountCount = 'creatures-you-control' | 'cards-in-hand' | 'lands
 export interface AmountCountRegistry {}
 export type AmountCount = CoreAmountCount | keyof AmountCountRegistry;
 
-/** Amount expression */
-export type Amount = number | 'X' | {
-  count: AmountCount;
-  filter?: Filter; plus?: number; times?: number; counter?: string;
-};
+/**
+ * Amount expression. The object forms are evaluated recursively by `evalAmount` (src/engine/characteristics.ts):
+ *   count   a named count, or 'objects' (objects matching `filter` in `zone` of `who`); then × times, + plus,
+ *           halved (`half`: 'up' rounds up, 'down' rounds down) and capped at `max`, in that order
+ *   diff    [a, b] → a − b, never below 0 (CR 107.1b)          sum / max / min   over the listed amounts
+ *   prop    a characteristic of a referenced object or player ('mv' = mana value, 'life' / 'cards-in-hand' of a player)
+ */
+export type Amount = number | 'X' | AmountExpr;
+/**
+ * One object form, carrying exactly one of `count`, `diff`, `sum`, `max` (as a list), `min` or `prop` (the schema and
+ * the structural gate enforce that); a single object type rather than a union so `a.count` / `a.plus` / `a.filter`
+ * keep reading as they always did in the parser and the engine.
+ */
+export interface AmountExpr {
+  count?: AmountCount | 'objects'; filter?: Filter; zone?: SetZone; who?: ScopeWho; plus?: number; times?: number; counter?: string; half?: 'up' | 'down';
+  /** With `count`: a cap on the result. On its own (a list): the largest of the listed amounts. */
+  max?: number | Amount[];
+  diff?: [Amount, Amount]; sum?: Amount[]; min?: Amount[];
+  prop?: 'power' | 'toughness' | 'mv' | 'life' | 'cards-in-hand'; of?: Ref | 'you' | 'that-player' | 'target-player';
+}
 
 /** A non-mana (or mixed) cost: shared by activated abilities, alternative costs, additional costs and Crew/Saddle. */
 /** Families add cost parts by augmenting AbilityCostExt; COST_PARTS[key] pays and checks them. */
@@ -127,9 +166,9 @@ export interface AsEntersRegistry {}
 export type AsEnters = CoreAsEnters | AsEntersRegistry[keyof AsEntersRegistry];
 
 export type CoreEffect =
-  | { op: 'damage'; amount: Amount; target: TargetSpec | 'each-opponent' | 'each-player' | 'each-creature' | 'each-other-creature' | 'each-opponent-creature' | 'each-creature-and-player' | 'each-flying-creature' | 'each-nonflying-creature' | 'each-creature-you-dont-control' ; divided?: boolean; kickedAmount?: Amount }
-  | { op: 'destroy'; target: TargetSpec | 'all-creatures' | 'all-artifacts' | 'all-enchantments' | 'all-lands' | 'all-nonland' | 'all-opponent-creatures' | 'all-tapped-creatures' | 'enchanted'; noRegenerate?: boolean; filter?: Filter; ifTarget?: Filter; ifTargetAlt?: { condition: Condition; filter: Filter } }
-  | { op: 'exile'; target: TargetSpec | 'all-creatures'; from?: 'graveyard' | 'battlefield'; until?: 'leaves'; ifTarget?: Filter; ifTargetAlt?: { condition: Condition; filter: Filter } }
+  | { op: 'damage'; amount: Amount; target: TargetSpec | Ref | 'each-opponent' | 'each-player' | 'each-creature' | 'each-other-creature' | 'each-opponent-creature' | 'each-creature-and-player' | 'each-flying-creature' | 'each-nonflying-creature' | 'each-creature-you-dont-control' ; divided?: boolean; kickedAmount?: Amount }
+  | { op: 'destroy'; target: TargetSpec | Ref | 'all-creatures' | 'all-artifacts' | 'all-enchantments' | 'all-lands' | 'all-nonland' | 'all-opponent-creatures' | 'all-tapped-creatures' | 'enchanted'; noRegenerate?: boolean; filter?: Filter; ifTarget?: Filter; ifTargetAlt?: { condition: Condition; filter: Filter } }
+  | { op: 'exile'; target: TargetSpec | Ref | 'all-creatures'; from?: 'graveyard' | 'battlefield'; until?: 'leaves'; ifTarget?: Filter; ifTargetAlt?: { condition: Condition; filter: Filter } }
   | { op: 'counter'; target: TargetSpec; unlessPay?: number; toExile?: boolean }
   | { op: 'draw'; amount: Amount; who: 'you' | 'target-player' | 'each-player' | 'opponent' | 'controller' | 'that-player' }
   | { op: 'discard'; amount: Amount | 'hand'; who: 'you' | 'target-player' | 'each-opponent' | 'each-player' | 'that-player'; random?: boolean }
@@ -153,7 +192,7 @@ export type CoreEffect =
   | { op: 'optional-then'; first: Effect[]; then: Effect[] }                 // "you may X. If you do, Y"
   | { op: 'impulse'; count: number; until: 'eot' | 'next-turn' }             // "exile the top card of your library. You may play it this turn"
   | { op: 'return-own'; filter: Filter; count: number; to: 'hand' }        // "return a land you control to its owner's hand"
-  | { op: 'cant-block'; target: TargetSpec; duration: 'eot' }
+  | { op: 'cant-block'; target: TargetSpec | Ref; duration: 'eot' }
   | { op: 'no-untap-self' }                                                  // "~ doesn't untap during your next untap step" (mana side effect)
   | { op: 'no-untap-that' }                                                  // "That creature doesn't untap during its controller's next untap step"
   | { op: 'energy'; amount: Amount }
@@ -162,7 +201,8 @@ export type CoreEffect =
   | { op: 'reveal-hand-discard'; who: 'target-player' | 'target-opponent'; filter: Filter; count: 1 | 'all-named' }
   | { op: 'look-top'; who: 'target-player' | 'you'; amount: number }
   | { op: 'search'; filter: Filter; to: 'hand' | 'battlefield' | 'graveyard' | 'top'; tapped?: boolean; count: number; optional?: boolean; who?: 'you' | 'that-controller'; reveal?: boolean; mvLE?: Amount; split?: 'one-battlefield-rest-hand' }
-  | { op: 'delayed-trigger'; at: 'next-upkeep' | 'next-end-step' | 'your-next-end-step' | 'end-of-combat'; effects: Effect[]; bind?: 'that' }
+  /** CR 603.7: a delayed trigger; `bind` carries the current 'that'/'those' binding into it (both bind the whole set). */
+  | { op: 'delayed-trigger'; at: CoreDelayedAtId; effects: Effect[]; bind?: 'that' | 'those' }
   | { op: 'return-to-battlefield'; target: 'that'; underControlOf: 'owner' | 'you'; counterIfYours?: 'that' | 'self' }
   | { op: 'amass'; subtype: string; amount: Amount }
   | { op: 'gain-ability'; ability: Ability }
@@ -179,13 +219,13 @@ export type CoreEffect =
   | { op: 'exile-graveyard'; who: 'target-player' | 'each-opponent' | 'each-player' }
   | { op: 'attach-to-that' }
   | { op: 'counter-triggering' }
-  | { op: 'pump'; target: TargetSpec | 'creatures-you-control' | 'self' | 'all-creatures' | 'other-creatures-you-control' | 'attacking-creatures' | 'other-attacking-creatures' | 'enchanted' | 'all-opponent-creatures'; power: Amount; toughness: Amount; keywords?: Keyword[]; duration: 'eot' | 'permanent' }
-  | { op: 'grant-keyword'; target: TargetSpec | 'self' | 'creatures-you-control' | 'permanents-you-control'; keywords: Keyword[]; duration: 'eot' | 'permanent' }
-  | { op: 'bounce'; target: TargetSpec | 'all-creatures' | 'all-nonland' | 'self'; to: 'hand' | 'library-top' | 'library-bottom' }
+  | { op: 'pump'; target: TargetSpec | Ref | 'creatures-you-control' | 'self' | 'all-creatures' | 'other-creatures-you-control' | 'attacking-creatures' | 'other-attacking-creatures' | 'enchanted' | 'all-opponent-creatures'; power: Amount; toughness: Amount; keywords?: Keyword[]; duration: 'eot' | 'permanent' }
+  | { op: 'grant-keyword'; target: TargetSpec | Ref | 'creatures-you-control' | 'permanents-you-control'; keywords: Keyword[]; duration: 'eot' | 'permanent' }
+  | { op: 'bounce'; target: TargetSpec | Ref | 'all-creatures' | 'all-nonland'; to: 'hand' | 'library-top' | 'library-bottom' }
   | { op: 'token'; count: Amount; power: number; toughness: number; colors: Color[]; types: CardType[]; subtypes: string[]; keywords: Keyword[]; tapped?: boolean; attacking?: boolean; name?: string; text?: string; treasure?: boolean; clue?: boolean; spawn?: boolean; food?: boolean; dynamicPT?: Amount }
-  | { op: 'counters'; target: TargetSpec | 'self' | 'creatures-you-control' | 'each-other-creature-you-control'; counter: string; amount: Amount; optional?: boolean; filter?: Filter }
-  | { op: 'tap'; target: TargetSpec | 'all-opponent-creatures' | 'all-creatures' | 'enchanted' | 'self'; noUntap?: boolean }
-  | { op: 'untap'; target: TargetSpec | 'self' | 'all-you-control' | 'lands-you-control' | 'that' | 'enchanted' }
+  | { op: 'counters'; target: TargetSpec | Ref | 'creatures-you-control' | 'each-other-creature-you-control'; counter: string; amount: Amount; optional?: boolean; filter?: Filter }
+  | { op: 'tap'; target: TargetSpec | Ref | 'all-opponent-creatures' | 'all-creatures'; noUntap?: boolean }
+  | { op: 'untap'; target: TargetSpec | Ref | 'all-you-control' | 'lands-you-control' }
   | { op: 'sacrifice'; who: 'you' | 'target-player' | 'each-opponent' | 'each-player'; what: Filter; amount: number }
   | { op: 'sacrifice-self' }
   | { op: 'mill'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' | 'that-player' }
@@ -197,11 +237,11 @@ export type CoreEffect =
   | { op: 'fight'; target: TargetSpec; self: boolean }
   | { op: 'bite'; target: TargetSpec }
   | { op: 'set-life'; amount: number; who: 'you' | 'each-player' }
-  | { op: 'gain-control'; target: TargetSpec; duration: 'eot' | 'permanent'; untapHaste?: boolean }
+  | { op: 'gain-control'; target: TargetSpec | Ref; duration: 'eot' | 'permanent'; untapHaste?: boolean }
   | { op: 'copy-spell'; target: TargetSpec; newTargets?: boolean }
   | { op: 'token-copy'; target: TargetSpec | 'that' | 'self'; count: Amount; extraTypes?: CardType[]; extraSubtypes?: string[]; extraKeywords?: Keyword[]; tapped?: boolean; attacking?: 'each-other-opponent' | boolean }
   | { op: 'remove-those'; how: 'exile' | 'sacrifice' }
-  | { op: 'remove-from-combat'; target: TargetSpec; untap?: boolean }
+  | { op: 'remove-from-combat'; target: TargetSpec | Ref; untap?: boolean }
   | { op: 'play-exiled'; until: 'eot' | 'next-turn'; free?: boolean }        // "you may play that card this turn" after an exile
   | { op: 'extra-land'; count: number }                                     // "you may play an additional land this turn"
   | { op: 'exile-if-dies'; who: 'that' | 'affected' | 'self' | 'all-creatures' | 'opponent-creatures' }   // CR 614: "if it would die this turn, exile it instead\"
@@ -210,23 +250,46 @@ export type CoreEffect =
   | { op: 'player-counter'; counter: string; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' }
   | { op: 'fold-new-targets' }
   | { op: 'earthbend'; amount: Amount; target: TargetSpec }                                      // Avatar: land becomes a 0/0 Elemental creature with haste, gets counters, bounces instead of dying
-  | { op: 'animate'; target: TargetSpec | 'self'; power: number; toughness: number; colors: Color[]; types: CardType[]; subtypes: string[]; keywords: Keyword[]; duration: 'eot' | 'permanent' }
+  | { op: 'animate'; target: TargetSpec | Ref; power: number; toughness: number; colors: Color[]; types: CardType[]; subtypes: string[]; keywords: Keyword[]; duration: 'eot' | 'permanent' }
   | { op: 'untap-all'; filter: Filter }
   | { op: 'untap-choose'; filter: Filter; count: number }                                       // "untap up to three lands"
-  | { op: 'double-power'; target: TargetSpec }
-  | { op: 'shuffle-into-library'; target: TargetSpec }
+  | { op: 'double-power'; target: TargetSpec | Ref }
+  | { op: 'shuffle-into-library'; target: TargetSpec | Ref }
   | { op: 'each-self-damage' }                                                                   // Wave of Reckoning
-  | { op: 'multi-counters'; target: TargetSpec; counters: string[] }                             // "put a flying counter, a deathtouch counter, and a lifelink counter on target creature"
+  | { op: 'multi-counters'; target: TargetSpec | Ref; counters: string[] }                             // "put a flying counter, a deathtouch counter, and a lifelink counter on target creature"
   | { op: 'transform-self'; viaExile?: boolean }
   | { op: 'choose-mode'; modes: Effect[][]; count: number }
   | { op: 'conditional'; condition: Condition; then: Effect[]; else?: Effect[] }
   | { op: 'attach-self'; target: TargetSpec }   // equipment equip / aura attach
-  | { op: 'regenerate'; target: TargetSpec | 'self' }
-  | { op: 'prevent-damage'; target: TargetSpec | 'self' | 'you'; amount: Amount | 'all'; duration: 'eot' }
-  | { op: 'cant-attack-or-block'; target: TargetSpec; duration: 'eot' }
+  | { op: 'regenerate'; target: TargetSpec | Ref }
+  | { op: 'prevent-damage'; target: TargetSpec | Ref | 'you'; amount: Amount | 'all'; duration: 'eot' }
+  | { op: 'cant-attack-or-block'; target: TargetSpec | Ref; duration: 'eot' }
   | { op: 'extra-turn' }
   | { op: 'loot'; draw: number; discard: number; discardFirst?: boolean; optional?: boolean }
+  // ---- composition core (Phase 9.0): generic verbs scripts compose with; see docs/vocabulary/composition.md ----
+  /** "For each X, …": iterate a snapshot of the set (CR 608.2f), binding 'that' to each object in turn. */
+  | { op: 'for-each'; over: ObjectSet | 'those' | 'targets'; do: Effect[] }
+  /** Rebind 'that'/'those' to this item's targets, its affected objects or the object that triggered it. */
+  | { op: 'bind'; as: 'that'; from: 'targets' | 'affected' | 'triggering' }
+  /** "When you do, …" (CR 603.12): a reflexive trigger, created only if the preceding effect actually happened. */
+  | { op: 'reflexive'; when: 'you-do'; effects: Effect[] }
+  /** Run `do` with 'you' rebound to each named player in turn (APNAP order for each-*, CR 101.4). */
+  | { op: 'scoped'; who: ScopeWho; do: Effect[] }
+  /** "You may …": the acting player chooses; declining does nothing (and counts as "didn't" for a reflexive). */
+  | { op: 'may'; effects: Effect[]; prompt?: string }
+  /** "… unless [player] pays [cost]" (CR 118.12): each named player may pay; `otherwise` runs, as that player, if they don't. */
+  | { op: 'unless-pays'; who: ScopeWho; cost: AbilityCost; otherwise: Effect[] }
+  /** A general zone move on top of moveTo / enterBattlefield; `until` returns the moved objects (CR 610.3). */
+  | { op: 'move'; what: TargetSpec | Ref | { filter: Filter; zone: SetZone; who: ScopeWho; count: Amount | 'all'; choose?: 'you' | 'owner' | 'random' }; to: MoveZone; pos?: 'top' | 'bottom'; controller?: 'you' | 'owner' | 'that-player' | 'target-player'; tapped?: boolean; faceDown?: boolean; withCounters?: { counter: string; amount: Amount }; until?: 'leaves' | 'eot' | 'your-next-end-step' }
+  /** Layer 7b (CR 613.4b): set power and toughness; counters and +N/+N still apply on top. */
+  | { op: 'set-pt'; target: TargetSpec | Ref | 'creatures-you-control' | 'all-creatures'; power: Amount; toughness: Amount; base?: true; duration: 'eot' | 'permanent' }
+  /** Layer 6 (CR 613.1f): lose the listed keywords, or every ability when `keywords` is 'all' or absent. */
+  | { op: 'lose-abilities'; target: TargetSpec | Ref | 'creatures-you-control' | 'all-creatures'; keywords?: Keyword[] | 'all'; duration: 'eot' | 'permanent' }
+  /** CR 701.12: exchange two life totals (via gain/lose life) or control of two permanents. */
+  | { op: 'exchange'; what: 'life' | 'control'; a: ExchangeSide; b: ExchangeSide }
   | { op: 'unknown'; text: string };
+/** One side of an `exchange`: a player (life) or a permanent (control). */
+export type ExchangeSide = TargetSpec | Ref | 'you' | 'target-player' | 'that-player' | 'controller-of-that';
 /** Families add effect ops by augmenting EffectRegistry; EFFECT_OPS[op] applies them. */
 export interface EffectRegistry {}
 export type Effect = CoreEffect | EffectRegistry[keyof EffectRegistry];
@@ -304,6 +367,8 @@ export type CoreTriggerEvent =
   | { on: 'targeted'; self: boolean; bySpellYouCast?: boolean; filter?: Filter }
   | { on: 'discard'; filter?: Filter }
   | { on: 'end-of-turn' }
+  /** Engine-synthesised only: the event of a reflexive trigger ("when you do", CR 603.12); never printed, never matched by queueTriggers. */
+  | { on: 'reflexive' }
   | { on: 'unknown'; text: string };
 /** Families add trigger events by augmenting TriggerRegistry; TRIGGERS[on] matches them. */
 export interface TriggerRegistry {}

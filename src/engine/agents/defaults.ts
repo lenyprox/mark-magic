@@ -17,6 +17,8 @@ export function defaultAnswer(_s: GameState, _me: PlayerId, d: Decision): unknow
     case 'choose-player': return d.options[0];
     case 'choose-number': return d.min;
     case 'order-triggers': return d.items;
+    case 'may': return true;                 // "you may": a shipped agent takes the optional action
+    case 'unless-pays': return true;         // "unless you pay": pay rather than suffer the alternative (the engine only asks when the cost is payable)
     default: { if (!HAS.decisions) return undefined; const h = DECISION_DEFAULTS[(d as { kind: string }).kind]; return h ? h(_s, _me, d as never) : undefined; }
   }
 }
