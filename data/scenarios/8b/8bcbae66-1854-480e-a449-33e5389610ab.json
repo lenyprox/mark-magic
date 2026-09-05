@@ -1,0 +1,92 @@
+{
+  "oracleId": "8bcbae66-1854-480e-a449-33e5389610ab",
+  "name": "Sapling Nursery",
+  "scenarios": [
+    {
+      "name": "Affinity for Forests lets a {6}{G}{G} enchantment be cast off six Forests",
+      "cr": "702.41a",
+      "ruling": "Affinity reduces the generic part of the cost by one for each Forest you control; six Forests leave only {G}{G} to pay.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest", "Forest", "Forest", "Forest"], "hand": ["Sapling Nursery"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Sapling Nursery" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Sapling Nursery", "battlefield"] },
+        { "handCount": [0, 0] },
+        { "zoneCount": [0, "battlefield", 7] },
+        { "mana": [0, ""] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Landfall creates a 3/4 Treefolk token when a land you control enters",
+      "cr": "603.2",
+      "ruling": "Playing a land triggers the landfall ability once and a 3/4 green Treefolk token with reach is created.",
+      "seats": [
+        { "bf": ["Sapling Nursery"], "hand": ["Forest"] },
+        {}
+      ],
+      "script": [
+        { "playLand": "Forest" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "zoneCount": [0, "battlefield", 3] },
+        { "zone": ["Forest", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A land entering under an opponent's control does not trigger landfall",
+      "cr": "603.2",
+      "ruling": "The ability triggers only when a land you control enters.",
+      "active": 1,
+      "seats": [
+        { "bf": ["Sapling Nursery"] },
+        { "hand": ["Forest"] }
+      ],
+      "script": [
+        { "playLand": "Forest", "by": 1 },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "events": { "type": "create-token", "min": 0, "max": 0 } },
+        { "zoneCount": [0, "battlefield", 1] },
+        { "zoneCount": [1, "battlefield", 1] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Exiling Sapling Nursery gives Treefolk you control indestructible until end of turn",
+      "cr": "702.12b",
+      "ruling": "The Treefolk survives six damage while a creature that is not a Treefolk still dies to two.",
+      "seats": [
+        { "bf": ["Sapling Nursery", "Forest", "Forest", "Rowan Treefolk", "Grizzly Bears"] },
+        { "bf": ["Mountain", "Mountain", "Mountain"], "hand": ["Lightning Bolt", "Lightning Bolt", "Shock"] }
+      ],
+      "script": [
+        { "activate": "Sapling Nursery" },
+        { "resolve": true },
+        { "cast": "Lightning Bolt", "targets": [["Rowan Treefolk"]], "by": 1 },
+        { "resolve": true },
+        { "cast": "Lightning Bolt", "targets": [["Rowan Treefolk"]], "by": 1 },
+        { "resolve": true },
+        { "cast": "Shock", "targets": [["Grizzly Bears"]], "by": 1 },
+        { "resolve": true },
+        { "sba": true }
+      ],
+      "expect": [
+        { "zone": ["Rowan Treefolk", "battlefield"] },
+        { "zone": ["Grizzly Bears", "graveyard"] },
+        { "zone": ["Sapling Nursery", "exile"] },
+        { "noLog": "Rowan Treefolk is destroyed" },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

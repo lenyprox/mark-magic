@@ -1,0 +1,37 @@
+{
+  "oracleId": "af1553eb-4f9f-4335-9078-56649bd8d8fc",
+  "name": "Brass's Tunnel-Grinder // Tecutlan, the Searing Rift",
+  "clause": "// Whenever you cast a permanent spell using mana produced by ~, discover X, where X is that spell's mana value.",
+  "needs": [
+    {
+      "opFamily": "counter-threshold-condition",
+      "proposedSignature": "`{ kind: 'self-counters-ge', counter: string, value: Amount }` (and the mirror `'self-counters-le'`)",
+      "semantics": "True when the source has at least `value` counters of the named kind on it. Today the only counter conditions are the boolean `self-has-counters` / `self-no-counters` / `self-had-counters`, so 'if there are three or more bore counters on it' has no form - which blocks the whole 'accumulate N counters, then do something' family. Brass's Tunnel-Grinder's end-step trigger is otherwise fully expressible with existing ops: `counters` on self, then a `conditional` whose `then` removes them (`{ op: 'counters', target: 'self', counter: 'bore', amount: -3 }`) and calls the existing `transform-self`.",
+      "cr": "122.1 and 122.6 (counters); 603.4 (intervening-if)",
+      "clause": "Then if there are three or more bore counters on it, remove those counters and transform it."
+    },
+    {
+      "opFamily": "discover",
+      "proposedSignature": "`{ op: 'discover', amount: Amount }`",
+      "semantics": "Exile cards from the top of your library until you exile a nonland card with mana value `amount` or less, then cast it without paying its mana cost or put it into your hand; put the rest on the bottom of your library in a random order. `amount` must accept the full Amount vocabulary - Tecutlan needs 'discover X, where X is that spell's mana value', i.e. `{ prop: 'mv', of: 'triggering' }`.",
+      "cr": "701.57 (701.57a-701.57c)",
+      "clause": "Whenever you cast a permanent spell using mana produced by ~, discover X, where X is that spell's mana value."
+    },
+    {
+      "opFamily": "mana-provenance",
+      "proposedSignature": "trigger event `{ on: 'cast', filter: Filter, who: ScopeWho, usingManaFrom: Ref }`",
+      "semantics": "Fires when a spell matching the filter is cast using at least one mana produced by the object the Ref names. The engine would tag each mana in a player's pool with the id of the permanent or ability that produced it and keep the tag through payment, so the cast event can report which sources paid for the spell. `Amount.count` already has `colors-spent`, so the pool carries some provenance today; this is the object-level version, and it serves the whole 'spent mana matters' family.",
+      "cr": "106.12 (mana produced by a source), 601.2h (paying costs)",
+      "clause": "Whenever you cast a permanent spell using mana produced by ~, ..."
+    },
+    {
+      "opFamily": "variable-amount-choice",
+      "proposedSignature": "`Amount` gains `'any'` (a number the acting player chooses), accepted at least by `discard.amount` and by `move`'s `what.count`",
+      "semantics": "'Discard any number of cards' asks the acting player for a number from 0 to the size of the set, then acts on that many; the number chosen must feed `item.lastAmount` so the following 'draw that many cards plus one' resolves as `{ count: 'that-many', plus: 1 }` - that half already exists. Today `discard.amount` is a fixed Amount and `move`'s `count` is a number or 'all', so 'any number' can only be approximated by a fixed number, which changes the card.",
+      "cr": "701.8 (discard), 601.2b (choosing a value)",
+      "clause": "When ~ enters, discard any number of cards, then draw that many cards plus one."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

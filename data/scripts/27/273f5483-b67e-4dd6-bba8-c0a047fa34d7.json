@@ -1,0 +1,79 @@
+{
+  "oracleId": "273f5483-b67e-4dd6-bba8-c0a047fa34d7",
+  "name": "Crackle with Power",
+  "oracleHash": "75bf9498",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "damage",
+          "amount": {
+            "sum": [
+              "X"
+            ],
+            "times": 5
+          },
+          "target": {
+            "kind": "any",
+            "count": "X",
+            "optional": true
+          }
+        }
+      ],
+      "text": "~ deals five times X damage to each of up to X targets."
+    }
+  ],
+  "aiHints": {
+    "role": "removal",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "'five times X' is X scaled by 5 (finishAmount applies times to every amount form, sum included). Not divided: each target is dealt the full amount.",
+  "verification": {
+    "at": "2026-09-05T14:14:25.564Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "75bf9498",
+    "scriptHash": "78a96665",
+    "schema": "ok",
+    "lint": "fail",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "~ deals five times X damage to each of up to X targets.",
+          "rendered": "~ deals the total of X damage to up to X target any targets",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "no amount count 'X' is registered",
+      "lint: unknown amount count 'X'",
+      "round trip 0.00 < 0.55: \"~ deals five times X damage to each of up to X targets.\" rendered as \"~ deals the total of X damage to up to X target any targets\""
+    ]
+  }
+}

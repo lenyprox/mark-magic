@@ -1,0 +1,16 @@
+{
+  "oracleId": "c0d8fef4-65f4-4769-982d-b397d2b7e977",
+  "name": "Animate Dead",
+  "clause": "When ~ enters, if it's on the battlefield, it loses \"enchant creature card in a graveyard\" and gains \"enchant creature put onto the battlefield with ~.\" Return enchanted creature card to the battlefield under your control and attach ~ to it. When ~ leaves the battlefield, that creature's controller sacrifices it.",
+  "needs": [
+    {
+      "opFamily": "aura-reanimation",
+      "proposedSignature": "StaticEffect aura: { enchant: TargetSpec (already), enchantAfterEtb?: TargetSpec }  ·  Effect: { op: 'attach-self', target: Ref }  ·  TriggerEvent: { on: 'ltb', self: true } binding the previously attached object as `that`",
+      "semantics": "The Animate Dead pattern: an Aura that legally enchants a card in a graveyard, returns it and re-attaches itself, and whose leaves-the-battlefield trigger can still name the creature it was attached to. `attach-self` takes a TargetSpec only, and no binding survives the Aura leaving.",
+      "cr": "303.4a, 400.7, 603.10a, 610.3",
+      "clause": "Return enchanted creature card to the battlefield under your control and attach ~ to it. When ~ leaves the battlefield, that creature's controller sacrifices it."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "913ec957-5f4e-46b4-a819-9448837f72a3",
+  "name": "Revival Experiment",
+  "clause": "For each permanent type, return up to one card of that type from your graveyard to the battlefield.",
+  "needs": [
+    {
+      "opFamily": "for-each-card-type",
+      "proposedSignature": "{ op: 'for-each-type'; over: 'permanent-types' | 'card-types'; bind: 'chosen-type'; do: Effect[] }  with Filter.isChosenCardType?: boolean",
+      "semantics": "Iterate the permanent card types (artifact, creature, enchantment, land, planeswalker, battle), binding each one so the body's Filter can say 'a card of that type'. Today `for-each` only iterates objects.",
+      "cr": "300.1, 608.2f",
+      "clause": "For each permanent type, return up to one card of that type from your graveyard to the battlefield."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

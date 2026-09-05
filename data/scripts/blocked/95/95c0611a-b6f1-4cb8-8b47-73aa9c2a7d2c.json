@@ -1,0 +1,16 @@
+{
+  "oracleId": "95c0611a-b6f1-4cb8-8b47-73aa9c2a7d2c",
+  "name": "Noxious Assault",
+  "clause": "Whenever a creature blocks this turn, its controller gets a poison counter.",
+  "needs": [
+    {
+      "opFamily": "floating-trigger",
+      "proposedSignature": "{ op: 'floating-trigger'; until: 'eot' | 'your-next-turn'; event: TriggerEvent; effects: Effect[]; condition?: Condition }",
+      "semantics": "A spell installs a game-wide triggered ability that watches an arbitrary TriggerEvent for the rest of the turn and then expires. `delayed-trigger` fires once at a fixed point and cannot carry a TriggerEvent.",
+      "cr": "603.7, 611.2c",
+      "clause": "Whenever a creature blocks this turn, its controller gets a poison counter."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

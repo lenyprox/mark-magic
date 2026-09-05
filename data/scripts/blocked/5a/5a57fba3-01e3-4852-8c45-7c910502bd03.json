@@ -1,0 +1,13 @@
+{
+  "oracleId": "5a57fba3-01e3-4852-8c45-7c910502bd03",
+  "name": "Bitterthorn, Nissa's Animus",
+  "clause": "Equip {3}",
+  "needs": [
+    {
+      "opFamily": "unclassified",
+      "semantics": "WRITTEN but NOT verified. Every oracle line is claimed and schema/lint/sandbox all pass, but the round trip scores 0.00 on 'Equip {3}': the renderer has no rules text for the printed keyword 'equip' (KEYWORD_EXPANSIONS in src/cards/render.ts), 'equip' is not a Keyword, and equipment.equipCost is not a covers kind, so no script can give that line positive evidence. Tool gap, not a card gap; status 'scripted'."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "f8e17f4f-080d-4bba-bd05-ca27e94ccecc",
+  "name": "Terror of the Peaks",
+  "clause": "Spells your opponents cast that target ~ cost an additional 3 life to cast.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "{ kind: 'additional-cost-to-cast'; who: 'opponent' | 'any'; filter?: Filter; targetsSource?: true; cost: AbilityCost }",
+      "semantics": "A static that adds an additional cost (here payLife 3) to spells other players cast, optionally only to spells that target the source.",
+      "cr": "601.2f, 604.3",
+      "clause": "Spells your opponents cast that target ~ cost an additional 3 life to cast."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

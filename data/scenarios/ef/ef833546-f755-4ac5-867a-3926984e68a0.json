@@ -1,0 +1,69 @@
+{
+  "oracleId": "ef833546-f755-4ac5-867a-3926984e68a0",
+  "name": "Archaeomancer's Map",
+  "scenarios": [
+    {
+      "name": "Archaeomancer's Map entering searches up to two basic Plains into your hand",
+      "cr": "701.19a",
+      "ruling": "The cards found go to hand, not to the battlefield, and the library is shuffled afterwards.",
+      "seats": [
+        { "bf": ["Snow-Covered Plains", "Snow-Covered Plains", "Snow-Covered Plains"], "hand": ["Archaeomancer's Map"], "libraryTop": ["Plains", "Plains"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Archaeomancer's Map" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "handCount": [0, 2] },
+        { "zone": ["Plains", "hand"] },
+        { "libraryCount": [0, 20] },
+        { "zone": ["Archaeomancer's Map", "battlefield"] },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A land entering for an opponent who is ahead on lands lets you put a land from hand onto the battlefield",
+      "cr": "603.4",
+      "ruling": "The intervening-if is checked when the land enters and again on resolution; the land you put in is not a land drop.",
+      "active": 1,
+      "seats": [
+        { "bf": ["Archaeomancer's Map"], "hand": ["Forest"] },
+        { "bf": ["Mountain", "Mountain"], "hand": ["Island"] }
+      ],
+      "script": [
+        { "playLand": "Island", "by": 1 },
+        { "answer": true },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Forest", "battlefield"] },
+        { "control": ["Forest", 0] },
+        { "handCount": [0, 0] },
+        { "zoneCount": [0, "battlefield", 2] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "No land is put onto the battlefield when the opponent is not ahead on lands",
+      "cr": "603.4",
+      "ruling": "If the opponent whose land entered does not control more lands than you, the ability does not trigger at all.",
+      "active": 1,
+      "seats": [
+        { "bf": ["Archaeomancer's Map", "Forest", "Forest", "Forest"], "hand": ["Plains"] },
+        { "bf": ["Swamp"], "hand": ["Island"] }
+      ],
+      "script": [
+        { "playLand": "Island", "by": 1 }
+      ],
+      "expect": [
+        { "stack": 0 },
+        { "zone": ["Plains", "hand"] },
+        { "handCount": [0, 1] },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

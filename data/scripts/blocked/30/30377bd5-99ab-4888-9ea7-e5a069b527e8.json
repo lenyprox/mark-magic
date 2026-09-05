@@ -1,0 +1,30 @@
+{
+  "oracleId": "30377bd5-99ab-4888-9ea7-e5a069b527e8",
+  "name": "Return the Favor",
+  "clause": "Spree",
+  "needs": [
+    {
+      "opFamily": "copy-ability",
+      "proposedSignature": "extend `copy-spell` to abilities: `{ op: 'copy-spell', target: TargetSpec, newTargets?: boolean }` where `TargetSpec.kind` gains a union form, e.g. `{ kind: 'stack-object', spellTypes?: CardType[], abilityKinds?: ('activated' | 'triggered')[] }`",
+      "semantics": "Copying an activated or triggered ability on the stack puts a copy on the stack under your control; the copy is not cast, and 'you may choose new targets for the copy' applies to it exactly as `copy-spell.newTargets` already does for spells. `copy-spell` today only reaches spells, and the printed target 'target instant spell, sorcery spell, activated ability, or triggered ability' cannot be written as one spec - `multi` means several independent instances of the word 'target', not one choice among kinds.",
+      "cr": "707.10 (copying a spell or ability), 706.10",
+      "clause": "+ {1} - Copy target instant spell, sorcery spell, activated ability, or triggered ability. You may choose new targets for the copy."
+    },
+    {
+      "opFamily": "retarget",
+      "proposedSignature": "`{ op: 'change-target', target: TargetSpec, to?: 'you-choose' }`",
+      "semantics": "Change the target of a spell or ability on the stack that has exactly one target; the new target must be legal for the requirement the old one answered - the engine already re-checks each pick against the requirement it answered (composition.md section 3), so half the machinery exists. It needs a target spec that can name 'spell or ability with a single target': today `spell` and `ability` are separate `TargetSpec.kind` values with no union form and no 'single target' predicate.",
+      "cr": "115.7 (changing a target), 115.7b (the new target must be legal)",
+      "clause": "+ {1} - Change the target of target spell or ability with a single target."
+    },
+    {
+      "opFamily": "spree",
+      "proposedSignature": "`ModeSpec` gains `cost?: ManaCost`; `{ op: 'choose-mode', modes: ModeSpec[], count: 'one-or-more' }`; plus a face declaration `spree: true` with a `covers` kind `by: 'spree'` for the printed `^spree$` line",
+      "semantics": "Spree is an additional cost: as the spell is cast its controller chooses at least one mode, and the chosen modes' `cost` values are added to the total cost - the `modeCost` registry hook already contemplated at src/engine/cost.ts:50 and src/engine/legal.ts:313. Only the chosen modes' effects resolve, in printed order, and targets are chosen per chosen mode. The '+ {N} - ...' oracle lines are the modes, so the `covers` / claiming rules should let the `choose-mode` ability that claims 'Spree' claim them the way a 'Choose one -' line claims its bullets (they are NOT '. ' bullets, so `faceLines` currently demands a claim for each).",
+      "cr": "702.172 (702.172a, 702.172b)",
+      "clause": "Spree / + {1}{U} - Counter target spell. / + {3} - Create a token that's a copy of target artifact or creature you control. / + {2} - Draw two cards, then discard a card."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

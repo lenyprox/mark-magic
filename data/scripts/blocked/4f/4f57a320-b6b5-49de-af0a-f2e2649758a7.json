@@ -1,0 +1,16 @@
+{
+  "oracleId": "4f57a320-b6b5-49de-af0a-f2e2649758a7",
+  "name": "Angel of Indemnity",
+  "clause": "Encore {6}{W}{W}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:encore",
+      "proposedSignature": "a face declaration encore?: ManaCost + a covers[].by kind 'encore' with the anchored shape /^encore (\\{.+\\})$/; it also needs an AbilityCost part exileSelfFromGraveyard?: true and a token-copy attacking form 'that-opponent' (one copy per opponent, each attacking the opponent it was made for)",
+      "semantics": "\"{cost}, Exile this card from your graveyard: For each opponent, create a token copy of it that's attacking that opponent. They gain haste. Sacrifice them at the beginning of the next end step. Activate only as a sorcery.\" ActivatedAbility.fromGraveyard already gives graveyard activation (legal.ts:225), but the self-exile half of the cost has no field - AbilityCost.exileFromGraveyard exiles OTHER cards (game.ts:667, others(pl.graveyard)) - so the ability would be infinitely repeatable, and token-copy.attacking has no per-opponent form.",
+      "cr": "702.140",
+      "clause": "Encore {6}{W}{W}"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

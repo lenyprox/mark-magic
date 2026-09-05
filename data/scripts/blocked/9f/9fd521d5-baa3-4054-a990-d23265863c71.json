@@ -1,0 +1,16 @@
+{
+  "oracleId": "9fd521d5-baa3-4054-a990-d23265863c71",
+  "name": "Wand of Orcus",
+  "clause": "Whenever equipped creature attacks or blocks, it and Zombies you control gain deathtouch until end of turn.",
+  "needs": [
+    {
+      "opFamily": "other",
+      "proposedSignature": "{ on: 'blocks'; self: boolean; filter?: Filter } (add the filter the `attacks` event already has)",
+      "semantics": "'Whenever equipped creature blocks' / 'whenever a creature you control blocks': the filter is matched against the blocking creature, so attachedToSource works the same way it does on `attacks` and `dies`.",
+      "cr": "509.1a, 702.6a",
+      "clause": "Whenever equipped creature attacks or blocks, ..."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

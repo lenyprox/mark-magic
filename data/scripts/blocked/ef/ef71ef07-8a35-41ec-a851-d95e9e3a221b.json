@@ -1,0 +1,23 @@
+{
+  "oracleId": "ef71ef07-8a35-41ec-a851-d95e9e3a221b",
+  "name": "Bilbo's Gambit",
+  "clause": "Gift a Treasure",
+  "needs": [
+    {
+      "opFamily": "cast-restriction",
+      "proposedSignature": "{ op: 'cant-cast', who: ScopeWho | 'each-player', filter?: Filter, duration: 'eot' | 'this-turn' } as an Effect",
+      "semantics": "\"players can't cast spells this turn\" - a duration-scoped cast restriction created by a resolving spell. The only cast restriction today is the opponents-cant-cast STATIC (during: 'your-turn') on a permanent, which cannot be installed by an effect, cannot cover the controller, and has no duration.",
+      "cr": "601.3e, 616.1, 104.3",
+      "clause": "If the gift was promised, players can't cast spells this turn."
+    },
+    {
+      "opFamily": "named-keyword:gift",
+      "proposedSignature": "a face declaration gift?: { what: 'Treasure' | 'Food' | 'card' | 'tapped Fish' | ...; effects?: Effect[] } + a covers[].by kind 'gift' (shape /^gift (a|an) (.+)$/), and a Condition variant { kind: 'gift-promised' }",
+      "semantics": "As you cast the spell you may promise an opponent a gift; if you did, that opponent gets the gift before the spell's other effects, and later clauses on the same spell branch on whether the gift was promised. Neither the promise (a cast-time optional choice recorded on the stack item) nor the condition that reads it exists today, so both the keyword line and the \"If the gift was promised, ...\" half of the body are unwritable.",
+      "cr": "702.176",
+      "clause": "Gift a Treasure"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

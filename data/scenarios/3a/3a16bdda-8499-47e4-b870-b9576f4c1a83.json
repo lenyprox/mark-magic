@@ -1,0 +1,93 @@
+{
+  "oracleId": "3a16bdda-8499-47e4-b870-b9576f4c1a83",
+  "name": "Master of Death",
+  "scenarios": [
+    {
+      "name": "Master of Death entering surveils 2 and both cards can go to the graveyard",
+      "cr": "701.42a",
+      "ruling": "Surveil 2 looks at the top two cards and puts any number of them into the graveyard; here both are binned, so the library shrinks by two.",
+      "seats": [
+        { "bf": ["Island", "Island", "Swamp"], "hand": ["Master of Death"], "libraryTop": ["Lightning Bolt", "Shock"] },
+        {}
+      ],
+      "script": [
+        { "answer": ["Lightning Bolt", "Shock"] },
+        { "cast": "Master of Death" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "zone": ["Shock", "graveyard"] },
+        { "graveyardCount": [0, 2] },
+        { "libraryCount": [0, 20] },
+        { "handCount": [0, 0] },
+        { "zone": ["Master of Death", "battlefield"] },
+        { "log": "surveil" },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Paying 1 life at upkeep returns Master of Death from your graveyard to your hand",
+      "cr": "603.2",
+      "ruling": "The ability functions from the graveyard; paying 1 life on resolution returns the card to your hand.",
+      "active": 1,
+      "seats": [
+        { "graveyard": ["Master of Death"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "upkeep" },
+        { "answer": true },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Master of Death", "hand"] },
+        { "life": [0, 19] },
+        { "graveyardCount": [0, 0] },
+        { "handCount": [0, 1] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Declining to pay 1 life leaves Master of Death in your graveyard",
+      "cr": "603.2",
+      "ruling": "The payment is optional; if you do not pay, the card is not returned and you lose no life.",
+      "active": 1,
+      "seats": [
+        { "graveyard": ["Master of Death"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "upkeep" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Master of Death", "graveyard"] },
+        { "life": [0, 20] },
+        { "graveyardCount": [0, 1] },
+        { "handCount": [0, 0] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The upkeep ability does not trigger while Master of Death is on the battlefield",
+      "cr": "603.4",
+      "ruling": "The intervening-if clause checks that the card is in your graveyard; a Master of Death on the battlefield never triggers it.",
+      "active": 1,
+      "seats": [
+        { "bf": ["Master of Death"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "upkeep" }
+      ],
+      "expect": [
+        { "stack": 0 },
+        { "life": [0, 20] },
+        { "zone": ["Master of Death", "battlefield"] },
+        { "handCount": [0, 0] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

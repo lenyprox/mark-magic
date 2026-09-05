@@ -1,0 +1,30 @@
+{
+  "oracleId": "2acf8e34-9215-4a72-a24f-09d3bdd0083a",
+  "name": "Ripples of Undeath",
+  "clause": "At the beginning of your first main phase, mill three cards. Then you may pay {1} and 3 life. If you do, put a card from among those cards into your hand.",
+  "needs": [
+    {
+      "opFamily": "move:subset-of-bound-set",
+      "proposedSignature": "`move.what` gains { from: 'those' | 'affected'; count: Amount; choose?: 'you' | 'owner' | 'random' }",
+      "semantics": "'Put a card from among those cards into your hand' — act on a CHOSEN SUBSET of the objects the binding frame holds. Today `move` with what:'those' moves every bound object; the wording is common after mill / dig / look-top / impulse.",
+      "cr": "608.2h, 400.7",
+      "clause": "put a card from among those cards into your hand"
+    },
+    {
+      "opFamily": "optional-cost",
+      "proposedSignature": "{ op: 'optional-cost'; cost: AbilityCost; then: Effect[] } — `optional-pay` generalised from ManaCost to AbilityCost",
+      "semantics": "'Then you may pay {1} and 3 life. If you do, ...'. `optional-pay` takes a bare ManaCost, so any optional cost mixing mana with life, a sacrifice, a discard or an exile has no form. Reuses the payment planner and nonManaCostPayable that `unless-pays` already calls.",
+      "cr": "601.2h, 118.12",
+      "clause": "Then you may pay {1} and 3 life. If you do, put a card from among those cards into your hand."
+    },
+    {
+      "opFamily": "trigger:main-phase",
+      "proposedSignature": "{ on: 'main-phase'; whose: 'your' | 'each'; which?: 'first' | 'precombat' | 'postcombat' }",
+      "semantics": "'At the beginning of your first main phase' / 'your precombat main phase' / 'each player's postcombat main phase'. TRIGGER_VOCAB has upkeep, draw-step, combat-begin, end-step and end-of-turn but no main phase at all.",
+      "cr": "505.1, 505.1a",
+      "clause": "At the beginning of your first main phase, mill three cards."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,96 @@
+{
+  "oracleId": "689c41e9-800a-4998-bb04-74bf90141035",
+  "name": "Relic Retriever",
+  "oracleHash": "15e8a787",
+  "source": "llm",
+  "confidence": 0.55,
+  "mode": "replace",
+  "keywords": [
+    "first strike"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "leaves-graveyard"
+      },
+      "effects": [
+        {
+          "op": "delayed-trigger",
+          "at": "next-end-step",
+          "effects": [
+            {
+              "op": "token",
+              "count": 1,
+              "power": 0,
+              "toughness": 0,
+              "colors": [],
+              "types": [
+                "Artifact"
+              ],
+              "subtypes": [
+                "Treasure"
+              ],
+              "keywords": [],
+              "treasure": true,
+              "name": "Treasure"
+            }
+          ]
+        }
+      ],
+      "text": "At the beginning of each end step, if a card left your graveyard this turn, create a Treasure token."
+    }
+  ],
+  "covers": [
+    {
+      "line": "First strike",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "mana",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "APPROXIMATION: no condition asks whether a card left your graveyard this turn, so the end-step trigger is turned inside out - a card leaving your graveyard sets up a delayed trigger at the beginning of the next end step that creates the Treasure. Deviation: two cards leaving your graveyard in one turn set up two delayed triggers and make two Treasures, where the card makes one per end step (see needs).",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "15e8a787",
+    "scriptHash": "2f42052f",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'misc' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "At the beginning of each end step, if a card left your graveyard this turn, create a Treasure token.",
+          "rendered": "whenever card leaves your graveyard, at the beginning of the next end step, create a Treasure artifact token",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"At the beginning of each end step, if a card left your graveyard this turn, create a Treasure token.\" rendered as \"whenever card leaves your graveyard, at the beginning of the next end step, create a Treasure artifact token\""
+    ]
+  }
+}

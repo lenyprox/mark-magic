@@ -1,0 +1,23 @@
+{
+  "oracleId": "8b834f83-951b-4b5c-b9f1-3d860baa3c0e",
+  "name": "Winnowing",
+  "clause": "For each player, you choose a creature that player controls. Then each player sacrifices all other creatures they control that don't share a creature type with the chosen creature they control.",
+  "needs": [
+    {
+      "opFamily": "filter-shared-type",
+      "proposedSignature": "Filter.sharesCreatureTypeWith?: Ref | 'chosen'  plus TargetSpec.sharedTypeGroup?: true (several picks of one requirement must agree)",
+      "semantics": "Target legality and mass-sacrifice filters that compare creature types between two objects — 'two target creatures you control that share a creature type', 'creatures that don't share a creature type with the chosen creature'. Checked both when targets are offered (legal.ts) and when they are re-checked on resolution.",
+      "cr": "115.1, 700.3",
+      "clause": "Two target creatures you control that share a creature type can't be blocked this turn."
+    },
+    {
+      "opFamily": "piles-choices",
+      "proposedSignature": "{ op: 'choose-for-each-player'; chooser: ScopeWho; from: ObjectSet; picks: Filter[]; bind: 'chosen' }  followed by { op: 'sacrifice'; who: 'each-player'; what: { unchosen: true, ... } }",
+      "semantics": "One player picks, out of every player's board, one permanent per listed filter; everything not picked is then sacrificed by its own controller. Needs a Decision the CONTROLLER answers on behalf of each player, a named binding for the picks and an `unchosen` filter flag.",
+      "cr": "608.2f, 701.16, 104.3",
+      "clause": "For each player, you choose from among the permanents that player controls an artifact, a creature, an enchantment, and a planeswalker. Then each player sacrifices all other nonland permanents they control."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

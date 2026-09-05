@@ -1,0 +1,16 @@
+{
+  "oracleId": "ef6ecb67-7e49-4d40-84f2-1e7c02960a0d",
+  "name": "Ochran Assassin",
+  "clause": "All creatures able to block ~ do so.",
+  "needs": [
+    {
+      "opFamily": "combat-restr:must-be-blocked",
+      "proposedSignature": "{ kind: 'must-be-blocked'; scope: 'self' | 'enchanted'; by?: Filter } as a StaticEffect, implemented through the existing `blockFixup` family hook (src/engine/ops/types.ts:136-138)",
+      "semantics": "A blocking REQUIREMENT: every creature the defending player controls that is able to block the named creature must do so, subject to the maximum-requirements rule. The engine already reserves the hook; nothing registers one and STATIC_VOCAB has no entry.",
+      "cr": "509.1c",
+      "clause": "All creatures able to block ~ do so."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

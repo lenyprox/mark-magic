@@ -1,0 +1,16 @@
+{
+  "oracleId": "2c49d24a-98a4-43c2-bb59-1ef13d4214c2",
+  "name": "Untimely Malfunction",
+  "clause": "• Change the target of target spell or ability with a single target.",
+  "needs": [
+    {
+      "opFamily": "change-targets",
+      "proposedSignature": "{ op: 'change-target'; target: TargetSpec; how: 'change-one' | 'change-all' | 'choose-new'; singleTargetOnly?: boolean }",
+      "semantics": "Re-aim a spell or ability already on the stack. `how` distinguishes CR 115.7a-d: 'change the target' must move to a DIFFERENT legal target, 'choose new targets' may leave any unchanged. `singleTargetOnly` is the common 'with a single target' restriction.",
+      "cr": "115.7a, 115.7d",
+      "clause": "• Change the target of target spell or ability with a single target."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

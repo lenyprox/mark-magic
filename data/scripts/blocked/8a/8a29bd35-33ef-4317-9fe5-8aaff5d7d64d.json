@@ -1,0 +1,16 @@
+{
+  "oracleId": "8a29bd35-33ef-4317-9fe5-8aaff5d7d64d",
+  "name": "Tragic Arrogance",
+  "clause": "For each player, you choose from among the permanents that player controls an artifact, a creature, an enchantment, and a planeswalker. Then each player sacrifices all other nonland permanents they control.",
+  "needs": [
+    {
+      "opFamily": "piles-choices",
+      "proposedSignature": "{ op: 'choose-for-each-player'; chooser: ScopeWho; from: ObjectSet; picks: Filter[]; bind: 'chosen' }  followed by { op: 'sacrifice'; who: 'each-player'; what: { unchosen: true, ... } }",
+      "semantics": "One player picks, out of every player's board, one permanent per listed filter; everything not picked is then sacrificed by its own controller. Needs a Decision the CONTROLLER answers on behalf of each player, a named binding for the picks and an `unchosen` filter flag.",
+      "cr": "608.2f, 701.16, 104.3",
+      "clause": "For each player, you choose from among the permanents that player controls an artifact, a creature, an enchantment, and a planeswalker. Then each player sacrifices all other nonland permanents they control."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

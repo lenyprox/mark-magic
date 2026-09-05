@@ -8,72 +8,48 @@
    ],
    "seed": 21,
    "games": 60,
-   "hitsPerGame": 10.683,
-   "ceiling": 10.683,
+   "hitsPerGame": 6.467,
+   "ceiling": 6.467,
    "topClauses": [
     {
      "card": "Ixhel, Scion of Atraxa",
      "clause": "You may look at and play those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color to cast those spells.",
-     "hits": 77,
+     "hits": 73,
      "games": 17
     },
     {
      "card": "Ixhel, Scion of Atraxa",
      "clause": "each opponent who has three or more poison counters exiles the top card of their library face down.",
-     "hits": 77,
+     "hits": 73,
      "games": 17
-    },
-    {
-     "card": "Slumbering Walker",
-     "clause": "you may remove a counter from ~.",
-     "hits": 76,
-     "games": 12
-    },
-    {
-     "card": "Betor, Kin to All",
-     "clause": "Then if creatures you control have total toughness 20 or greater, untap each creature you control.",
-     "hits": 52,
-     "games": 14
     },
     {
      "card": "Gandalf the Grey",
      "clause": "choose one that hasn't been chosen —",
      "hits": 23,
-     "games": 7
+     "games": 6
     },
     {
-     "card": "Isildur's Fateful Strike",
-     "clause": "If its controller has more than four cards in hand, they exile cards from their hand equal to the difference.",
-     "hits": 16,
-     "games": 16
-    },
-    {
-     "card": "Six",
-     "clause": "You may put a land card from among them into your hand.",
-     "hits": 16,
-     "games": 5
-    },
-    {
-     "card": "Redirect Lightning",
-     "clause": "Change the target of target spell or ability with a single target.",
+     "card": "Chaos Warp",
+     "clause": "If it's a permanent card, they put it onto the battlefield.",
      "hits": 15,
      "games": 15
     },
     {
      "card": "Chaos Warp",
-     "clause": "If it's a permanent card, they put it onto the battlefield.",
-     "hits": 14,
-     "games": 14
-    },
-    {
-     "card": "Chaos Warp",
      "clause": "The owner of target permanent shuffles it into their library, then reveals the top card of their library.",
-     "hits": 14,
-     "games": 14
+     "hits": 15,
+     "games": 15
     },
     {
-     "card": "Crackle with Power",
-     "clause": "~ deals five times X damage to each of up to X targets.",
+     "card": "Six",
+     "clause": "You may put a land card from among them into your hand.",
+     "hits": 15,
+     "games": 6
+    },
+    {
+     "card": "Redirect Lightning",
+     "clause": "Change the target of target spell or ability with a single target.",
      "hits": 14,
      "games": 14
     },
@@ -90,16 +66,40 @@
      "games": 13
     },
     {
-     "card": "Perennation",
-     "clause": "Return target permanent card from your graveyard to the battlefield with a hexproof counter and an indestructible counter on it.",
-     "hits": 13,
-     "games": 13
+     "card": "Clifftop Lookout",
+     "clause": "Put that card onto the battlefield tapped and the rest on the bottom of your library in a random order.",
+     "hits": 12,
+     "games": 12
     },
     {
-     "card": "Sergeant John Benton",
-     "clause": "you and that player each draw that many cards.",
-     "hits": 13,
-     "games": 3
+     "card": "Clifftop Lookout",
+     "clause": "reveal cards from the top of your library until you reveal a land card.",
+     "hits": 12,
+     "games": 12
+    },
+    {
+     "card": "Flashback",
+     "clause": "Target instant or sorcery card in your graveyard gains flashback until end of turn.",
+     "hits": 11,
+     "games": 10
+    },
+    {
+     "card": "Flashback",
+     "clause": "The flashback cost is equal to its mana cost.",
+     "hits": 11,
+     "games": 10
+    },
+    {
+     "card": "Deflecting Swat",
+     "clause": "If you control a commander, you may cast ~ without paying its mana cost.",
+     "hits": 9,
+     "games": 9
+    },
+    {
+     "card": "Deflecting Swat",
+     "clause": "You may choose new targets for target spell or ability.",
+     "hits": 9,
+     "games": 9
     }
    ]
   },
@@ -111,98 +111,98 @@
    ],
    "seed": 22,
    "games": 60,
-   "hitsPerGame": 12.55,
-   "ceiling": 12.55,
+   "hitsPerGame": 7.6,
+   "ceiling": 7.6,
    "topClauses": [
     {
      "card": "Nissa, Who Shakes the World",
      "clause": "It becomes a 0/0 Elemental creature with vigilance and haste that's still a land.",
-     "hits": 75,
-     "games": 11
-    },
-    {
-     "card": "Augusta, Order Returned",
-     "clause": "When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature.",
-     "hits": 58,
-     "games": 12
-    },
-    {
-     "card": "Augusta, Order Returned",
-     "clause": "each player exiles a card from their graveyard.",
-     "hits": 58,
-     "games": 12
+     "hits": 78,
+     "games": 13
     },
     {
      "card": "Quintorius, Loremaster",
      "clause": "exile target noncreature, nonland card from your graveyard.",
-     "hits": 39,
+     "hits": 38,
      "games": 11
-    },
-    {
-     "card": "Advanced Reconstruction",
-     "clause": "this Class deals 2 damage to each opponent.",
-     "hits": 31,
-     "games": 7
     },
     {
      "card": "Conspiracy Theorist",
      "clause": "If you do, draw a card.",
      "hits": 29,
-     "games": 10
+     "games": 12
     },
     {
      "card": "Conspiracy Theorist",
      "clause": "you may pay {1} and discard a card.",
      "hits": 29,
-     "games": 10
+     "games": 12
     },
     {
-     "card": "Excava, the Risen Past",
-     "clause": "It's a 1/1 Spirit creature with flying in addition to its other types.",
-     "hits": 23,
-     "games": 5
-    },
-    {
-     "card": "Excava, the Risen Past",
-     "clause": "return up to one target artifact, creature, or non-Aura enchantment card with mana value 3 or less from your graveyard to the battlefield with a finality counter on it.",
-     "hits": 23,
-     "games": 5
-    },
-    {
-     "card": "Sevinne's Reclamation",
-     "clause": "If ~ was cast from a graveyard, you may copy ~ and may choose a new target for the copy.",
+     "card": "Advanced Reconstruction",
+     "clause": "this Class deals 2 damage to each opponent.",
      "hits": 16,
-     "games": 13
+     "games": 8
     },
     {
      "card": "Brass's Tunnel-Grinder // Tecutlan, the Searing Rift",
-     "clause": "Then if there are three or more bore counters on it, remove those counters and transform it.",
-     "hits": 16,
-     "games": 9
+     "clause": "discard any number of cards, then draw that many cards plus one.",
+     "hits": 14,
+     "games": 14
     },
     {
      "card": "Winnowing",
      "clause": "For each player, you choose a creature that player controls.",
-     "hits": 15,
-     "games": 15
+     "hits": 14,
+     "games": 14
     },
     {
      "card": "Winnowing",
      "clause": "Then each player sacrifices all other creatures they control that don't share a creature type with the chosen creature they control.",
-     "hits": 15,
-     "games": 15
+     "hits": 14,
+     "games": 14
     },
     {
-     "card": "Horizon Explorer",
-     "clause": "create a Lander token.",
-     "hits": 15,
-     "games": 6
+     "card": "Sevinne's Reclamation",
+     "clause": "If ~ was cast from a graveyard, you may copy ~ and may choose a new target for the copy.",
+     "hits": 14,
+     "games": 12
     },
     {
-     "card": "Monument to Endurance",
-     "clause": "choose one that hasn't been chosen this turn —",
-     "hits": 15,
-     "games": 2
+     "card": "Brass's Tunnel-Grinder // Tecutlan, the Searing Rift",
+     "clause": "Then if there are three or more bore counters on it, remove those counters and transform it.",
+     "hits": 14,
+     "games": 9
+    },
+    {
+     "card": "Guardian of Faith",
+     "clause": "any number of other target creatures you control phase out.",
+     "hits": 12,
+     "games": 12
+    },
+    {
+     "card": "Zimone's Experiment",
+     "clause": "Look at the top five cards of your library.",
+     "hits": 12,
+     "games": 12
+    },
+    {
+     "card": "Zimone's Experiment",
+     "clause": "Put all land cards revealed this way onto the battlefield tapped and put all creature cards revealed this way into your hand.",
+     "hits": 12,
+     "games": 12
+    },
+    {
+     "card": "Zimone's Experiment",
+     "clause": "You may reveal up to two creature and/or land cards from among them, then put the rest on the bottom of your library in a random order.",
+     "hits": 12,
+     "games": 12
+    },
+    {
+     "card": "Deflecting Palm",
+     "clause": "If damage is prevented this way, ~ deals that much damage to that source's controller.",
+     "hits": 11,
+     "games": 11
     }
    ]
   },
@@ -214,74 +214,56 @@
    ],
    "seed": 23,
    "games": 60,
-   "hitsPerGame": 6.75,
-   "ceiling": 6.75,
+   "hitsPerGame": 5.933,
+   "ceiling": 5.933,
    "topClauses": [
     {
      "card": "Sothera, the Supervoid",
      "clause": "each opponent chooses a creature they control and exiles it.",
-     "hits": 34,
-     "games": 11
+     "hits": 53,
+     "games": 12
     },
     {
-     "card": "Victimize",
-     "clause": "Choose two target creature cards in your graveyard.",
-     "hits": 32,
-     "games": 27
+     "card": "Super-Adaptoid",
+     "clause": "Do the same for flying, first strike, double strike, deathtouch, indestructible, lifelink, menace, reach, trample, and vigilance.",
+     "hits": 28,
+     "games": 18
     },
     {
-     "card": "Victimize",
-     "clause": "If you do, return the chosen cards to the battlefield tapped.",
-     "hits": 32,
-     "games": 27
+     "card": "Super-Adaptoid",
+     "clause": "If that creature has haste and ~ doesn't, put a haste counter on ~.",
+     "hits": 28,
+     "games": 18
+    },
+    {
+     "card": "Super-Adaptoid",
+     "clause": "choose another target creature.",
+     "hits": 28,
+     "games": 18
     },
     {
      "card": "Grim Servant",
      "clause": "search your library for a card with mana value less than or equal to your devotion to black, reveal it, put it into your hand, then shuffle.",
-     "hits": 22,
-     "games": 19
+     "hits": 20,
+     "games": 17
     },
     {
      "card": "Kinzu of the Bleak Coven",
      "clause": "If you do, create a token that's a copy of that creature, except it's 1/1 and has toxic 1.",
-     "hits": 21,
+     "hits": 20,
      "games": 9
     },
     {
      "card": "Kinzu of the Bleak Coven",
      "clause": "you may pay 2 life and exile it.",
-     "hits": 21,
+     "hits": 20,
      "games": 9
     },
     {
-     "card": "Super-Adaptoid",
-     "clause": "Do the same for flying, first strike, double strike, deathtouch, indestructible, lifelink, menace, reach, trample, and vigilance.",
-     "hits": 20,
-     "games": 15
-    },
-    {
-     "card": "Super-Adaptoid",
-     "clause": "If that creature has haste and ~ doesn't, put a haste counter on ~.",
-     "hits": 20,
-     "games": 15
-    },
-    {
-     "card": "Super-Adaptoid",
-     "clause": "choose another target creature.",
-     "hits": 20,
-     "games": 15
-    },
-    {
-     "card": "Gwenom, Remorseless",
-     "clause": "If you cast a spell this way, pay life equal to ~'s mana value rather than pay its mana cost.",
-     "hits": 18,
-     "games": 9
-    },
-    {
-     "card": "Gwenom, Remorseless",
-     "clause": "until end of turn, you may look at the top card of your library any time and you may play cards from the top of your library.",
-     "hits": 18,
-     "games": 9
+     "card": "Goliath Hatchery",
+     "clause": "create two 3/3 green Phyrexian Beast creature tokens with toxic 1.",
+     "hits": 13,
+     "games": 13
     },
     {
      "card": "Noxious Assault",
@@ -306,6 +288,24 @@
      "clause": "All creatures get -X/-X until end of turn.",
      "hits": 13,
      "games": 13
+    },
+    {
+     "card": "Kindred Dominance",
+     "clause": "Choose a creature type.",
+     "hits": 12,
+     "games": 12
+    },
+    {
+     "card": "Kindred Dominance",
+     "clause": "Destroy all creatures that aren't of the chosen type.",
+     "hits": 12,
+     "games": 12
+    },
+    {
+     "card": "Teferi's Protection",
+     "clause": "All permanents you control phase out.",
+     "hits": 11,
+     "games": 11
     }
    ]
   },
@@ -319,98 +319,98 @@
    ],
    "seed": 24,
    "games": 60,
-   "hitsPerGame": 16.567,
-   "ceiling": 16.567,
+   "hitsPerGame": 10.9,
+   "ceiling": 10.9,
    "topClauses": [
     {
      "card": "Nissa, Who Shakes the World",
      "clause": "It becomes a 0/0 Elemental creature with vigilance and haste that's still a land.",
-     "hits": 42,
+     "hits": 44,
      "games": 11
-    },
-    {
-     "card": "Sergeant John Benton",
-     "clause": "you and that player each draw that many cards.",
-     "hits": 39,
-     "games": 10
     },
     {
      "card": "Ixhel, Scion of Atraxa",
      "clause": "You may look at and play those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color to cast those spells.",
-     "hits": 38,
+     "hits": 43,
      "games": 11
     },
     {
      "card": "Ixhel, Scion of Atraxa",
      "clause": "each opponent who has three or more poison counters exiles the top card of their library face down.",
-     "hits": 38,
+     "hits": 43,
      "games": 11
     },
     {
-     "card": "Augusta, Order Returned",
-     "clause": "When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature.",
-     "hits": 37,
-     "games": 10
-    },
-    {
-     "card": "Augusta, Order Returned",
-     "clause": "each player exiles a card from their graveyard.",
-     "hits": 37,
-     "games": 10
-    },
-    {
-     "card": "Betor, Kin to All",
-     "clause": "Then if creatures you control have total toughness 20 or greater, untap each creature you control.",
-     "hits": 26,
+     "card": "Advanced Reconstruction",
+     "clause": "this Class deals 2 damage to each opponent.",
+     "hits": 31,
      "games": 10
     },
     {
      "card": "Horizon Explorer",
      "clause": "create a Lander token.",
-     "hits": 26,
-     "games": 8
-    },
-    {
-     "card": "Conspiracy Theorist",
-     "clause": "If you do, draw a card.",
-     "hits": 24,
-     "games": 8
-    },
-    {
-     "card": "Conspiracy Theorist",
-     "clause": "you may pay {1} and discard a card.",
-     "hits": 24,
-     "games": 8
+     "hits": 23,
+     "games": 6
     },
     {
      "card": "Gandalf the Grey",
      "clause": "choose one that hasn't been chosen —",
-     "hits": 24,
-     "games": 8
-    },
-    {
-     "card": "Excava, the Risen Past",
-     "clause": "It's a 1/1 Spirit creature with flying in addition to its other types.",
-     "hits": 23,
-     "games": 8
-    },
-    {
-     "card": "Excava, the Risen Past",
-     "clause": "return up to one target artifact, creature, or non-Aura enchantment card with mana value 3 or less from your graveyard to the battlefield with a finality counter on it.",
-     "hits": 23,
-     "games": 8
-    },
-    {
-     "card": "Antiquities on the Loose",
-     "clause": "Then if ~ was cast from anywhere other than your hand, put a +1/+1 counter on each Spirit you control.",
-     "hits": 21,
-     "games": 13
-    },
-    {
-     "card": "Advanced Reconstruction",
-     "clause": "this Class deals 2 damage to each opponent.",
      "hits": 20,
-     "games": 5
+     "games": 6
+    },
+    {
+     "card": "Conspiracy Theorist",
+     "clause": "If you do, draw a card.",
+     "hits": 16,
+     "games": 6
+    },
+    {
+     "card": "Conspiracy Theorist",
+     "clause": "you may pay {1} and discard a card.",
+     "hits": 16,
+     "games": 6
+    },
+    {
+     "card": "Blasphemous Edict",
+     "clause": "You may pay {B} rather than pay ~'s mana cost if there are thirteen or more creatures on the battlefield.",
+     "hits": 15,
+     "games": 15
+    },
+    {
+     "card": "Mutable Explorer",
+     "clause": "create a tapped Mutavault token.",
+     "hits": 15,
+     "games": 15
+    },
+    {
+     "card": "Winnowing",
+     "clause": "For each player, you choose a creature that player controls.",
+     "hits": 14,
+     "games": 14
+    },
+    {
+     "card": "Winnowing",
+     "clause": "Then each player sacrifices all other creatures they control that don't share a creature type with the chosen creature they control.",
+     "hits": 14,
+     "games": 14
+    },
+    {
+     "card": "Storm the Seedcore",
+     "clause": "Distribute four +1/+1 counters among up to four target creatures you control.",
+     "hits": 12,
+     "games": 12
+    },
+    {
+     "card": "Quintorius, Loremaster",
+     "clause": "exile target noncreature, nonland card from your graveyard.",
+     "hits": 12,
+     "games": 3
+    },
+    {
+     "card": "Tragic Arrogance",
+     "clause": "For each player, you choose from among the permanents that player controls an artifact, a creature, an enchantment, and a planeswalker.",
+     "hits": 11,
+     "games": 11
     }
    ]
   }

@@ -1,0 +1,16 @@
+{
+  "oracleId": "91b1db8c-4bce-43d1-94ab-14b1435686c7",
+  "name": "Grim Reaper's Scythe",
+  "clause": "{3}{B}, {T}, Sacrifice two creatures: Return target creature card from your graveyard to the battlefield with a finality counter on it. Activate only as a sorcery.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "AbilityCost.sacrifice?: Filter | { filter: Filter; count: number }; AbilityCost.exileFromGraveyard?: number | { count: number; filter: Filter }",
+      "semantics": "Give the two existing cost parts a count and a filter: 'Sacrifice two creatures' asks for exactly two matching permanents, 'Exile three creature cards from your graveyard' only accepts creature cards.",
+      "cr": "118.3, 601.2h",
+      "clause": "'Sacrifice two creatures:' / 'Exile three creature cards from your graveyard:'"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

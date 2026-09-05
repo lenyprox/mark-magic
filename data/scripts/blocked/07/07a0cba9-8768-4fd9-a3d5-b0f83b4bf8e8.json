@@ -1,0 +1,16 @@
+{
+  "oracleId": "07a0cba9-8768-4fd9-a3d5-b0f83b4bf8e8",
+  "name": "Chaos Warp",
+  "clause": "The owner of target permanent shuffles it into their library, then reveals the top card of their library. If it's a permanent card, they put it onto the battlefield.",
+  "needs": [
+    {
+      "opFamily": "object-predicate",
+      "proposedSignature": "Condition: { kind: 'that-matches', filter: Filter, of?: Ref }  // holds when the bound object (default `that`) matches the filter",
+      "semantics": "A condition that tests the CURRENT BINDING against an ordinary Filter, so 'if it's a creature card', 'if it's a Spirit', 'if that creature has haste', 'if it's a permanent card' become `conditional` branches instead of unexpressible clauses. Filter already carries types / subtypes / withKeyword / notKeywords / mvLE, so nothing new is needed on the filter side; only the condition variant and its resolution through refs.ts. A companion `{ kind: 'self-matches', filter }` covers '…and ~ doesn't'.",
+      "cr": "608.2, 109.5, 613.1f",
+      "clause": "If it's a creature card, you gain life equal to that card's toughness … / If it's a Spirit, put a +1/+1 counter on it. / If that creature has haste and ~ doesn't, put a haste counter on ~."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

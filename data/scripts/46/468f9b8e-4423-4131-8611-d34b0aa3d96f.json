@@ -1,0 +1,179 @@
+{
+  "oracleId": "468f9b8e-4423-4131-8611-d34b0aa3d96f",
+  "name": "Nissa, Worldwaker",
+  "oracleHash": "3cae604d",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {},
+      "loyalty": 1,
+      "sorcerySpeed": true,
+      "oncePerTurn": true,
+      "effects": [
+        {
+          "op": "animate",
+          "target": {
+            "kind": "land",
+            "controller": "you"
+          },
+          "power": 4,
+          "toughness": 4,
+          "colors": [],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Elemental"
+          ],
+          "keywords": [
+            "trample"
+          ],
+          "duration": "permanent"
+        }
+      ],
+      "text": "+1: Target land you control becomes a 4/4 Elemental creature with trample. It's still a land."
+    },
+    {
+      "kind": "activated",
+      "cost": {},
+      "loyalty": 1,
+      "sorcerySpeed": true,
+      "oncePerTurn": true,
+      "effects": [
+        {
+          "op": "untap",
+          "target": {
+            "kind": "land",
+            "filter": {
+              "subtypes": [
+                "Forest"
+              ]
+            },
+            "count": 4,
+            "optional": true
+          }
+        }
+      ],
+      "text": "+1: Untap up to four target Forests."
+    },
+    {
+      "kind": "activated",
+      "cost": {},
+      "loyalty": -7,
+      "sorcerySpeed": true,
+      "oncePerTurn": true,
+      "effects": [
+        {
+          "op": "search",
+          "filter": {
+            "types": [
+              "Land"
+            ],
+            "basic": true
+          },
+          "to": "battlefield",
+          "count": 99,
+          "optional": true
+        },
+        {
+          "op": "for-each",
+          "over": "those",
+          "do": [
+            {
+              "op": "animate",
+              "target": "that",
+              "power": 4,
+              "toughness": 4,
+              "colors": [],
+              "types": [
+                "Creature"
+              ],
+              "subtypes": [
+                "Elemental"
+              ],
+              "keywords": [
+                "trample"
+              ],
+              "duration": "permanent"
+            }
+          ]
+        }
+      ],
+      "text": "-7: Search your library for any number of basic land cards, put them onto the battlefield, then shuffle. Those lands become 4/4 Elemental creatures with trample. They're still lands."
+    }
+  ],
+  "aiHints": {
+    "role": "ramp",
+    "value": 7,
+    "timing": "main"
+  },
+  "notes": "Loyalty abilities. `animate` ADDS the creature type to the land's own types (characteristics.ts:72), so \"it's still a land\" needs nothing extra. The -7 uses `search` rather than `search-land` because only `search` binds what it found, which the following `for-each over: 'those'` animates.",
+  "verification": {
+    "at": "2026-09-05T13:58:18.541Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "3cae604d",
+    "scriptHash": "9b07f323",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.677,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "data/scenarios/46/468f9b8e-4423-4131-8611-d34b0aa3d96f.json",
+      "passed": 4,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "-7: Search your library for any number of basic land cards, put them onto the battlefield, then shuffle. — expected \"any number\" — an unbounded, may-be-zero search — scripted search { count: 99, optional: true }; renders as \"search your library for 99 basic land cards\" (line score 0.68, the card's lowest) — CR 701.19a",
+          "+1 / +1 / -7 (all three loyalty abilities) — expected one loyalty ability per planeswalker per turn, across all its abilities — scripted oncePerTurn: true is set per-ability, which alone would allow both +1s in one turn; harmless only because legal.ts:243 already blocks a loyalty ability when the permanent has activated anything this turn — CR 606.3",
+          "+1: Target land you control becomes a 4/4 Elemental creature with trample. It's still a land. — expected the land keeps its land type and gains Creature — scripted animate with types:['Creature'] — verified correct: characteristics.ts types() unions animated.types with the base types, and colors() keeps the original when animated.colors is empty, so \"it's still a land\" needs nothing extra (notes claim confirmed) — CR 205.1b"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "+1: Target land you control becomes a 4/4 Elemental creature with trample. It's still a land. — expected loyalty abilities are once per turn PER PLANESWALKER (CR 606.3), not per ability — scripted each of the three abilities carries oncePerTurn: true, which is per-ability scoping — CR 606.3",
+          "(all three abilities) — expected n/a — harmless — scripted legal.ts:243 already blocks every loyalty ability once activatedThisTurn is non-empty, so oncePerTurn is redundant, not wrong in play — CR 606.3",
+          "-7: Search your library for any number of basic land cards... — expected 'any number' is unbounded — scripted search count: 99 with optional: true (exact:false, capped at Math.min(99, opts.length)); a library with 100+ basic lands would be undercounted. Renders as 'search your library for 99 basic land cards' (line score 0.68) — CR 701.19a",
+          "-7: ...Those lands become 4/4 Elemental creatures with trample. — expected every land put onto the battlefield this way is animated — scripted for-each over 'those' + animate 'that' — correct (opForEach rebinds item.affected per iteration), but the scenario only exercises ONE found land, so the multi-land path is untested — CR 701.19a"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

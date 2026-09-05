@@ -1,0 +1,66 @@
+{
+  "oracleId": "602e421e-afab-4488-8a52-af66b4fdce4b",
+  "name": "Noxious Ghoul",
+  "scenarios": [
+    {
+      "name": "Noxious Ghoul entering gives every non-Zombie creature -1/-1 and kills a 1/1",
+      "cr": "704.5a",
+      "ruling": "The trigger hits all non-Zombie creatures, not just an opponent's; a creature whose toughness is 0 or less is put into its owner's graveyard.",
+      "seats": [
+        { "bf": ["Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Grizzly Bears"], "hand": ["Noxious Ghoul"] },
+        { "bf": ["Mons's Goblin Raiders", "Hill Giant"] }
+      ],
+      "script": [
+        { "cast": "Noxious Ghoul" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "pt": ["Grizzly Bears", 1, 1] },
+        { "pt": ["Hill Giant", 2, 2] },
+        { "pt": ["Noxious Ghoul", 3, 3] },
+        { "zone": ["Mons's Goblin Raiders", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Another Zombie entering triggers Noxious Ghoul again",
+      "cr": "603.2",
+      "ruling": "The ability triggers on this creature or any other Zombie entering, whoever controls it.",
+      "seats": [
+        { "bf": ["Noxious Ghoul", "Grizzly Bears", "Swamp", "Swamp"], "hand": ["Walking Corpse"] },
+        { "bf": ["Hill Giant"] }
+      ],
+      "script": [
+        { "cast": "Walking Corpse" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "pt": ["Grizzly Bears", 1, 1] },
+        { "pt": ["Hill Giant", 2, 2] },
+        { "pt": ["Walking Corpse", 2, 2] },
+        { "pt": ["Noxious Ghoul", 3, 3] },
+        { "zone": ["Walking Corpse", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The -1/-1 from Noxious Ghoul wears off at the end of the turn",
+      "cr": "514.2",
+      "ruling": "\"Until end of turn\" effects end during the cleanup step.",
+      "seats": [
+        { "bf": ["Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Grizzly Bears"], "hand": ["Noxious Ghoul"] },
+        { "bf": ["Hill Giant"] }
+      ],
+      "script": [
+        { "cast": "Noxious Ghoul" },
+        { "resolve": true },
+        { "turns": 1 }
+      ],
+      "expect": [
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "pt": ["Hill Giant", 3, 3] },
+        { "zone": ["Noxious Ghoul", "battlefield"] }
+      ]
+    }
+  ]
+}

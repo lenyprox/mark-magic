@@ -1,0 +1,16 @@
+{
+  "oracleId": "bdb9e933-f679-4930-b669-0d123db09d16",
+  "name": "Bloodline Bidding",
+  "clause": "Choose a creature type. Return all creature cards of the chosen type from your graveyard to the battlefield.",
+  "needs": [
+    {
+      "opFamily": "choose-type",
+      "proposedSignature": "{ op: 'choose-type'; what: 'creature-type' | 'color' | 'card-type'; who?: ScopeWho }   AND   Filter.notChosenType?: boolean",
+      "semantics": "A one-shot 'Choose a creature type.' an instant or sorcery can perform, recording the choice on the resolving item so later effects of the same item read it through Filter.chosenType / notChosenType. Today only the as-enters replacement {kind:'choose', what:'creature-type'} exists, and a non-permanent never reaches it.",
+      "cr": "701.x, 205.3m",
+      "clause": "Choose a creature type. Destroy all creatures that aren't of the chosen type."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

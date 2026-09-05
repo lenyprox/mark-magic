@@ -1,0 +1,66 @@
+{
+  "oracleId": "9859fbca-60c3-4a57-a377-51b56f03894f",
+  "name": "Varina, Lich Queen",
+  "scenarios": [
+    {
+      "name": "Attacking with two Zombies draws two, discards two and gains two life",
+      "cr": "603.2",
+      "ruling": "The trigger counts the attacking Zombies once; Varina is herself a Zombie, so attacking with her and another Zombie draws two, discards two and gains 2 life.",
+      "seats": [
+        { "bf": ["Varina, Lich Queen", "Walking Corpse"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Varina, Lich Queen", "Walking Corpse"] }
+      ],
+      "expect": [
+        { "life": [0, 22] },
+        { "life": [1, 14] },
+        { "handCount": [0, 0] },
+        { "graveyardCount": [0, 2] },
+        { "libraryCount": [0, 18] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Attacking with a creature that is not a Zombie does not trigger Varina",
+      "cr": "603.2",
+      "ruling": "The ability triggers only when you attack with one or more Zombies; a lone Grizzly Bears is not a Zombie.",
+      "seats": [
+        { "bf": ["Varina, Lich Queen", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Grizzly Bears"] }
+      ],
+      "expect": [
+        { "life": [0, 20] },
+        { "life": [1, 18] },
+        { "handCount": [0, 0] },
+        { "libraryCount": [0, 20] },
+        { "graveyardCount": [0, 0] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Varina exiles two cards from your graveyard to make a tapped Zombie token",
+      "cr": "602.2b",
+      "ruling": "Exiling two cards from your graveyard is a cost, so the cards leave the graveyard for exile and a token is created.",
+      "seats": [
+        { "bf": ["Varina, Lich Queen", "Swamp", "Swamp"], "graveyard": ["Lightning Bolt", "Shock"] },
+        {}
+      ],
+      "script": [
+        { "activate": "Varina, Lich Queen" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "graveyardCount": [0, 0] },
+        { "zoneCount": [0, "exile", 2] },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

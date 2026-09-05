@@ -1,7 +1,1768 @@
 {
-  "blockedCards": 0,
-  "families": 0,
-  "stillLocked": 0,
-  "cardsUnlockedByTopFamily": 0,
-  "needs": []
+  "blockedCards": 121,
+  "families": 77,
+  "stillLocked": 77,
+  "cardsUnlockedByTopFamily": 14,
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "unlocked": false,
+      "cards": 14,
+      "cardIds": [
+        "17b4778b-82b1-4845-ad08-00f3ff66877b",
+        "4a59d86e-405d-4c70-b2a5-c64f5cecfd9e",
+        "51780f71-bf60-4208-94ea-76fa84790fb6",
+        "91b1db8c-4bce-43d1-94ab-14b1435686c7",
+        "9fb7982f-fe35-4dea-a515-a0039ddbbaec",
+        "ae120613-97d6-4393-b39d-c3e6c076f5d6",
+        "bbea79bc-71d4-4100-92f4-783c2c4b46da",
+        "c3d38129-b955-4fb5-8486-095f918935b9",
+        "c48cf135-b280-4e9f-a9d9-225104870741",
+        "cada3481-cc2b-4412-b9b5-0436af53aad2",
+        "ecd8d7f4-7b11-4097-afc0-ef3c81edd90c",
+        "ed14be15-8f8d-4fe3-a147-f5da8ed873bf",
+        "f8e17f4f-080d-4bba-bd05-ca27e94ccecc",
+        "fa81e7ff-0f2c-40df-9169-c0a22f00cd76"
+      ],
+      "exampleClauses": [
+        "'{2}, Exile ~:' / 'Exile ~ from your graveyard:'",
+        "You may cast a spell with mana value X or less from your hand without paying its mana cost. / you may play cards from the top of your library … pay life equal to its mana value rather than pay its mana cost / You may look at and play those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color / You may cast that card this turn without paying its mana cost. / If you control a commander, you may cast ~ without paying its mana cost.",
+        "'Sacrifice two creatures:' / 'Exile three creature cards from your graveyard:'",
+        "'Your opponents can't cast noncreature spells this turn.' / 'you can't cast additional spells this turn'",
+        "'Once during each of your turns, you may play a land from your graveyard or cast a permanent spell ...' / 'you may cast that card'"
+      ],
+      "proposedSignatures": [
+        "AbilityCost.exileSelf?: true — pay by exiling the source (from the battlefield, or from the graveyard when the ability is fromGraveyard)",
+        "AbilityCost.sacrifice?: Filter | { filter: Filter; count: number }; AbilityCost.exileFromGraveyard?: number | { count: number; filter: Filter }",
+        "static { kind: 'play-from-zone'; zone: 'graveyard' | 'exile' | 'library-top'; filter?: Filter; oncePerTurn?: boolean; grants?: Ability } and effect { op: 'cast-from-zone'; target: TargetSpec; zone: SetZone; free?: boolean }",
+        "{ kind: 'additional-cost-to-cast'; who: 'opponent' | 'any'; filter?: Filter; targetsSource?: true; cost: AbilityCost }",
+        "{ op: 'cast-permission', who: ScopeWho, from: 'hand'|'library-top'|'exile'|'graveyard', filter?: Filter, count?: Amount, free?: boolean, altCost?: AbilityCost, mvLE?: Amount, anyColorMana?: boolean, until: 'eot'|'this-turn'|'while-exiled' }",
+        "{ op: 'optional-pay'; cost: AbilityCost; then: Effect[] } (widen the existing `mana: ManaCost` field to a full AbilityCost)",
+        "{ op: 'restrict-casting'; who: ScopeWho; filter?: Filter; duration: 'this-turn'; max?: number }"
+      ],
+      "crCitations": [
+        "118.12, 601.2h",
+        "118.3, 601.2h",
+        "118.3, 601.2h, 602.1b",
+        "118.9, 601.1, 601.3e",
+        "601.2f, 604.3",
+        "601.3e, 118.9, 609.4b",
+        "601.3e, 616.1"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "layers",
+      "unlocked": false,
+      "cards": 9,
+      "cardIds": [
+        "0cdece2a-0bdf-4e6d-9ddc-4a8d58b2ec29",
+        "17770eeb-ecbf-4510-af2d-acececfbe146",
+        "3640c29b-1534-4952-b297-619ade948431",
+        "5cd96cf2-c1c6-4982-8cf8-70c16704e387",
+        "78b6dd40-c182-4037-a4d3-9fd012b2c584",
+        "c63402b2-1f8c-4004-82d8-48ea26bfe3fc",
+        "db6174d7-211d-4817-b8e4-8384594c83f9",
+        "eb4e9ce9-1917-46b1-b01c-645f5920ef9c",
+        "ecd8d7f4-7b11-4097-afc0-ef3c81edd90c"
+      ],
+      "exampleClauses": [
+        "Exchange target opponent's life total with ~'s toughness.",
+        "Each land is a Swamp in addition to its other land types.",
+        "~ is the chosen type in addition to its other types.",
+        "Tap an untapped Zombie you control: Target creature gains swampwalk until end of turn.",
+        "target creature ... gains trample and \"Whenever this creature deals combat damage to a player, draw a card.\""
+      ],
+      "proposedSignatures": [
+        "static { kind: 'add-types', scope: 'self'|'you-control'|'all'|'enchanted'|'equipped', filter?: Filter, types?: CardType[], subtypes?: (string | 'chosen-creature-type')[] }",
+        "{ kind: 'add-types', scope: 'all' | 'you-control' | 'enchanted' | 'equipped' | 'self', filter?: Filter, types?: CardType[], subtypes?: string[] | 'chosen-basic-land-type' }",
+        "{ kind: 'lose-keywords', scope: 'all' | 'you-control' | 'opponents-control' | 'enchanted', filter?: Filter, keywords: Keyword[], cantGain?: true }",
+        "{ kind: 'set-color', scope: 'enchanted' | 'equipped' | 'self' | 'you-control' | 'all', filter?: Filter, colors: Color[] | 'chosen' }",
+        "{ op: 'exchange'; what: 'life-and-toughness'; a: ExchangeSide (a player); b: Ref (a permanent) }",
+        "{ op: 'grant-ability'; target: TargetSpec | Ref | 'creatures-you-control'; ability: Ability; duration: 'eot' | 'permanent' } (widen the existing source-only form)",
+        "{ op: 'grant-landwalk', target: TargetSpec | Ref | 'creatures-you-control', subtypes: string[], duration: 'eot' | 'permanent' }  -- or give `grant-keyword` an optional `landwalk?: string[]` alongside `keywords`"
+      ],
+      "crCitations": [
+        "105.2, 613.1e",
+        "205.1b, 305.7, 613.1d (layer 4)",
+        "613.1d, 205.1b, 205.3",
+        "613.1f, 611.2c",
+        "613.1f, 702.2b",
+        "701.12, 613.4b",
+        "702.14a"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "other",
+      "unlocked": false,
+      "cards": 7,
+      "cardIds": [
+        "196f8f13-d4df-4740-8746-8fed3bc71840",
+        "2bace3ea-7d28-4a1c-857a-d3c3a1c11b59",
+        "34b93a66-de1e-4133-a479-e0d90ba94a3a",
+        "84d648c7-655e-4590-a3e0-366a8a4a4cb3",
+        "9fd521d5-baa3-4054-a990-d23265863c71",
+        "d5770b0f-4493-42e9-a2d7-0e74a28da4ba",
+        "eada96a1-4964-4ad0-b0e3-2df08d6ae188"
+      ],
+      "exampleClauses": [
+        "if it entered from your graveyard or you cast it from your graveyard / Put a deathtouch counter on the token if a black card was milled this way. / The first creature spell you cast each turn costs {2} less to cast and can be cast as though it had flash.",
+        "Whenever an opponent searches their library, ...",
+        "'Changeling' / 'create a tapped Mutavault token' / 'a 2/2 black Zombie creature token with decayed'",
+        "Whenever equipped creature attacks or blocks, ...",
+        "Whenever one or more creatures you control with power 4 or greater attack, search your library for up to that many basic land cards ..."
+      ],
+      "proposedSignatures": [
+        "Keyword 'changeling' and Keyword 'decayed'; { op: 'token'; ...; abilities?: Ability[]; predefined?: string }",
+        "conditions { kind: 'entered-from', zone: 'graveyard'|'exile'|'hand'|'library' } and { kind: 'cast-from', zone: SetZone } (an `or` of the two is Grist's intervening-if); { kind: 'milled-this-way', filter: Filter }; plus a gate `nthEachTurn?: number` on the `cost-adjust` and `flash-for` statics",
+        "{ on: 'attacks'; self: false; filter: Filter; oneOrMore: true } plus search.count: Amount",
+        "{ on: 'blocks'; self: boolean; filter?: Filter } (add the filter the `attacks` event already has)",
+        "{ on: 'searches-library'; who: 'you' | 'opponent' | 'any' }"
+      ],
+      "crCitations": [
+        "509.1a, 702.6a",
+        "603.2, 608.2h, 701.19",
+        "603.4, 400.7, 601.2, 608.2",
+        "701.19",
+        "702.73 (changeling), 702.146 (decayed), 111.1"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "copy-clone",
+      "unlocked": false,
+      "cards": 6,
+      "cardIds": [
+        "196f8f13-d4df-4740-8746-8fed3bc71840",
+        "2631130e-63e2-43a3-914a-648e76722203",
+        "663d451b-f848-41cc-b541-0c6fe37d3d54",
+        "ae120613-97d6-4393-b39d-c3e6c076f5d6",
+        "c75e55f2-fd6c-4816-9d96-21eeb8369aff",
+        "e4f4c41b-2533-497f-96bb-7083ef597268"
+      ],
+      "exampleClauses": [
+        "Create a token that's a copy of it, except it's a 4/4 black Zombie. / except it's 1/1 and has toxic 1. / except it's a Spirit in addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard.\"",
+        "Whenever you cast a spell while ~ is attacking, copy that spell. / Copy target instant or sorcery spell, then return it to its owner's hand.",
+        "You may choose new targets for target spell or ability."
+      ],
+      "proposedSignatures": [
+        "{ op: 'change-targets', target: TargetSpec /* kind 'spell' | 'ability' | 'spell-or-ability' */, who: 'you', optional?: boolean }",
+        "{ op: 'copy-spell', target: TargetSpec | Ref, newTargets?: boolean }  — widen `target` to accept 'triggering' / 'that' / 'target:<n>'",
+        "{ op: 'token-copy', target, count, power?: number, toughness?: number, colors?: Color[], name?: string, extraTypes?, extraSubtypes?, extraKeywords?, grantAbility?: Ability, tapped?, attacking? }"
+      ],
+      "crCitations": [
+        "115.7, 115.7b",
+        "707.10, 706.10, 603.2",
+        "707.2, 706.2, 613.2"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "generic",
+      "unlocked": false,
+      "cards": 5,
+      "cardIds": [
+        "1caa7fa2-a881-4a65-a87e-12a974520c83",
+        "6662968e-ca9e-454c-be44-24ad10e43d3e",
+        "981298e6-ddee-49c0-9377-f47f019b4138",
+        "d90af00a-d322-4265-9954-7b1e80702e18",
+        "eada96a1-4964-4ad0-b0e3-2df08d6ae188"
+      ],
+      "exampleClauses": [
+        "a card with mana value less than or equal to your devotion to black",
+        "if it had no counters on it",
+        "'the exiled card's owner creates an X/X ... where X is the mana value of the exiled card' / 'Put a card exiled with ~ into its owner's graveyard.'",
+        "'If it's a land card, ...' / 'if it didn't have decayed'"
+      ],
+      "proposedSignatures": [
+        "Amount { count: 'devotion'; colors: Color[] }",
+        "{ kind: 'self-no-counters'; counter: 'any' } (and the same for self-had-counters)",
+        "{ kind: 'that-is-type'; type: CardType; not?: boolean } and { kind: 'triggering-has-keyword'; keyword: Keyword; not?: boolean }",
+        "{ op: 'exile'; ...; remember?: true } recording the exiled cards on the source, plus { op: 'bind'; as: 'that'; from: 'exiled-with' } and { op: 'move'; what: { ref: 'exiled-with'; count: Amount; choose?: 'you' } }"
+      ],
+      "crCitations": [
+        "122.1, 603.4",
+        "400.7, 610.3, 608.2h",
+        "608.2, 603.10a",
+        "700.5"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "named-keyword:prepare",
+      "unlocked": false,
+      "cards": 5,
+      "cardIds": [
+        "1bf505a7-292e-4642-83b6-8ff41ebe5d51",
+        "58b0c737-0a84-4f9a-b3b7-300c5de43874",
+        "5963eef1-1022-42b1-8a0c-fc9850bfc2a3",
+        "e5152e8d-9f55-493d-a0fc-753cc72ee299",
+        "f6036065-7196-44d4-8a27-2199f0e1a03c"
+      ],
+      "exampleClauses": [
+        "~ enters prepared. / ~ becomes prepared. (While it's prepared, you may cast a copy of its spell. Doing so unprepares it.)"
+      ],
+      "proposedSignatures": [
+        "asEnters { kind: 'prepared' } · effect { op: 'become-prepared' } · altCost { id: 'prepared', from: 'battlefield', castFace: 1 } · SECOND_FACE_LAYOUTS += 'prepare'"
+      ],
+      "crCitations": [
+        "701.x (new keyword action), 707.10 (the copy that is cast), 601.3e"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "replacement",
+      "unlocked": false,
+      "cards": 5,
+      "cardIds": [
+        "17770eeb-ecbf-4510-af2d-acececfbe146",
+        "b685757b-521e-4353-a233-97052359723d",
+        "c3d38129-b955-4fb5-8486-095f918935b9",
+        "dc5dffc8-fac5-4956-bac4-1ad2cc16f6be",
+        "e8d20361-d9b7-4f9c-8ec5-3ac7c460dcb2"
+      ],
+      "exampleClauses": [
+        "As ~ enters, choose a basic land type. Then you may pay 2 life. If you don't, it enters tapped.",
+        "Combat damage that would be dealt by creatures you control can't be prevented. / Lands you control enter untapped. / The next time a source of your choice would deal damage to you this turn, prevent that damage. / If that spell would be put into a graveyard, put it on the bottom of its owner's library instead."
+      ],
+      "proposedSignatures": [
+        "static { kind: 'replacement', would: { event: 'damage'|'enters'|'zone-change'|'counters'; filter?: Filter; scope?: 'you-control'|'all'|'self'; to?: 'you'|'any' }, instead: Effect[] | 'none' | 'unpreventable', duration?: 'permanent'|'eot' } · effect { op: 'prevent-next-damage', from: 'chosen-source', to: 'you'|Ref, duration: 'eot', then?: Effect[] }",
+        "{ kind: 'choose', what: 'creature-type' | 'color' | 'basic-land-type' }, plus an anchored covers shape for a line that carries a choice AND the pay-life-or-tapped clause"
+      ],
+      "crCitations": [
+        "614.1, 615.1, 615.10, 616.1",
+        "614.12, 305.7"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "named-keyword:toxic",
+      "unlocked": false,
+      "cards": 4,
+      "cardIds": [
+        "af7abd22-3134-4872-bbe2-0ad84742d9e5",
+        "c4d65bcd-f6c5-40c3-825d-06b5183e7dbe",
+        "e4f4c41b-2533-497f-96bb-7083ef597268",
+        "ff58459a-0015-4012-86c0-580da4e02676"
+      ],
+      "exampleClauses": [
+        "Each other creature you control with toxic gains toxic 1 until end of turn. / Enchanted creature has toxic 2. / two 3/3 green Phyrexian Beast creature tokens with toxic 1 / draw cards equal to its total toxic value"
+      ],
+      "proposedSignatures": [
+        "a parameterised keyword everywhere a Keyword[] appears: `grant-keyword.keywords: (Keyword | { keyword: 'toxic'|'bushido'|'rampage'|'ward'|'protection'; amount: number })[]`, the same on `token.keywords`, `aura.keywords`, `anthem.keywords`, `animate.keywords`; plus an Amount `{ prop: 'toxic', of: Ref }`"
+      ],
+      "crCitations": [
+        "702.180a, 702.180b, 613.1f"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "choose-mode:not-chosen",
+      "unlocked": false,
+      "cards": 3,
+      "cardIds": [
+        "71fc2393-f55c-4b06-897c-fb7d4199b5f5",
+        "dfd12e3c-2b2a-4461-a08d-09d4e6c4626e",
+        "e69e8de4-b521-4888-8074-17f1efe2f345"
+      ],
+      "exampleClauses": [
+        "Whenever you discard a card, choose one that hasn't been chosen this turn —"
+      ],
+      "proposedSignatures": [
+        "`choose-mode` gains `notChosen?: 'this-turn' | 'ever'`, with the record kept on the source (o.ext.modesChosen, wiped at cleanup for 'this-turn')"
+      ],
+      "crCitations": [
+        "700.2, 700.2e"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "class-levels",
+      "unlocked": false,
+      "cards": 3,
+      "cardIds": [
+        "915b75d1-b5e3-4aca-a54c-beaccef0a2e4",
+        "c97957a2-8310-4cff-8aad-871b7901d124",
+        "f00bc101-8082-4459-b987-f0c4b7a12344"
+      ],
+      "exampleClauses": [
+        "{W}: Level 2 / When this Class becomes level 2, create a token that's a copy of target token you control."
+      ],
+      "proposedSignatures": [
+        "{ op: 'set-level'; to: number } as the effect of a sorcery-speed activated ability with activateOnlyIf { kind: 'self-level-eq', value: N-1 }; a trigger { on: 'became-level'; level: number }; and an ability gate `Ability.atLevel?: number` read by abilitiesOf / computeStaticMods"
+      ],
+      "crCitations": [
+        "716.2a, 716.2b"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "grant-alt-cost",
+      "unlocked": false,
+      "cards": 3,
+      "cardIds": [
+        "02070488-9203-4304-9392-a111d20218c5",
+        "27e0948b-9916-473b-8d8c-a51bdfbc7457",
+        "2c3e6377-d09c-46b6-8a83-ada4a2930b14"
+      ],
+      "exampleClauses": [
+        "Target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost.",
+        "Each nonland card in your graveyard has escape. The escape cost is equal to the card's mana cost plus exile three other cards from your graveyard."
+      ],
+      "proposedSignatures": [
+        "{ kind: 'grant-alt-cost', zone: 'graveyard' | 'hand' | 'exile', who: ScopeWho, filter: Filter, altCost: AltCost } as a StaticEffect variant, plus a cost form meaning \"that card's own mana cost\" (e.g. AbilityCost.mana: 'card-mana-cost')",
+        "{ op: 'grant-alt-cost'; target: TargetSpec | { filter: Filter; zone: SetZone; who: ScopeWho; count: Amount | 'all' }; altCost: Omit<AltCost,'cost'> & { cost: AbilityCost | 'its-mana-cost' }; duration: 'eot' | 'permanent' }"
+      ],
+      "crCitations": [
+        "702.139, 601.2b, 113.6",
+        "702.34a, 613.1f"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "keyword-action",
+      "unlocked": false,
+      "cards": 3,
+      "cardIds": [
+        "13bf8103-3db3-4ee6-a6bb-441aabfd9e41",
+        "446db5a4-21b0-44c1-b12b-d365313dd67a",
+        "e8d20361-d9b7-4f9c-8ec5-3ac7c460dcb2"
+      ],
+      "exampleClauses": [
+        "it endures X, where X is the number of counters on ~.",
+        "reveal cards from the top of your library until you reveal a land card. Put that card onto the battlefield tapped and the rest on the bottom of your library in a random order.",
+        "Whenever you attack a player, create a Lander token. (It's an artifact with \"{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\")"
+      ],
+      "proposedSignatures": [
+        "{ op: 'endure'; amount: Amount; target: TargetSpec | Ref }",
+        "{ op: 'reveal-until'; filter: Filter; found: Effect[]; rest: 'bottom-random' | 'bottom' | 'top' | 'graveyard' | 'hand' }",
+        "{ op: 'token', ..., predefined?: 'Lander'|'Treasure'|'Clue'|'Food'|'Blood'|'Map'|'Powerstone'|'Incubator' } — a predefined-token table carrying each token's real ability"
+      ],
+      "crCitations": [
+        "111.1, 111.10",
+        "701.16, 701.19",
+        "701.5 (Endure, Bloomburrow)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "named-keyword:backup",
+      "unlocked": false,
+      "cards": 3,
+      "cardIds": [
+        "74b631c5-9420-496e-8845-3b050d3d5340",
+        "7b03910a-2ca7-40cb-9c71-1c2cc856a287",
+        "d6c7d7a6-2d38-4c06-ab83-bee9cc18de52"
+      ],
+      "exampleClauses": [
+        "Backup 1"
+      ],
+      "proposedSignatures": [
+        "{ op: 'backup'; amount: number } as the body of an { on: 'etb', self: true } trigger, PLUS KEYWORD_EXPANSIONS['backup'] = \"when ~ enters, put {n} +1/+1 counters on target creature. if that's another creature, it also gains the non-backup abilities of ~ until end of turn\" in src/cards/render.ts"
+      ],
+      "crCitations": [
+        "702.165a, 702.165c"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "object-predicate",
+      "unlocked": false,
+      "cards": 3,
+      "cardIds": [
+        "07a0cba9-8768-4fd9-a3d5-b0f83b4bf8e8",
+        "e1a9c467-2d64-4e11-adf3-7333c923b187",
+        "f93fa6ec-1f13-4109-aa60-11e148f7ba88"
+      ],
+      "exampleClauses": [
+        "If it's a creature card, you gain life equal to that card's toughness … / If it's a Spirit, put a +1/+1 counter on it. / If that creature has haste and ~ doesn't, put a haste counter on ~."
+      ],
+      "proposedSignatures": [
+        "Condition: { kind: 'that-matches', filter: Filter, of?: Ref }  // holds when the bound object (default `that`) matches the filter"
+      ],
+      "crCitations": [
+        "608.2, 109.5, 613.1f"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "choose-type",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "bdb9e933-f679-4930-b669-0d123db09d16",
+        "ccaa44f2-96be-44e2-884f-c31baa3908d5"
+      ],
+      "exampleClauses": [
+        "Choose a creature type. Destroy all creatures that aren't of the chosen type."
+      ],
+      "proposedSignatures": [
+        "{ op: 'choose-type'; what: 'creature-type' | 'color' | 'card-type'; who?: ScopeWho }   AND   Filter.notChosenType?: boolean"
+      ],
+      "crCitations": [
+        "701.x, 205.3m"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "combat-restr:must-be-blocked",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "7a7425ba-4478-4bc4-855f-abf947ea4fa2",
+        "ef6ecb67-7e49-4d40-84f2-1e7c02960a0d"
+      ],
+      "exampleClauses": [
+        "All creatures able to block ~ do so."
+      ],
+      "proposedSignatures": [
+        "{ kind: 'must-be-blocked'; scope: 'self' | 'enchanted'; by?: Filter } as a StaticEffect, implemented through the existing `blockFixup` family hook (src/engine/ops/types.ts:136-138)"
+      ],
+      "crCitations": [
+        "509.1c"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "dig-destinations",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "5faa9e54-1cc4-48c0-bbfa-a495087c36d6",
+        "acfe54b3-10e3-4fdb-b874-d39fde96c40a"
+      ],
+      "exampleClauses": [
+        "Look at the top twenty cards of your library, put any number of land cards from among them onto the battlefield tapped, then shuffle. / Put all land cards revealed this way onto the battlefield tapped and put all creature cards revealed this way into your hand."
+      ],
+      "proposedSignatures": [
+        "{ op: 'dig'; look: Amount; take: number | 'any'; filter?: Filter; takeTo?: { to: 'hand' | 'battlefield' | 'graveyard'; tapped?: boolean }; splitBy?: { filter: Filter; to: 'battlefield' | 'hand'; tapped?: boolean }[]; rest: ...; order: ... }"
+      ],
+      "crCitations": [
+        "701.19, 400.3"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "exploit",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "3406db41-6b95-48fc-b58e-4476220fd34d",
+        "d4838305-5392-42b2-81d1-9b9da71b20b1"
+      ],
+      "exampleClauses": [
+        "Exploit / When ~ exploits a creature, you may search your library for a card, put it into your hand, then shuffle."
+      ],
+      "proposedSignatures": [
+        "face declaration `exploit: true` (with a `covers` kind `by: 'exploit'` for the printed `^exploit$` line) + trigger event `{ on: 'exploits', self: true }`"
+      ],
+      "crCitations": [
+        "702.110 (702.110a, 702.110b)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "filter-shared-type",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "632e2979-d88a-482e-9bb8-57b683c5310f",
+        "8b834f83-951b-4b5c-b9f1-3d860baa3c0e"
+      ],
+      "exampleClauses": [
+        "Two target creatures you control that share a creature type can't be blocked this turn."
+      ],
+      "proposedSignatures": [
+        "Filter.sharesCreatureTypeWith?: Ref | 'chosen'  plus TargetSpec.sharedTypeGroup?: true (several picks of one requirement must agree)"
+      ],
+      "crCitations": [
+        "115.1, 700.3"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "filter:shares-type-and-commander",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "689cd6a8-8be0-49a6-9758-a81cc9f55cc8",
+        "b473e293-59e3-4e04-acf2-622604aeb25f"
+      ],
+      "exampleClauses": [
+        "Commander creatures you own have \"... it and other creatures you control that share a creature type with it each get +2/+0 ...\""
+      ],
+      "proposedSignatures": [
+        "Filter gains `sharesCreatureTypeWith?: Ref | 'commander'`, `commander?: boolean` and `owned?: boolean` (owner rather than controller)"
+      ],
+      "crCitations": [
+        "903.3, 700.4"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "named-keyword:undying",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "5d27c63e-d1ef-48af-b51d-01ebc6daeac9",
+        "689cd6a8-8be0-49a6-9758-a81cc9f55cc8"
+      ],
+      "exampleClauses": [
+        "Other non-Human creatures you control get +1/+1 and have undying."
+      ],
+      "proposedSignatures": [
+        "add 'undying' (and 'persist') to CoreKeyword so anthem.keywords / grant-keyword / self-keywords can carry it; the body already exists as { op: 'return-self-to-battlefield', counters: { counter: '+1/+1', amount: 1 } } gated on { kind: 'self-no-counters', counter: '+1/+1' }"
+      ],
+      "crCitations": [
+        "702.93a"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "phasing",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "0d4ecdb1-ec90-497f-a7a4-1c68092b8757",
+        "8e04a5e0-e22c-430b-a39a-c9f38e16ea86"
+      ],
+      "exampleClauses": [
+        "When ~ enters, any number of other target creatures you control phase out. / All permanents you control phase out."
+      ],
+      "proposedSignatures": [
+        "effect `{ op: 'phase-out', target: TargetSpec | Ref | 'permanents-you-control' | 'all-creatures' }`; static `{ kind: 'phasing' }` for the printed keyword; an internal delayed phase-in at the controller's untap step"
+      ],
+      "crCitations": [
+        "702.26 (702.26b, 702.26e for 'phases out'; 506.4 and 603.10b for combat and triggers)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "piles-choices",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "8a29bd35-33ef-4317-9fe5-8aaff5d7d64d",
+        "8b834f83-951b-4b5c-b9f1-3d860baa3c0e"
+      ],
+      "exampleClauses": [
+        "For each player, you choose from among the permanents that player controls an artifact, a creature, an enchantment, and a planeswalker. Then each player sacrifices all other nonland permanents they control."
+      ],
+      "proposedSignatures": [
+        "{ op: 'choose-for-each-player'; chooser: ScopeWho; from: ObjectSet; picks: Filter[]; bind: 'chosen' }  followed by { op: 'sacrifice'; who: 'each-player'; what: { unchosen: true, ... } }"
+      ],
+      "crCitations": [
+        "608.2f, 701.16, 104.3"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "retarget",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "30377bd5-99ab-4888-9ea7-e5a069b527e8",
+        "c62b5c22-e058-436f-9575-a01cb2112829"
+      ],
+      "exampleClauses": [
+        "+ {1} - Change the target of target spell or ability with a single target.",
+        "Change the target of target spell or ability with a single target."
+      ],
+      "proposedSignatures": [
+        "Effect: { op: 'change-target', target: { kind: 'spell-or-ability', singleTarget?: true }, to?: 'new-legal' }",
+        "`{ op: 'change-target', target: TargetSpec, to?: 'you-choose' }`"
+      ],
+      "crCitations": [
+        "115.7 (changing a target), 115.7b (the new target must be legal)",
+        "115.7, 115.7b"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "spree",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "282dfeaa-6243-4f92-838a-5cb54fa85184",
+        "30377bd5-99ab-4888-9ea7-e5a069b527e8"
+      ],
+      "exampleClauses": [
+        "Spree / + {1}{U} - Counter target spell. / + {3} - Create a token that's a copy of target artifact or creature you control. / + {2} - Draw two cards, then discard a card."
+      ],
+      "proposedSignatures": [
+        "`ModeSpec` gains `cost?: ManaCost`; `{ op: 'choose-mode', modes: ModeSpec[], count: 'one-or-more' }`; plus a face declaration `spree: true` with a `covers` kind `by: 'spree'` for the printed `^spree$` line"
+      ],
+      "crCitations": [
+        "702.172 (702.172a, 702.172b)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "trigger:main-phase",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "2acf8e34-9215-4a72-a24f-09d3bdd0083a",
+        "f00bc101-8082-4459-b987-f0c4b7a12344"
+      ],
+      "exampleClauses": [
+        "At the beginning of your first main phase, mill three cards."
+      ],
+      "proposedSignatures": [
+        "{ on: 'main-phase'; whose: 'your' | 'each'; which?: 'first' | 'precombat' | 'postcombat' }"
+      ],
+      "crCitations": [
+        "505.1, 505.1a"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "unclassified",
+      "unlocked": false,
+      "cards": 2,
+      "cardIds": [
+        "5a57fba3-01e3-4852-8c45-7c910502bd03",
+        "6cf50e21-0f60-4e9a-b910-ebe1bad2a29e"
+      ],
+      "exampleClauses": [
+        "Equip {3}",
+        "You may pay {B} rather than pay ~'s mana cost if there are thirteen or more creatures on the battlefield."
+      ],
+      "proposedSignatures": [],
+      "crCitations": [],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "ability-cost:mill",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "fa4dffda-6f04-4d0b-829d-28a1a5794dee"
+      ],
+      "exampleClauses": [
+        "{T}, Mill a card: Add {C}."
+      ],
+      "proposedSignatures": [
+        "AbilityCost gains `mill?: number`, paid through COST_PARTS like discard / payLife / exileFromGraveyard"
+      ],
+      "crCitations": [
+        "118.3, 701.13a"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "ability-cost:sacrifice-count",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "352b64d2-2ae5-44ee-a64f-94932ef545d3"
+      ],
+      "exampleClauses": [
+        "Flashback—Sacrifice three creatures."
+      ],
+      "proposedSignatures": [
+        "AbilityCost.sacrifice becomes `Filter | { filter: Filter; count: number | 'X' }`"
+      ],
+      "crCitations": [
+        "118.3, 702.34a"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "aura-reanimation",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "c0d8fef4-65f4-4769-982d-b397d2b7e977"
+      ],
+      "exampleClauses": [
+        "Return enchanted creature card to the battlefield under your control and attach ~ to it. When ~ leaves the battlefield, that creature's controller sacrifices it."
+      ],
+      "proposedSignatures": [
+        "StaticEffect aura: { enchant: TargetSpec (already), enchantAfterEtb?: TargetSpec }  ·  Effect: { op: 'attach-self', target: Ref }  ·  TriggerEvent: { on: 'ltb', self: true } binding the previously attached object as `that`"
+      ],
+      "crCitations": [
+        "303.4a, 400.7, 603.10a, 610.3"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "binding-counts",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "9b832f87-0bd5-47bd-ab9c-718bd9a6c441"
+      ],
+      "exampleClauses": [
+        "…with mana value less than or equal to the number of counters on that creature / When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature."
+      ],
+      "proposedSignatures": [
+        "Amount: { count: 'counters-on-that', counter?: string }  ·  Amount: { count: 'those', filter?: Filter }  // the size of the current binding, optionally filtered"
+      ],
+      "crCitations": [
+        "608.2h, 122.1"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "cast-from-zone",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "1b9f9f5b-8712-4f00-90cb-1b7b9970eccc"
+      ],
+      "exampleClauses": [
+        "If ~ was cast from a graveyard, you may copy ~ and may choose a new target for the copy."
+      ],
+      "proposedSignatures": [
+        "{ kind: 'cast-from-zone'; zone: 'hand' | 'graveyard' | 'exile' | 'command' }   AND   { op: 'copy-spell'; target: TargetSpec | 'self'; newTargets?: boolean }"
+      ],
+      "crCitations": [
+        "601.2, 707.10, 706.10"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "cast-restriction",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "ef71ef07-8a35-41ec-a851-d95e9e3a221b"
+      ],
+      "exampleClauses": [
+        "If the gift was promised, players can't cast spells this turn."
+      ],
+      "proposedSignatures": [
+        "{ op: 'cant-cast', who: ScopeWho | 'each-player', filter?: Filter, duration: 'eot' | 'this-turn' } as an Effect"
+      ],
+      "crCitations": [
+        "601.3e, 616.1, 104.3"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "change-targets",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "2c49d24a-98a4-43c2-bb59-1ef13d4214c2"
+      ],
+      "exampleClauses": [
+        "• Change the target of target spell or ability with a single target."
+      ],
+      "proposedSignatures": [
+        "{ op: 'change-target'; target: TargetSpec; how: 'change-one' | 'change-all' | 'choose-new'; singleTargetOnly?: boolean }"
+      ],
+      "crCitations": [
+        "115.7a, 115.7d"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "combat-damage-history",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "626a979f-bed7-4cb1-9ab7-c3f2bbe37781"
+      ],
+      "exampleClauses": [
+        "if a player was dealt combat damage by a Zombie this turn"
+      ],
+      "proposedSignatures": [
+        "{ kind: 'dealt-combat-damage-this-turn', who: 'any' | 'you' | 'opponent', by?: Filter } as a Condition variant, backed by a per-turn record of which permanents dealt combat damage to which players (the same shape as ext.damagedBy, which already records the reverse direction for Filter.dealtDamageBySource)"
+      ],
+      "crCitations": [
+        "510.1, 506.3"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "combat-restr",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "236ce592-1321-4a7c-b695-fd84496f8924"
+      ],
+      "exampleClauses": [
+        "After this phase, there is an additional combat phase."
+      ],
+      "proposedSignatures": [
+        "{ op: 'extra-combat'; after: 'this-phase'; extraMain?: boolean }"
+      ],
+      "crCitations": [
+        "505.1, 506.1, 500.8"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "condition-any-player",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "760ede92-a826-4144-9de8-84ba9b8743d1"
+      ],
+      "exampleClauses": [
+        "if a player controls no creatures"
+      ],
+      "proposedSignatures": [
+        "widen controls / controls-le to who: 'you' | 'opponent' | 'any', where 'any' means SOME player (you included) satisfies the count: { kind: 'controls-le', who: 'any', filter: { types: ['Creature'] }, atMost: 0 }"
+      ],
+      "crCitations": [
+        "104.3, 800.4"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "copy-ability",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "30377bd5-99ab-4888-9ea7-e5a069b527e8"
+      ],
+      "exampleClauses": [
+        "+ {1} - Copy target instant spell, sorcery spell, activated ability, or triggered ability. You may choose new targets for the copy."
+      ],
+      "proposedSignatures": [
+        "extend `copy-spell` to abilities: `{ op: 'copy-spell', target: TargetSpec, newTargets?: boolean }` where `TargetSpec.kind` gains a union form, e.g. `{ kind: 'stack-object', spellTypes?: CardType[], abilityKinds?: ('activated' | 'triggered')[] }`"
+      ],
+      "crCitations": [
+        "707.10 (copying a spell or ability), 706.10"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "cost-shapes",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "c62b5c22-e058-436f-9575-a01cb2112829"
+      ],
+      "exampleClauses": [
+        "{1}{G}, Exile ~: … / Ward-Get five poison counters. / As an additional cost to cast ~, pay 5 life or pay {2}."
+      ],
+      "proposedSignatures": [
+        "AbilityCost: { exileSelf?: true; counters?: { counter: string, amount: number, who: 'you' | 'payer' } }  ·  additionalCosts: [{ choose: AbilityCost[] }]  ·  face field ward: { cost: AbilityCost }"
+      ],
+      "crCitations": [
+        "118.3, 601.2b, 702.21b"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "counter-threshold-condition",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "af1553eb-4f9f-4335-9078-56649bd8d8fc"
+      ],
+      "exampleClauses": [
+        "Then if there are three or more bore counters on it, remove those counters and transform it."
+      ],
+      "proposedSignatures": [
+        "`{ kind: 'self-counters-ge', counter: string, value: Amount }` (and the mirror `'self-counters-le'`)"
+      ],
+      "crCitations": [
+        "122.1 and 122.6 (counters); 603.4 (intervening-if)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "counters-replacement:players",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "915b75d1-b5e3-4aca-a54c-beaccef0a2e4"
+      ],
+      "exampleClauses": [
+        "If you would put one or more counters on a permanent or player, put twice that many of each of those kinds of counters on that permanent or player instead."
+      ],
+      "proposedSignatures": [
+        "`counters-replacement` gains `who?: 'permanents' | 'players' | 'both'` (today it only ever applies to permanents)"
+      ],
+      "crCitations": [
+        "614.1c, 121.2"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "counters-trigger",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "4ac94586-3ac7-4ade-af31-ad0d0e3ffc4a"
+      ],
+      "exampleClauses": [
+        "Whenever you put one or more +1/+1 counters on a creature you control, you may draw that many cards."
+      ],
+      "proposedSignatures": [
+        "TriggerEvent: { on: 'counters-placed', counter?: string, filter?: Filter, who?: 'you' | 'any' }  with TriggerCtx.amount = how many were placed"
+      ],
+      "crCitations": [
+        "603.2, 121.1"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "discover",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "af1553eb-4f9f-4335-9078-56649bd8d8fc"
+      ],
+      "exampleClauses": [
+        "Whenever you cast a permanent spell using mana produced by ~, discover X, where X is that spell's mana value."
+      ],
+      "proposedSignatures": [
+        "`{ op: 'discover', amount: Amount }`"
+      ],
+      "crCitations": [
+        "701.57 (701.57a-701.57c)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "distribute-counters",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "ae7643ea-ef1c-43a3-9605-4e8585239ea3"
+      ],
+      "exampleClauses": [
+        "Distribute four +1/+1 counters among up to four target creatures you control."
+      ],
+      "proposedSignatures": [
+        "{ op: 'counters'; target: TargetSpec; counter: string; amount: Amount; divided?: true }"
+      ],
+      "crCitations": [
+        "601.2d, 121.1"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "dynamic-anthem",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "5564c782-be40-49fc-abc0-6cdcbaaa575a"
+      ],
+      "exampleClauses": [
+        "Spirits you control get +1/+1 for each time you've cast your commander from the command zone this game."
+      ],
+      "proposedSignatures": [
+        "StaticEffect: { kind: 'anthem', power: Amount, toughness: Amount, … }  // widen the two numeric fields to Amount"
+      ],
+      "crCitations": [
+        "613.4b, 608.2h"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "exile-tracking",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "760ede92-a826-4144-9de8-84ba9b8743d1"
+      ],
+      "exampleClauses": [
+        "put a creature card exiled with it onto the battlefield under your control with two additional +1/+1 counters on it"
+      ],
+      "proposedSignatures": [
+        "{ op: 'move', to: 'exile', track: 'exiled-with' } and { op: 'exile', target, track: true } record the moved cards on the ability's source (source.exiledWith, already on ObjectState at state.ts:52); plus Filter.exiledWithSource?: boolean so a chosen set can be written { filter: { types: ['Creature'], exiledWithSource: true }, zone: 'exile', who: 'each-player', count: 1 }"
+      ],
+      "crCitations": [
+        "400.7, 610.3, 608.2h"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "filter-disjunction",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "14bc29ee-4f84-4e62-8ede-5741b99414c9"
+      ],
+      "exampleClauses": [
+        "Search your library for up to two basic land cards and/or Town cards with different names, put them onto the battlefield tapped, then shuffle."
+      ],
+      "proposedSignatures": [
+        "Filter.anyOf?: Filter[]   AND   { op: 'search'; ...; distinctNames?: true }"
+      ],
+      "crCitations": [
+        "701.19, 201.2"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "filter-zone-history",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "175c76c8-f36c-4948-aaa8-0208eac5f0d3"
+      ],
+      "exampleClauses": [
+        "Choose up to four target creature cards in your graveyard that were put there from the battlefield this turn."
+      ],
+      "proposedSignatures": [
+        "Filter.putIntoGraveyardFromBattlefieldThisTurn?: boolean (and the symmetric Filter.diedThisTurn?: boolean)"
+      ],
+      "crCitations": [
+        "400.7, 608.2h"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "floating-trigger",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "95c0611a-b6f1-4cb8-8b47-73aa9c2a7d2c"
+      ],
+      "exampleClauses": [
+        "Whenever a creature blocks this turn, its controller gets a poison counter."
+      ],
+      "proposedSignatures": [
+        "{ op: 'floating-trigger'; until: 'eot' | 'your-next-turn'; event: TriggerEvent; effects: Effect[]; condition?: Condition }"
+      ],
+      "crCitations": [
+        "603.7, 611.2c"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "for-each-card-type",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "913ec957-5f4e-46b4-a819-9448837f72a3"
+      ],
+      "exampleClauses": [
+        "For each permanent type, return up to one card of that type from your graveyard to the battlefield."
+      ],
+      "proposedSignatures": [
+        "{ op: 'for-each-type'; over: 'permanent-types' | 'card-types'; bind: 'chosen-type'; do: Effect[] }  with Filter.isChosenCardType?: boolean"
+      ],
+      "crCitations": [
+        "300.1, 608.2f"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "for-each-filtered-binding",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "2f109125-b743-4ecf-84da-690d8e8ddf9c"
+      ],
+      "exampleClauses": [
+        "Then create a 3/2 red and white Spirit creature token for each nontoken creature you controlled that was destroyed this way."
+      ],
+      "proposedSignatures": [
+        "{ op: 'for-each'; over: 'those' | 'targets'; filter?: Filter; who?: ScopeWho; do: Effect[] }   AND   Amount { count: 'those'; filter?: Filter }"
+      ],
+      "crCitations": [
+        "608.2h, 608.2f, 400.7"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "grant-ability-to-target",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "9268d369-173e-4325-98f6-348beeb8ba62"
+      ],
+      "exampleClauses": [
+        "Until end of turn, target creature gets +1/+0 and gains \"When ~ dies, put a number of +1/+1 counters equal to its power on up to one target creature.\""
+      ],
+      "proposedSignatures": [
+        "{ op: 'grant-ability-to'; target: TargetSpec | Ref | 'creatures-you-control' | 'all-creatures'; ability: Ability; duration: 'eot' | 'permanent' }"
+      ],
+      "crCitations": [
+        "613.1f, 611.2c"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "layers-lite",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "05d09c55-f551-4cb4-a8d2-4811dccc848d"
+      ],
+      "exampleClauses": [
+        "-2: Target creature becomes a Treasure artifact with \"{T}, Sacrifice this artifact: Add one mana of any color\" and loses all other card types and abilities."
+      ],
+      "proposedSignatures": [
+        "{ op: 'become', target: TargetSpec | Ref, types?: CardType[], subtypes?: string[], colors?: Color[], loseOtherTypes?: true, loseAbilities?: true, grants?: Ability[], power?: number, toughness?: number, duration: 'eot' | 'permanent' }"
+      ],
+      "crCitations": [
+        "613.1c (layer 4), 613.1f (layer 6), 205.1a"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "mana-provenance",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "af1553eb-4f9f-4335-9078-56649bd8d8fc"
+      ],
+      "exampleClauses": [
+        "Whenever you cast a permanent spell using mana produced by ~, ..."
+      ],
+      "proposedSignatures": [
+        "trigger event `{ on: 'cast', filter: Filter, who: ScopeWho, usingManaFrom: Ref }`"
+      ],
+      "crCitations": [
+        "106.12 (mana produced by a source), 601.2h (paying costs)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "mana-spent",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "dc5dd7f7-375e-4d51-85cb-1abf16ca3854"
+      ],
+      "exampleClauses": [
+        "When ~ enters, if {W}{W} was spent to cast it, … / if {B}{B} was spent to cast it, …"
+      ],
+      "proposedSignatures": [
+        "Condition: { kind: 'mana-spent', mana: ManaSymbol[] }  // every listed symbol was spent to cast the source"
+      ],
+      "crCitations": [
+        "202.2c, 106.6, 603.4"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "move:subset-of-bound-set",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "2acf8e34-9215-4a72-a24f-09d3bdd0083a"
+      ],
+      "exampleClauses": [
+        "put a card from among those cards into your hand"
+      ],
+      "proposedSignatures": [
+        "`move.what` gains { from: 'those' | 'affected'; count: Amount; choose?: 'you' | 'owner' | 'random' }"
+      ],
+      "crCitations": [
+        "608.2h, 400.7"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "multikicker",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "9c2b262b-53c0-41a1-8f1a-0c336453d4bf"
+      ],
+      "exampleClauses": [
+        "Choose any target, then choose another target for each time ~ was kicked. ~ deals X damage to each of them."
+      ],
+      "proposedSignatures": [
+        "`kicker` gains `{ multi: true }`; `Amount.count` gains `'times-kicked'`; `TargetSpec.count` widened from `number | 'X'` to `Amount`"
+      ],
+      "crCitations": [
+        "702.33c (702.33d, 702.33e)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "named-keyword:compleated",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "05d09c55-f551-4cb4-a8d2-4811dccc848d"
+      ],
+      "exampleClauses": [
+        "Compleated"
+      ],
+      "proposedSignatures": [
+        "a face declaration compleated?: { pip: 'W/P' | 'U/P' | 'B/P' | 'R/P' | 'G/P'; life: number; fewerLoyalty: number } plus a covers[].by kind 'compleated' whose anchored line shape is /^compleated$/"
+      ],
+      "crCitations": [
+        "107.4c, 118.9, 306.5b"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "named-keyword:encore",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "4f57a320-b6b5-49de-af0a-f2e2649758a7"
+      ],
+      "exampleClauses": [
+        "Encore {6}{W}{W}"
+      ],
+      "proposedSignatures": [
+        "a face declaration encore?: ManaCost + a covers[].by kind 'encore' with the anchored shape /^encore (\\{.+\\})$/; it also needs an AbilityCost part exileSelfFromGraveyard?: true and a token-copy attacking form 'that-opponent' (one copy per opponent, each attacking the opponent it was made for)"
+      ],
+      "crCitations": [
+        "702.140"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "named-keyword:escalate",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "bffdfe7b-f17a-41b6-a460-80280fe497d4"
+      ],
+      "exampleClauses": [
+        "Escalate {G}"
+      ],
+      "proposedSignatures": [
+        "a face declaration escalate?: AbilityCost + a covers[].by kind 'escalate' with the anchored shape /^escalate(?:[-] ?| )(.+?)\\.?$/, and a choose-mode form { count: { min: 1, max: 'modes' } } (or count: 'one-or-more') for \"Choose one or more -\""
+      ],
+      "crCitations": [
+        "702.120, 700.2d, 601.2b"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "named-keyword:fortify",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "48bf020e-45b9-4c27-82e0-80d942656a67"
+      ],
+      "exampleClauses": [
+        "Fortified land has indestructible. / Whenever fortified land becomes tapped, ... / Fortify {3}"
+      ],
+      "proposedSignatures": [
+        "{ kind: 'fortification', keywords?: Keyword[], power?: number, toughness?: number, fortifyCost: ManaCost, attachFilter?: Filter } as a StaticEffect variant, a Ref 'fortified' alongside 'equipped' / 'enchanted', a covers[].by kind 'fortify' with the shape /^fortify (\\{.+\\})$/, and a filter field on the tapped trigger event"
+      ],
+      "crCitations": [
+        "702.67, 301.5, 301.6"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "named-keyword:gift",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "ef71ef07-8a35-41ec-a851-d95e9e3a221b"
+      ],
+      "exampleClauses": [
+        "Gift a Treasure"
+      ],
+      "proposedSignatures": [
+        "a face declaration gift?: { what: 'Treasure' | 'Food' | 'card' | 'tapped Fish' | ...; effects?: Effect[] } + a covers[].by kind 'gift' (shape /^gift (a|an) (.+)$/), and a Condition variant { kind: 'gift-promised' }"
+      ],
+      "crCitations": [
+        "702.176"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "opening-hand",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "9dc65ffe-17fc-4280-b4bd-78073ac7e12b"
+      ],
+      "exampleClauses": [
+        "If ~ is in your opening hand, you may begin the game with it on the battlefield."
+      ],
+      "proposedSignatures": [
+        "{ kind: 'from-opening-hand'; action: 'battlefield' | 'reveal'; effects?: Effect[] } as a StaticEffect, applied by the engine during the CR 103.6 step after mulligans"
+      ],
+      "crCitations": [
+        "103.6a"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "optional-cost",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "2acf8e34-9215-4a72-a24f-09d3bdd0083a"
+      ],
+      "exampleClauses": [
+        "Then you may pay {1} and 3 life. If you do, put a card from among those cards into your hand."
+      ],
+      "proposedSignatures": [
+        "{ op: 'optional-cost'; cost: AbilityCost; then: Effect[] } — `optional-pay` generalised from ManaCost to AbilityCost"
+      ],
+      "crCitations": [
+        "601.2h, 118.12"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "parameterised-keyword-grant",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "f2000fb8-39c6-4ad6-a020-5245faaa1eba"
+      ],
+      "exampleClauses": [
+        "Target creature you control gains firebending 4 until end of turn."
+      ],
+      "proposedSignatures": [
+        "{ op: 'grant-keyword'; target: ...; keywords: (Keyword | { keyword: Keyword; n: number })[]; duration: 'eot' | 'permanent' }"
+      ],
+      "crCitations": [
+        "702.x, 613.1f"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "phase-triggers",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "626a979f-bed7-4cb1-9ab7-c3f2bbe37781"
+      ],
+      "exampleClauses": [
+        "At the beginning of your second main phase, ..."
+      ],
+      "proposedSignatures": [
+        "{ on: 'main-phase', whose: 'your' | 'each', which: 'first' | 'second' | 'any' } as a TriggerEvent variant"
+      ],
+      "crCitations": [
+        "505.1a, 505.1b, 506.1"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "planeswalker",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "5aa3abf1-d56b-4f42-8c84-7e5a2c15ee0f"
+      ],
+      "exampleClauses": [
+        "You get an emblem with \"Lands you control have indestructible.\""
+      ],
+      "proposedSignatures": [
+        "{ op: 'emblem', ability: Ability }  (stored on pl.ext.emblems, read by computeStaticMods / abilitiesOf)"
+      ],
+      "crCitations": [
+        "114.1, 114.3, 113.1"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "player-protection",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "0d4ecdb1-ec90-497f-a7a4-1c68092b8757"
+      ],
+      "exampleClauses": [
+        "Until your next turn, your life total can't change and you gain protection from everything."
+      ],
+      "proposedSignatures": [
+        "`{ op: 'grant-player-protection', who: ScopeWho, from: string[] | 'everything', duration: 'eot' | 'until-your-next-turn' }` and `{ op: 'lock-life', who: ScopeWho, duration: 'eot' | 'until-your-next-turn' }`"
+      ],
+      "crCitations": [
+        "702.16i (protection for players), 118.5 and 614.1 (a life total that can't change is a replacement on every life change)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "retrace",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "dbcbdf37-c40f-4068-b4a7-a849cab1056c"
+      ],
+      "exampleClauses": [
+        "During your turn, nonland permanent cards in your graveyard have retrace."
+      ],
+      "proposedSignatures": [
+        "`AltCost.id` gains `'retrace'` (`{ id: 'retrace', from: 'graveyard', cost: { discard: { types: ['Land'] } }, repeatable: true }`) and a static `{ kind: 'grant-alt-cost', filter: Filter, zone: SetZone, who: ScopeWho, altCost: AltCost, condition?: Condition }`"
+      ],
+      "crCitations": [
+        "702.81 (702.81a)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "reveal-until",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "e1a9c467-2d64-4e11-adf3-7333c923b187"
+      ],
+      "exampleClauses": [
+        "reveal cards from the top of your library until you reveal a creature card … Put the rest on the bottom of your library in a random order."
+      ],
+      "proposedSignatures": [
+        "Effect: { op: 'reveal-until', filter: Filter, found: Effect[], rest: 'bottom' | 'top' | 'graveyard', order: 'any' | 'random', who?: ScopeWho }  // binds the found card as `that`"
+      ],
+      "crCitations": [
+        "701.18, 401.4"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "station",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "981138d0-bf61-406a-85be-68cc5e58796c"
+      ],
+      "exampleClauses": [
+        "Each creature you control with toughness greater than its power stations permanents using its toughness rather than its power."
+      ],
+      "proposedSignatures": [
+        "activated form `{ op: 'station', target: TargetSpec }` (cost `tapUntappedCreature`), static `{ kind: 'station-thresholds', thresholds: [{ counters: number, types: CardType[], subtypes: string[], power: number, toughness: number, abilities: Ability[] }] }`, and - what this card needs - `{ kind: 'stations-by-toughness', scope: 'you-control' | 'all', onlyWhenGreater?: boolean }`"
+      ],
+      "crCitations": [
+        "702.184 (702.184a-702.184c)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "tiered",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "d0d90dd8-0642-489f-9afc-11c307f258f2"
+      ],
+      "exampleClauses": [
+        "Tiered / • Somersault - {0} - Target creature gets +2/+2 until end of turn."
+      ],
+      "proposedSignatures": [
+        "the same `ModeSpec.cost` machinery as spree, with `{ op: 'choose-mode', modes: ModeSpec[], count: 1 }` and a face declaration `tiered: true` (`covers` kind `by: 'tiered'` for the printed `^tiered$` line)"
+      ],
+      "crCitations": [
+        "702.183 (702.183a)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "trigger:damage-to-player",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "5d27c63e-d1ef-48af-b51d-01ebc6daeac9"
+      ],
+      "exampleClauses": [
+        "Whenever a Human deals damage to you, destroy it."
+      ],
+      "proposedSignatures": [
+        "{ on: 'damage-dealt'; to: 'you' | 'each-player' | 'that-player'; filter?: Filter; combatOnly?: boolean }"
+      ],
+      "crCitations": [
+        "119.3, 603.2"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "trigger:mana-spent",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "b473e293-59e3-4e04-acf2-622604aeb25f"
+      ],
+      "exampleClauses": [
+        "When that mana is spent to cast a creature spell that shares a creature type with your commander, scry 1."
+      ],
+      "proposedSignatures": [
+        "`add-mana` gains `whenSpent?: { filter: Filter; effects: Effect[] }`, creating a delayed triggered ability that fires when that mana is spent on a spell matching `filter`"
+      ],
+      "crCitations": [
+        "106.6, 106.6b"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "variable-amount-choice",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "af1553eb-4f9f-4335-9078-56649bd8d8fc"
+      ],
+      "exampleClauses": [
+        "When ~ enters, discard any number of cards, then draw that many cards plus one."
+      ],
+      "proposedSignatures": [
+        "`Amount` gains `'any'` (a number the acting player chooses), accepted at least by `discard.amount` and by `move`'s `what.count`"
+      ],
+      "crCitations": [
+        "701.8 (discard), 601.2b (choosing a value)"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "x-costs-and-negative-amounts",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "afaef788-34d1-460b-b884-9d7ae6ddeb18"
+      ],
+      "exampleClauses": [
+        "As an additional cost to cast ~, pay X life. / All creatures get -X/-X until end of turn."
+      ],
+      "proposedSignatures": [
+        "AbilityCost.payLife: number | Amount   AND   AmountExpr.negate?: true (or `times: -1` over a base form meaning X)"
+      ],
+      "crCitations": [
+        "601.2b, 107.3, 107.1b"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    },
+    {
+      "opFamily": "zone-history",
+      "unlocked": false,
+      "cards": 1,
+      "cardIds": [
+        "8499b3ec-9a61-47a4-a880-e8230b41c81b"
+      ],
+      "exampleClauses": [
+        "…that was put there from the battlefield this turn / if a card left your graveyard this turn / if it entered from your graveyard or you cast it from your graveyard"
+      ],
+      "proposedSignatures": [
+        "Filter: { enteredZoneFrom?: 'battlefield' | 'graveyard' | 'hand' | 'exile' | 'library'; sinceTurn?: 'this-turn' }  ·  Condition: { kind: 'card-left-your-graveyard-this-turn' }  ·  TriggerEvent etb: { on: 'etb', self, filter, from?: 'graveyard' }"
+      ],
+      "crCitations": [
+        "400.7, 603.6a, 603.10a"
+      ],
+      "waves": [
+        "unknown"
+      ],
+      "maxAttempts": 1
+    }
+  ]
 }

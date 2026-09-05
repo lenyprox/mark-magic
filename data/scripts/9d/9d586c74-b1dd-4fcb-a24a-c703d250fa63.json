@@ -1,0 +1,93 @@
+{
+  "oracleId": "9d586c74-b1dd-4fcb-a24a-c703d250fa63",
+  "name": "Seismic Sense",
+  "oracleHash": "c3e8f04c",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "dig",
+          "look": {
+            "count": "lands-you-control"
+          },
+          "take": 1,
+          "rest": "bottom",
+          "order": "random",
+          "reveal": true,
+          "optional": true,
+          "filter": {
+            "types": [
+              "Creature",
+              "Land"
+            ]
+          }
+        }
+      ],
+      "text": "Look at the top X cards of your library, where X is the number of lands you control. You may reveal a creature or land card from among them and put it into your hand. Put the rest on the bottom of your library in a random order."
+    }
+  ],
+  "aiHints": {
+    "role": "draw",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "X is the count expression lands-you-control. optional is the 'You may' (none need be taken), reveal the reveal, filter the creature-or-land restriction, and rest/order the random bottom.",
+  "verification": {
+    "at": "2026-09-05T14:14:25.564Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "c3e8f04c",
+    "scriptHash": "9e8c14a4",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.594,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/9d/9d586c74-b1dd-4fcb-a24a-c703d250fa63.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "tested",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "You may reveal a creature or land card from among them and put it into your hand. — expected Only the single card taken is revealed; the other X-1 cards looked at stay hidden information. — scripted dig {reveal:true}. game.ts:1090 applies reveal to the WHOLE looked-at set before any choice — `for (const c of top) this.reveal(c.id)` plus a public 'library reveal' event listing every card name. So casting Seismic Sense broadcasts the top X of your library to the table instead of at most one card. Dropping reveal (slightly under-revealing) is closer than the current over-reveal. — CR CR 701.16a",
+          "Look at the top X cards of your library, where X is the number of lands you control. — expected X = lands you control, evaluated on resolution. — scripted look:{count:'lands-you-control'} — characteristics.ts:147 counts lands on your battlefield. Correct.",
+          "You may ... put it into your hand. Put the rest on the bottom of your library in a random order. — expected Taking is optional, the taken card must be a creature or land, the remainder goes to the bottom in a random order. — scripted take:1, optional:true (exact:false, so zero may be taken), filter:{types:['Creature','Land']} restricts the eligible set, rest:'bottom' + order:'random' shuffles the remainder before pushing it to the bottom. All correct."
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "You may reveal a creature or land card from among them and put it into your hand. — expected only the card you take is revealed; the rest of the X cards stay hidden — scripted dig reveal:true reveals ALL X looked-at cards (game.ts:1090). This is the engine's own convention for this exact template — parse.ts:601 emits {take:1, rest:'bottom', order:'random', filter, optional:true, reveal:true} for the identical wording — so the script matches the parser, but it leaks more information than the card does. — CR 701.15",
+          "Look at the top X cards of your library, where X is the number of lands you control. — expected X = lands you control, evaluated on resolution — scripted correct — look:{count:'lands-you-control'}; filter types ['Creature','Land'] is any-of (characteristics.ts:222), optional true is the 'You may', rest 'bottom' / order 'random' match. 3/3 scenarios pass. — CR 608.2"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

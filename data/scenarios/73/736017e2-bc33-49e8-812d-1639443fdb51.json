@@ -1,0 +1,67 @@
+{
+  "oracleId": "736017e2-bc33-49e8-812d-1639443fdb51",
+  "name": "Entish Restoration",
+  "scenarios": [
+    {
+      "name": "Entish Restoration sacrifices a land and fetches two basics tapped",
+      "cr": "701.19a",
+      "ruling": "The sacrifice happens on resolution, then you search for up to two basic land cards and put them onto the battlefield tapped.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest"], "hand": ["Entish Restoration"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Entish Restoration" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zoneCount": [0, "battlefield", 4] },
+        { "libraryCount": [0, 18] },
+        { "graveyardCount": [0, 2] },
+        { "zone": ["Mountain", "battlefield"] },
+        { "tapped": ["Mountain", true] },
+        { "zone": ["Entish Restoration", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A creature with power 3 is not enough for the third basic land",
+      "cr": "608.2",
+      "ruling": "The alternative applies only if you control a creature with power 4 or greater; a 3/3 leaves you with two lands.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest", "Hill Giant"], "hand": ["Entish Restoration"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Entish Restoration" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zoneCount": [0, "battlefield", 5] },
+        { "libraryCount": [0, 18] },
+        { "graveyardCount": [0, 2] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A creature with power 4 fetches three basic lands instead of two",
+      "cr": "608.2",
+      "ruling": "Power 4 or greater switches the effect to up to three basic land cards.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest", "Serra Angel"], "hand": ["Entish Restoration"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Entish Restoration" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zoneCount": [0, "battlefield", 6] },
+        { "libraryCount": [0, 17] },
+        { "graveyardCount": [0, 2] },
+        { "tapped": ["Mountain", true] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

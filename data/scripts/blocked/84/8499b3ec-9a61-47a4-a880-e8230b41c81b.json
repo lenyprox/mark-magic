@@ -1,0 +1,16 @@
+{
+  "oracleId": "8499b3ec-9a61-47a4-a880-e8230b41c81b",
+  "name": "Prized Amalgam",
+  "clause": "Whenever a creature enters, if it entered from your graveyard or you cast it from your graveyard, return ~ from your graveyard to the battlefield tapped at the beginning of the next end step.",
+  "needs": [
+    {
+      "opFamily": "zone-history",
+      "proposedSignature": "Filter: { enteredZoneFrom?: 'battlefield' | 'graveyard' | 'hand' | 'exile' | 'library'; sinceTurn?: 'this-turn' }  ·  Condition: { kind: 'card-left-your-graveyard-this-turn' }  ·  TriggerEvent etb: { on: 'etb', self, filter, from?: 'graveyard' }",
+      "semantics": "Record, per object, the zone it came from and the turn it arrived (a per-turn field on the object, wiped at cleanup like `ext.damagedBy`), and expose it as a Filter field plus a per-player 'a card left your graveyard this turn' flag. This is the single missing fact behind four different clauses in this batch.",
+      "cr": "400.7, 603.6a, 603.10a",
+      "clause": "…that was put there from the battlefield this turn / if a card left your graveyard this turn / if it entered from your graveyard or you cast it from your graveyard"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

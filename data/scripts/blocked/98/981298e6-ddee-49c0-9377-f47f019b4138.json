@@ -1,0 +1,16 @@
+{
+  "oracleId": "981298e6-ddee-49c0-9377-f47f019b4138",
+  "name": "Currency Converter",
+  "clause": "{T}: Put a card exiled with ~ into its owner's graveyard. If it's a land card, create a Treasure token. If it's a nonland card, create a 2/2 black Rogue creature token.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "{ op: 'exile'; ...; remember?: true } recording the exiled cards on the source, plus { op: 'bind'; as: 'that'; from: 'exiled-with' } and { op: 'move'; what: { ref: 'exiled-with'; count: Amount; choose?: 'you' } }",
+      "semantics": "Let a plain exile record what it exiled on GameObject.exiledWith (as delve / imprint already do) so a later ability of the same permanent can name it, bind ONE of those cards, and read owner-of-that / prop mv from it.",
+      "cr": "400.7, 610.3, 608.2h",
+      "clause": "'the exiled card's owner creates an X/X ... where X is the mana value of the exiled card' / 'Put a card exiled with ~ into its owner's graveyard.'"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

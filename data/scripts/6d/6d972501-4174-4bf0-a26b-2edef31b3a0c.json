@@ -1,0 +1,119 @@
+{
+  "oracleId": "6d972501-4174-4bf0-a26b-2edef31b3a0c",
+  "name": "Slumbering Walker",
+  "oracleHash": "2565c84e",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "asEnters": [
+    {
+      "kind": "counters",
+      "counter": "-1/-1",
+      "amount": 2
+    }
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "end-step",
+        "whose": "your"
+      },
+      "effects": [
+        {
+          "op": "may",
+          "effects": [
+            {
+              "op": "counters",
+              "target": "self",
+              "counter": "-1/-1",
+              "amount": -1
+            }
+          ]
+        },
+        {
+          "op": "reflexive",
+          "when": "you-do",
+          "effects": [
+            {
+              "op": "return-from-graveyard",
+              "what": {
+                "types": [
+                  "Creature"
+                ],
+                "powerLE": 2
+              },
+              "to": "battlefield",
+              "target": true
+            }
+          ]
+        }
+      ],
+      "text": "At the beginning of your end step, you may remove a counter from ~. When you do, return target creature card with power 2 or less from your graveyard to the battlefield."
+    }
+  ],
+  "covers": [
+    {
+      "line": "~ enters with two -1/-1 counters on it.",
+      "by": "asEnters"
+    }
+  ],
+  "aiHints": {
+    "role": "recursion",
+    "value": 5,
+    "timing": "end-step"
+  },
+  "notes": "Removing a counter is a negative counters effect on the source; the card only ever has -1/-1 counters, so that is the counter removed. 'When you do' is the reflexive trigger (CR 603.12), which fires only when the optional removal really happened.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "2565c84e",
+    "scriptHash": "c0a7d5c6",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'turn' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.8,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/6d/6d972501-4174-4bf0-a26b-2edef31b3a0c.json",
+      "passed": 0,
+      "failed": 4,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "you may remove a counter from this creature — expected remove a counter of ANY kind — if a +1/+1, stun, or other counter has been placed on it, you may remove that one instead — scripted counters op hardcoded to counter:'-1/-1', amount:-1. The script's note ('the card only ever has -1/-1 counters') is false in general — any counter-placing effect breaks it — CR CR 122.1 / 701.x — 'a counter' with no kind specified means a counter of any kind",
+          "you may remove a counter ... When you do, return target creature card — expected declining leaves the counters alone and the reflexive trigger does not fire — scripted structure is correct (may + reflexive gated on lastHappened, CR 603.12), but the blind scenario 'Declining to remove a counter returns nothing' failed — counters 1 !== 2, Grizzly Bears reached the battlefield, i.e. the decline was not honored. Likely the harness AI answering the 'may' rather than a script defect"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "you may remove a counter from this creature — expected remove A COUNTER of any kind; if the creature has no counters, the action is impossible, the removal doesn't happen, and the reflexive trigger does not fire — scripted counters target:'self', counter:'-1/-1', amount:-1, hardcoded to -1/-1. addCounters (game.ts:290-296) clamps total<=0 by deleting the entry but still emits, so with zero counters the 'removal' registers as a change, lastHappened becomes true, and the reflexive return fires anyway — free recursion every end step once the counters are gone. Also cannot remove a +1/+1 counter another effect placed — CR 121.3, 603.12",
+          "Blind scenario 'Declining to remove a counter returns nothing' failed — expected decline -> counters stay at 2, P/T 2/5, Grizzly Bears stays in graveyard — scripted engine 'may' handling (game.ts:1576-1579) is correct; the scenario script has no {\"answer\": false} step before {\"resolve\": true}, so the default agent accepted. This failure is a scenario-authoring gap, not proof of a may/reflexive bug — but it means the decline path is untested — CR 603.12"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

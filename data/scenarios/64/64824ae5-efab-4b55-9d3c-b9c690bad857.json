@@ -1,0 +1,66 @@
+{
+  "oracleId": "64824ae5-efab-4b55-9d3c-b9c690bad857",
+  "name": "Essence Flux",
+  "scenarios": [
+    {
+      "name": "Essence Flux blinks a creature that is not a Spirit and its counters are gone",
+      "cr": "400.7",
+      "ruling": "The creature returns as a new object, so the +1/+1 counters it had cease to exist and no new counter is added.",
+      "seats": [
+        { "bf": ["Island", "Grizzly Bears"], "counters": { "Grizzly Bears": { "+1/+1": 2 } }, "hand": ["Essence Flux"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Essence Flux", "targets": [["Grizzly Bears"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "counters": ["Grizzly Bears", { "+1/+1": 0 }] },
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "zone": ["Essence Flux", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A Spirit returns with a +1/+1 counter on it",
+      "cr": "121.1",
+      "ruling": "The card is checked after it returns; a Spirit gets a +1/+1 counter, so the 3/3 comes back as a 4/4.",
+      "seats": [
+        { "bf": ["Island", "Gnarled Mass"], "hand": ["Essence Flux"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Essence Flux", "targets": [["Gnarled Mass"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Gnarled Mass", "battlefield"] },
+        { "counters": ["Gnarled Mass", { "+1/+1": 1 }] },
+        { "pt": ["Gnarled Mass", 4, 4] },
+        { "zone": ["Essence Flux", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Blinking a creature retriggers its enters-the-battlefield ability",
+      "cr": "603.6b",
+      "ruling": "The creature really leaves and enters again, so Wall of Omens' enters trigger draws another card.",
+      "seats": [
+        { "bf": ["Island", "Wall of Omens"], "hand": ["Essence Flux"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Essence Flux", "targets": [["Wall of Omens"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Wall of Omens", "battlefield"] },
+        { "handCount": [0, 1] },
+        { "libraryCount": [0, 19] },
+        { "counters": ["Wall of Omens", { "+1/+1": 0 }] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

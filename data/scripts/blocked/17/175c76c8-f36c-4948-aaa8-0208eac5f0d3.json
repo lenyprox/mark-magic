@@ -1,0 +1,16 @@
+{
+  "oracleId": "175c76c8-f36c-4948-aaa8-0208eac5f0d3",
+  "name": "Continue?",
+  "clause": "Choose up to four target creature cards in your graveyard that were put there from the battlefield this turn.",
+  "needs": [
+    {
+      "opFamily": "filter-zone-history",
+      "proposedSignature": "Filter.putIntoGraveyardFromBattlefieldThisTurn?: boolean (and the symmetric Filter.diedThisTurn?: boolean)",
+      "semantics": "Matches a card in a graveyard that was put there from the battlefield during the current turn. The engine already counts `creatures-died-this-turn`, so this needs a per-object record of the turn and origin zone of its last move, cleared at cleanup, read by matchesFilter and by legal.ts when the targets are offered.",
+      "cr": "400.7, 608.2h",
+      "clause": "Choose up to four target creature cards in your graveyard that were put there from the battlefield this turn."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

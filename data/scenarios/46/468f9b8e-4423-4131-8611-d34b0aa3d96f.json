@@ -1,0 +1,95 @@
+{
+  "oracleId": "468f9b8e-4423-4131-8611-d34b0aa3d96f",
+  "name": "Nissa, Worldwaker",
+  "scenarios": [
+    {
+      "name": "Nissa's first +1 turns the targeted land into a 4/4 Elemental with trample",
+      "cr": "613.1d",
+      "ruling": "The type-changing effect applies in layer 4 and the power/toughness setting in layer 7b; it has no duration, so it lasts indefinitely.",
+      "seats": [
+        { "bf": ["Nissa, Worldwaker", "Forest"] },
+        {}
+      ],
+      "script": [
+        { "activate": "Nissa, Worldwaker", "ability": 0, "targets": [["Forest"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "pt": ["Forest", 4, 4] },
+        { "keywords": ["Forest", ["trample"]] },
+        { "zone": ["Forest", "battlefield"] },
+        { "counters": ["Nissa, Worldwaker", { "loyalty": 4 }] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The land animated by Nissa's first +1 is still a land and taps for mana",
+      "cr": "605.1a",
+      "ruling": "\"It's still a land\" keeps the land type, so its intrinsic mana ability is still there and can pay for a spell.",
+      "seats": [
+        { "bf": ["Nissa, Worldwaker", "Forest"], "hand": ["Giant Growth"] },
+        {}
+      ],
+      "script": [
+        { "activate": "Nissa, Worldwaker", "ability": 0, "targets": [["Forest"]] },
+        { "resolve": true },
+        { "cast": "Giant Growth", "targets": [["Forest"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "pt": ["Forest", 7, 7] },
+        { "tapped": ["Forest", true] },
+        { "keywords": ["Forest", ["trample"]] },
+        { "zone": ["Giant Growth", "graveyard"] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Nissa's second +1 untaps the targeted Forests and nothing else",
+      "cr": "701.20b",
+      "ruling": "Only the chosen targets are untapped; a tapped land that was not targeted stays tapped.",
+      "seats": [
+        {
+          "bf": ["Nissa, Worldwaker", "Forest", "Snow-Covered Forest", "Mountain"],
+          "tapped": ["Forest", "Snow-Covered Forest", "Mountain"]
+        },
+        {}
+      ],
+      "script": [
+        { "activate": "Nissa, Worldwaker", "ability": 1, "targets": [["Forest", "Snow-Covered Forest"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "tapped": ["Forest", false] },
+        { "tapped": ["Snow-Covered Forest", false] },
+        { "tapped": ["Mountain", true] },
+        { "counters": ["Nissa, Worldwaker", { "loyalty": 4 }] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Nissa's ultimate puts basic lands onto the battlefield as 4/4 tramplers",
+      "cr": "701.18a",
+      "ruling": "The lands found by the search are put onto the battlefield and the same ability makes them 4/4 Elemental creatures with trample that are still lands.",
+      "seats": [
+        { "bf": ["Nissa, Worldwaker"], "counters": { "Nissa, Worldwaker": { "loyalty": 12 } } },
+        {}
+      ],
+      "script": [
+        { "activate": "Nissa, Worldwaker", "ability": 2 },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Mountain", "battlefield"] },
+        { "pt": ["Mountain", 4, 4] },
+        { "keywords": ["Mountain", ["trample"]] },
+        { "counters": ["Nissa, Worldwaker", { "loyalty": 5 }] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

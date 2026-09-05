@@ -1,0 +1,16 @@
+{
+  "oracleId": "236ce592-1321-4a7c-b695-fd84496f8924",
+  "name": "Fear of Missing Out",
+  "clause": "After this phase, there is an additional combat phase.",
+  "needs": [
+    {
+      "opFamily": "combat-restr",
+      "proposedSignature": "{ op: 'extra-combat'; after: 'this-phase'; extraMain?: boolean }",
+      "semantics": "After the current phase there is an additional combat phase (and optionally an additional main phase after it); nothing untaps and the extra phase runs the normal combat steps.",
+      "cr": "505.1, 506.1, 500.8",
+      "clause": "After this phase, there is an additional combat phase."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "ae7643ea-ef1c-43a3-9605-4e8585239ea3",
+  "name": "Storm the Seedcore",
+  "clause": "Distribute four +1/+1 counters among up to four target creatures you control.",
+  "needs": [
+    {
+      "opFamily": "distribute-counters",
+      "proposedSignature": "{ op: 'counters'; target: TargetSpec; counter: string; amount: Amount; divided?: true }",
+      "semantics": "The same shape `damage` already has: the total `amount` is divided as the caster chooses among the chosen targets, each getting at least one, the division announced as the spell is cast.",
+      "cr": "601.2d, 121.1",
+      "clause": "Distribute four +1/+1 counters among up to four target creatures you control."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

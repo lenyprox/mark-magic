@@ -1,0 +1,16 @@
+{
+  "oracleId": "d4838305-5392-42b2-81d1-9b9da71b20b1",
+  "name": "Overcharged Amalgam",
+  "clause": "When ~ exploits a creature, counter target spell, activated ability, or triggered ability.",
+  "needs": [
+    {
+      "opFamily": "exploit",
+      "proposedSignature": "face declaration `exploit: true` (with a `covers` kind `by: 'exploit'` for the printed `^exploit$` line) + trigger event `{ on: 'exploits', self: true }`",
+      "semantics": "`exploit: true` installs the keyword's own ability: 'When this creature enters, you may sacrifice a creature' - a `may` over a `sacrifice` the controller chooses, the source itself being a legal choice. When that sacrifice actually happens the engine raises an `exploits` event whose source is the exploiting creature and whose triggering object is the sacrificed creature, so `{ on: 'exploits', self: true }` abilities fire once and can read the sacrificed creature as `triggering` / `that`. The event must NOT fire for ordinary sacrifices - that is exactly what makes `{ on: 'sacrifice' }` an unusable substitute today.",
+      "cr": "702.110 (702.110a, 702.110b)",
+      "clause": "Exploit / When ~ exploits a creature, you may search your library for a card, put it into your hand, then shuffle."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

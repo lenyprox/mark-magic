@@ -1,0 +1,23 @@
+{
+  "oracleId": "c62b5c22-e058-436f-9575-a01cb2112829",
+  "name": "Redirect Lightning",
+  "clause": "Change the target of target spell or ability with a single target. // As an additional cost to cast ~, pay 5 life or pay {2}.",
+  "needs": [
+    {
+      "opFamily": "cost-shapes",
+      "proposedSignature": "AbilityCost: { exileSelf?: true; counters?: { counter: string, amount: number, who: 'you' | 'payer' } }  ·  additionalCosts: [{ choose: AbilityCost[] }]  ·  face field ward: { cost: AbilityCost }",
+      "semantics": "Three missing cost shapes met in this batch: exiling the source as an activation cost (only sacrificeSelf exists); getting counters (poison) as a cost, which a non-mana ward needs; and an additional cost that is a CHOICE between two costs. A `ward` declaration carrying a whole AbilityCost would also let the ward line be covered rather than hand-written as a triggered ability.",
+      "cr": "118.3, 601.2b, 702.21b",
+      "clause": "{1}{G}, Exile ~: … / Ward-Get five poison counters. / As an additional cost to cast ~, pay 5 life or pay {2}."
+    },
+    {
+      "opFamily": "retarget",
+      "proposedSignature": "Effect: { op: 'change-target', target: { kind: 'spell-or-ability', singleTarget?: true }, to?: 'new-legal' }",
+      "semantics": "Change the target of a spell or ability on the stack that has a single target, the controller choosing a new legal target. The stack item already keeps targetsByEffect / targetParts, so this is a rewrite of one pick plus a legality re-check.",
+      "cr": "115.7, 115.7b",
+      "clause": "Change the target of target spell or ability with a single target."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,134 @@
+{
+  "oracleId": "18f0cd0b-3e4f-4637-a62e-75dd1b2f3fce",
+  "name": "Claim Jumper",
+  "oracleHash": "ec96f460",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [
+    "vigilance"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "intervening": {
+        "kind": "opponent-more-lands"
+      },
+      "optional": true,
+      "effects": [
+        {
+          "op": "may",
+          "effects": [
+            {
+              "op": "search",
+              "filter": {
+                "subtypes": [
+                  "Plains"
+                ]
+              },
+              "to": "battlefield",
+              "tapped": true,
+              "count": 1,
+              "optional": true
+            }
+          ]
+        },
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "opponent-more-lands"
+          },
+          "then": [
+            {
+              "op": "may",
+              "effects": [
+                {
+                  "op": "search",
+                  "filter": {
+                    "subtypes": [
+                      "Plains"
+                    ]
+                  },
+                  "to": "battlefield",
+                  "tapped": true,
+                  "count": 1,
+                  "optional": true
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "text": "When ~ enters, if an opponent controls more lands than you, you may search your library for a Plains card and put it onto the battlefield tapped. Then if an opponent controls more lands than you, repeat this process once. If you search your library this way, shuffle."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Vigilance",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "ramp",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "'Repeat this process once' is written out as a second, conditional copy of the same optional search; the search op shuffles the library itself, so the trailing 'If you search your library this way, shuffle' needs no separate effect.",
+  "verification": {
+    "at": "2026-09-05T13:59:38.385Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "ec96f460",
+    "scriptHash": "5e27ca13",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.71,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/18/18f0cd0b-3e4f-4637-a62e-75dd1b2f3fce.json",
+      "passed": 4,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "When this creature enters, if an opponent controls more lands than you, ... — expected Intervening-if re-checked on resolution as well as on triggering. — scripted Correctly written as `intervening`, but src/engine/game.ts:2208 only evaluates it when the trigger goes on the stack; it is never re-checked at resolution. Engine gap, not a script error — the script uses the right construct. — CR CR 603.4",
+          "you may search your library for a Plains card and put it onto the battlefield tapped — expected One optional search; 'a Plains card' includes nonbasic Plains; enters tapped; shuffle only if you actually searched. — scripted op 'may' wrapping search {subtypes:['Plains']} (no basic:true — correct), to battlefield, tapped:true, count 1, optional:true. Search shuffles internally (game.ts:1240) and is skipped entirely when the may is declined, so 'If you search your library this way, shuffle' is handled. Triple optionality (ability.optional + may + search.optional) is redundant — ability.optional has no consumer in the engine and search.optional only relaxes exact:false (fail to find) — so it yields exactly one prompt, but it is untidy.",
+          "Then if an opponent controls more lands than you, repeat this process once. — expected Re-check after the first land has entered; at most one repeat. — scripted op 'conditional' with the same opponent-more-lands condition wrapping one more may+search — evaluated at that point in resolution with the new land on the battlefield, and non-recursive so it cannot repeat more than once. Correct.",
+          "Vigilance — expected Vigilance granted. — scripted keywords:['vigilance'] with a covers entry; scenario 4 exercises it."
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "When this creature enters, if an opponent controls more lands than you, you may search ... Then if an opponent controls more lands than you, repeat this process once. — expected intervening-if on the trigger; optional search to battlefield tapped; a second, separately-conditioned optional search; shuffle if you searched — scripted intervening opponent-more-lands, may+search(subtypes Plains, to battlefield, tapped, count 1), then conditional opponent-more-lands wrapping an identical may+search. Matches clause for clause. 'a Plains card' correctly filters on subtype only (a nonbasic Plains qualifies), and search shuffles internally (game.ts:1239) so the trailing shuffle needs no op. — CR 603.4; 701.19",
+          "you may search your library for a Plains card — expected a single 'you may' gate — scripted ability-level `optional: true` plus the `may` op plus `search.optional: true` — three redundant markers. Only the `may` op and the search's `exact: !optional` are actually read by the engine, so behavior is right; the extra flags are dead metadata. — CR 603.1"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

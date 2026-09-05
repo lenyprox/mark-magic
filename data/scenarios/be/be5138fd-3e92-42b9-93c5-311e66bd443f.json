@@ -1,0 +1,83 @@
+{
+  "oracleId": "be5138fd-3e92-42b9-93c5-311e66bd443f",
+  "name": "Perennation",
+  "scenarios": [
+    {
+      "name": "Perennation returns a creature card from your graveyard with a hexproof and an indestructible counter",
+      "cr": "122.1a",
+      "ruling": "The permanent enters with both keyword counters on it, and a keyword counter grants the permanent that keyword ability.",
+      "seats": [
+        {
+          "bf": ["Plains", "Swamp", "Forest", "Plains", "Swamp", "Forest"],
+          "hand": ["Perennation"],
+          "graveyard": ["Grizzly Bears"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Perennation", "targets": [["Grizzly Bears"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "control": ["Grizzly Bears", 0] },
+        { "counters": ["Grizzly Bears", { "hexproof": 1, "indestructible": 1 }] },
+        { "keywords": ["Grizzly Bears", ["hexproof", "indestructible"]] },
+        { "zone": ["Perennation", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The indestructible counter from Perennation saves the returned creature from lethal damage",
+      "cr": "702.12b",
+      "ruling": "An indestructible permanent is not destroyed by lethal damage, so the 2/2 survives three damage.",
+      "seats": [
+        {
+          "bf": ["Plains", "Swamp", "Forest", "Plains", "Swamp", "Forest", "Mountain"],
+          "hand": ["Perennation", "Lightning Bolt"],
+          "graveyard": ["Grizzly Bears"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Perennation", "targets": [["Grizzly Bears"]] },
+        { "resolve": true },
+        { "cast": "Lightning Bolt", "targets": [["Grizzly Bears"]] },
+        { "resolve": true },
+        { "sba": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "counters": ["Grizzly Bears", { "indestructible": 1 }] },
+        { "log": "deals 3 damage" },
+        { "noLog": "Grizzly Bears is destroyed" },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Perennation can return any permanent card, not only a creature card",
+      "cr": "110.4a",
+      "ruling": "A land card is a permanent card, so it is a legal target and comes back with both counters on it.",
+      "seats": [
+        {
+          "bf": ["Plains", "Swamp", "Forest", "Plains", "Swamp", "Forest"],
+          "hand": ["Perennation"],
+          "graveyard": ["Island"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Perennation", "targets": [["Island"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Island", "battlefield"] },
+        { "counters": ["Island", { "hexproof": 1, "indestructible": 1 }] },
+        { "zoneCount": [0, "battlefield", 7] },
+        { "graveyardCount": [0, 1] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

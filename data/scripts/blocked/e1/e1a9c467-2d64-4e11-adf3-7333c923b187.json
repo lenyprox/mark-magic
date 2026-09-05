@@ -1,0 +1,23 @@
+{
+  "oracleId": "e1a9c467-2d64-4e11-adf3-7333c923b187",
+  "name": "Part in Friendship",
+  "clause": "Whenever a nontoken creature you control dies, reveal cards from the top of your library until you reveal a creature card. If its mana value is less than or equal to the number of lands you control, put it onto the battlefield. Otherwise, put it into your hand. Put the rest on the bottom of your library in a random order.",
+  "needs": [
+    {
+      "opFamily": "object-predicate",
+      "proposedSignature": "Condition: { kind: 'that-matches', filter: Filter, of?: Ref }  // holds when the bound object (default `that`) matches the filter",
+      "semantics": "A condition that tests the CURRENT BINDING against an ordinary Filter, so 'if it's a creature card', 'if it's a Spirit', 'if that creature has haste', 'if it's a permanent card' become `conditional` branches instead of unexpressible clauses. Filter already carries types / subtypes / withKeyword / notKeywords / mvLE, so nothing new is needed on the filter side; only the condition variant and its resolution through refs.ts. A companion `{ kind: 'self-matches', filter }` covers '…and ~ doesn't'.",
+      "cr": "608.2, 109.5, 613.1f",
+      "clause": "If it's a creature card, you gain life equal to that card's toughness … / If it's a Spirit, put a +1/+1 counter on it. / If that creature has haste and ~ doesn't, put a haste counter on ~."
+    },
+    {
+      "opFamily": "reveal-until",
+      "proposedSignature": "Effect: { op: 'reveal-until', filter: Filter, found: Effect[], rest: 'bottom' | 'top' | 'graveyard', order: 'any' | 'random', who?: ScopeWho }  // binds the found card as `that`",
+      "semantics": "Reveal cards from the top of a library until one matches, run `found` with the matched card bound as `that`, then put the rest where `rest`/`order` say. Distinct from `dig`, which looks at a fixed number of cards.",
+      "cr": "701.18, 401.4",
+      "clause": "reveal cards from the top of your library until you reveal a creature card … Put the rest on the bottom of your library in a random order."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

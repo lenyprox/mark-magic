@@ -1,0 +1,152 @@
+{
+  "oracleId": "a8c70dab-1e27-4a9c-bd2d-910d5720d02d",
+  "name": "Great Hall of the Biblioplex",
+  "oracleHash": "b0304eb0",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": [
+            "C"
+          ]
+        }
+      ],
+      "text": "{T}: Add {C}.",
+      "manaAbility": true
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true,
+        "payLife": 1
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": "any",
+          "amount": 1,
+          "restriction": "instant-sorcery"
+        }
+      ],
+      "text": "{T}, Pay 1 life: Add one mana of any color. Spend this mana only to cast an instant or sorcery spell.",
+      "manaAbility": true
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 5,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{5}"
+        }
+      },
+      "effects": [
+        {
+          "op": "animate",
+          "target": "self",
+          "power": 2,
+          "toughness": 4,
+          "colors": [],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Wizard"
+          ],
+          "keywords": [],
+          "duration": "permanent"
+        },
+        {
+          "op": "gain-ability",
+          "ability": {
+            "kind": "triggered",
+            "event": {
+              "on": "cast",
+              "who": "you",
+              "filter": {
+                "types": [
+                  "Instant",
+                  "Sorcery"
+                ]
+              }
+            },
+            "effects": [
+              {
+                "op": "pump",
+                "target": "self",
+                "power": 1,
+                "toughness": 0,
+                "duration": "eot"
+              }
+            ],
+            "text": "Whenever you cast an instant or sorcery spell, ~ gets +1/+0 until end of turn."
+          }
+        }
+      ],
+      "text": "{5}: If ~ isn't a creature, it becomes a 2/4 Wizard creature with \"Whenever you cast an instant or sorcery spell, ~ gets +1/+0 until end of turn.\" It's still a land."
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "land",
+    "value": 2,
+    "timing": "main"
+  },
+  "notes": "animate unions the Creature type and the Wizard subtype onto the printed Land ('It's still a land') and gain-ability grants the quoted trigger to the source itself (game.ts pushes onto src.grantedAbilities). The 'If ~ isn't a creature' guard is not written: the format has no negated condition, and re-activating is idempotent here (animate rewrites the same o.animated values and does not clear the until-end-of-turn pump).",
+  "verification": {
+    "at": "2026-09-05T13:58:32.000Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "b0304eb0",
+    "scriptHash": "850d2a9e",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.5,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.50 < 0.55: \"{T}, Pay 1 life: Add one mana of any color. Spend this mana only to cast an instant or sorcery spell.\" rendered as \"{T}, pay 1 life: add one mana of any color\""
+    ]
+  }
+}

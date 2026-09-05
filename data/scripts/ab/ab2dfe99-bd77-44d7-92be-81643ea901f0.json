@@ -1,0 +1,120 @@
+{
+  "oracleId": "ab2dfe99-bd77-44d7-92be-81643ea901f0",
+  "name": "Super State",
+  "oracleHash": "42466a97",
+  "source": "llm",
+  "confidence": 0.6,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "aura",
+        "power": 0,
+        "toughness": 0,
+        "keywords": [
+          "flying",
+          "first strike",
+          "trample",
+          "haste"
+        ],
+        "enchant": {
+          "kind": "creature",
+          "controller": "you"
+        }
+      },
+      "text": "Enchant creature you control"
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "set-pt",
+        "power": 9,
+        "toughness": 9,
+        "scope": "enchanted",
+        "keywords": [
+          "flying",
+          "first strike",
+          "trample",
+          "haste"
+        ]
+      },
+      "text": "Enchanted creature has base power and toughness 9/9 and has flying, first strike, trample, and haste."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": false,
+        "filter": {
+          "attachedToSource": true
+        }
+      },
+      "effects": [
+        {
+          "op": "damage",
+          "amount": {
+            "count": "that-many"
+          },
+          "target": "each-opponent"
+        }
+      ],
+      "text": "Whenever enchanted creature deals combat damage to an opponent, it deals that much damage to each other opponent."
+    }
+  ],
+  "aiHints": {
+    "role": "finisher",
+    "value": 7,
+    "timing": "main"
+  },
+  "notes": "The 'Enchant creature you control' line is claimed by the aura static that carries the enchant restriction; the base 9/9 and the keywords are the set-pt static (layer 7b, CR 613.4b), which is why the keyword grant appears on both. APPROXIMATION: 'each other opponent' is written as each-opponent (there is no 'every opponent but that one' target), so the damaged opponent takes the damage twice; and the damage is dealt by the Aura rather than by the enchanted creature.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "42466a97",
+    "scriptHash": "a4c4a091",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "unreachable",
+      "seats4": "unreachable",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Enchanted creature has base power and toughness 9/9 and has flying, first strike, trample, and haste.",
+          "rendered": "set pt",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Enchanted creature has base power and toughness 9/9 and has flying, first strike, trample, and haste.\" rendered as \"set pt\""
+    ]
+  }
+}

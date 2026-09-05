@@ -1,0 +1,16 @@
+{
+  "oracleId": "d5770b0f-4493-42e9-a2d7-0e74a28da4ba",
+  "name": "The Earth King",
+  "clause": "Whenever one or more creatures you control with power 4 or greater attack, search your library for up to that many basic land cards, put them onto the battlefield tapped, then shuffle.",
+  "needs": [
+    {
+      "opFamily": "other",
+      "proposedSignature": "{ on: 'attacks'; self: false; filter: Filter; oneOrMore: true } plus search.count: Amount",
+      "semantics": "Fires ONCE per combat when one or more creatures matching `filter` attack, recording how many did as item.lastAmount so a following effect can read { count: 'that-many' }; `search` then needs `count` to accept an Amount so 'up to that many' is expressible.",
+      "cr": "603.2, 608.2h, 701.19",
+      "clause": "Whenever one or more creatures you control with power 4 or greater attack, search your library for up to that many basic land cards ..."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

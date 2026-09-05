@@ -1,0 +1,117 @@
+{
+  "oracleId": "77216636-f76d-4c5e-b1ac-ab1844753f05",
+  "name": "Excava, the Risen Past",
+  "oracleHash": "33cd0696",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [
+    "flying",
+    "haste"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "return-from-graveyard",
+          "what": {
+            "types": [
+              "Artifact",
+              "Creature",
+              "Enchantment"
+            ],
+            "notSubtypes": [
+              "Aura"
+            ],
+            "mvLE": 3
+          },
+          "to": "battlefield",
+          "target": true,
+          "count": 1,
+          "optional": true
+        },
+        {
+          "op": "counters",
+          "target": "those",
+          "counter": "finality",
+          "amount": 1
+        },
+        {
+          "op": "animate",
+          "target": "that",
+          "power": 1,
+          "toughness": 1,
+          "colors": [],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Spirit"
+          ],
+          "keywords": [
+            "flying"
+          ],
+          "duration": "permanent"
+        }
+      ],
+      "text": "Whenever ~ attacks, return up to one target artifact, creature, or non-Aura enchantment card with mana value 3 or less from your graveyard to the battlefield with a finality counter on it. It's a 1/1 Spirit creature with flying in addition to its other types."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flying, haste",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "recursion",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "The documented idiom for a targeted graveyard return (VOCABULARY.md §8: 'Return up to N target <filter> cards from your graveyard to the battlefield' -> return-from-graveyard with count and optional). return-from-graveyard binds what it returned, so the counters and the animate that follow are about that card; the engine adds a move's withCounters after enterBattlefield too (game.ts opMove), so the two spellings are behaviourally identical here. animate UNIONS types and subtypes onto the printed ones (characteristics.ts types()/subtypes()), which is exactly 'in addition to its other types'. notSubtypes ['Aura'] is very slightly wider than the printed 'non-Aura enchantment'.",
+  "verification": {
+    "at": "2026-09-05T13:58:32.000Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "33cd0696",
+    "scriptHash": "1f17831c",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Whenever ~ attacks, return up to one target artifact, creature, or non-Aura enchantment card with mana value 3 or less from your graveyard to the battlefield with a finality counter on it. It's a 1/1 Spirit creature with flying in addition to its other types.",
+          "rendered": "whenever ~ attacks, return target artifact creature enchantment with mana value 3 or less from your graveyard to the battlefield. put a finality counter on those permanents. that permanent becomes a 1/1 Spirit creature with flying",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Whenever ~ attacks, return up to one target artifact, creature, or non-Aura enchantment card with mana value 3 or less from your graveyard to the battlefield with a finality counter on it. It's a 1/1 Spirit creature with flying in addition to its other types.\" rendered as \"whenever ~ attacks, return target artifact creature enchantment with mana value 3 or less from your graveyard to the battlefield. put a finality counter on those permanents. that permanent becomes a 1/1 Spirit creature with flying\""
+    ]
+  }
+}

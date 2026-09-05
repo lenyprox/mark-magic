@@ -1,0 +1,16 @@
+{
+  "oracleId": "446db5a4-21b0-44c1-b12b-d365313dd67a",
+  "name": "Clifftop Lookout",
+  "clause": "When ~ enters, reveal cards from the top of your library until you reveal a land card. Put that card onto the battlefield tapped and the rest on the bottom of your library in a random order.",
+  "needs": [
+    {
+      "opFamily": "keyword-action",
+      "proposedSignature": "{ op: 'reveal-until'; filter: Filter; found: Effect[]; rest: 'bottom-random' | 'bottom' | 'top' | 'graveyard' | 'hand' }",
+      "semantics": "Reveal cards from the top of your library until one matches `filter`; bind it as 'that' and run `found`, then put the remaining revealed cards where `rest` says (random order for 'bottom-random').",
+      "cr": "701.16, 701.19",
+      "clause": "reveal cards from the top of your library until you reveal a land card. Put that card onto the battlefield tapped and the rest on the bottom of your library in a random order."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

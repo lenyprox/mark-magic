@@ -1,0 +1,88 @@
+{
+  "oracleId": "6d972501-4174-4bf0-a26b-2edef31b3a0c",
+  "name": "Slumbering Walker",
+  "scenarios": [
+    {
+      "name": "Slumbering Walker enters with two -1/-1 counters on it",
+      "cr": "614.1c",
+      "ruling": "The replacement effect puts two -1/-1 counters on it as it enters, so the 4/7 arrives as a 2/5.",
+      "seats": [
+        { "bf": ["Plains", "Plains", "Plains", "Plains", "Plains"], "hand": ["Slumbering Walker"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Slumbering Walker" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Slumbering Walker", "battlefield"] },
+        { "counters": ["Slumbering Walker", { "-1/-1": 2 }] },
+        { "pt": ["Slumbering Walker", 2, 5] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Removing a counter at your end step returns a creature card with power 2 or less",
+      "cr": "603.12",
+      "ruling": "The reflexive ability triggers when you remove the counter and targets a creature card with power 2 or less in your graveyard.",
+      "seats": [
+        { "bf": ["Slumbering Walker"], "counters": { "Slumbering Walker": { "-1/-1": 2 } }, "graveyard": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "end" },
+        { "answer": true },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "counters": ["Slumbering Walker", { "-1/-1": 1 }] },
+        { "pt": ["Slumbering Walker", 3, 6] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "control": ["Grizzly Bears", 0] },
+        { "graveyardCount": [0, 0] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Declining to remove a counter returns nothing",
+      "cr": "603.12",
+      "ruling": "The reflexive ability only triggers if you actually remove a counter; declining leaves both the counters and the graveyard untouched.",
+      "seats": [
+        { "bf": ["Slumbering Walker"], "counters": { "Slumbering Walker": { "-1/-1": 2 } }, "graveyard": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "end" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "counters": ["Slumbering Walker", { "-1/-1": 2 }] },
+        { "pt": ["Slumbering Walker", 2, 5] },
+        { "zone": ["Grizzly Bears", "graveyard"] },
+        { "graveyardCount": [0, 1] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A creature card with power 3 in the graveyard is not a legal target",
+      "cr": "608.2b",
+      "ruling": "The counter is still removed, but the reflexive ability has no legal target and is removed from the stack, so Hill Giant stays in the graveyard.",
+      "seats": [
+        { "bf": ["Slumbering Walker"], "counters": { "Slumbering Walker": { "-1/-1": 2 } }, "graveyard": ["Hill Giant"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "end" },
+        { "answer": true },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Hill Giant", "graveyard"] },
+        { "graveyardCount": [0, 1] },
+        { "counters": ["Slumbering Walker", { "-1/-1": 1 }] },
+        { "pt": ["Slumbering Walker", 3, 6] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

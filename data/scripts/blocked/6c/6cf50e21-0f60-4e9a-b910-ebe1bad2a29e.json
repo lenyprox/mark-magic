@@ -1,0 +1,13 @@
+{
+  "oracleId": "6cf50e21-0f60-4e9a-b910-ebe1bad2a29e",
+  "name": "Blasphemous Edict",
+  "clause": "You may pay {B} rather than pay ~'s mana cost if there are thirteen or more creatures on the battlefield.",
+  "needs": [
+    {
+      "opFamily": "unclassified",
+      "semantics": "The AltCost TYPE can express it (mana cost plus a condition), but COVER_RULES.altCosts' pitch shape is anchored right after \"mana cost\" so the trailing condition breaks the match, and its value check accepts only 'pay N life' / 'exile … from your hand', not a mana payment. The second line is already parsed — this is a cover-rule gap, not a vocabulary gap."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

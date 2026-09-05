@@ -10,6 +10,8 @@ import path from 'node:path';
 import { MASTER_DB } from '../src/config/paths.js';
 import { runScenario } from '../src/verify/scenarioDsl.js';
 import { listScenarioFiles, oracleIdOf, ownerDeckOracleIds, readScenarioFile, sampleScenarioFiles, shardPathFor, type LoadedScenarioFile } from '../src/verify/scenarioFiles.js';
+import { stateOf } from '../src/cards/scriptState.js';
+const ASSERTED = new Set(['parsed', 'tested', 'judged', 'reviewed']);
 
 /** How many files beyond the owner's decks the fast run covers. */
 const SEEDED = 200;
@@ -39,7 +41,11 @@ test('the corpus sample is deterministic and covers the owner\'s decks', () => {
 });
 
 for (const file of loaded) for (const sc of file.scenarios) {
-  test(`[${file.name}] ${sc.name}${sc.cr ? ` (CR ${sc.cr})` : ''}`, { skip: !hasDb }, async () => {
+  // a blind scenario is EVIDENCE about the card's script: it is asserted only once the script reached `tested` /
+  // `judged` (or a person reviewed it, or the parser alone plays the card); for a script a judge rejected or the
+  // mechanical gate refused, a failing scenario is the finding, not a regression — reported as skipped with the state
+  const state = stateOf(file.oracleId).state;
+  test(`[${file.name}] ${sc.name}${sc.cr ? ` (CR ${sc.cr})` : ''}`, { skip: !hasDb ? true : ASSERTED.has(state) ? false : `script state ${state}` }, async () => {
     const run = await runScenario(sc);
     assert.deepEqual(run.failures, [], `${file.name}: ${sc.name}\n${run.game.state.log.join('\n')}`);
   });

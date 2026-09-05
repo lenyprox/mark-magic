@@ -1,0 +1,16 @@
+{
+  "oracleId": "51780f71-bf60-4208-94ea-76fa84790fb6",
+  "name": "Drivnod, Carnage Dominus",
+  "clause": "{B/P}{B/P}, Exile three creature cards from your graveyard: Put an indestructible counter on ~.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "AbilityCost.sacrifice?: Filter | { filter: Filter; count: number }; AbilityCost.exileFromGraveyard?: number | { count: number; filter: Filter }",
+      "semantics": "Give the two existing cost parts a count and a filter: 'Sacrifice two creatures' asks for exactly two matching permanents, 'Exile three creature cards from your graveyard' only accepts creature cards.",
+      "cr": "118.3, 601.2h",
+      "clause": "'Sacrifice two creatures:' / 'Exile three creature cards from your graveyard:'"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

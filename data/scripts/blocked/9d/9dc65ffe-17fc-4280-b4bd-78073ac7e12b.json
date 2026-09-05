@@ -1,0 +1,16 @@
+{
+  "oracleId": "9dc65ffe-17fc-4280-b4bd-78073ac7e12b",
+  "name": "Leyline of Anticipation",
+  "clause": "If ~ is in your opening hand, you may begin the game with it on the battlefield.",
+  "needs": [
+    {
+      "opFamily": "opening-hand",
+      "proposedSignature": "{ kind: 'from-opening-hand'; action: 'battlefield' | 'reveal'; effects?: Effect[] } as a StaticEffect, applied by the engine during the CR 103.6 step after mulligans",
+      "semantics": "A card that may be put onto the battlefield (Leyline cycle) or revealed (Chancellor cycle, Gemstone Caverns) from the opening hand before the first turn. Needs a hook in game setup, not in resolution.",
+      "cr": "103.6a",
+      "clause": "If ~ is in your opening hand, you may begin the game with it on the battlefield."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "78b6dd40-c182-4037-a4d3-9fd012b2c584",
+  "name": "Herd Heirloom",
+  "clause": "{T}: Until end of turn, target creature you control with power 4 or greater gains trample and \"Whenever this creature deals combat damage to a player, draw a card.\"",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "{ op: 'grant-ability'; target: TargetSpec | Ref | 'creatures-you-control'; ability: Ability; duration: 'eot' | 'permanent' } (widen the existing source-only form)",
+      "semantics": "Grant a quoted ability to chosen objects for a duration, layer 6, instead of only to the source permanently.",
+      "cr": "613.1f, 611.2c",
+      "clause": "target creature ... gains trample and \"Whenever this creature deals combat damage to a player, draw a card.\""
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

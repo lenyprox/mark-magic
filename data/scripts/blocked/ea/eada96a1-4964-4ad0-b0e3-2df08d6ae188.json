@@ -1,0 +1,23 @@
+{
+  "oracleId": "eada96a1-4964-4ad0-b0e3-2df08d6ae188",
+  "name": "Wilhelt, the Rotcleaver",
+  "clause": "Whenever another Zombie you control dies, if it didn't have decayed, create a 2/2 black Zombie creature token with decayed.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "{ kind: 'that-is-type'; type: CardType; not?: boolean } and { kind: 'triggering-has-keyword'; keyword: Keyword; not?: boolean }",
+      "semantics": "Conditions about the bound / triggering object rather than the source: 'if it's a land card', 'if it didn't have decayed'.",
+      "cr": "608.2, 603.10a",
+      "clause": "'If it's a land card, ...' / 'if it didn't have decayed'"
+    },
+    {
+      "opFamily": "other",
+      "proposedSignature": "Keyword 'changeling' and Keyword 'decayed'; { op: 'token'; ...; abilities?: Ability[]; predefined?: string }",
+      "semantics": "Two printed keywords the schema does not carry, and a token that can be given printed abilities (or be named as one of the predefined tokens, e.g. Mutavault) rather than only P/T, colours, types, subtypes and keywords.",
+      "cr": "702.73 (changeling), 702.146 (decayed), 111.1",
+      "clause": "'Changeling' / 'create a tapped Mutavault token' / 'a 2/2 black Zombie creature token with decayed'"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

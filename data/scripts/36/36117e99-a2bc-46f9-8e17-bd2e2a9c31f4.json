@@ -1,0 +1,110 @@
+{
+  "oracleId": "36117e99-a2bc-46f9-8e17-bd2e2a9c31f4",
+  "name": "Rot Hulk",
+  "oracleHash": "cd0352d3",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [
+    "menace"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "move",
+          "what": {
+            "filter": {
+              "types": [
+                "Creature"
+              ],
+              "subtypes": [
+                "Zombie"
+              ]
+            },
+            "zone": "graveyard",
+            "who": "you",
+            "count": {
+              "count": "opponents"
+            },
+            "choose": "you"
+          },
+          "to": "battlefield",
+          "controller": "you"
+        }
+      ],
+      "text": "When ~ enters, return up to X target Zombie cards from your graveyard to the battlefield, where X is the number of opponents you have."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Menace",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "recursion",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "return-from-graveyard takes a numeric count only, so the X (the number of opponents you have) is written as a move of a chosen set from your graveyard: you pick up to that many Zombie cards. That form chooses on resolution instead of targeting on the stack (CR 115.1), which is the one deviation.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "cd0352d3",
+    "scriptHash": "4a04db30",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.583,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/36/36117e99-a2bc-46f9-8e17-bd2e2a9c31f4.json",
+      "passed": 4,
+      "failed": 0,
+      "names": []
+    },
+    "status": "tested",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "return up to X target Zombie cards from your graveyard to the battlefield — expected 'up to X' — you may choose zero or fewer than X targets — scripted move with what.count={count:'opponents'} and no optional flag; chooseFrom() computes n = min(amt, cands.length) and asks with exact:true (src/engine/game.ts chooseFrom), and returns all candidates outright when n >= cands.length — the return is mandatory — CR CR 601.2c / 115.1 — 'up to' lets you choose fewer, including zero",
+          "up to X TARGET Zombie cards — expected targets chosen when the trigger goes on the stack; illegal/changed targets checked on resolution — scripted chooseFrom on resolution (documented in notes), so the cards are not targets at all — hexproof-from-graveyard style effects, 'can't be the target', and target-count checks never apply — CR CR 115.1, 603.3d",
+          "Zombie cards — expected any card with the Zombie subtype in your graveyard (includes changeling/Kindred noncreature cards, e.g. Nameless Inversion) — scripted filter.types=['Creature'] plus subtypes=['Zombie'] — narrowed to Zombie creature cards only; render confirms 'Zombie creature cards'"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "return up to X target Zombie cards from your graveyard to the battlefield — expected Up to X TARGET cards, chosen on announcement; controller may choose fewer, including zero — scripted move with what.count={count:'opponents'}, choose:'you'. chooseFrom() (game.ts:1688-1706) uses exact:true and returns ALL candidates outright when n>=cands.length, so it is mandatory 'exactly min(X, available)', not 'up to X', and nothing is targeted (no shroud/hexproof/target-illegality interaction) — CR 115.1, 601.2c",
+          "target Zombie cards — expected any Zombie card (a Kindred/Tribal Zombie card qualifies) — scripted filter narrowed to types:['Creature'] + subtypes:['Zombie']; render reads 'Zombie creature cards' — CR 205.3m",
+          "covers/notes — expected the targeting + 'up to' deviation flagged as a need — scripted notes mention the targeting deviation only; the loss of 'up to' (optional zero) is not disclosed and there is no openNeeds/ignore entry"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

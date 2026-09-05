@@ -1,0 +1,114 @@
+{
+  "oracleId": "3a16bdda-8499-47e4-b870-b9576f4c1a83",
+  "name": "Master of Death",
+  "oracleHash": "fc71c79b",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "surveil",
+          "amount": 2
+        }
+      ],
+      "text": "When ~ enters, surveil 2."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "upkeep",
+        "whose": "your"
+      },
+      "intervening": {
+        "kind": "self-in-graveyard"
+      },
+      "effects": [
+        {
+          "op": "may",
+          "effects": [
+            {
+              "op": "lose-life",
+              "amount": 1,
+              "who": "you"
+            },
+            {
+              "op": "move",
+              "what": "self",
+              "to": "hand"
+            }
+          ]
+        }
+      ],
+      "text": "At the beginning of your upkeep, if ~ is in your graveyard, you may pay 1 life. If you do, return it to your hand."
+    }
+  ],
+  "aiHints": {
+    "role": "recursion",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "'You may pay 1 life. If you do, return it to your hand' is one may over both halves: paying 1 life is written as losing 1 life (no AbilityCost is available inside an effect list), and the two are inseparable, so the payment can never happen without the return.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "fc71c79b",
+    "scriptHash": "37e1ac1a",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.783,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/3a/3a16bdda-8499-47e4-b870-b9576f4c1a83.json",
+      "passed": 0,
+      "failed": 4,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "At the beginning of your upkeep, if this card is in your graveyard, you may pay 1 life. If you do, return it to your hand. — expected the ability functions from the graveyard and triggers each of your upkeeps while the card is there — scripted the trigger is written correctly (intervening self-in-graveyard), but queueTriggers only scans triggerPerms() = allPermanents(s) plus command-zone hooks (src/engine/game.ts ~2148) — graveyard cards are never scanned, so this ability can never fire. Sandbox records ability index 1 reached:false, and the blind scenario failed: Master of Death stayed in graveyard, life 20 !== 19, hand 0 !== 1 — CR CR 603.6 / 603.10 — abilities that function from the graveyard trigger from that zone",
+          "you may pay 1 life — expected paying life is a cost payment, not a life-loss event — scripted op 'lose-life' amount 1 — will trigger 'whenever you lose life' watchers and interacts with loss-prevention effects that a payment would not — CR CR 118.8 / 119.3 — paying life is not losing life for triggers that care"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "At the beginning of your upkeep, if this card is in your graveyard, you may pay 1 life. If you do, return it to your hand. — expected the ability functions from the graveyard and triggers each of your upkeeps — scripted triggered ability with intervening self-in-graveyard, but queueTriggers only scans triggerPerms() = allPermanents(s) + TRIGGER_SOURCES (game.ts:2146-2158), and no module registers a graveyard trigger source. The ability can never fire. Sandbox reports ability index 1 'reached: false'; blind scenario confirms Master of Death stayed in the graveyard, life 20 not 19 — CR 603.6d, 113.6",
+          "you may pay 1 life — expected paying life is a cost (CR 118.8); it is a payment, not life loss — scripted op 'lose-life' amount 1 inside a may — differs for 'whenever you lose life' triggers and for effects that care about payment vs loss — CR 118.8, 119.3"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

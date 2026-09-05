@@ -1,0 +1,74 @@
+{
+  "oracleId": "9c45682f-48b5-4e58-9277-ff4211f389ae",
+  "name": "Antiquities on the Loose",
+  "scenarios": [
+    {
+      "name": "Antiquities on the Loose cast from hand makes two Spirit tokens and puts no counters on Spirits",
+      "cr": "111.1",
+      "ruling": "The second sentence only applies when the spell was cast from somewhere other than your hand, so a hand cast leaves every Spirit uncountered.",
+      "seats": [
+        { "bf": ["Plains", "Plains", "Plains", "Wandering Ones"], "hand": ["Antiquities on the Loose"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Antiquities on the Loose" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "events": { "type": "create-token", "min": 1 } },
+        { "zoneCount": [0, "battlefield", 6] },
+        { "counters": ["Wandering Ones", { "+1/+1": 0 }] },
+        { "pt": ["Wandering Ones", 1, 1] },
+        { "zone": ["Antiquities on the Loose", "graveyard"] },
+        { "noLog": "[+]1[/][+]1 counter" },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Antiquities on the Loose cast with flashback puts a +1/+1 counter on each Spirit you control",
+      "cr": "702.34a",
+      "ruling": "A flashback cast comes from the graveyard, so the conditional second sentence applies and every Spirit you control, including one already on the battlefield, gets a +1/+1 counter.",
+      "seats": [
+        {
+          "bf": ["Plains", "Plains", "Plains", "Plains", "Plains", "Plains", "Wandering Ones"],
+          "graveyard": ["Antiquities on the Loose"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Antiquities on the Loose", "alt": "flashback" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "counters": ["Wandering Ones", { "+1/+1": 1 }] },
+        { "pt": ["Wandering Ones", 2, 2] },
+        { "events": { "type": "create-token", "min": 1 } },
+        { "zoneCount": [0, "battlefield", 9] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A flashback cast of Antiquities on the Loose is exiled instead of returning to the graveyard",
+      "cr": "702.34a",
+      "ruling": "If the flashback cost was paid, the card is exiled instead of being put anywhere else as it leaves the stack.",
+      "seats": [
+        {
+          "bf": ["Plains", "Plains", "Plains", "Plains", "Plains", "Plains"],
+          "graveyard": ["Antiquities on the Loose"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Antiquities on the Loose", "alt": "flashback" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Antiquities on the Loose", "exile"] },
+        { "graveyardCount": [0, 0] },
+        { "events": { "type": "create-token", "min": 1 } },
+        { "zoneCount": [0, "battlefield", 8] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

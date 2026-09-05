@@ -1,0 +1,23 @@
+{
+  "oracleId": "ae120613-97d6-4393-b39d-c3e6c076f5d6",
+  "name": "Deflecting Swat",
+  "clause": "If you control a commander, you may cast ~ without paying its mana cost. / You may choose new targets for target spell or ability.",
+  "needs": [
+    {
+      "opFamily": "copy-clone",
+      "proposedSignature": "{ op: 'change-targets', target: TargetSpec /* kind 'spell' | 'ability' | 'spell-or-ability' */, who: 'you', optional?: boolean }",
+      "semantics": "Re-choose the targets of an object on the stack (one you need not control), legality re-checked per requirement. `fold-new-targets` is only a parser marker and never reaches the engine.",
+      "cr": "115.7, 115.7b",
+      "clause": "You may choose new targets for target spell or ability."
+    },
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "{ op: 'cast-permission', who: ScopeWho, from: 'hand'|'library-top'|'exile'|'graveyard', filter?: Filter, count?: Amount, free?: boolean, altCost?: AbilityCost, mvLE?: Amount, anyColorMana?: boolean, until: 'eot'|'this-turn'|'while-exiled' }",
+      "semantics": "A duration-scoped permission to cast cards from another zone, optionally free, for an alternative cost, or spending mana as though it were any colour.",
+      "cr": "601.3e, 118.9, 609.4b",
+      "clause": "You may cast a spell with mana value X or less from your hand without paying its mana cost. / you may play cards from the top of your library … pay life equal to its mana value rather than pay its mana cost / You may look at and play those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color / You may cast that card this turn without paying its mana cost. / If you control a commander, you may cast ~ without paying its mana cost."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

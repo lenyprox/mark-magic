@@ -1,0 +1,23 @@
+{
+  "oracleId": "f00bc101-8082-4459-b987-f0c4b7a12344",
+  "name": "Advanced Reconstruction",
+  "clause": "{1}{R}: Level 2 / At the beginning of your first main phase, mill a card, then exile a card from your graveyard at random. You may play the exiled card this turn.",
+  "needs": [
+    {
+      "opFamily": "class-levels",
+      "proposedSignature": "{ op: 'set-level'; to: number } as the effect of a sorcery-speed activated ability with activateOnlyIf { kind: 'self-level-eq', value: N-1 }; a trigger { on: 'became-level'; level: number }; and an ability gate `Ability.atLevel?: number` read by abilitiesOf / computeStaticMods",
+      "semantics": "CR 716.2a's three halves of a class level bar: the activated ability that raises the level, the 'When this Class becomes level N' trigger, and the 'as long as this Class is level N or greater' gate on the abilities the bar introduces. A level is a designation on the permanent, not a counter (716.2b), so the existing 'level' counter is not a substitute.",
+      "cr": "716.2a, 716.2b",
+      "clause": "{W}: Level 2 / When this Class becomes level 2, create a token that's a copy of target token you control."
+    },
+    {
+      "opFamily": "trigger:main-phase",
+      "proposedSignature": "{ on: 'main-phase'; whose: 'your' | 'each'; which?: 'first' | 'precombat' | 'postcombat' }",
+      "semantics": "'At the beginning of your first main phase' / 'your precombat main phase' / 'each player's postcombat main phase'. TRIGGER_VOCAB has upkeep, draw-step, combat-begin, end-step and end-of-turn but no main phase at all.",
+      "cr": "505.1, 505.1a",
+      "clause": "At the beginning of your first main phase, mill three cards."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

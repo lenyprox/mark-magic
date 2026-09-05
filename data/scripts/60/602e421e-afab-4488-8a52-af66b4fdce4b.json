@@ -1,0 +1,115 @@
+{
+  "oracleId": "602e421e-afab-4488-8a52-af66b4fdce4b",
+  "name": "Noxious Ghoul",
+  "oracleHash": "b556bb1e",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "or",
+        "events": [
+          {
+            "on": "etb",
+            "self": true
+          },
+          {
+            "on": "etb",
+            "self": false,
+            "filter": {
+              "subtypes": [
+                "Zombie"
+              ],
+              "other": true
+            }
+          }
+        ]
+      },
+      "effects": [
+        {
+          "op": "for-each",
+          "over": {
+            "types": [
+              "Creature"
+            ],
+            "notSubtypes": [
+              "Zombie"
+            ]
+          },
+          "do": [
+            {
+              "op": "pump",
+              "target": "that",
+              "power": -1,
+              "toughness": -1,
+              "duration": "eot"
+            }
+          ]
+        }
+      ],
+      "text": "Whenever ~ or another Zombie enters, all non-Zombie creatures get -1/-1 until end of turn.",
+      "optional": false
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "'Another Zombie' is any player's Zombie, so the second half of the or event carries no controller; pump takes no filter, so 'all non-Zombie creatures' is a for-each over every creature that is not a Zombie (the set defaults to every player's battlefield).",
+  "verification": {
+    "at": "2026-09-05T13:59:38.385Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "b556bb1e",
+    "scriptHash": "84d3fc19",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.65,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/60/602e421e-afab-4488-8a52-af66b4fdce4b.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "Whenever this creature or another Zombie enters — expected Fires on Noxious Ghoul entering and on ANY player's other Zombie entering. — scripted event 'or' of {etb self:true} and {etb self:false, filter:{subtypes:['Zombie'], other:true}} with no controller key. game.ts:2168 leaves an etb with no `controller` unrestricted, so any player's Zombie fires it; `other:true` is redundant because self:false already requires ctx.obj !== perm. Correct.",
+          "all non-Zombie creatures get -1/-1 until end of turn — expected Every creature on the battlefield that is not a Zombie, any controller, -1/-1 until end of turn (a one-shot, so creatures entering later are unaffected). — scripted for-each over {types:['Creature'], notSubtypes:['Zombie']} with pump target 'that', -1/-1, duration 'eot'. The set has no `who`, and framelessSet (characteristics.ts:196) defaults an absent `who` to every player, so opponents' creatures are included; notSubtypes is honoured at characteristics.ts:225. The render 'for each creature' drops notSubtypes — that is a render.ts gap and the sole cause of the 0.65 round-trip, not an engine one."
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "Whenever this creature or another Zombie enters, all non-Zombie creatures get -1/-1 until end of turn. — expected triggers on itself entering OR any other Zombie (any controller) entering, once per event; -1/-1 until EOT to every non-Zombie creature on any battlefield — scripted event 'or' of [etb self:true, etb self:false filter{subtypes:['Zombie'], other:true}] — the two branches are mutually exclusive at game.ts:2168 (self branch needs ctx.obj===perm, other branch needs ctx.obj!==perm), so it fires exactly once; no controller restriction, matching 'another Zombie' regardless of controller. Effect is for-each over {types:['Creature'], notSubtypes:['Zombie']} with pump -1/-1 duration eot; objectsIn defaults to all players (refs.ts:143) and matchesFilter honors notSubtypes (characteristics.ts:225). Blind scenario 2 confirms Walking Corpse and Noxious Ghoul stay 2/2 and 3/3. — CR 603.2; 613.4c; 704.5f",
+          "all non-Zombie creatures get -1/-1 until end of turn — expected one continuous effect over the set locked in at resolution — scripted expressed as a for-each snapshot loop rather than a single set-wide pump. Result is identical (set determined at resolution, later entrants unaffected, a creature that later becomes a Zombie keeps the -1/-1). roundTrip 0.65 reflects the renderer flattening 'for each creature, that permanent gets -1/-1' and dropping 'non-Zombie', not an engine divergence. — CR 611.2c"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

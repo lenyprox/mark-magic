@@ -1,0 +1,132 @@
+{
+  "oracleId": "8952a7e6-4ede-42bb-b90c-00ea4f24f8f8",
+  "name": "Immortus, Master of Eternity",
+  "oracleHash": "82c2fffb",
+  "source": "llm",
+  "confidence": 0.6,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": [
+            "U"
+          ],
+          "perEach": {
+            "count": "cards-drawn-this-turn"
+          }
+        }
+      ],
+      "text": "{T}: Add {U} for each card you've drawn this turn. Spend this mana only to cast noncreature spells."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 5,
+          "x": 0,
+          "pips": [
+            "U",
+            "U"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{5}{U}{U}"
+        }
+      },
+      "effects": [
+        {
+          "op": "scoped",
+          "who": "each-player",
+          "do": [
+            {
+              "op": "move",
+              "what": {
+                "filter": {},
+                "zone": "hand",
+                "who": "you",
+                "count": "all"
+              },
+              "to": "library"
+            },
+            {
+              "op": "move",
+              "what": {
+                "filter": {},
+                "zone": "graveyard",
+                "who": "you",
+                "count": "all"
+              },
+              "to": "library"
+            },
+            {
+              "op": "shuffle"
+            },
+            {
+              "op": "draw",
+              "amount": 7,
+              "who": "you"
+            }
+          ]
+        },
+        {
+          "op": "counters",
+          "target": "self",
+          "counter": "+1/+1",
+          "amount": 1
+        }
+      ],
+      "text": "{5}{U}{U}: Each player shuffles their hand and graveyard into their library, then draws seven cards. Put a +1/+1 counter on ~."
+    }
+  ],
+  "aiHints": {
+    "role": "mana",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "APPROXIMATIONS: the add-mana restriction vocabulary has no 'noncreature spells' value, so the mana this ability makes is unrestricted; and 'activate each power-up ability only once' (per game) has no field - oncePerTurn would be a different rule, so it is left off.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "82c2fffb",
+    "scriptHash": "16cbb91c",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.476,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.48 < 0.55: \"{T}: Add {U} for each card you've drawn this turn. Spend this mana only to cast noncreature spells.\" rendered as \"{T}: add {U} for each the number of cards you have drawn this turn\""
+    ]
+  }
+}

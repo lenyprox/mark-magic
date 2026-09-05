@@ -1,0 +1,16 @@
+{
+  "oracleId": "fa4dffda-6f04-4d0b-829d-28a1a5794dee",
+  "name": "Millikin",
+  "clause": "{T}, Mill a card: Add {C}.",
+  "needs": [
+    {
+      "opFamily": "ability-cost:mill",
+      "proposedSignature": "AbilityCost gains `mill?: number`, paid through COST_PARTS like discard / payLife / exileFromGraveyard",
+      "semantics": "'Mill a card' as part of an ACTIVATION cost, paid on activation rather than on resolution. Millikin and the Dimir cost-mill cycle need it; AbilityCost already carries every other card-moving cost part.",
+      "cr": "118.3, 701.13a",
+      "clause": "{T}, Mill a card: Add {C}."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

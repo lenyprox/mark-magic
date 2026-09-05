@@ -1,0 +1,16 @@
+{
+  "oracleId": "dc5dffc8-fac5-4956-bac4-1ad2cc16f6be",
+  "name": "Deflecting Palm",
+  "clause": "The next time a source of your choice would deal damage to you this turn, prevent that damage. If damage is prevented this way, ~ deals that much damage to that source's controller.",
+  "needs": [
+    {
+      "opFamily": "replacement",
+      "proposedSignature": "static { kind: 'replacement', would: { event: 'damage'|'enters'|'zone-change'|'counters'; filter?: Filter; scope?: 'you-control'|'all'|'self'; to?: 'you'|'any' }, instead: Effect[] | 'none' | 'unpreventable', duration?: 'permanent'|'eot' } · effect { op: 'prevent-next-damage', from: 'chosen-source', to: 'you'|Ref, duration: 'eot', then?: Effect[] }",
+      "semantics": "The generic { would, instead } shape, plus a shield that BINDS the source it prevented and feeds the prevented amount to `that-many` so the redirect half of Deflecting Palm can read it.",
+      "cr": "614.1, 615.1, 615.10, 616.1",
+      "clause": "Combat damage that would be dealt by creatures you control can't be prevented. / Lands you control enter untapped. / The next time a source of your choice would deal damage to you this turn, prevent that damage. / If that spell would be put into a graveyard, put it on the bottom of its owner's library instead."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

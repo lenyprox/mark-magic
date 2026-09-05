@@ -1,0 +1,23 @@
+{
+  "oracleId": "196f8f13-d4df-4740-8746-8fed3bc71840",
+  "name": "Grist, Voracious Larva // Grist, the Plague Swarm",
+  "clause": "Whenever ~ or another creature you control enters, if it entered from your graveyard or you cast it from your graveyard, you may pay {G}. ... // +1: ... Put a deathtouch counter on the token if a black card was milled this way. // -6: For each creature card in your graveyard, create a token that's a copy of it, except it's a 1/1 black and green Insect.",
+  "needs": [
+    {
+      "opFamily": "copy-clone",
+      "proposedSignature": "{ op: 'token-copy', target, count, power?: number, toughness?: number, colors?: Color[], name?: string, extraTypes?, extraSubtypes?, extraKeywords?, grantAbility?: Ability, tapped?, attacking? }",
+      "semantics": "A copy with copiable-value exceptions (CR 707.2 layer 1 overrides): P/T, colours, name and a granted ability, on top of the extra types/subtypes/keywords the op already carries.",
+      "cr": "707.2, 706.2, 613.2",
+      "clause": "Create a token that's a copy of it, except it's a 4/4 black Zombie. / except it's 1/1 and has toxic 1. / except it's a Spirit in addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard.\""
+    },
+    {
+      "opFamily": "other",
+      "proposedSignature": "conditions { kind: 'entered-from', zone: 'graveyard'|'exile'|'hand'|'library' } and { kind: 'cast-from', zone: SetZone } (an `or` of the two is Grist's intervening-if); { kind: 'milled-this-way', filter: Filter }; plus a gate `nthEachTurn?: number` on the `cost-adjust` and `flash-for` statics",
+      "semantics": "Three intervening/branch conditions with no kind today: where a permanent came from, what an earlier effect of the same item milled, and 'only the Nth such spell each turn' as a limiter on a cost-reduction / flash-granting static.",
+      "cr": "603.4, 400.7, 601.2, 608.2",
+      "clause": "if it entered from your graveyard or you cast it from your graveyard / Put a deathtouch counter on the token if a black card was milled this way. / The first creature spell you cast each turn costs {2} less to cast and can be cast as though it had flash."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

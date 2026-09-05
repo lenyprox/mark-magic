@@ -1,0 +1,106 @@
+{
+  "oracleId": "e286d1aa-bb74-4568-98b5-a693ac7a369d",
+  "name": "Venerable Warsinger",
+  "oracleHash": "d7d5a404",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [
+    "vigilance",
+    "trample"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "may",
+          "effects": [
+            {
+              "op": "return-from-graveyard",
+              "what": {
+                "types": [
+                  "Creature"
+                ],
+                "mvLE": {
+                  "count": "that-many"
+                }
+              },
+              "to": "battlefield",
+              "target": true
+            }
+          ]
+        }
+      ],
+      "text": "Whenever ~ deals combat damage to a player, you may return target creature card with mana value X or less from your graveyard to the battlefield, where X is the amount of damage ~ dealt to that player."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Vigilance, trample",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "recursion",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "X is the trigger's own amount (that-many = the combat damage this creature dealt to that player), used as the mvLE of the graveyard target.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "d7d5a404",
+    "scriptHash": "babfd177",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.742,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/e2/e286d1aa-bb74-4568-98b5-a693ac7a369d.json",
+      "passed": 0,
+      "failed": 4,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "target creature card with mana value X or less ... where X is the amount of damage this creature dealt to that player — expected X = the combat damage dealt (e.g. 3), so a MV-2 creature card is a legal target — scripted filter mvLE={count:'that-many'}, but matchesFilter evaluates it as evalAmount(s, f.mvLE, ctrl, 0, source) with NO AmountCtx (src/engine/characteristics.ts:260), and 'that-many' resolves to ctx?.thatMany ?? 0 (characteristics.ts:156) — X is always 0, so only MV-0 creature cards are ever legal targets. Blind scenario confirms: Grizzly Bears (MV 2) stayed in the graveyard — CR CR 608.2 — X is determined by the value specified by the ability",
+          "you may return TARGET creature card — expected the target is chosen when the trigger is put on the stack; the 'may' is decided on resolution — scripted the targeted return is nested inside a 'may' effect, which mixes target selection with the optional decision"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "target creature card with mana value X or less ... where X is the amount of damage this creature dealt — expected X = combat damage dealt this trigger; a creature card of that mana value or less is a legal target — scripted mvLE:{count:'that-many'} lives inside the TARGET filter. Target legality goes through legal.ts:153 -> matchesFilter -> characteristics.ts:260, which calls evalAmount(s, f.mvLE, ctrl, 0, source) with NO AmountCtx, so 'that-many' falls through to ctx?.thatMany ?? ctx?.refs?.item.lastAmount ?? 0 = 0 (characteristics.ts:156). Effectively only mana-value-0 creature cards are ever legal targets. Blind scenario confirms: Grizzly Bears (MV 2) not returned after 3 damage — CR 608.2b, 601.2c",
+          "you may return target creature card — expected target chosen when the trigger goes on the stack, then optional on resolution — scripted 'may' wraps the return-from-graveyard with target:true — ordering is acceptable, but is moot given the mvLE=0 defect above — CR 601.2c"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "3640c29b-1534-4952-b297-619ade948431",
+  "name": "Roaming Throne",
+  "clause": "~ is the chosen type in addition to its other types.",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "static { kind: 'add-types', scope: 'self'|'you-control'|'all'|'enchanted'|'equipped', filter?: Filter, types?: CardType[], subtypes?: (string | 'chosen-creature-type')[] }",
+      "semantics": "A layer-4 type/subtype addition that keeps the existing types. `animate` already unions types (characteristics.ts:72) but it is an effect with a mandatory P/T and cannot name the chosen creature type.",
+      "cr": "613.1d, 205.1b, 205.3",
+      "clause": "~ is the chosen type in addition to its other types."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

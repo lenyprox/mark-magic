@@ -1,0 +1,16 @@
+{
+  "oracleId": "27e0948b-9916-473b-8d8c-a51bdfbc7457",
+  "name": "Underworld Breach",
+  "clause": "Each nonland card in your graveyard has escape. The escape cost is equal to the card's mana cost plus exile three other cards from your graveyard.",
+  "needs": [
+    {
+      "opFamily": "grant-alt-cost",
+      "proposedSignature": "{ kind: 'grant-alt-cost', zone: 'graveyard' | 'hand' | 'exile', who: ScopeWho, filter: Filter, altCost: AltCost } as a StaticEffect variant, plus a cost form meaning \"that card's own mana cost\" (e.g. AbilityCost.mana: 'card-mana-cost')",
+      "semantics": "\"Each nonland card in your graveyard has escape. The escape cost is equal to the card's mana cost plus exile three other cards from your graveyard.\" A permanent that hands an alternative casting cost to cards sitting in another zone. grant-ability reaches only permanents on the battlefield and grants an Ability, never an AltCost; escape exists but only as a declaration on the card that prints it, with a fixed printed mana cost rather than a per-card one.",
+      "cr": "702.139, 601.2b, 113.6",
+      "clause": "Each nonland card in your graveyard has escape. The escape cost is equal to the card's mana cost plus exile three other cards from your graveyard."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

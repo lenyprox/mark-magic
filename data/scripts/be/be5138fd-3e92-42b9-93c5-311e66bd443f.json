@@ -1,0 +1,95 @@
+{
+  "oracleId": "be5138fd-3e92-42b9-93c5-311e66bd443f",
+  "name": "Perennation",
+  "oracleHash": "ff88cd65",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "return-from-graveyard",
+          "what": {
+            "notTypes": [
+              "Instant",
+              "Sorcery"
+            ]
+          },
+          "to": "battlefield",
+          "target": true,
+          "count": 1
+        },
+        {
+          "op": "multi-counters",
+          "target": "that",
+          "counters": [
+            "hexproof",
+            "indestructible"
+          ]
+        }
+      ],
+      "text": "Return target permanent card from your graveyard to the battlefield with a hexproof counter and an indestructible counter on it."
+    }
+  ],
+  "aiHints": {
+    "role": "recursion",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "'permanent card' is every card type but instant and sorcery. return-from-graveyard binds what it returned, so multi-counters puts both keyword counters (CR 122.1) on it; the format cannot put two DIFFERENT counters on as a replacement (move's withCounters carries one), so they are added immediately after it enters.",
+  "verification": {
+    "at": "2026-09-05T14:14:25.564Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "ff88cd65",
+    "scriptHash": "25aeca45",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "unreachable",
+      "seats4": "unreachable",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.7,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/be/be5138fd-3e92-42b9-93c5-311e66bd443f.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "...to the battlefield with a hexproof counter and an indestructible counter on it. — expected The permanent ENTERS the battlefield already carrying both counters (a replacement effect applied as it enters). — scripted return-from-graveyard to battlefield, then a separate multi-counters ['hexproof','indestructible'] on 'that' after it has entered (game.ts:1463). The notes acknowledge this: move's withCounters carries only one counter kind. Observable only against effects that look at counters as the permanent enters ('if it entered with a counter', counter-doubling replacements); within one resolution no SBA or priority intervenes, so ordinary play matches. — CR CR 614.1c",
+          "Return target permanent card from your graveyard — expected 'Permanent card' = artifact, battle, creature, enchantment, land or planeswalker card; targeted on cast from YOUR graveyard only, re-checked on resolution. — scripted what:{notTypes:['Instant','Sorcery']}, target:true, count:1. The negation is exact (every card is either a permanent card or an instant/sorcery; a Kindred Instant/Sorcery is still excluded by its Instant/Sorcery type), and legal.ts:80 builds a graveyard-card spec with who:'you' because anyGraveyard is absent, so it is a real target restricted to your own graveyard. It enters under your control (game.ts:1411 uses controller p). Correct. — CR CR 110.4a"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "Return target permanent card from your graveyard to the battlefield with a hexproof counter and an indestructible counter on it. — expected the card ENTERS the battlefield with the two counters (a replacement effect applying as it enters) — scripted return-from-graveyard to battlefield, then multi-counters adds hexproof + indestructible immediately afterwards (game.ts:1463). No SBA or trigger resolves in between, so ordinary play is identical, but 'enters with counters' replacement interactions (e.g. counter-doubling effects that key on entering) would differ. The notes state this limitation honestly. — CR 614.1c / 122.1",
+          "target permanent card from your graveyard — expected any card type but instant/sorcery, in YOUR graveyard, targeted on cast and rechecked on resolution — scripted correct — what:{notTypes:['Instant','Sorcery']} (also excludes 'Kindred Instant'/'Kindred Sorcery'), no anyGraveyard so legal.ts:80 adds who:'you', target:true makes it a real target. Keyword counters do grant the abilities (characteristics.ts:472/492). 3/3 scenarios pass. — CR 110.4a / 608.2b"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

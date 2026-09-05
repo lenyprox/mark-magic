@@ -1,0 +1,103 @@
+{
+  "oracleId": "8eb7c0a5-6190-40de-b473-2d1daa3bbe28",
+  "name": "Dualcaster Mage",
+  "oracleHash": "66b7ec2a",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [
+    "flash"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "copy-spell",
+          "target": {
+            "kind": "spell",
+            "filter": {
+              "types": [
+                "Instant",
+                "Sorcery"
+              ]
+            }
+          },
+          "newTargets": true
+        }
+      ],
+      "text": "When ~ enters, copy target instant or sorcery spell. You may choose new targets for the copy."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flash",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "combo",
+    "value": 6,
+    "timing": "instant"
+  },
+  "notes": "Flash is a keyword line; the ETB is a plain `copy-spell` with `newTargets`.",
+  "verification": {
+    "at": "2026-09-05T13:58:18.541Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "66b7ec2a",
+    "scriptHash": "ed3d3042",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.857,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "data/scenarios/8e/8eb7c0a5-6190-40de-b473-2d1daa3bbe28.json",
+      "passed": 0,
+      "failed": 2,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "blind-result claim: \"0/2 — the enters trigger targets the spell but never creates the copy\" — expected 2/2 passing — scripted NOT REPRODUCIBLE — the reported failure was against the old engine. src/engine/game.ts:1431-1436 now reads the spell target as a `stack` TargetRef (the in-tree comment says \"10.0 authors found the old `typeof t === 'number'` test never true\"). Re-running verify-scenarios gives 2/2 ok. The failure was an engine bug, never a script defect; no script change is warranted. — CR 707.10",
+          "You may choose new targets for the copy. — expected the copy's controller may change its targets on creation — scripted newTargets: true is correctly declared, but `newTargets` appears nowhere in src/engine — copy-spell (game.ts:1435) clones targets verbatim and never offers the choice. Script-faithful, engine-incomplete. — CR 707.10c",
+          "When this creature enters, copy target instant or sorcery spell. — expected the copy ceases to exist on resolution; the original card is untouched — scripted isCopy: true is set but read nowhere in src/. When the copy resolves while the original is still on the stack, finishSpell moves the real card to the graveyard. Outcome happens to match here (the original's own finishSpell then no-ops on the zone guard), but it would misfire for a permanent-spell copy. — CR 707.10 / 608.2m",
+          "Flash — expected keyword — scripted keywords:['flash'] with a matching covers entry — correct"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "You may choose new targets for the copy. — expected the copy's controller may change its targets on creation — scripted newTargets: true is declared and rendered, but NO engine code reads it — grep finds it only in schema.ts:480, types.ts:268, render.ts:608. copy-spell (game.ts:1435) always does targets: [...orig.targets]. The clause is inert; copying an opponent's Bolt aimed at you re-aims it at you (exactly what scenario 2 asserts: life [0,14]). — CR 707.10",
+          "When this creature enters, copy target instant or sorcery spell. — expected a trigger with no legal target is removed from the stack (CR 603.3d) — e.g. Dualcaster cast at sorcery speed with an empty stack — scripted targetOptionsFor returns [], no refs are stored, and at resolveTop anyTargets stays false so the trigger resolves as a no-op instead of never going on the stack. Observably equivalent, but 'trigger'/'resolve' events still fire. — CR 603.3d",
+          "(scenario result) — expected blind report said 0/2, copy never created — scripted no longer reproduces — src/engine/game.ts is modified in the working tree with the stack-TargetRef fix at game.ts:1433; re-run gives 2/2 ok. The blind failure is stale, and the fix is uncommitted. — CR 707.10"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

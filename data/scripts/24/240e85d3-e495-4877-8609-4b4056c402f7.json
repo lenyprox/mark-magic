@@ -1,0 +1,91 @@
+{
+  "oracleId": "240e85d3-e495-4877-8609-4b4056c402f7",
+  "name": "Victimize",
+  "oracleHash": "905e95c6",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "sacrifice",
+          "who": "you",
+          "what": {
+            "types": [
+              "Creature"
+            ]
+          },
+          "amount": 1
+        },
+        {
+          "op": "reflexive",
+          "when": "you-do",
+          "effects": [
+            {
+              "op": "return-from-graveyard",
+              "what": {
+                "types": [
+                  "Creature"
+                ]
+              },
+              "to": "battlefield",
+              "target": true,
+              "count": 2,
+              "tapped": true
+            }
+          ]
+        }
+      ],
+      "text": "Choose two target creature cards in your graveyard. Sacrifice a creature. If you do, return the chosen cards to the battlefield tapped."
+    }
+  ],
+  "aiHints": {
+    "role": "recursion",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "'If you do' is the reflexive trigger (CR 603.12): it fires only when the sacrifice actually happened. The two creature cards are a real target requirement (return-from-graveyard with target: true), so they are chosen and re-checked rather than picked afresh; the reflexive chooses them when it goes on the stack rather than on cast, which is the closest the engine gets.",
+  "verification": {
+    "at": "2026-09-05T14:14:25.564Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "905e95c6",
+    "scriptHash": "2a345cb5",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Choose two target creature cards in your graveyard. Sacrifice a creature. If you do, return the chosen cards to the battlefield tapped.",
+          "rendered": "you sacrifice a creature. when you do, return target creature from your graveyard to the battlefield tapped",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Choose two target creature cards in your graveyard. Sacrifice a creature. If you do, return the chosen cards to the battlefield tapped.\" rendered as \"you sacrifice a creature. when you do, return target creature from your graveyard to the battlefield tapped\""
+    ]
+  }
+}

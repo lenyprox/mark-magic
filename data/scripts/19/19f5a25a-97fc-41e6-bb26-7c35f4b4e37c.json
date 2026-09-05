@@ -1,0 +1,111 @@
+{
+  "oracleId": "19f5a25a-97fc-41e6-bb26-7c35f4b4e37c",
+  "name": "Lobelia Sackville-Baggins",
+  "oracleHash": "2210f412",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [
+    "flash",
+    "menace"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "exile",
+          "target": {
+            "kind": "graveyard-card",
+            "who": "opponent",
+            "filter": {
+              "types": [
+                "Creature"
+              ]
+            }
+          },
+          "from": "graveyard"
+        },
+        {
+          "op": "token",
+          "count": {
+            "count": "power-of-that"
+          },
+          "power": 0,
+          "toughness": 0,
+          "colors": [],
+          "types": [
+            "Artifact"
+          ],
+          "subtypes": [
+            "Treasure"
+          ],
+          "keywords": [],
+          "treasure": true,
+          "name": "Treasure"
+        }
+      ],
+      "text": "When Lobelia enters, exile target creature card from an opponent's graveyard that was put there from the battlefield this turn, then create X Treasure tokens, where X is the exiled card's power."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flash",
+      "by": "keywords"
+    },
+    {
+      "line": "Menace",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "removal",
+    "value": 5,
+    "timing": "instant"
+  },
+  "notes": "APPROXIMATION: no Filter field records HOW a card reached a graveyard, so 'that was put there from the battlefield this turn' is not restricted - any creature card in an opponent's graveyard is a legal target. X is the exiled card's power ('power-of-that'), read off the binding the exile leaves behind (last known values, CR 608.2h).",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "2210f412",
+    "scriptHash": "539bec21",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.21,
+      "lowest": [
+        {
+          "text": "When Lobelia enters, exile target creature card from an opponent's graveyard that was put there from the battlefield this turn, then create X Treasure tokens, where X is the exiled card's power.",
+          "rendered": "when ~ enters, exile target creature from a graveyard. create the number of that creature's power Treasure artifact tokens",
+          "score": 0.21
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.21 < 0.55: \"When Lobelia enters, exile target creature card from an opponent's graveyard that was put there from the battlefield this turn, then create X Treasure tokens, where X is the exiled card's power.\" rendered as \"when ~ enters, exile target creature from a graveyard. create the number of that creature's power Treasure artifact tokens\""
+    ]
+  }
+}

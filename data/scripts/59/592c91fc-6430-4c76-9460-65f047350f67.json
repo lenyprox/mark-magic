@@ -1,0 +1,99 @@
+{
+  "oracleId": "592c91fc-6430-4c76-9460-65f047350f67",
+  "name": "Lyra Dawnbringer",
+  "oracleHash": "a8403f5f",
+  "source": "llm",
+  "confidence": 0.95,
+  "mode": "replace",
+  "keywords": [
+    "flying",
+    "first strike",
+    "lifelink"
+  ],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "anthem",
+        "power": 1,
+        "toughness": 1,
+        "filter": {
+          "subtypes": [
+            "Angel"
+          ]
+        },
+        "scope": "other-you-control",
+        "keywords": [
+          "lifelink"
+        ]
+      },
+      "text": "Other Angels you control get +1/+1 and have lifelink."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flying",
+      "by": "keywords"
+    },
+    {
+      "line": "First strike",
+      "by": "keywords"
+    },
+    {
+      "line": "Lifelink",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 5,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-05T13:59:38.385Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "a8403f5f",
+    "scriptHash": "6355084a",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 1,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/59/592c91fc-6430-4c76-9460-65f047350f67.json",
+      "passed": 4,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "Other Angels you control get +1/+1 and have lifelink. — expected +1/+1 and lifelink to Angels you control other than Lyra; Lyra herself excluded — scripted anthem, scope 'other-you-control', filter subtypes ['Angel'], power/toughness +1/+1, keywords ['lifelink'] — exact. Keywords flying/first strike/lifelink on the card itself, all three reminder-text lines claimed by `covers: by keywords`. roundTrip 1.00; no discrepancy found. — CR 613.4b (layer 7c); 702.15 (lifelink)"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

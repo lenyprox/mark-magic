@@ -1,0 +1,16 @@
+{
+  "oracleId": "9b832f87-0bd5-47bd-ab9c-718bd9a6c441",
+  "name": "Puca's Covenant",
+  "clause": "Whenever a creature you control with a counter on it dies, you may return another target permanent card with mana value less than or equal to the number of counters on that creature from your graveyard to your hand. Do this only once each turn.",
+  "needs": [
+    {
+      "opFamily": "binding-counts",
+      "proposedSignature": "Amount: { count: 'counters-on-that', counter?: string }  ·  Amount: { count: 'those', filter?: Filter }  // the size of the current binding, optionally filtered",
+      "semantics": "Two counts over the binding frame: how many counters the bound object has (last known values once it has left), and how many objects the current binding holds that match a filter. The second is what 'when one or more nonland cards are exiled this way, put that many counters' needs - the frame already records what each effect touched (item.affected), nothing counts it.",
+      "cr": "608.2h, 122.1",
+      "clause": "…with mana value less than or equal to the number of counters on that creature / When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

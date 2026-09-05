@@ -1,0 +1,16 @@
+{
+  "oracleId": "13bf8103-3db3-4ee6-a6bb-441aabfd9e41",
+  "name": "Warden of the Grove",
+  "clause": "Whenever another nontoken creature you control enters, it endures X, where X is the number of counters on ~.",
+  "needs": [
+    {
+      "opFamily": "keyword-action",
+      "proposedSignature": "{ op: 'endure'; amount: Amount; target: TargetSpec | Ref }",
+      "semantics": "CR 701 Endure N: the controller chooses to put N +1/+1 counters on the object, or to create an N/N white Spirit creature token.",
+      "cr": "701.5 (Endure, Bloomburrow)",
+      "clause": "it endures X, where X is the number of counters on ~."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

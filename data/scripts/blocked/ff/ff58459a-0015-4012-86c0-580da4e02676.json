@@ -1,0 +1,16 @@
+{
+  "oracleId": "ff58459a-0015-4012-86c0-580da4e02676",
+  "name": "Necrogen Communion",
+  "clause": "Enchanted creature has toxic 2.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:toxic",
+      "proposedSignature": "a parameterised keyword everywhere a Keyword[] appears: `grant-keyword.keywords: (Keyword | { keyword: 'toxic'|'bushido'|'rampage'|'ward'|'protection'; amount: number })[]`, the same on `token.keywords`, `aura.keywords`, `anthem.keywords`, `animate.keywords`; plus an Amount `{ prop: 'toxic', of: Ref }`",
+      "semantics": "Keyword grants that carry the keyword's own magnitude, and an amount that reads a creature's total toxic value (the sum of its toxic instances).",
+      "cr": "702.180a, 702.180b, 613.1f",
+      "clause": "Each other creature you control with toxic gains toxic 1 until end of turn. / Enchanted creature has toxic 2. / two 3/3 green Phyrexian Beast creature tokens with toxic 1 / draw cards equal to its total toxic value"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

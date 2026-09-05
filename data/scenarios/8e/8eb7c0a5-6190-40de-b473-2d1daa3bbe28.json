@@ -1,0 +1,56 @@
+{
+  "oracleId": "8eb7c0a5-6190-40de-b473-2d1daa3bbe28",
+  "name": "Dualcaster Mage",
+  "scenarios": [
+    {
+      "name": "Dualcaster Mage's enters trigger copies a sorcery on the stack and the copy resolves first",
+      "cr": "707.10",
+      "ruling": "The copy is created on the stack under the controller of the triggered ability and resolves before the spell it copied, so Divination draws two cards twice.",
+      "seats": [
+        {
+          "bf": ["Island", "Island", "Island", "Mountain", "Mountain", "Mountain", "Mountain", "Mountain"],
+          "hand": ["Divination", "Dualcaster Mage"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Divination" },
+        { "cast": "Dualcaster Mage" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "handCount": [0, 4] },
+        { "libraryCount": [0, 16] },
+        { "zone": ["Dualcaster Mage", "battlefield"] },
+        { "zone": ["Divination", "graveyard"] },
+        { "pt": ["Dualcaster Mage", 2, 2] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Flash lets Dualcaster Mage enter on an opponent's turn and copy their instant",
+      "cr": "702.8a",
+      "ruling": "Flash allows the creature spell to be cast any time its controller could cast an instant, so it can be cast in response to a spell and its enters trigger copies that spell.",
+      "active": 1,
+      "seats": [
+        { "bf": ["Mountain", "Mountain", "Mountain"], "hand": ["Dualcaster Mage"] },
+        { "bf": ["Mountain"], "hand": ["Lightning Bolt"] }
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["P0"]], "by": 1 },
+        { "cast": "Dualcaster Mage", "by": 0 },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Dualcaster Mage", "battlefield"] },
+        { "life": [0, 14] },
+        { "life": [1, 20] },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "events": { "type": "damage", "min": 2, "max": 2 } },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

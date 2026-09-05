@@ -1,0 +1,16 @@
+{
+  "oracleId": "fa81e7ff-0f2c-40df-9169-c0a22f00cd76",
+  "name": "Conspiracy Theorist",
+  "clause": "Whenever ~ attacks, you may pay {1} and discard a card. If you do, draw a card.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "{ op: 'optional-pay'; cost: AbilityCost; then: Effect[] } (widen the existing `mana: ManaCost` field to a full AbilityCost)",
+      "semantics": "'You may pay {1} and discard a card. If you do, ...' — the whole mixed cost is offered as one decision and `then` runs only when all of it was paid.",
+      "cr": "118.12, 601.2h",
+      "clause": "you may pay {1} and discard a card. If you do, draw a card."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

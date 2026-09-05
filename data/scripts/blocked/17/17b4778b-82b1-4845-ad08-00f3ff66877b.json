@@ -1,0 +1,16 @@
+{
+  "oracleId": "17b4778b-82b1-4845-ad08-00f3ff66877b",
+  "name": "Perpetual Timepiece",
+  "clause": "{2}, Exile ~: Shuffle any number of target cards from your graveyard into your library.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "AbilityCost.exileSelf?: true — pay by exiling the source (from the battlefield, or from the graveyard when the ability is fromGraveyard)",
+      "semantics": "payCost moves the source object to exile as part of paying the cost, before the ability goes on the stack, so the ability is not repeatable and the card does not end up in the graveyard.",
+      "cr": "118.3, 601.2h, 602.1b",
+      "clause": "'{2}, Exile ~:' / 'Exile ~ from your graveyard:'"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

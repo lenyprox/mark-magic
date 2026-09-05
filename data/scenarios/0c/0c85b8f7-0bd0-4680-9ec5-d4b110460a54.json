@@ -1,0 +1,69 @@
+{
+  "oracleId": "0c85b8f7-0bd0-4680-9ec5-d4b110460a54",
+  "name": "Fabled Passage",
+  "scenarios": [
+    {
+      "name": "Fabled Passage sacrifices itself to fetch a basic land onto the battlefield tapped",
+      "cr": "701.19a",
+      "ruling": "With only two lands left afterwards the trailing condition is not met, so the basic land stays tapped.",
+      "seats": [
+        { "bf": ["Fabled Passage", "Forest"] },
+        {}
+      ],
+      "script": [
+        { "activate": "Fabled Passage" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Fabled Passage", "graveyard"] },
+        { "zone": ["Mountain", "battlefield"] },
+        { "tapped": ["Mountain", true] },
+        { "zoneCount": [0, "battlefield", 2] },
+        { "libraryCount": [0, 19] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Fabled Passage untaps the fetched land when you control four or more lands",
+      "cr": "701.21a",
+      "ruling": "Three other lands plus the land that was just put onto the battlefield is four, so the last sentence untaps it.",
+      "seats": [
+        { "bf": ["Fabled Passage", "Forest", "Forest", "Forest"] },
+        {}
+      ],
+      "script": [
+        { "activate": "Fabled Passage" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Fabled Passage", "graveyard"] },
+        { "zone": ["Mountain", "battlefield"] },
+        { "tapped": ["Mountain", false] },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "libraryCount": [0, 19] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Fabled Passage itself is not counted when checking for four or more lands",
+      "cr": "608.2",
+      "ruling": "Fabled Passage was sacrificed as a cost, so only the two remaining Forests and the fetched land count: three lands, and the fetched land stays tapped.",
+      "seats": [
+        { "bf": ["Fabled Passage", "Forest", "Forest"] },
+        {}
+      ],
+      "script": [
+        { "activate": "Fabled Passage" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Fabled Passage", "graveyard"] },
+        { "zone": ["Mountain", "battlefield"] },
+        { "tapped": ["Mountain", true] },
+        { "zoneCount": [0, "battlefield", 3] },
+        { "libraryCount": [0, 19] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

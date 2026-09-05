@@ -1,0 +1,76 @@
+{
+  "oracleId": "f6ed46e2-08f9-4e89-aae3-e5dd7f30f007",
+  "name": "Brought Back",
+  "oracleHash": "7deae6ca",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "return-from-graveyard",
+          "what": {
+            "notTypes": [
+              "Instant",
+              "Sorcery"
+            ]
+          },
+          "to": "battlefield",
+          "target": true,
+          "count": 2,
+          "optional": true,
+          "tapped": true
+        }
+      ],
+      "text": "Choose up to two target permanent cards in your graveyard that were put there from the battlefield this turn. Return them to the battlefield tapped."
+    }
+  ],
+  "aiHints": {
+    "role": "recursion",
+    "value": 5,
+    "timing": "instant"
+  },
+  "notes": "'Up to two target permanent cards in your graveyard' is the documented return-from-graveyard idiom (target, count 2, optional), with 'permanent card' written as the filter 'not an instant or sorcery card'. APPROXIMATION: no Filter field records how a card reached the graveyard, so 'that were put there from the battlefield this turn' is not restricted. The low round-trip score is a renderer gap: render.ts prints neither 'count' nor 'optional' for return-from-graveyard, so the rendering drops the 'up to two' the line prints.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "7deae6ca",
+    "scriptHash": "7ca90c23",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Choose up to two target permanent cards in your graveyard that were put there from the battlefield this turn. Return them to the battlefield tapped.",
+          "rendered": "return target noninstant nonsorcery card from your graveyard to the battlefield tapped",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Choose up to two target permanent cards in your graveyard that were put there from the battlefield this turn. Return them to the battlefield tapped.\" rendered as \"return target noninstant nonsorcery card from your graveyard to the battlefield tapped\""
+    ]
+  }
+}

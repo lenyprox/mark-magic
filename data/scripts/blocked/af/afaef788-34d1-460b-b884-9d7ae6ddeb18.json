@@ -1,0 +1,16 @@
+{
+  "oracleId": "afaef788-34d1-460b-b884-9d7ae6ddeb18",
+  "name": "Toxic Deluge",
+  "clause": "As an additional cost to cast ~, pay X life. / All creatures get -X/-X until end of turn.",
+  "needs": [
+    {
+      "opFamily": "x-costs-and-negative-amounts",
+      "proposedSignature": "AbilityCost.payLife: number | Amount   AND   AmountExpr.negate?: true (or `times: -1` over a base form meaning X)",
+      "semantics": "Two halves of the same card: an additional cost of 'pay X life' (X chosen on cast) and a pump magnitude of -X. `payLife` is a plain number today, and every Amount form clamps or has no way to express a negated X.",
+      "cr": "601.2b, 107.3, 107.1b",
+      "clause": "As an additional cost to cast ~, pay X life. / All creatures get -X/-X until end of turn."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

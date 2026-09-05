@@ -1,0 +1,16 @@
+{
+  "oracleId": "0cdece2a-0bdf-4e6d-9ddc-4a8d58b2ec29",
+  "name": "Tree of Perdition",
+  "clause": "{T}: Exchange target opponent's life total with ~'s toughness.",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "{ op: 'exchange'; what: 'life-and-toughness'; a: ExchangeSide (a player); b: Ref (a permanent) }",
+      "semantics": "CR 701.12 exchange between a player's life total and a permanent's toughness: the player's life becomes the permanent's current toughness (through gainLife/loseLife) and the permanent gets a base-toughness setting (layer 7b) equal to the player's previous life total.",
+      "cr": "701.12, 613.4b",
+      "clause": "Exchange target opponent's life total with ~'s toughness."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

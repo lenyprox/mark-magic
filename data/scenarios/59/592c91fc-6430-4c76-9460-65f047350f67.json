@@ -1,0 +1,81 @@
+{
+  "oracleId": "592c91fc-6430-4c76-9460-65f047350f67",
+  "name": "Lyra Dawnbringer",
+  "scenarios": [
+    {
+      "name": "Other Angels you control get +1/+1 while Lyra is on the battlefield",
+      "cr": "613.4b",
+      "ruling": "The anthem is a continuous effect in layer 7c and says \"other\", so Lyra herself stays 5/5.",
+      "seats": [
+        { "bf": ["Lyra Dawnbringer", "Serra Angel", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "sba": true }
+      ],
+      "expect": [
+        { "pt": ["Serra Angel", 5, 5] },
+        { "pt": ["Lyra Dawnbringer", 5, 5] },
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Another Angel gains lifelink from Lyra and its combat damage gains you life",
+      "cr": "702.15b",
+      "ruling": "Damage dealt by a source with lifelink also causes that source's controller to gain that much life.",
+      "seats": [
+        { "bf": ["Lyra Dawnbringer", "Serra Angel"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Serra Angel"] }
+      ],
+      "expect": [
+        { "keywords": ["Serra Angel", ["lifelink"]] },
+        { "pt": ["Serra Angel", 5, 5] },
+        { "life": [1, 15] },
+        { "life": [0, 25] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Lyra's flying cannot be blocked by a creature without flying or reach",
+      "cr": "702.9b",
+      "seats": [
+        { "bf": ["Lyra Dawnbringer"] },
+        { "bf": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "attack": ["Lyra Dawnbringer"], "refused": [["Grizzly Bears", "Lyra Dawnbringer"]] }
+      ],
+      "expect": [
+        { "life": [1, 15] },
+        { "life": [0, 25] },
+        { "zone": ["Lyra Dawnbringer", "battlefield"] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Lyra's first strike kills a 5/5 blocker before it deals any damage back",
+      "cr": "702.7b",
+      "ruling": "First strike damage is dealt in a separate combat damage step; a blocker destroyed then never deals its damage.",
+      "seats": [
+        { "bf": ["Lyra Dawnbringer"] },
+        { "bf": ["Shivan Dragon"] }
+      ],
+      "script": [
+        { "attack": ["Lyra Dawnbringer"], "blocks": [["Shivan Dragon", "Lyra Dawnbringer"]] }
+      ],
+      "expect": [
+        { "zone": ["Shivan Dragon", "graveyard"] },
+        { "zone": ["Lyra Dawnbringer", "battlefield"] },
+        { "life": [0, 25] },
+        { "life": [1, 20] },
+        { "noLog": "Lyra Dawnbringer is destroyed" },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

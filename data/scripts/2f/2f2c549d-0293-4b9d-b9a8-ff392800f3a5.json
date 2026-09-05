@@ -1,0 +1,153 @@
+{
+  "oracleId": "2f2c549d-0293-4b9d-b9a8-ff392800f3a5",
+  "name": "Kozilek's Command",
+  "oracleHash": "1d376512",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "choose-mode",
+          "count": 2,
+          "modes": [
+            [
+              {
+                "op": "scoped",
+                "who": "target-player",
+                "do": [
+                  {
+                    "op": "token",
+                    "count": {
+                      "sum": [
+                        "X"
+                      ]
+                    },
+                    "power": 0,
+                    "toughness": 1,
+                    "colors": [],
+                    "types": [
+                      "Creature"
+                    ],
+                    "subtypes": [
+                      "Eldrazi",
+                      "Spawn"
+                    ],
+                    "keywords": [],
+                    "spawn": true
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "op": "scoped",
+                "who": "target-player",
+                "do": [
+                  {
+                    "op": "scry",
+                    "amount": "X"
+                  },
+                  {
+                    "op": "draw",
+                    "amount": 1,
+                    "who": "you"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "op": "exile",
+                "target": {
+                  "kind": "creature",
+                  "filter": {
+                    "mvLE": "X"
+                  }
+                }
+              }
+            ],
+            [
+              {
+                "op": "exile",
+                "target": {
+                  "kind": "graveyard-card",
+                  "count": "X",
+                  "optional": true,
+                  "filter": {}
+                },
+                "from": "graveyard"
+              }
+            ]
+          ]
+        }
+      ],
+      "text": "Choose two —"
+    }
+  ],
+  "aiHints": {
+    "role": "removal",
+    "value": 4,
+    "timing": "instant"
+  },
+  "notes": "The ability's text is the 'Choose two' line alone: a modal bullet is not a line of its own (README, Claiming lines), and naming all four bullets would put the ability over its budget - a choose-mode counts once per substantive mode, so four modes cannot pay for five named lines. The Spawn token's 'Sacrifice this token: Add {C}.' is the token op's spawn flag. lint bug workaround: the token's count is written as {sum:['X']} and the graveyard-card target carries an empty filter, because src/cards/lint.ts rejects a literal Amount / TargetSpec count of 'X' as an 'unknown amount count' unless a sibling `filter` is present.",
+  "verification": {
+    "at": "2026-09-05T14:14:25.564Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "1d376512",
+    "scriptHash": "48f42c8a",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "unreachable",
+      "seats4": "unreachable",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 1,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/2f/2f2c549d-0293-4b9d-b9a8-ff392800f3a5.json",
+      "passed": 0,
+      "failed": 5,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "• Exile target creature with mana value X or less. — expected With X=2 paid, any creature of mana value 2 or less is a legal target and the mode is offerable. — scripted {op:'exile', target:{kind:'creature', filter:{mvLE:'X'}}}. src/engine/characteristics.ts:260 evaluates a non-numeric mvLE via evalAmount(s, f.mvLE, ctrl, 0, source) — the x argument is HARDCODED 0, so 'X' always evaluates to 0 and the filter means 'mana value 0 or less'. The blind scenario confirms it: with x:2 against an mv-2 creature the engine offered only mode combos 1+2, 1+4, 2+4 — mode 3 is never legal against any creature with mv>=1. The mode is effectively dead text. — CR CR 601.2b (X is locked in as the value chosen while casting) / CR 115.1",
+          "• Target player creates X 0/1 colorless Eldrazi Spawn creature tokens with \"Sacrifice this token: Add {C}.\" — expected Tokens named \"Eldrazi Spawn\". — scripted The token op carries no `name`, so game.ts:1332 derives the name as `${subtypes.join(' ')} token` = \"Eldrazi Spawn token\". Cosmetic in the engine (render.ts:594 prints 'Eldrazi Spawn' off the spawn flag), but the token object is built from src.def, so its def.name is \"Kozilek's Command\" — the scenario harness's findByName (scenarioDsl.ts:418) searches def.name and cannot see an 'Eldrazi Spawn'. Adding name:'Eldrazi Spawn' fixes the printed name; the def.name collision is a harness limitation, not a script defect. — CR CR 111.4",
+          "Choose two — / all four bullets — expected Each printed bullet accounted for by a claimed line or an explicit `covers`/`ignore` entry. — scripted The single ability's `text` is \"Choose two —\" alone and the script has no `covers` block; the four mode bullets are unclaimed. The notes argue a budget rule permits this, but as written nothing in the script file claims the bullet text, so the modes' correctness (including the dead mode 3) is invisible to line-level checking. — CR CR 700.2",
+          "• Exile up to X target cards from graveyards. — expected Up to X cards, chosen from ANY player's graveyard. — scripted target {kind:'graveyard-card', count:'X', optional:true, filter:{}} with no `who` — legal.ts:153 then scans every player's graveyard, and `optional` gives 'up to'. This clause is correct; recorded only to note that the empty `filter` is a lint workaround, not a semantic restriction."
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "• Exile target creature with mana value X or less. — expected a creature whose mana value is <= the X paid for the spell is a legal target (X=2 -> mana value 2 legal) — scripted exile target {kind:'creature', filter:{mvLE:'X'}} — src/engine/characteristics.ts:260 evaluates a filter's mvLE with evalAmount(..., 0, ...): the item's X is hard-coded to 0, so the filter is 'mana value 0 or less'. Blind scenario 3 confirms: with x:2 and a mana-value-2 Grizzly Bears on the battlefield the mode is never offered ('no legal action matched'; only mode pairs 1+2, 1+4, 2+4 exist). Mode 3 is effectively unplayable. — CR 115.1 / 202.3",
+          "• Target player creates X 0/1 colorless Eldrazi Spawn creature tokens with \"Sacrifice this token: Add {C}.\" — expected the created objects are named 'Eldrazi Spawn' — scripted token op omits `name`, so token.name defaults to 'Eldrazi Spawn token' and the object's def stays the source card, so def.name is \"Kozilek's Command\". Scenarios 1 and 5 fail on that name ('Eldrazi Spawn not found'). Behaviourally the spawn mana ability and 0/1 colorless body are right (mana.ts:32, game.ts:1332), so this is a naming/harness-level defect, not a rules error; an explicit `name: \"Eldrazi Spawn\"` would remove it. — CR 111.4",
+          "• Target player scries X, then draws a card. — expected target player scries X and that same player draws — scripted correct — scoped who:'target-player' rebinds item.actor, and both scry and draw who:'you' resolve to the scoped player (game.ts:1017, 1575); scenario 2 passes — CR 121.1",
+          "• Exile up to X target cards from graveyards. — expected up to X target cards in ANY graveyard — scripted correct — graveyard-card spec with no `who` scans every player's graveyard (legal.ts:153, types.ts:41), count 'X' via specCount, optional true; scenario 4 passes — CR 701.19a"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

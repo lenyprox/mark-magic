@@ -1,0 +1,23 @@
+{
+  "oracleId": "b473e293-59e3-4e04-acf2-622604aeb25f",
+  "name": "Path of Ancestry",
+  "clause": "{T}: Add one mana of any color in your commander's color identity. When that mana is spent to cast a creature spell that shares a creature type with your commander, scry 1.",
+  "needs": [
+    {
+      "opFamily": "filter:shares-type-and-commander",
+      "proposedSignature": "Filter gains `sharesCreatureTypeWith?: Ref | 'commander'`, `commander?: boolean` and `owned?: boolean` (owner rather than controller)",
+      "semantics": "Two filter predicates a large tribal/commander slice of the pool needs: 'creatures you control that share a creature type with it' and 'commander creatures you own'. Pure matchesFilter work, no new op.",
+      "cr": "903.3, 700.4",
+      "clause": "Commander creatures you own have \"... it and other creatures you control that share a creature type with it each get +2/+0 ...\""
+    },
+    {
+      "opFamily": "trigger:mana-spent",
+      "proposedSignature": "`add-mana` gains `whenSpent?: { filter: Filter; effects: Effect[] }`, creating a delayed triggered ability that fires when that mana is spent on a spell matching `filter`",
+      "semantics": "CR 106.6's 'additional effect that affects the spell or ability that mana is spent on'. Needs mana in the pool to carry provenance. Path of Ancestry and the whole 'when that mana is spent' cycle depend on it.",
+      "cr": "106.6, 106.6b",
+      "clause": "When that mana is spent to cast a creature spell that shares a creature type with your commander, scry 1."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

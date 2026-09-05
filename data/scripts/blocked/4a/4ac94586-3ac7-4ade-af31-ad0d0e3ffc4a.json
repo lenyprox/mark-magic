@@ -1,0 +1,16 @@
+{
+  "oracleId": "4ac94586-3ac7-4ade-af31-ad0d0e3ffc4a",
+  "name": "Terrasymbiosis",
+  "clause": "Whenever you put one or more +1/+1 counters on a creature you control, you may draw that many cards. Do this only once each turn.",
+  "needs": [
+    {
+      "opFamily": "counters-trigger",
+      "proposedSignature": "TriggerEvent: { on: 'counters-placed', counter?: string, filter?: Filter, who?: 'you' | 'any' }  with TriggerCtx.amount = how many were placed",
+      "semantics": "Fires when one or more counters of the named kind are put on a matching permanent, carrying the number placed as the trigger's amount so 'draw that many cards' reads it through { count: 'that-many' }. `addCounters` is the single choke point, so raising the event is local.",
+      "cr": "603.2, 121.1",
+      "clause": "Whenever you put one or more +1/+1 counters on a creature you control, you may draw that many cards."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

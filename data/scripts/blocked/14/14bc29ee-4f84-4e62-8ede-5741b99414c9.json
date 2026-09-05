@@ -1,0 +1,16 @@
+{
+  "oracleId": "14bc29ee-4f84-4e62-8ede-5741b99414c9",
+  "name": "Reach the Horizon",
+  "clause": "Search your library for up to two basic land cards and/or Town cards with different names, put them onto the battlefield tapped, then shuffle.",
+  "needs": [
+    {
+      "opFamily": "filter-disjunction",
+      "proposedSignature": "Filter.anyOf?: Filter[]   AND   { op: 'search'; ...; distinctNames?: true }",
+      "semantics": "'basic land cards and/or Town cards' is a UNION of two filters, which a conjunction-of-fields Filter cannot express; 'with different names' is a per-search constraint that no two chosen cards share a name.",
+      "cr": "701.19, 201.2",
+      "clause": "Search your library for up to two basic land cards and/or Town cards with different names, put them onto the battlefield tapped, then shuffle."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

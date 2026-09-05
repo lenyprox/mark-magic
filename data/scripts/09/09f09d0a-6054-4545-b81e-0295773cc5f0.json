@@ -1,0 +1,98 @@
+{
+  "oracleId": "09f09d0a-6054-4545-b81e-0295773cc5f0",
+  "name": "The Arkenstone // Seek the Heart",
+  "oracleHash": "d286169f",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "extend",
+  "secondFace": {
+    "abilities": [
+      {
+        "kind": "spell",
+        "effects": [
+          {
+            "op": "search",
+            "filter": {
+              "types": [
+                "Creature"
+              ],
+              "supertypes": [
+                "Legendary"
+              ]
+            },
+            "to": "hand",
+            "count": 1,
+            "reveal": true
+          }
+        ],
+        "text": "Search your library for a legendary creature card, reveal it, put it into your hand, then shuffle."
+      }
+    ]
+  },
+  "aiHints": {
+    "role": "tutor",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "The parser finishes the front face (anthem + end-step draw), so this extends it with the Adventure half only.",
+  "verification": {
+    "at": "2026-09-05T13:59:38.385Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "d286169f",
+    "scriptHash": "b27b6871",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "trigger fired in the 'turn' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.786,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/09/09f09d0a-6054-4545-b81e-0295773cc5f0.json",
+      "passed": 0,
+      "failed": 3,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "(Then exile this card. You may cast the artifact later from exile.) — the Adventure mechanic itself — expected Adventure: the Adventure half is cast from hand as its own spell for {2}{W} at sorcery speed; on resolution it is exiled instead of going to the graveyard, and its owner may later cast The Arkenstone from exile. — scripted Nothing. The script only adds secondFace.abilities[0] = {kind:'spell', effects:[search]}. src/cards/parse.ts:1991 states outright that for split/adventure/flip layouts 'the engine cannot cast that half' — the second-face lines are recorded as unparsed and the ScriptFace exists for line-accounting and round-trip scoring only. No exile replacement, no separate cost, no cast-from-exile permission is expressed anywhere. — CR CR 715.3 (Adventure), 715.3d (exile replacement), 715.4",
+          "The Arkenstone // Seek the Heart — castability of the front face — expected The Arkenstone is castable for {5} (five generic, any colour). — scripted The oracle row's top-level mana_cost is the concatenation '{5} // {2}{W}'; parseManaCost returns {generic:7, pips:['W'], raw:'{5} // {2}{W}'} (verified by running it), so the engine believes the card costs {7}{W} — eight mana including one white. That is exactly why the blind scenario reports 'no legal action matched for P0 … no cast action at all' with 5 and then 7 Plains. The script declares mode 'extend' over that broken front face and adds nothing that fixes it, so neither half of this card is playable. — CR CR 202.0 / 601.2f (paying the spell's mana cost)",
+          "Search your library for a legendary creature card, reveal it, put it into your hand, then shuffle. — expected Search filter = legendary creature card, revealed, to hand, then shuffle. — scripted filter {types:['Creature'], supertypes:['Legendary']}, to hand, count 1, reveal true — this clause itself is correct (matchesFilter handles supertypes at src/engine/characteristics.ts:226-228); the render's 'search your library for a creature' is render lossiness only. It is simply unreachable, since the effect list belongs to a face the engine never casts."
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "Search your library for a legendary creature card, reveal it, put it into your hand, then shuffle. (Then exile this card. You may cast the artifact later from exile.) — expected Seek the Heart is a castable {2}{W} Adventure sorcery; on resolution it is exiled instead of going to the graveyard, and The Arkenstone may later be cast from exile. — scripted secondFace declares only a `spell` ability with the search op — no exile-on-resolution and no cast-from-exile. src/cards/parse.ts:1991-1996 states outright that 'the engine cannot cast that half', so the declaration claims the line for accounting without any executable behavior behind it. Nothing appears in `ignore` either. — CR 715.3d (an Adventure spell is exiled as it resolves); 715.3e (its owner may cast the creature/permanent half from exile)",
+          "whole card (mana_cost '{5} // {2}{W}') — expected With five untapped Plains, seat 0 can cast The Arkenstone ({5}) or Seek the Heart ({2}{W}). — scripted Blind scenario 'Seek the Heart tutors a legendary creature card and exiles the Adventure' fails with 'no legal action matched for P0 (have: pass)' — the engine offers NO cast action at all, and still none at 7 Plains, so the split cost string is not being parsed. The card is uncastable in practice while the script is stamped status=verified / sandbox ok/ok. — CR 601.2 / 202.1",
+          "Search your library for a legendary creature card — expected filter must require the Legendary supertype — scripted filter { types: ['Creature'], supertypes: ['Legendary'] } — correct at the engine level (matchesFilter honors supertypes, src/engine/characteristics.ts:226-228). The renderer drops 'legendary' ('search your library for a creature'), which is a renderer gap depressing roundTrip to 0.79, not a script defect. — CR 205.4",
+          "Creatures you control get +1/+1. / At the beginning of your end step, draw a card. — expected claimed by parser under mode 'extend' — scripted Left to the parser draft (anthem you-control +1/+1; end-step draw) — correct, but the script files no `covers` entries at all, so nothing in the script records who claims the two front-face lines. — CR 613.4b"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

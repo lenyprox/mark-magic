@@ -40,7 +40,7 @@ import { CardDB } from '../src/cards/db.js';
 
 export interface WaveBlocked { oracleId: string; clause: string; reason: string }
 export interface WaveNeed { opFamily: string; proposedSignature: string; clause: string; cardIds: string[]; semantics?: string; cr?: string }
-export interface WaveScenario { oracleId: string; scenarioFile: string; passed: boolean; failure?: string; names?: string[] }
+export interface WaveScenario { oracleId: string; scenarioFile: string; passed: boolean; failure?: string; names?: string[]; /** how many scenarios the card's file holds — the blind author reports one row per card */ scenarios?: number }
 export interface WaveVerdict { oracleId: string; verdict: 'faithful' | 'unfaithful' | 'uncertain'; confidence: number; issues?: (string | { line?: string; expected?: string; scripted?: string; cr?: string })[]; model?: string }
 export interface WaveBatchResult {
   batch: string;
@@ -103,8 +103,9 @@ export interface PromotionRow {
 
 /** Fold one card's scenario results into the `verification.scenarios` block. */
 export function scenarioBlock(rows: WaveScenario[]): Verification['scenarios'] {
-  const passed = rows.filter(r => r.passed).length;
-  const failed = rows.length - passed;
+  // a wave row is one CARD: `passed` says every scenario in its file passed and `scenarios` how many there are
+  const passed = rows.reduce((n, r) => n + (r.passed ? Math.max(1, r.scenarios ?? 1) : 0), 0);
+  const failed = rows.reduce((n, r) => n + (r.passed ? 0 : Math.max(1, r.scenarios ?? 1)), 0);
   const names = [...new Set(rows.flatMap(r => r.names ?? []))].sort();
   return { file: rows[0]?.scenarioFile ?? '', passed, failed, names };
 }
@@ -231,7 +232,9 @@ function main() {
     const verdictsBy = new Map<string, WaveVerdict[]>();
     for (const v of batch.verdicts ?? []) (verdictsBy.get(v.oracleId) ?? verdictsBy.set(v.oracleId, []).get(v.oracleId)!).push(v);
 
-    const ids = [...new Set([...(batch.written ?? []), ...(batch.verified ?? [])])].sort();
+    // an author may return "Name (uuid) — path" instead of a bare id (10.0 did): the uuid inside is the id
+    const idOf = (s: string): string => /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(s)?.[0].toLowerCase() ?? s;
+    const ids = [...new Set([...(batch.written ?? []), ...(batch.verified ?? [])].map(idOf))].sort();
     for (const oracleId of ids) {
       const script = store.get(oracleId);
       if (!script) { rows.push({ oracleId, name: '?', status: null, bucket: 'missing', note: `no script under ${path.relative(projectRoot(), store.pathFor(oracleId))}` }); continue; }

@@ -1,0 +1,16 @@
+{
+  "oracleId": "9fb7982f-fe35-4dea-a515-a0039ddbbaec",
+  "name": "Ixhel, Scion of Atraxa",
+  "clause": "At the beginning of your end step, each opponent who has three or more poison counters exiles the top card of their library face down. You may look at and play those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color to cast those spells.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "{ op: 'cast-permission', who: ScopeWho, from: 'hand'|'library-top'|'exile'|'graveyard', filter?: Filter, count?: Amount, free?: boolean, altCost?: AbilityCost, mvLE?: Amount, anyColorMana?: boolean, until: 'eot'|'this-turn'|'while-exiled' }",
+      "semantics": "A duration-scoped permission to cast cards from another zone, optionally free, for an alternative cost, or spending mana as though it were any colour.",
+      "cr": "601.3e, 118.9, 609.4b",
+      "clause": "You may cast a spell with mana value X or less from your hand without paying its mana cost. / you may play cards from the top of your library … pay life equal to its mana value rather than pay its mana cost / You may look at and play those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color / You may cast that card this turn without paying its mana cost. / If you control a commander, you may cast ~ without paying its mana cost."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

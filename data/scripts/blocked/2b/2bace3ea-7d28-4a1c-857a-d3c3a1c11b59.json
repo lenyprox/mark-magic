@@ -1,0 +1,16 @@
+{
+  "oracleId": "2bace3ea-7d28-4a1c-857a-d3c3a1c11b59",
+  "name": "Wan Shi Tong, Librarian",
+  "clause": "Whenever an opponent searches their library, put a +1/+1 counter on ~ and draw a card.",
+  "needs": [
+    {
+      "opFamily": "other",
+      "proposedSignature": "{ on: 'searches-library'; who: 'you' | 'opponent' | 'any' }",
+      "semantics": "A trigger event that fires once each time a player begins to search a library they own.",
+      "cr": "701.19",
+      "clause": "Whenever an opponent searches their library, ..."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

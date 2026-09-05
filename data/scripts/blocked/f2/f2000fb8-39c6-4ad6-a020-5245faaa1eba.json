@@ -1,0 +1,16 @@
+{
+  "oracleId": "f2000fb8-39c6-4ad6-a020-5245faaa1eba",
+  "name": "Fire Nation Palace",
+  "clause": "{1}{R}, {T}: Target creature you control gains firebending 4 until end of turn.",
+  "needs": [
+    {
+      "opFamily": "parameterised-keyword-grant",
+      "proposedSignature": "{ op: 'grant-keyword'; target: ...; keywords: (Keyword | { keyword: Keyword; n: number })[]; duration: 'eot' | 'permanent' }",
+      "semantics": "Grant a keyword together with its parameter — firebending N, toxic N, ward N, bushido N, rampage N, protection from Q — so 'gains firebending 4 until end of turn' carries the 4 into the engine and into the round-trip rendering.",
+      "cr": "702.x, 613.1f",
+      "clause": "Target creature you control gains firebending 4 until end of turn."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

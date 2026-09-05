@@ -1,0 +1,23 @@
+{
+  "oracleId": "17770eeb-ecbf-4510-af2d-acececfbe146",
+  "name": "Multiversal Passage",
+  "clause": "As ~ enters, choose a basic land type. Then you may pay 2 life. If you don't, it enters tapped. // ~ is the chosen type.",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "{ kind: 'add-types', scope: 'all' | 'you-control' | 'enchanted' | 'equipped' | 'self', filter?: Filter, types?: CardType[], subtypes?: string[] | 'chosen-basic-land-type' }",
+      "semantics": "A continuous static that ADDS card types / subtypes to every permanent the filter matches, in layer 4, without removing what they already have ('in addition to its other land types'). Read by characteristics.ts `types()` / `subtypes()` the way `o.animated` already is, so basic-land-type mana abilities and any 'Swamps you control' filter see it. `subtypes: 'chosen-basic-land-type'` reads the permanent's own stored `o.chosen` for the as-enters form ('~ is the chosen type').",
+      "cr": "205.1b, 305.7, 613.1d (layer 4)",
+      "clause": "Each land is a Swamp in addition to its other land types."
+    },
+    {
+      "opFamily": "replacement",
+      "proposedSignature": "{ kind: 'choose', what: 'creature-type' | 'color' | 'basic-land-type' }, plus an anchored covers shape for a line that carries a choice AND the pay-life-or-tapped clause",
+      "semantics": "'As ~ enters, choose a basic land type.' needs a third `what`; the printed line then continues '. Then you may pay 2 life. If you don't, it enters tapped.', which is the existing `pay-life-or-tapped` entry - but the `asEnters` covers shapes are anchored per-clause, so a line carrying both clauses is claimable by neither. Either widen the anchored shape to a choose-plus-pay-life form or let one `covers` entry name two asEnters declarations.",
+      "cr": "614.12, 305.7",
+      "clause": "As ~ enters, choose a basic land type. Then you may pay 2 life. If you don't, it enters tapped."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

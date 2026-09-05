@@ -1,0 +1,169 @@
+{
+  "oracleId": "5a57fba3-01e3-4852-8c45-7c910502bd03",
+  "name": "Bitterthorn, Nissa's Animus",
+  "oracleHash": "93f74322",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 0,
+          "toughness": 0,
+          "colors": [
+            "B"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Phyrexian"
+          ],
+          "keywords": [],
+          "name": "Germ"
+        },
+        {
+          "op": "attach-to-that"
+        }
+      ],
+      "text": "Living weapon"
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "equipment",
+        "power": 1,
+        "toughness": 1,
+        "keywords": [],
+        "equipCost": {
+          "generic": 3,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}"
+        }
+      },
+      "text": "Equipped creature gets +1/+1."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": false,
+        "filter": {
+          "attachedToSource": true
+        }
+      },
+      "optional": true,
+      "effects": [
+        {
+          "op": "may",
+          "effects": [
+            {
+              "op": "search-land",
+              "toBattlefield": true,
+              "tapped": true,
+              "basic": true,
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "text": "Whenever equipped creature attacks, you may search your library for a basic land card, put it onto the battlefield tapped, then shuffle."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 3,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}"
+        }
+      },
+      "effects": [
+        {
+          "op": "attach-self",
+          "target": {
+            "kind": "creature",
+            "controller": "you"
+          }
+        }
+      ],
+      "text": "Equip {3}",
+      "sorcerySpeed": true
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "The 'Equip {3}' line has no covers kind and no declaration that claims it, so it is written as the activated ability the keyword means (attach to a creature you control, sorcery speed). The renderer has no rules text for 'equip' in KEYWORD_EXPANSIONS, so that line scores 0 as a renderer gap; the equip cost is also carried by the equipment static's equipCost. The Germ token is declared with subtypes ['Phyrexian'] only: lint rejects 'Germ' as \"not a subtype the pool prints\" even though parse.ts's own living-weapon expansion emits it, so the token carries name 'Germ' instead.",
+  "verification": {
+    "at": "2026-09-05T13:59:38.385Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "93f74322",
+    "scriptHash": "dc48500a",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 2,
+          "reached": false
+        },
+        {
+          "index": 3,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Equip {3}",
+          "rendered": "{3}: attach ~ to target creature you control. activate only as a sorcery",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Equip {3}\" rendered as \"{3}: attach ~ to target creature you control. activate only as a sorcery\""
+    ]
+  }
+}

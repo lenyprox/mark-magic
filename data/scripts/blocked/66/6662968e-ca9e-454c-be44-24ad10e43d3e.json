@@ -1,0 +1,16 @@
+{
+  "oracleId": "6662968e-ca9e-454c-be44-24ad10e43d3e",
+  "name": "Unstoppable Slasher",
+  "clause": "When ~ dies, if it had no counters on it, return it to the battlefield tapped under its owner's control with two stun counters on it.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "{ kind: 'self-no-counters'; counter: 'any' } (and the same for self-had-counters)",
+      "semantics": "True when the object has (had) no counters of ANY kind on it, rather than none of one named kind.",
+      "cr": "122.1, 603.4",
+      "clause": "if it had no counters on it"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

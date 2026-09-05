@@ -1,0 +1,16 @@
+{
+  "oracleId": "acfe54b3-10e3-4fdb-b874-d39fde96c40a",
+  "name": "Through the Forest Gate",
+  "clause": "Look at the top twenty cards of your library, put any number of land cards from among them onto the battlefield tapped, then shuffle.",
+  "needs": [
+    {
+      "opFamily": "dig-destinations",
+      "proposedSignature": "{ op: 'dig'; look: Amount; take: number | 'any'; filter?: Filter; takeTo?: { to: 'hand' | 'battlefield' | 'graveyard'; tapped?: boolean }; splitBy?: { filter: Filter; to: 'battlefield' | 'hand'; tapped?: boolean }[]; rest: ...; order: ... }",
+      "semantics": "Let `dig` send what it takes somewhere other than the hand, take 'any number' of the matching cards, and split the taken cards between two destinations by filter ('all land cards ... onto the battlefield tapped and all creature cards ... into your hand').",
+      "cr": "701.19, 400.3",
+      "clause": "Look at the top twenty cards of your library, put any number of land cards from among them onto the battlefield tapped, then shuffle. / Put all land cards revealed this way onto the battlefield tapped and put all creature cards revealed this way into your hand."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

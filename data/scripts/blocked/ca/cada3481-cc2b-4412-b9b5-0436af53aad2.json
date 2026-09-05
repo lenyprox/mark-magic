@@ -1,0 +1,16 @@
+{
+  "oracleId": "cada3481-cc2b-4412-b9b5-0436af53aad2",
+  "name": "Ranger-Captain of Eos",
+  "clause": "Sacrifice ~: Your opponents can't cast noncreature spells this turn.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "{ op: 'restrict-casting'; who: ScopeWho; filter?: Filter; duration: 'this-turn'; max?: number }",
+      "semantics": "A one-shot continuous effect forbidding the named players from casting spells matching `filter` for the rest of the turn (or beyond a cap of `max` further spells).",
+      "cr": "601.3e, 616.1",
+      "clause": "'Your opponents can't cast noncreature spells this turn.' / 'you can't cast additional spells this turn'"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

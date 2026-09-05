@@ -1,0 +1,113 @@
+{
+  "oracleId": "3688ad0d-653b-4d5d-a57e-444db679d83e",
+  "name": "The Serpent Society",
+  "oracleHash": "69b61899",
+  "source": "llm",
+  "confidence": 0.6,
+  "mode": "replace",
+  "keywords": [
+    "deathtouch"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "targeted",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "poison",
+          "amount": 5,
+          "who": "that-player"
+        }
+      ],
+      "text": "Ward—Get five poison counters."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "dies",
+        "self": false,
+        "controller": "you",
+        "filter": {
+          "types": [
+            "Creature"
+          ],
+          "other": true,
+          "withKeyword": "deathtouch"
+        }
+      },
+      "effects": [
+        {
+          "op": "sacrifice",
+          "who": "each-opponent",
+          "what": {
+            "types": [
+              "Creature"
+            ],
+            "nontoken": true
+          },
+          "amount": 1
+        }
+      ],
+      "text": "Whenever another creature you control with deathtouch dies, each opponent sacrifices a nontoken creature of their choice."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Deathtouch",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "A non-mana ward is claimable by no ward declaration (wardCost is a number), so it is scripted as the triggered ability ward stands for. APPROXIMATIONS: no AbilityCost part expresses 'get five poison counters', so the counters are handed out as an effect and the spell is never countered for refusing to pay; and the targeted event does not distinguish an opponent's spell from your own, so targeting your own ~ poisons you.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "69b61899",
+    "scriptHash": "436bbc7d",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'targeted' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.286,
+      "lowest": [
+        {
+          "text": "Ward—Get five poison counters.",
+          "rendered": "that player gets 5 poison counters",
+          "score": 0.286
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.29 < 0.55: \"Ward—Get five poison counters.\" rendered as \"that player gets 5 poison counters\""
+    ]
+  }
+}

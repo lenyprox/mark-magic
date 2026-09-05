@@ -1,0 +1,16 @@
+{
+  "oracleId": "5cd96cf2-c1c6-4982-8cf8-70c16704e387",
+  "name": "Zombie Trailblazer",
+  "clause": "Tap an untapped Zombie you control: Target creature gains swampwalk until end of turn.",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "{ op: 'grant-landwalk', target: TargetSpec | Ref | 'creatures-you-control', subtypes: string[], duration: 'eot' | 'permanent' }  -- or give `grant-keyword` an optional `landwalk?: string[]` alongside `keywords`",
+      "semantics": "Grants a PARAMETERISED landwalk to a target. The bare `landwalk` keyword carries no land type, and characteristics.ts:545 builds the walk types from `attacker.def.landwalk` plus an anthem static's `landwalk` list only, so nothing an effect grants can ever make a creature unblockable today. The op would push the land types into the same per-object bag `staticMods().landwalk` already feeds.",
+      "cr": "702.14a",
+      "clause": "Tap an untapped Zombie you control: Target creature gains swampwalk until end of turn."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

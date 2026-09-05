@@ -1,0 +1,16 @@
+{
+  "oracleId": "9268d369-173e-4325-98f6-348beeb8ba62",
+  "name": "Galuf's Final Act",
+  "clause": "Until end of turn, target creature gets +1/+0 and gains \"When ~ dies, put a number of +1/+1 counters equal to its power on up to one target creature.\"",
+  "needs": [
+    {
+      "opFamily": "grant-ability-to-target",
+      "proposedSignature": "{ op: 'grant-ability-to'; target: TargetSpec | Ref | 'creatures-you-control' | 'all-creatures'; ability: Ability; duration: 'eot' | 'permanent' }",
+      "semantics": "Grants a whole quoted ability (not just keywords) to the objects the target resolves to, at layer 6, for a duration. Today `gain-ability` only pushes onto the SOURCE's grantedAbilities, so 'target creature ... gains \"When this creature dies, ...\"' is unwritable.",
+      "cr": "613.1f, 611.2c",
+      "clause": "Until end of turn, target creature gets +1/+0 and gains \"When ~ dies, put a number of +1/+1 counters equal to its power on up to one target creature.\""
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,65 @@
+{
+  "oracleId": "7d9a424e-cab1-410f-9c04-ee0025d04169",
+  "name": "Necrogen Rotpriest",
+  "scenarios": [
+    {
+      "name": "Toxic 2 gives two poison counters and Necrogen Rotpriest's own trigger adds a third",
+      "cr": "702.164",
+      "ruling": "Toxic does not change the damage dealt: the defending player loses 1 life, gets two poison counters from toxic 2 and one more from the Rotpriest's triggered ability.",
+      "seats": [
+        { "bf": ["Necrogen Rotpriest"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Necrogen Rotpriest"] }
+      ],
+      "expect": [
+        { "life": [1, 19] },
+        { "playerCounters": [1, { "poison": 3 }] },
+        { "playerCounters": [0, { "poison": 0 }] },
+        { "log": "poison" },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The Rotpriest's trigger adds a poison counter when another toxic creature you control connects",
+      "cr": "603.2",
+      "ruling": "The trigger watches every creature you control with toxic, so Skrelv's toxic 1 becomes two poison counters while the Rotpriest stays home.",
+      "seats": [
+        { "bf": ["Necrogen Rotpriest", "Skrelv, Defector Mite"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Skrelv, Defector Mite"] }
+      ],
+      "expect": [
+        { "life": [1, 19] },
+        { "playerCounters": [1, { "poison": 2 }] },
+        { "playerCounters": [0, { "poison": 0 }] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The Rotpriest's activated ability gives a toxic creature deathtouch and kills its blocker",
+      "cr": "702.2b",
+      "ruling": "Any nonzero amount of damage from a source with deathtouch is lethal, so the 1/5 Rotpriest destroys a 2/2 blocker and survives the 2 damage back.",
+      "seats": [
+        { "bf": ["Necrogen Rotpriest", "Swamp", "Swamp", "Forest", "Forest"] },
+        { "bf": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "activate": "Necrogen Rotpriest", "targets": [["Necrogen Rotpriest"]] },
+        { "resolve": true },
+        { "attack": ["Necrogen Rotpriest"], "blocks": [["Grizzly Bears", "Necrogen Rotpriest"]] }
+      ],
+      "expect": [
+        { "keywords": ["Necrogen Rotpriest", ["deathtouch"]] },
+        { "zone": ["Grizzly Bears", "graveyard"] },
+        { "zone": ["Necrogen Rotpriest", "battlefield"] },
+        { "noLog": "Necrogen Rotpriest is destroyed" },
+        { "playerCounters": [1, { "poison": 0 }] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

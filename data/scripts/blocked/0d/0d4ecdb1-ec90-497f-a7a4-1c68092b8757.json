@@ -1,0 +1,23 @@
+{
+  "oracleId": "0d4ecdb1-ec90-497f-a7a4-1c68092b8757",
+  "name": "Teferi's Protection",
+  "clause": "Until your next turn, your life total can't change and you gain protection from everything. All permanents you control phase out.",
+  "needs": [
+    {
+      "opFamily": "phasing",
+      "proposedSignature": "effect `{ op: 'phase-out', target: TargetSpec | Ref | 'permanents-you-control' | 'all-creatures' }`; static `{ kind: 'phasing' }` for the printed keyword; an internal delayed phase-in at the controller's untap step",
+      "semantics": "Phase out each named permanent and everything attached to it: set `o.ext.phasedOut` and `s.ext.phasing` (both already exist in src/engine/characteristics.ts, where the visibility filter drops phased-out objects). A phased-out permanent is treated as though it did not exist - no combat, no targeting, no state-based actions, no triggers - and it does NOT re-enter the battlefield when it phases in, so no ETB triggers fire and counters, auras and equipment survive (unlike an exile-and-return blink). It phases in before its controller untaps during their next untap step. The printed `phasing` keyword is the same machinery driven at untap.",
+      "cr": "702.26 (702.26b, 702.26e for 'phases out'; 506.4 and 603.10b for combat and triggers)",
+      "clause": "When ~ enters, any number of other target creatures you control phase out. / All permanents you control phase out."
+    },
+    {
+      "opFamily": "player-protection",
+      "proposedSignature": "`{ op: 'grant-player-protection', who: ScopeWho, from: string[] | 'everything', duration: 'eot' | 'until-your-next-turn' }` and `{ op: 'lock-life', who: ScopeWho, duration: 'eot' | 'until-your-next-turn' }`",
+      "semantics": "A player with protection from everything cannot be targeted, dealt damage, enchanted or attached by anything (CR 702.16i as it applies to players); 'your life total can't change' is a continuous prohibition that stops every gain and every loss, including life paid as a cost. Both need a duration point 'until your next turn' that the current durations ('eot', 'your-next-end-step') do not offer. Teferi's Protection needs all three of these plus phasing.",
+      "cr": "702.16i (protection for players), 118.5 and 614.1 (a life total that can't change is a replacement on every life change)",
+      "clause": "Until your next turn, your life total can't change and you gain protection from everything."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

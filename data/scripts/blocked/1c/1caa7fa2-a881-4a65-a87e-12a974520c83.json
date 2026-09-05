@@ -1,0 +1,16 @@
+{
+  "oracleId": "1caa7fa2-a881-4a65-a87e-12a974520c83",
+  "name": "Grim Servant",
+  "clause": "When ~ enters, search your library for a card with mana value less than or equal to your devotion to black, reveal it, put it into your hand, then shuffle. You lose 3 life.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "Amount { count: 'devotion'; colors: Color[] }",
+      "semantics": "Your devotion to the listed colours: the number of mana symbols of those colours in the mana costs of permanents you control.",
+      "cr": "700.5",
+      "clause": "a card with mana value less than or equal to your devotion to black"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

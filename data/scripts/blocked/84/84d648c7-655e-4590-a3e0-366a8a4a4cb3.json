@@ -1,0 +1,16 @@
+{
+  "oracleId": "84d648c7-655e-4590-a3e0-366a8a4a4cb3",
+  "name": "Radagast of Rhosgobel",
+  "clause": "The first creature spell you cast each turn costs {2} less to cast and can be cast as though it had flash.",
+  "needs": [
+    {
+      "opFamily": "other",
+      "proposedSignature": "conditions { kind: 'entered-from', zone: 'graveyard'|'exile'|'hand'|'library' } and { kind: 'cast-from', zone: SetZone } (an `or` of the two is Grist's intervening-if); { kind: 'milled-this-way', filter: Filter }; plus a gate `nthEachTurn?: number` on the `cost-adjust` and `flash-for` statics",
+      "semantics": "Three intervening/branch conditions with no kind today: where a permanent came from, what an earlier effect of the same item milled, and 'only the Nth such spell each turn' as a limiter on a cost-reduction / flash-granting static.",
+      "cr": "603.4, 400.7, 601.2, 608.2",
+      "clause": "if it entered from your graveyard or you cast it from your graveyard / Put a deathtouch counter on the token if a black card was milled this way. / The first creature spell you cast each turn costs {2} less to cast and can be cast as though it had flash."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

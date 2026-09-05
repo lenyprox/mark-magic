@@ -1,0 +1,23 @@
+{
+  "oracleId": "689cd6a8-8be0-49a6-9758-a81cc9f55cc8",
+  "name": "Haunted One",
+  "clause": "Commander creatures you own have \"Whenever ~ becomes tapped, it and other creatures you control that share a creature type with it each get +2/+0 and gain undying until end of turn.\"",
+  "needs": [
+    {
+      "opFamily": "filter:shares-type-and-commander",
+      "proposedSignature": "Filter gains `sharesCreatureTypeWith?: Ref | 'commander'`, `commander?: boolean` and `owned?: boolean` (owner rather than controller)",
+      "semantics": "Two filter predicates a large tribal/commander slice of the pool needs: 'creatures you control that share a creature type with it' and 'commander creatures you own'. Pure matchesFilter work, no new op.",
+      "cr": "903.3, 700.4",
+      "clause": "Commander creatures you own have \"... it and other creatures you control that share a creature type with it each get +2/+0 ...\""
+    },
+    {
+      "opFamily": "named-keyword:undying",
+      "proposedSignature": "add 'undying' (and 'persist') to CoreKeyword so anthem.keywords / grant-keyword / self-keywords can carry it; the body already exists as { op: 'return-self-to-battlefield', counters: { counter: '+1/+1', amount: 1 } } gated on { kind: 'self-no-counters', counter: '+1/+1' }",
+      "semantics": "Undying as a GRANTABLE keyword. The behaviour exists for a card that prints it; what is missing is a keyword token an anthem or pump can hand to OTHER creatures ('Other non-Human creatures you control get +1/+1 and have undying'). Adding it to the Keyword union also gives the round-trip scorer its vocabulary entry, since KEYWORD_EXPANSIONS already carries the undying rules text.",
+      "cr": "702.93a",
+      "clause": "Other non-Human creatures you control get +1/+1 and have undying."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

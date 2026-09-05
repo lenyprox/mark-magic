@@ -1,0 +1,91 @@
+{
+  "oracleId": "64824ae5-efab-4b55-9d3c-b9c690bad857",
+  "name": "Essence Flux",
+  "oracleHash": "d7b17fc7",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "exile",
+          "target": {
+            "kind": "creature",
+            "controller": "you"
+          }
+        },
+        {
+          "op": "return-to-battlefield",
+          "target": "that",
+          "underControlOf": "owner"
+        },
+        {
+          "op": "counters",
+          "target": "that",
+          "counter": "+1/+1",
+          "amount": 1
+        }
+      ],
+      "text": "Exile target creature you control, then return that card to the battlefield under its owner's control. If it's a Spirit, put a +1/+1 counter on it."
+    }
+  ],
+  "aiHints": {
+    "role": "protection",
+    "value": 4,
+    "timing": "instant"
+  },
+  "notes": "APPROXIMATION: no condition asks whether the returned card is a Spirit, so the +1/+1 counter is put on the returned creature whatever its subtypes (see needs).",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "d7b17fc7",
+    "scriptHash": "0bf84b99",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "unreachable",
+      "seats4": "unreachable",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.818,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/64/64824ae5-efab-4b55-9d3c-b9c690bad857.json",
+      "passed": 0,
+      "failed": 3,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "If it's a Spirit, put a +1/+1 counter on it. — expected the +1/+1 counter goes on only if the returned permanent is a Spirit — scripted unconditional counters op on 'that' (script notes admit this). Blind scenarios confirm two failures: Grizzly Bears gained a +1/+1 counter (P/T 3/3 instead of 2/2) and Wall of Omens gained one — CR CR 608.2a — the 'if' clause is checked on resolution and gates the dependent effect"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "If it's a Spirit, put a +1/+1 counter on it. — expected the +1/+1 counter is placed only when the returned permanent is a Spirit — scripted unconditional counters op on 'that' (self-disclosed approximation). Blind scenarios confirm: Grizzly Bears returned as a 3/3 with a +1/+1 counter, Wall of Omens likewise — CR 608.2a",
+          "Exile target creature you control, then return that card to the battlefield under its owner's control — expected exile and return; the returned object is new (counters, auras, damage gone), enters under OWNER's control — scripted exile target {kind:'creature', controller:'you'} then return-to-battlefield target:'that' underControlOf:'owner' — correct, and the blink/ETB-retrigger half works in the scenarios; only the Spirit condition is broken — CR 400.7, 111.7"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

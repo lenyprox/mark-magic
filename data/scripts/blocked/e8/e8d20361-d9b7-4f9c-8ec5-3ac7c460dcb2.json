@@ -1,0 +1,23 @@
+{
+  "oracleId": "e8d20361-d9b7-4f9c-8ec5-3ac7c460dcb2",
+  "name": "Horizon Explorer",
+  "clause": "Lands you control enter untapped. / Whenever you attack a player, create a Lander token.",
+  "needs": [
+    {
+      "opFamily": "keyword-action",
+      "proposedSignature": "{ op: 'token', ..., predefined?: 'Lander'|'Treasure'|'Clue'|'Food'|'Blood'|'Map'|'Powerstone'|'Incubator' } — a predefined-token table carrying each token's real ability",
+      "semantics": "A predefined token must arrive with its printed ability. `token.text` is inert today, so a Lander created from a script is a vanilla colourless artifact.",
+      "cr": "111.1, 111.10",
+      "clause": "Whenever you attack a player, create a Lander token. (It's an artifact with \"{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\")"
+    },
+    {
+      "opFamily": "replacement",
+      "proposedSignature": "static { kind: 'replacement', would: { event: 'damage'|'enters'|'zone-change'|'counters'; filter?: Filter; scope?: 'you-control'|'all'|'self'; to?: 'you'|'any' }, instead: Effect[] | 'none' | 'unpreventable', duration?: 'permanent'|'eot' } · effect { op: 'prevent-next-damage', from: 'chosen-source', to: 'you'|Ref, duration: 'eot', then?: Effect[] }",
+      "semantics": "The generic { would, instead } shape, plus a shield that BINDS the source it prevented and feeds the prevented amount to `that-many` so the redirect half of Deflecting Palm can read it.",
+      "cr": "614.1, 615.1, 615.10, 616.1",
+      "clause": "Combat damage that would be dealt by creatures you control can't be prevented. / Lands you control enter untapped. / The next time a source of your choice would deal damage to you this turn, prevent that damage. / If that spell would be put into a graveyard, put it on the bottom of its owner's library instead."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

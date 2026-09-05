@@ -1,0 +1,23 @@
+{
+  "oracleId": "626a979f-bed7-4cb1-9ab7-c3f2bbe37781",
+  "name": "Lost Monarch of Ifnir",
+  "clause": "At the beginning of your second main phase, if a player was dealt combat damage by a Zombie this turn, mill three cards, then you may return a creature card from your graveyard to your hand.",
+  "needs": [
+    {
+      "opFamily": "combat-damage-history",
+      "proposedSignature": "{ kind: 'dealt-combat-damage-this-turn', who: 'any' | 'you' | 'opponent', by?: Filter } as a Condition variant, backed by a per-turn record of which permanents dealt combat damage to which players (the same shape as ext.damagedBy, which already records the reverse direction for Filter.dealtDamageBySource)",
+      "semantics": "\"if a player was dealt combat damage by a Zombie this turn\". Nothing today remembers, per player, the characteristics of the sources that dealt them combat damage this turn; attacked-with-ge and opponent-lost-life-this-turn are the nearest and neither can be restricted by the damaging permanent's subtype.",
+      "cr": "510.1, 506.3",
+      "clause": "if a player was dealt combat damage by a Zombie this turn"
+    },
+    {
+      "opFamily": "phase-triggers",
+      "proposedSignature": "{ on: 'main-phase', whose: 'your' | 'each', which: 'first' | 'second' | 'any' } as a TriggerEvent variant",
+      "semantics": "\"At the beginning of your second (post-combat) main phase\" / \"at the beginning of your precombat main phase\". The trigger union covers upkeep, draw step, combat begin, end step and end of turn but no main phase at all, so every card with this trigger head leaves an { on: 'unknown' } no script can repair.",
+      "cr": "505.1a, 505.1b, 506.1",
+      "clause": "At the beginning of your second main phase, ..."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

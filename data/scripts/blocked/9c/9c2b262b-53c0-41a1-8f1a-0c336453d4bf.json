@@ -1,0 +1,16 @@
+{
+  "oracleId": "9c2b262b-53c0-41a1-8f1a-0c336453d4bf",
+  "name": "Comet Storm",
+  "clause": "Choose any target, then choose another target for each time ~ was kicked. ~ deals X damage to each of them.",
+  "needs": [
+    {
+      "opFamily": "multikicker",
+      "proposedSignature": "`kicker` gains `{ multi: true }`; `Amount.count` gains `'times-kicked'`; `TargetSpec.count` widened from `number | 'X'` to `Amount`",
+      "semantics": "Multikicker may be paid any number of times as the spell is cast, and the number of payments must be recorded on the stack item so later text can read it. With `count: 'times-kicked'` as an Amount and a `TargetSpec.count` that accepts an Amount, Comet Storm becomes `{ op: 'damage', amount: 'X', target: { kind: 'any', count: { sum: [1, { count: 'times-kicked' }] } } }` - 'choose any target, then choose another target for each time this spell was kicked'. The existing `{ kind: 'kicked' }` condition (was it kicked at all) and the `covers` shape `^(multi)?kicker (\\{.+\\})$` already exist; only the count is missing.",
+      "cr": "702.33c (702.33d, 702.33e)",
+      "clause": "Choose any target, then choose another target for each time ~ was kicked. ~ deals X damage to each of them."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

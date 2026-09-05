@@ -1,0 +1,118 @@
+{
+  "oracleId": "736017e2-bc33-49e8-812d-1639443fdb51",
+  "name": "Entish Restoration",
+  "oracleHash": "03b6325b",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "sacrifice",
+          "who": "you",
+          "what": {
+            "types": [
+              "Land"
+            ]
+          },
+          "amount": 1
+        },
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "ferocious"
+          },
+          "then": [
+            {
+              "op": "search",
+              "filter": {
+                "types": [
+                  "Land"
+                ],
+                "basic": true
+              },
+              "to": "battlefield",
+              "tapped": true,
+              "count": 3,
+              "optional": true
+            }
+          ],
+          "else": [
+            {
+              "op": "search",
+              "filter": {
+                "types": [
+                  "Land"
+                ],
+                "basic": true
+              },
+              "to": "battlefield",
+              "tapped": true,
+              "count": 2,
+              "optional": true
+            }
+          ]
+        }
+      ],
+      "text": "Sacrifice a land. Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle. If you control a creature with power 4 or greater, instead search your library for up to three basic land cards, put them onto the battlefield tapped, then shuffle."
+    }
+  ],
+  "aiHints": {
+    "role": "ramp",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "The 'instead' clause is a conditional around the two searches, so exactly one of them happens: three basic lands with ferocious (a creature with power 4 or greater), otherwise two.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "03b6325b",
+    "scriptHash": "018dc763",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.806,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/73/736017e2-bc33-49e8-812d-1639443fdb51.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "If you control a creature with power 4 or greater, INSTEAD search ... up to three — expected exactly one search happens; the condition is checked on resolution, after the land sacrifice — scripted sacrifice first, then conditional{ferocious} then/else with count 3 / count 2, both optional:true (the 'up to'), to battlefield tapped — matches, including the sacrifice-before-check ordering. 3/3 blind scenarios pass"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "Sacrifice a land. Search ... up to two ... If you control a creature with power 4 or greater, instead ... up to three ... — expected sacrifice on resolution, then exactly one search — three basics if ferocious, otherwise two — tapped, then shuffle — scripted sacrifice {who:'you', what:{types:['Land']}, amount:1}, then conditional {kind:'ferocious'} (characteristics.ts:417 = a creature you control with power >= 4) with then=search count 3 / else=search count 2, both basic-only, to battlefield, tapped, optional:true ('up to'). Search op shuffles on both the found and empty paths (game.ts:1229-1240). 3/3 scenarios pass — CR 701.16, 608.2"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "eb4e9ce9-1917-46b1-b01c-645f5920ef9c",
+  "name": "Archetype of Finality",
+  "clause": "Creatures your opponents control lose deathtouch and can't have or gain deathtouch.",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "{ kind: 'lose-keywords', scope: 'all' | 'you-control' | 'opponents-control' | 'enchanted', filter?: Filter, keywords: Keyword[], cantGain?: true }",
+      "semantics": "A continuous static that removes the listed keywords from every permanent the filter matches (layer 6) and, with `cantGain`, also stops them being granted by any later effect. The mirror image of `anthem`'s `keywords` - the whole Archetype cycle and every 'creatures your opponents control lose flying' effect needs it.",
+      "cr": "613.1f, 702.2b",
+      "clause": "Creatures your opponents control lose deathtouch and can't have or gain deathtouch."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

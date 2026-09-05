@@ -1,0 +1,67 @@
+{
+  "oracleId": "987a0b61-2ce4-47bd-8f5e-1e7bf01d0869",
+  "name": "Sergeant John Benton",
+  "scenarios": [
+    {
+      "name": "Combat damage to a player makes you and that player each draw that many cards",
+      "cr": "603.2",
+      "ruling": "Two combat damage means two cards for each of you, not one card or two cards for you alone.",
+      "seats": [
+        { "bf": ["Sergeant John Benton"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Sergeant John Benton"] }
+      ],
+      "expect": [
+        { "life": [1, 18] },
+        { "handCount": [0, 2] },
+        { "handCount": [1, 2] },
+        { "libraryCount": [0, 18] },
+        { "libraryCount": [1, 18] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Trample lets the excess damage through a 1/1 blocker and the trigger counts only that damage",
+      "cr": "702.19b",
+      "ruling": "One damage is lethal for the 1/1, the other tramples over; only that one point reached the player, so each of you draws one card.",
+      "seats": [
+        { "bf": ["Sergeant John Benton"] },
+        { "bf": ["Memnite"] }
+      ],
+      "script": [
+        { "attack": ["Sergeant John Benton"], "blocks": [["Memnite", "Sergeant John Benton"]] }
+      ],
+      "expect": [
+        { "zone": ["Memnite", "graveyard"] },
+        { "life": [1, 19] },
+        { "handCount": [0, 1] },
+        { "handCount": [1, 1] },
+        { "zone": ["Sergeant John Benton", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Haste lets Sergeant John Benton attack the turn he enters",
+      "cr": "702.10b",
+      "ruling": "A creature with haste can attack even though it has not been controlled continuously since the turn began.",
+      "seats": [
+        { "bf": ["Forest", "Plains", "Forest"], "hand": ["Sergeant John Benton"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Sergeant John Benton" },
+        { "resolve": true },
+        { "attack": ["Sergeant John Benton"] }
+      ],
+      "expect": [
+        { "life": [1, 18] },
+        { "handCount": [0, 2] },
+        { "handCount": [1, 2] },
+        { "zone": ["Sergeant John Benton", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

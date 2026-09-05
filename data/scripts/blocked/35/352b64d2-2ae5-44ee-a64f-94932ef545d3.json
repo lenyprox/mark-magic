@@ -1,0 +1,16 @@
+{
+  "oracleId": "352b64d2-2ae5-44ee-a64f-94932ef545d3",
+  "name": "Dread Return",
+  "clause": "Flashback—Sacrifice three creatures.",
+  "needs": [
+    {
+      "opFamily": "ability-cost:sacrifice-count",
+      "proposedSignature": "AbilityCost.sacrifice becomes `Filter | { filter: Filter; count: number | 'X' }`",
+      "semantics": "'Sacrifice three creatures' as a cost. Today `sacrifice` is a bare Filter and means exactly one, so Dread Return's flashback cost would be a third of what the card prints — and `covers` would still accept the altCost (the line prints no mana symbols), so the wrong magnitude would pass the checker unnoticed.",
+      "cr": "118.3, 702.34a",
+      "clause": "Flashback—Sacrifice three creatures."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

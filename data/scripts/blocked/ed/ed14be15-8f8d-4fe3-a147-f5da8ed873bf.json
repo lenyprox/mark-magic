@@ -1,0 +1,16 @@
+{
+  "oracleId": "ed14be15-8f8d-4fe3-a147-f5da8ed873bf",
+  "name": "Conduit of Worlds",
+  "clause": "{T}: Choose target nonland permanent card in your graveyard. If you haven't cast a spell this turn, you may cast that card. If you do, you can't cast additional spells this turn. Activate only as a sorcery.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "static { kind: 'play-from-zone'; zone: 'graveyard' | 'exile' | 'library-top'; filter?: Filter; oncePerTurn?: boolean; grants?: Ability } and effect { op: 'cast-from-zone'; target: TargetSpec; zone: SetZone; free?: boolean }",
+      "semantics": "A permission to play/cast cards from another zone, optionally limited to once per turn and optionally granting the object an ability while it is played this way; plus the one-shot 'you may cast that card' form an activated ability uses.",
+      "cr": "118.9, 601.1, 601.3e",
+      "clause": "'Once during each of your turns, you may play a land from your graveyard or cast a permanent spell ...' / 'you may cast that card'"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

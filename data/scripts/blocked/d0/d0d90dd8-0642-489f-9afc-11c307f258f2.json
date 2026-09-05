@@ -1,0 +1,16 @@
+{
+  "oracleId": "d0d90dd8-0642-489f-9afc-11c307f258f2",
+  "name": "Tifa's Limit Break",
+  "clause": "Tiered",
+  "needs": [
+    {
+      "opFamily": "tiered",
+      "proposedSignature": "the same `ModeSpec.cost` machinery as spree, with `{ op: 'choose-mode', modes: ModeSpec[], count: 1 }` and a face declaration `tiered: true` (`covers` kind `by: 'tiered'` for the printed `^tiered$` line)",
+      "semantics": "Tiered is spree's exactly-one sibling: as the spell is cast its controller chooses exactly one named tier and that tier's mana cost is added as an additional cost. It needs the same per-mode `cost` field and the same cast-time cost hook. If spree and tiered ship as one registry module, note that a blocked note only auto-clears when every `needs[].opFamily` it lists exists by name (README, 'blocked/'), so both names need to resolve.",
+      "cr": "702.183 (702.183a)",
+      "clause": "Tiered / • Somersault - {0} - Target creature gets +2/+2 until end of turn."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "d90af00a-d322-4265-9954-7b1e80702e18",
+  "name": "Skyclave Apparition",
+  "clause": "When ~ leaves the battlefield, the exiled card's owner creates an X/X blue Illusion creature token, where X is the mana value of the exiled card.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "{ op: 'exile'; ...; remember?: true } recording the exiled cards on the source, plus { op: 'bind'; as: 'that'; from: 'exiled-with' } and { op: 'move'; what: { ref: 'exiled-with'; count: Amount; choose?: 'you' } }",
+      "semantics": "Let a plain exile record what it exiled on GameObject.exiledWith (as delve / imprint already do) so a later ability of the same permanent can name it, bind ONE of those cards, and read owner-of-that / prop mv from it.",
+      "cr": "400.7, 610.3, 608.2h",
+      "clause": "'the exiled card's owner creates an X/X ... where X is the mana value of the exiled card' / 'Put a card exiled with ~ into its owner's graveyard.'"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

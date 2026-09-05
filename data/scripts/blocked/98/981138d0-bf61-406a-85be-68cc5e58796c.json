@@ -1,0 +1,16 @@
+{
+  "oracleId": "981138d0-bf61-406a-85be-68cc5e58796c",
+  "name": "Tapestry Warden",
+  "clause": "Each creature you control with toughness greater than its power stations permanents using its toughness rather than its power.",
+  "needs": [
+    {
+      "opFamily": "station",
+      "proposedSignature": "activated form `{ op: 'station', target: TargetSpec }` (cost `tapUntappedCreature`), static `{ kind: 'station-thresholds', thresholds: [{ counters: number, types: CardType[], subtypes: string[], power: number, toughness: number, abilities: Ability[] }] }`, and - what this card needs - `{ kind: 'stations-by-toughness', scope: 'you-control' | 'all', onlyWhenGreater?: boolean }`",
+      "semantics": "Stationing taps an untapped creature you control to put CHARGE counters on a Spacecraft equal to that creature's power; at each printed threshold the Spacecraft gains the listed types, P/T and abilities. Tapestry Warden's static replaces the value used for stationing with the creature's toughness when that is greater - exactly the shape of the existing `damage-by-toughness` static (`scope` + `onlyWhenGreater`), so the natural implementation is a sibling static read by the station cost calculation.",
+      "cr": "702.184 (702.184a-702.184c)",
+      "clause": "Each creature you control with toughness greater than its power stations permanents using its toughness rather than its power."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

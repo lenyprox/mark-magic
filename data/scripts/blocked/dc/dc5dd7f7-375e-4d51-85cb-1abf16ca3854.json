@@ -1,0 +1,16 @@
+{
+  "oracleId": "dc5dd7f7-375e-4d51-85cb-1abf16ca3854",
+  "name": "Emptiness",
+  "clause": "When ~ enters, if {W}{W} was spent to cast it, return target creature card with mana value 3 or less from your graveyard to the battlefield.",
+  "needs": [
+    {
+      "opFamily": "mana-spent",
+      "proposedSignature": "Condition: { kind: 'mana-spent', mana: ManaSymbol[] }  // every listed symbol was spent to cast the source",
+      "semantics": "The engine already tracks colours spent (`Amount.count: 'colors-spent'` exists), so the payment record is there; what is missing is a condition that asks whether a specific run of symbols was among them, for the hybrid Incarnation cycle's two ETB triggers.",
+      "cr": "202.2c, 106.6, 603.4",
+      "clause": "When ~ enters, if {W}{W} was spent to cast it, … / if {B}{B} was spent to cast it, …"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

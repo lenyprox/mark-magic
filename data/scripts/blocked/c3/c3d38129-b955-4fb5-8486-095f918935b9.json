@@ -1,0 +1,23 @@
+{
+  "oracleId": "c3d38129-b955-4fb5-8486-095f918935b9",
+  "name": "Quintorius, Loremaster",
+  "clause": "{1}{R}{W}, {T}, Sacrifice a Spirit: Choose target card exiled with ~. You may cast that card this turn without paying its mana cost. If that spell would be put into a graveyard, put it on the bottom of its owner's library instead.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "{ op: 'cast-permission', who: ScopeWho, from: 'hand'|'library-top'|'exile'|'graveyard', filter?: Filter, count?: Amount, free?: boolean, altCost?: AbilityCost, mvLE?: Amount, anyColorMana?: boolean, until: 'eot'|'this-turn'|'while-exiled' }",
+      "semantics": "A duration-scoped permission to cast cards from another zone, optionally free, for an alternative cost, or spending mana as though it were any colour.",
+      "cr": "601.3e, 118.9, 609.4b",
+      "clause": "You may cast a spell with mana value X or less from your hand without paying its mana cost. / you may play cards from the top of your library … pay life equal to its mana value rather than pay its mana cost / You may look at and play those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color / You may cast that card this turn without paying its mana cost. / If you control a commander, you may cast ~ without paying its mana cost."
+    },
+    {
+      "opFamily": "replacement",
+      "proposedSignature": "static { kind: 'replacement', would: { event: 'damage'|'enters'|'zone-change'|'counters'; filter?: Filter; scope?: 'you-control'|'all'|'self'; to?: 'you'|'any' }, instead: Effect[] | 'none' | 'unpreventable', duration?: 'permanent'|'eot' } · effect { op: 'prevent-next-damage', from: 'chosen-source', to: 'you'|Ref, duration: 'eot', then?: Effect[] }",
+      "semantics": "The generic { would, instead } shape, plus a shield that BINDS the source it prevented and feeds the prevented amount to `that-many` so the redirect half of Deflecting Palm can read it.",
+      "cr": "614.1, 615.1, 615.10, 616.1",
+      "clause": "Combat damage that would be dealt by creatures you control can't be prevented. / Lands you control enter untapped. / The next time a source of your choice would deal damage to you this turn, prevent that damage. / If that spell would be put into a graveyard, put it on the bottom of its owner's library instead."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,100 @@
+{
+  "oracleId": "987a0b61-2ce4-47bd-8f5e-1e7bf01d0869",
+  "name": "Sergeant John Benton",
+  "oracleHash": "a854f044",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [
+    "trample",
+    "haste"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "draw",
+          "amount": {
+            "count": "that-many"
+          },
+          "who": "you"
+        },
+        {
+          "op": "draw",
+          "amount": {
+            "count": "that-many"
+          },
+          "who": "that-player"
+        }
+      ],
+      "text": "Whenever ~ deals combat damage to a player, you and that player each draw that many cards."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Trample, haste",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "draw",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "'that many' is the trigger's own amount (the combat damage dealt); the damaged player is that-player.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "a854f044",
+    "scriptHash": "ad1f9e9b",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.75,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/98/987a0b61-2ce4-47bd-8f5e-1e7bf01d0869.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "you and that player each draw that many cards — expected both draws happen as one effect; 'that many' = the combat damage dealt — scripted two sequential draw effects (you, then that-player) each with {count:'that-many'} — sequential rather than simultaneous, which is only observable via a replacement that changes the library mid-effect. All keywords (trample, haste) and the combat-damage-player self trigger are correct; 3/3 blind scenarios pass"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "Trample, haste / Share Intelligence — Whenever ~ deals combat damage to a player, you and that player each draw that many cards. — expected keywords granted; both players draw a number equal to the combat damage dealt — scripted keywords ['trample','haste'] with a matching covers entry; combat-damage-player self trigger, draw {count:'that-many'} for 'you' and for 'that-player' (resolved to item.triggeringPlayer, game.ts:1074). Ability word 'Share Intelligence' is flavor with no rules meaning. 3/3 scenarios pass — CR 207.2c, 702.19, 702.10"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

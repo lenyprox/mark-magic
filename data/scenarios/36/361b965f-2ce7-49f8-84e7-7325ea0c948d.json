@@ -1,0 +1,127 @@
+{
+  "oracleId": "361b965f-2ce7-49f8-84e7-7325ea0c948d",
+  "name": "Bow of Nylea",
+  "scenarios": [
+    {
+      "name": "Attacking creatures you control have deathtouch and kill what blocks them",
+      "cr": "702.2b",
+      "ruling": "Any nonzero damage from a source with deathtouch is lethal, so the 2/2 attacker destroys the 6/6 blocker.",
+      "seats": [
+        { "bf": ["Bow of Nylea", "Grizzly Bears"] },
+        { "bf": ["Colossal Dreadmaw"] }
+      ],
+      "script": [
+        { "attack": ["Grizzly Bears"], "blocks": [["Colossal Dreadmaw", "Grizzly Bears"]] }
+      ],
+      "expect": [
+        { "zone": ["Colossal Dreadmaw", "graveyard"] },
+        { "zone": ["Grizzly Bears", "graveyard"] },
+        { "log": "Colossal Dreadmaw is destroyed" },
+        { "zone": ["Bow of Nylea", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A blocking creature you control does not get deathtouch from the Bow",
+      "cr": "702.2b",
+      "ruling": "The static ability grants deathtouch only to attacking creatures you control, so your blocker does not kill the big attacker.",
+      "active": 1,
+      "seats": [
+        { "bf": ["Bow of Nylea", "Grizzly Bears"] },
+        { "bf": ["Colossal Dreadmaw"] }
+      ],
+      "script": [
+        { "attack": ["Colossal Dreadmaw"], "blocks": [["Grizzly Bears", "Colossal Dreadmaw"]] }
+      ],
+      "expect": [
+        { "zone": ["Colossal Dreadmaw", "battlefield"] },
+        { "zone": ["Grizzly Bears", "graveyard"] },
+        { "noLog": "Colossal Dreadmaw is destroyed" },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The first mode puts a +1/+1 counter on target creature",
+      "cr": "700.2",
+      "ruling": "You choose the mode as you activate the ability; the first mode is a single +1/+1 counter.",
+      "seats": [
+        { "bf": ["Bow of Nylea", "Forest", "Forest", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "answer": [0] },
+        { "activate": "Bow of Nylea", "targets": [["Grizzly Bears"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "counters": ["Grizzly Bears", { "+1/+1": 1 }] },
+        { "pt": ["Grizzly Bears", 3, 3] },
+        { "tapped": ["Bow of Nylea", true] },
+        { "life": [0, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The second mode deals 2 damage to a target creature with flying",
+      "cr": "700.2",
+      "ruling": "Only a creature with flying can be chosen; 2 damage destroys the 2/2 flier and the ground creature is untouched.",
+      "seats": [
+        { "bf": ["Bow of Nylea", "Forest", "Forest"] },
+        { "bf": ["Wind Drake", "Grizzly Bears"] }
+      ],
+      "script": [
+        { "answer": [1] },
+        { "activate": "Bow of Nylea", "targets": [["Wind Drake"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Wind Drake", "graveyard"] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "log": "deals 2 damage" },
+        { "life": [0, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The third mode gains you 3 life",
+      "cr": "700.2",
+      "ruling": "The third mode is a flat 3 life and touches nothing else.",
+      "seats": [
+        { "bf": ["Bow of Nylea", "Forest", "Forest"] },
+        {}
+      ],
+      "script": [
+        { "answer": [2] },
+        { "activate": "Bow of Nylea" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [0, 23] },
+        { "life": [1, 20] },
+        { "tapped": ["Bow of Nylea", true] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The fourth mode puts cards from your graveyard on the bottom of your library",
+      "cr": "700.2",
+      "ruling": "Up to four target cards in your graveyard go to the bottom of your library, so the graveyard empties and the library grows.",
+      "seats": [
+        { "bf": ["Bow of Nylea", "Forest", "Forest"], "graveyard": ["Lightning Bolt", "Shock"] },
+        {}
+      ],
+      "script": [
+        { "answer": [3] },
+        { "activate": "Bow of Nylea", "targets": [["Lightning Bolt", "Shock"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "graveyardCount": [0, 0] },
+        { "libraryCount": [0, 22] },
+        { "zone": ["Lightning Bolt", "library"] },
+        { "zone": ["Shock", "library"] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

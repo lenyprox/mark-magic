@@ -1,0 +1,23 @@
+{
+  "oracleId": "e4f4c41b-2533-497f-96bb-7083ef597268",
+  "name": "Kinzu of the Bleak Coven",
+  "clause": "Whenever another nontoken creature you control dies, you may pay 2 life and exile it. If you do, create a token that's a copy of that creature, except it's 1/1 and has toxic 1.",
+  "needs": [
+    {
+      "opFamily": "copy-clone",
+      "proposedSignature": "{ op: 'token-copy', target, count, power?: number, toughness?: number, colors?: Color[], name?: string, extraTypes?, extraSubtypes?, extraKeywords?, grantAbility?: Ability, tapped?, attacking? }",
+      "semantics": "A copy with copiable-value exceptions (CR 707.2 layer 1 overrides): P/T, colours, name and a granted ability, on top of the extra types/subtypes/keywords the op already carries.",
+      "cr": "707.2, 706.2, 613.2",
+      "clause": "Create a token that's a copy of it, except it's a 4/4 black Zombie. / except it's 1/1 and has toxic 1. / except it's a Spirit in addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard.\""
+    },
+    {
+      "opFamily": "named-keyword:toxic",
+      "proposedSignature": "a parameterised keyword everywhere a Keyword[] appears: `grant-keyword.keywords: (Keyword | { keyword: 'toxic'|'bushido'|'rampage'|'ward'|'protection'; amount: number })[]`, the same on `token.keywords`, `aura.keywords`, `anthem.keywords`, `animate.keywords`; plus an Amount `{ prop: 'toxic', of: Ref }`",
+      "semantics": "Keyword grants that carry the keyword's own magnitude, and an amount that reads a creature's total toxic value (the sum of its toxic instances).",
+      "cr": "702.180a, 702.180b, 613.1f",
+      "clause": "Each other creature you control with toxic gains toxic 1 until end of turn. / Enchanted creature has toxic 2. / two 3/3 green Phyrexian Beast creature tokens with toxic 1 / draw cards equal to its total toxic value"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

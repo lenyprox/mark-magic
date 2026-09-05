@@ -1,0 +1,16 @@
+{
+  "oracleId": "2631130e-63e2-43a3-914a-648e76722203",
+  "name": "Fire Lord Azula",
+  "clause": "Whenever you cast a spell while ~ is attacking, copy that spell. You may choose new targets for the copy.",
+  "needs": [
+    {
+      "opFamily": "copy-clone",
+      "proposedSignature": "{ op: 'copy-spell', target: TargetSpec | Ref, newTargets?: boolean }  — widen `target` to accept 'triggering' / 'that' / 'target:<n>'",
+      "semantics": "Copy the spell a Ref names instead of requiring the effect's own target requirement. 'copy that spell' copies the triggering spell; Narset's Reversal needs the SAME single target for the copy and for the bounce, which two TargetSpecs cannot express.",
+      "cr": "707.10, 706.10, 603.2",
+      "clause": "Whenever you cast a spell while ~ is attacking, copy that spell. / Copy target instant or sorcery spell, then return it to its owner's hand."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

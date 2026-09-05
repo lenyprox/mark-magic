@@ -1,0 +1,59 @@
+{
+  "oracleId": "09f09d0a-6054-4545-b81e-0295773cc5f0",
+  "name": "The Arkenstone // Seek the Heart",
+  "scenarios": [
+    {
+      "name": "The Arkenstone gives creatures you control +1/+1",
+      "cr": "613.4b",
+      "ruling": "The anthem is a continuous effect in layer 7c and applies to every creature you control.",
+      "seats": [
+        { "bf": ["The Arkenstone // Seek the Heart", "Hill Giant"] },
+        { "bf": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "sba": true }
+      ],
+      "expect": [
+        { "pt": ["Hill Giant", 4, 4] },
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The Arkenstone draws a card at the beginning of your end step",
+      "cr": "603.2",
+      "seats": [
+        { "bf": ["The Arkenstone // Seek the Heart"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "end" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "handCount": [0, 1] },
+        { "libraryCount": [0, 19] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Seek the Heart tutors a legendary creature card and exiles the Adventure",
+      "cr": "715.3d",
+      "ruling": "An Adventure spell is exiled as it resolves instead of going to the graveyard, and the found card goes to hand. Five Plains pay either half ({5} for the artifact, {2}{W} for the Adventure).",
+      "seats": [
+        { "bf": ["Plains", "Plains", "Plains", "Plains", "Plains"], "hand": ["The Arkenstone // Seek the Heart"], "libraryTop": ["Lyra Dawnbringer"] },
+        {}
+      ],
+      "script": [
+        { "cast": "The Arkenstone // Seek the Heart" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Lyra Dawnbringer", "hand"] },
+        { "zone": ["The Arkenstone", "exile"] },
+        { "handCount": [0, 1] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "dbcbdf37-c40f-4068-b4a7-a849cab1056c",
+  "name": "Six",
+  "clause": "During your turn, nonland permanent cards in your graveyard have retrace.",
+  "needs": [
+    {
+      "opFamily": "retrace",
+      "proposedSignature": "`AltCost.id` gains `'retrace'` (`{ id: 'retrace', from: 'graveyard', cost: { discard: { types: ['Land'] } }, repeatable: true }`) and a static `{ kind: 'grant-alt-cost', filter: Filter, zone: SetZone, who: ScopeWho, altCost: AltCost, condition?: Condition }`",
+      "semantics": "Retrace lets a card be cast from its owner's graveyard by discarding a land card in addition to its other costs; the card returns to the graveyard on resolution rather than being exiled, so it is repeatable. Six additionally needs the GRANT form: a static that gives a casting permission to cards in a zone other than the battlefield ('nonland permanent cards in your graveyard have retrace'), conditioned on 'during your turn'. Today `grant-ability` / `grant-mana-ability` only reach permanents on the battlefield, so nothing can grant a cost to cards in a graveyard - this is the 9.1 cost-alter 'permission to cast from another zone' family the vocabulary doc already flags.",
+      "cr": "702.81 (702.81a)",
+      "clause": "During your turn, nonland permanent cards in your graveyard have retrace."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

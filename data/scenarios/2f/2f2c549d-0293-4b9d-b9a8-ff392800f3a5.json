@@ -1,0 +1,110 @@
+{
+  "oracleId": "2f2c549d-0293-4b9d-b9a8-ff392800f3a5",
+  "name": "Kozilek's Command",
+  "scenarios": [
+    {
+      "name": "Kozilek's Command's first mode creates X Eldrazi Spawn tokens for the targeted player",
+      "cr": "111.1",
+      "ruling": "Choosing the first mode with X=2 makes the targeted player create two 0/1 colorless Eldrazi Spawn creature tokens.",
+      "seats": [
+        { "bf": ["Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Kozilek's Command"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Kozilek's Command", "x": 2, "modes": [0, 1], "targets": [["P0"], ["P0"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "events": { "type": "create-token", "min": 1 } },
+        { "zoneCount": [0, "battlefield", 6] },
+        { "zoneCount": [1, "battlefield", 0] },
+        { "handCount": [0, 1] },
+        { "zone": ["Kozilek's Command", "graveyard"] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Kozilek's Command's second mode scries X and then draws a card",
+      "cr": "121.1",
+      "ruling": "The second mode makes the targeted player scry X and then draw one card, whatever X is; the first mode's tokens go to the other targeted player.",
+      "seats": [
+        { "bf": ["Wastes", "Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Kozilek's Command"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Kozilek's Command", "x": 3, "modes": [0, 1], "targets": [["P1"], ["P0"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "handCount": [0, 1] },
+        { "libraryCount": [0, 19] },
+        { "zoneCount": [1, "battlefield", 3] },
+        { "handCount": [1, 0] },
+        { "zone": ["Kozilek's Command", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Kozilek's Command's third mode exiles a creature with mana value X or less",
+      "cr": "202.3",
+      "ruling": "Grizzly Bears has mana value 2, so it is a legal target for the third mode with X=2, and it is exiled rather than destroyed.",
+      "seats": [
+        { "bf": ["Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Kozilek's Command"] },
+        { "bf": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "cast": "Kozilek's Command", "x": 2, "modes": [1, 2], "targets": [["P0"], ["Grizzly Bears"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "exile"] },
+        { "zoneCount": [1, "battlefield", 0] },
+        { "graveyardCount": [1, 0] },
+        { "noLog": "Grizzly Bears is destroyed" },
+        { "handCount": [0, 1] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Kozilek's Command's fourth mode exiles up to X cards from graveyards",
+      "cr": "701.19a",
+      "ruling": "The fourth mode exiles up to X target cards from any graveyards; with X=2 both targeted cards leave the opponent's graveyard for exile.",
+      "seats": [
+        { "bf": ["Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Kozilek's Command"] },
+        { "graveyard": ["Hill Giant", "Lightning Bolt"] }
+      ],
+      "script": [
+        { "cast": "Kozilek's Command", "x": 2, "modes": [1, 3], "targets": [["P0"], ["Hill Giant", "Lightning Bolt"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Hill Giant", "exile"] },
+        { "zone": ["Lightning Bolt", "exile"] },
+        { "graveyardCount": [1, 0] },
+        { "handCount": [0, 1] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "An Eldrazi Spawn token made by Kozilek's Command sacrifices itself for one colorless mana",
+      "cr": "605.1a",
+      "ruling": "The token has the mana ability \"Sacrifice this token: Add {C}\", which does not use the stack and leaves {C} in the pool.",
+      "seats": [
+        { "bf": ["Wastes", "Wastes", "Wastes"], "hand": ["Kozilek's Command"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Kozilek's Command", "x": 1, "modes": [0, 1], "targets": [["P0"], ["P0"]] },
+        { "resolve": true },
+        { "activate": "Eldrazi Spawn" }
+      ],
+      "expect": [
+        { "mana": [0, "C"] },
+        { "zoneCount": [0, "battlefield", 3] },
+        { "handCount": [0, 1] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

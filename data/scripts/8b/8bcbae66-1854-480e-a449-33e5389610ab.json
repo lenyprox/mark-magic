@@ -1,0 +1,163 @@
+{
+  "oracleId": "8bcbae66-1854-480e-a449-33e5389610ab",
+  "name": "Sapling Nursery",
+  "oracleHash": "a86dc306",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "costModifiers": [
+    {
+      "kind": "reduce",
+      "amount": {
+        "count": "permanents-you-control",
+        "filter": {
+          "subtypes": [
+            "Forest"
+          ]
+        }
+      }
+    }
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "landfall"
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 3,
+          "toughness": 4,
+          "colors": [
+            "G"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Treefolk"
+          ],
+          "keywords": [
+            "reach"
+          ]
+        }
+      ],
+      "text": "Whenever a land you control enters, create a 3/4 green Treefolk creature token with reach."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [
+            "G"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}{G}"
+        }
+      },
+      "effects": [
+        {
+          "op": "move",
+          "what": "self",
+          "to": "exile"
+        },
+        {
+          "op": "for-each",
+          "over": {
+            "subtypes": [
+              "Treefolk",
+              "Forest"
+            ],
+            "who": "you"
+          },
+          "do": [
+            {
+              "op": "grant-keyword",
+              "target": "that",
+              "keywords": [
+                "indestructible"
+              ],
+              "duration": "eot"
+            }
+          ]
+        }
+      ],
+      "text": "{1}{G}, Exile ~: Treefolk and Forests you control gain indestructible until end of turn."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Affinity for Forests",
+      "by": "costModifiers"
+    }
+  ],
+  "aiHints": {
+    "role": "token",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "APPROXIMATION: AbilityCost has no 'exile this permanent' part, so the exile is written as the first EFFECT of the ability instead of as part of its cost - the card really is exiled, but on resolution rather than on activation, so the ability could be activated twice in response to itself (see needs).",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "a86dc306",
+    "scriptHash": "c7147ed3",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'playLand' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.737,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/8b/8bcbae66-1854-480e-a449-33e5389610ab.json",
+      "passed": 4,
+      "failed": 0,
+      "names": []
+    },
+    "status": "tested",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "{1}{G}, Exile this enchantment: ... — expected exiling the enchantment is a COST, paid on activation; the ability cannot be activated twice, and the card is exiled even if the ability is countered — scripted cost is only {1}{G}; the exile is the first EFFECT of the ability (script notes admit this). The ability can be activated repeatedly in response to itself, and a countered activation leaves the enchantment on the battlefield — CR CR 601.2h / 602.2b — costs are paid as part of activating, and cannot be undone by countering the ability",
+          "Affinity for Forests / Landfall / token — expected cost reduced by Forests you control; 3/4 green Treefolk with reach on each land you control entering — scripted correct — costModifiers reduce by count of Forest-subtyped permanents you control, landfall trigger, and the token body/color/subtype/reach all match. The 'Treefolk and Forests' grant is also correct: filter subtypes are OR-matched (characteristics.ts:224 uses .some)"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "{1}{G}, Exile this enchantment: Treefolk and Forests you control gain indestructible until end of turn. — expected exiling the enchantment is part of the ACTIVATION COST — paid on announcement, cannot be activated a second time, and cannot be responded to by removing the enchantment — scripted cost is {1}{G} only; the exile is the first EFFECT on resolution (self-disclosed approximation). The ability can be activated repeatedly in response to itself, and the enchantment can be destroyed in response to fizzle nothing — CR 602.2b, 601.2h",
+          "Treefolk and Forests you control — expected OR — every Treefolk plus every Forest you control — scripted for-each over {subtypes:['Treefolk','Forest'], who:'you'}. Verified OR: characteristics.ts:224 uses f.subtypes.some(...). The render's 'for each Treefolk Forest you control' is cosmetic phrasing only, not an AND bug",
+          "Affinity for Forests / Landfall — expected cost reduced {1} per Forest you control; token on each land you control entering — scripted costModifiers reduce by {count:'permanents-you-control', filter:{subtypes:['Forest']}} (evaluated in cost.ts:37) and event {on:'landfall'} which already requires ctx.player===perm.controller (game.ts:2179). Both correct — CR 702.40"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

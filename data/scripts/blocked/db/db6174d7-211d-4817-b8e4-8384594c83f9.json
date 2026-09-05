@@ -1,0 +1,16 @@
+{
+  "oracleId": "db6174d7-211d-4817-b8e4-8384594c83f9",
+  "name": "Urborg, Tomb of Yawgmoth",
+  "clause": "Each land is a Swamp in addition to its other land types.",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "{ kind: 'add-types', scope: 'all' | 'you-control' | 'enchanted' | 'equipped' | 'self', filter?: Filter, types?: CardType[], subtypes?: string[] | 'chosen-basic-land-type' }",
+      "semantics": "A continuous static that ADDS card types / subtypes to every permanent the filter matches, in layer 4, without removing what they already have ('in addition to its other land types'). Read by characteristics.ts `types()` / `subtypes()` the way `o.animated` already is, so basic-land-type mana abilities and any 'Swamps you control' filter see it. `subtypes: 'chosen-basic-land-type'` reads the permanent's own stored `o.chosen` for the as-enters form ('~ is the chosen type').",
+      "cr": "205.1b, 305.7, 613.1d (layer 4)",
+      "clause": "Each land is a Swamp in addition to its other land types."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

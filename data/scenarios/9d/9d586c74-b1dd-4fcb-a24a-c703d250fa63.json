@@ -1,0 +1,67 @@
+{
+  "oracleId": "9d586c74-b1dd-4fcb-a24a-c703d250fa63",
+  "name": "Seismic Sense",
+  "scenarios": [
+    {
+      "name": "Seismic Sense looks at as many cards as you control lands and puts a creature card into your hand",
+      "cr": "701.16a",
+      "ruling": "Three lands means X is three, so the top three cards are seen and the only creature card among them can be revealed and taken.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest"], "hand": ["Seismic Sense"], "libraryTop": ["Shock", "Grizzly Bears", "Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Seismic Sense" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "hand"] },
+        { "handCount": [0, 1] },
+        { "libraryCount": [0, 22] },
+        { "zone": ["Seismic Sense", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Seismic Sense can take a land card instead of a creature card",
+      "cr": "701.16a",
+      "ruling": "The revealed card may be a creature or a land card; with only a land legal among the top three, that land goes to hand.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest"], "hand": ["Seismic Sense"], "libraryTop": ["Shock", "Island", "Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Seismic Sense" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Island", "hand"] },
+        { "handCount": [0, 1] },
+        { "libraryCount": [0, 22] },
+        { "zone": ["Seismic Sense", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Seismic Sense with one land sees only the top card, so a creature under it is out of reach",
+      "cr": "701.16a",
+      "ruling": "X is the number of lands you control. With one land only the top card is looked at, so the Grizzly Bears below it is never seen and stays in the library.",
+      "seats": [
+        { "bf": ["Forest"], "hand": ["Seismic Sense"], "libraryTop": ["Shock", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Seismic Sense" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "library"] },
+        { "zone": ["Shock", "library"] },
+        { "handCount": [0, 0] },
+        { "libraryCount": [0, 22] },
+        { "zone": ["Seismic Sense", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

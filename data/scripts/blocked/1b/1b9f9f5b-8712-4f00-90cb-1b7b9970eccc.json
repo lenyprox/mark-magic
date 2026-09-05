@@ -1,0 +1,16 @@
+{
+  "oracleId": "1b9f9f5b-8712-4f00-90cb-1b7b9970eccc",
+  "name": "Sevinne's Reclamation",
+  "clause": "If ~ was cast from a graveyard, you may copy ~ and may choose a new target for the copy.",
+  "needs": [
+    {
+      "opFamily": "cast-from-zone",
+      "proposedSignature": "{ kind: 'cast-from-zone'; zone: 'hand' | 'graveyard' | 'exile' | 'command' }   AND   { op: 'copy-spell'; target: TargetSpec | 'self'; newTargets?: boolean }",
+      "semantics": "A condition naming the zone the spell was actually cast from (`cast-from-hand` is the only one today, and its negation is not 'from a graveyard'), plus a copy-spell that can copy the resolving spell itself — the stack item is still on the stack while its own effects resolve.",
+      "cr": "601.2, 707.10, 706.10",
+      "clause": "If ~ was cast from a graveyard, you may copy ~ and may choose a new target for the copy."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "71fc2393-f55c-4b06-897c-fb7d4199b5f5",
+  "name": "Teval's Judgment",
+  "clause": "Whenever one or more cards leave your graveyard, choose one that hasn't been chosen this turn —",
+  "needs": [
+    {
+      "opFamily": "choose-mode:not-chosen",
+      "proposedSignature": "`choose-mode` gains `notChosen?: 'this-turn' | 'ever'`, with the record kept on the source (o.ext.modesChosen, wiped at cleanup for 'this-turn')",
+      "semantics": "'Choose one that hasn't been chosen this turn —' (Monument to Endurance, Teval's Judgment) and 'choose one that hasn't been chosen —' (Gandalf the Grey, for the life of the permanent). The modes themselves are all ordinary composition; only the exclusion is missing.",
+      "cr": "700.2, 700.2e",
+      "clause": "Whenever you discard a card, choose one that hasn't been chosen this turn —"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

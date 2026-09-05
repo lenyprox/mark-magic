@@ -49,6 +49,7 @@ orchestrated by a Claude Code session. The plan has three phases, continuing the
 | e817a4f | 8a-3 | script format v2 (sharded, `llm` source, backFace/secondFace, typed value-matched covers, ignore whitelist, verification block, `scriptHash`), line-claim accounting for `fullyParsed`, `src/cards/pool.ts` tiers, `src/cards/schema.ts` (zod) + `typecheck:schema`, `scripts:check` v2, `scripts:shard`, `scripts:schema` |
 | edceb29 | 9.0a | composition core, engine side: `Ref`, ten composition ops, amount forms, `multi` targets, four delayed-at points, `src/engine/refs.ts`, zod schema + structural gate + op-coverage probes extended, `docs/vocabulary/composition.md`; soft cast-time target requirements for older-container branches; `docs/workflows/phase-9-0a-composition-core.js` |
 | (9.0b) | 9.0b | composition parser rules (`src/cards/rules/composition.ts`, 74 effect rules + 1 line rule; `EffectCtx` sub-parsers handed to registry rules; built-in "you may" wrapped in `may`), parser debts 4 and 5 (second faces unparsed, 0x08 bytes), subtype vocabulary (`npm run gen:subtypes` → `src/cards/subtype-vocab.ts`; unknown words no longer become subtypes), antecedent-aware frame binding (`bindAntecedent`, `withFrame`), `PARSER_VERSION` 3, parse snapshot + fidelity ceilings accepted; `docs/workflows/phase-9-0b-composition-parser.js` |
+| (10.0) | 10.0 | first script wave over the owner's six decks: 164 queued cards in 8 batches (`docs/workflows/script-wave.js`, Opus author → blind scenario author → two judges); 44 scripts written, 26 through the mechanical gate, **11 judged** (both judges faithful, blind scenarios green), 13 rejected by a judge (re-author pass pending), 18 scripted only (1 quarantined), **121 blocked** with 108 recorded needs → `data/scripts/needs.json` (77 families; cost-alter 14, layers 9, copy-clone 6, replacement 5, named keywords prepare/toxic/backup/undying/spree, choose-mode not-chosen, class levels, grant-alt-cost, main-phase triggers …); `scripts:promote --judges 2`; goldens re-accepted (Lyra Dawnbringer's script moves one wu-fliers game); fidelity ceilings lowered to 6.47 / 7.60 / 5.93 / 10.90 hits per game |
 | (9.0c) | 9.0c | engine bindings (`noteAffected` in pump / grant-keyword / counters / untap / untap-all / gain-control / sacrifice / look-top / counter — the countered spell with its stack-time controller and mana value; `bind` reads spell targets), scopes `target-opponent` (legal.ts offers opponents only) and `owner-of-that`, `unless-pays.otherwiseAs`, `Filter` fields (`notSubtypes`, `supertypes` / `notSupertypes`, `notKeywords`, `powerEQ` / `toughnessEQ` / `toughnessGE`, `typesAll`, the adjective flags, `dealtDamageBySource` with the per-turn `ext.damagedBy` record), `dies` / `etb` `controller: 'opponent'`, `return-from-graveyard` `count` / `optional`, `graveyard-card` `who`, `TargetSpec.count: 'X'`, aggregate amounts (`agg` + `over`), `count: 'that-many'` from `item.lastAmount` (and the trigger's amount), `scry` / `surveil` amounts, the `set-pt` static, LKI for `power-of-source`; parser: `PARSER_VERSION` 4 (the "-X" sign, "target A and target B" as a `multi` spec, 'All creatures have "…"', the "you control enters" template first, adjacent type words all-of), the `bind` / `for-each` repairs dropped where the engine now binds, the 9.0b declines claimed; op-allowlist shrunk by 8 |
 
 Numbers on `main` after 9.0b (2026-09-05, machine shared with a second session): `coverage:pool` 11,713 / 34,513 fully
@@ -126,6 +127,15 @@ inert clauses as before; ceilings only ratchet down from here); `coverage:pool` 
 fidelity 0 failures; `verify:pool` 11,613 / 544; fuzz 300 × 4-player 0 buckets; fuzz 1,000 × 2-player **1 bucket
 (71eb97bd)** — reproduced and fixed under HANDOFF §3 item 29 (below) — bench 38.4 / 4.09 games/s under load. 10.0 was
 launched on this state: `data/scripts/batches/10.0` (164 owner-deck cards in 8 batches).
+
+**After 10.0 (2026-09-05):** `coverage:pool` WITH scripts 12,200 / 34,513 overall, paper 12,065 / 32,081 (37.6%); parser
+alone 12,157 / 12,022; owner's decks see scripts:queue; `scripts:check` 43 scripts, 0 problems; `npm test` green with the
+JSON scenario corpus asserted only for cards whose script is tested / judged / reviewed (a judge-rejected script's
+failing blind scenario is the finding, not a regression — test/scenarios-data.test.ts and src/verify/opProbe.ts gate
+on `stateOf`); op allowlist shrunk by 16 more; goldens and fidelity accepted. Two promotion defects fixed on the way:
+the wave returned "Name (uuid) — path" strings where bare ids were expected (the tool now extracts the uuid; the
+wave schema now enforces bare ids) and the judge verdicts were nested per judge (flattened, with `judge` / `model`).
+
 
 ### Branches not yet merged
 
@@ -406,6 +416,13 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     `add-mana.restriction`, `move` with a filtered TargetSpec and `AmountExpr.counter` / `.filter` under a named
     count do not render; the draft parses "choose one or more" as a one-mode choice; Unstoppable Slasher's "if it had
     no counters on it" reads as an intervening if; no `covers` kind names an Equip line (equipment.equipCost).
+32. **Fuzz with the 10.0 scripts applied runs a worker out of heap** after roughly 340-380 games (two runs, 3 and 2
+    workers: "Worker terminated due to reaching memory limit: JS heap out of memory"); with `MTG_SCRIPTS=0` the same
+    1,000 games finish with 0 buckets, and every game from 320 to 419 run one at a time WITH the scripts finishes in
+    under 10 s at ≤ 91 MB heap. So it is cumulative across a long-lived worker and only with scripts — suspect a
+    per-game allocation that a script path keeps alive (a def cache miss per `applyScript` call, `s.ext.defs` for
+    copies, event logs) rather than a runaway game. The engine gate is `MTG_SCRIPTS=0 npm run fuzz …` until this is
+    found; `fuzz:deep` should pass the variable too.
 
 ## 4. Remaining Phase 8 slices
 

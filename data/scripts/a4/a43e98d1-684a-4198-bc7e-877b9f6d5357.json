@@ -1,0 +1,82 @@
+{
+  "oracleId": "a43e98d1-684a-4198-bc7e-877b9f6d5357",
+  "name": "Isildur's Fateful Strike",
+  "oracleHash": "65406efe",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "destroy",
+          "target": {
+            "kind": "creature"
+          }
+        },
+        {
+          "op": "move",
+          "what": {
+            "filter": {},
+            "zone": "hand",
+            "who": "that-player",
+            "count": {
+              "diff": [
+                {
+                  "prop": "cards-in-hand",
+                  "of": "that-player"
+                },
+                4
+              ]
+            },
+            "choose": "owner"
+          },
+          "to": "exile"
+        }
+      ],
+      "text": "Destroy target creature. If its controller has more than four cards in hand, they exile cards from their hand equal to the difference."
+    }
+  ],
+  "aiHints": {
+    "role": "removal",
+    "value": 3,
+    "timing": "instant"
+  },
+  "notes": "The destroyed creature is bound as 'that' by destroy (noteAffected), so 'that-player' is its controller. The 'more than four' gate needs no condition: a diff never goes below 0 (CR 107.1b), so a controller with four or fewer cards exiles none. The cards are chosen by their owner (choose: 'owner'), which is what 'they exile cards from their hand' means.",
+  "verification": {
+    "at": "2026-09-05T14:14:25.564Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "65406efe",
+    "scriptHash": "7082945c",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.435,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.43 < 0.55: \"Destroy target creature. If its controller has more than four cards in hand, they exile cards from their hand equal to the difference.\" rendered as \"destroy target creature. exile the difference between that player's cards in hand and 4 cards from that player's hand\""
+    ]
+  }
+}

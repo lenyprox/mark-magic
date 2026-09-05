@@ -1,0 +1,89 @@
+{
+  "oracleId": "2993dc7d-723d-4a9b-94bd-4bb02a9f7243",
+  "name": "Tishana's Tidebinder",
+  "oracleHash": "63e04861",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [
+    "flash"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "counter",
+          "target": {
+            "kind": "ability",
+            "optional": true,
+            "count": 1
+          }
+        },
+        {
+          "op": "lose-abilities",
+          "target": "that",
+          "keywords": "all",
+          "duration": "permanent"
+        }
+      ],
+      "text": "When ~ enters, counter up to one target activated or triggered ability. If an ability of an artifact, creature, or planeswalker is countered this way, that permanent loses all abilities for as long as ~ remains on the battlefield."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flash",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "counterspell",
+    "value": 4,
+    "timing": "response"
+  },
+  "notes": "counter binds the countered ability's source permanent (game.ts objs(T,true) maps a stack ref to it.source), so 'that' is the permanent whose ability was countered. APPROXIMATION: the format's only durations are 'eot' and 'permanent', so the ability loss is written as permanent rather than 'for as long as ~ remains on the battlefield' (CR 611.2b); it also cannot restrict the loss to artifacts/creatures/planeswalkers because lose-abilities takes no filter.",
+  "verification": {
+    "at": "2026-09-05T13:58:32.000Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "63e04861",
+    "scriptHash": "55d0cbdb",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.21,
+      "lowest": [
+        {
+          "text": "When ~ enters, counter up to one target activated or triggered ability. If an ability of an artifact, creature, or planeswalker is countered this way, that permanent loses all abilities for as long as ~ remains on the battlefield.",
+          "rendered": "when ~ enters, counter up to one target ability. that permanent loses all abilities",
+          "score": 0.21
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.21 < 0.55: \"When ~ enters, counter up to one target activated or triggered ability. If an ability of an artifact, creature, or planeswalker is countered this way, that permanent loses all abilities for as long as ~ remains on the battlefield.\" rendered as \"when ~ enters, counter up to one target ability. that permanent loses all abilities\""
+    ]
+  }
+}

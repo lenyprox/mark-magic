@@ -1,0 +1,82 @@
+{
+  "oracleId": "e286d1aa-bb74-4568-98b5-a693ac7a369d",
+  "name": "Venerable Warsinger",
+  "scenarios": [
+    {
+      "name": "Combat damage to a player returns a cheap creature card from your graveyard to the battlefield",
+      "cr": "603.2",
+      "ruling": "Three combat damage sets X to 3, so a creature card with mana value 2 is a legal target and comes back under your control.",
+      "seats": [
+        { "bf": ["Venerable Warsinger"], "graveyard": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "answer": true },
+        { "attack": ["Venerable Warsinger"] }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "control": ["Grizzly Bears", 0] },
+        { "graveyardCount": [0, 0] },
+        { "life": [1, 17] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A creature card with mana value greater than the damage dealt is not returned",
+      "cr": "608.2b",
+      "ruling": "X is 3, so a mana value 6 creature card is not a legal target and nothing comes back.",
+      "seats": [
+        { "bf": ["Venerable Warsinger"], "graveyard": ["Colossal Dreadmaw"] },
+        {}
+      ],
+      "script": [
+        { "answer": true },
+        { "attack": ["Venerable Warsinger"] }
+      ],
+      "expect": [
+        { "zone": ["Colossal Dreadmaw", "graveyard"] },
+        { "graveyardCount": [0, 1] },
+        { "zoneCount": [0, "battlefield", 1] },
+        { "life": [1, 17] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Vigilance keeps Venerable Warsinger untapped after attacking",
+      "cr": "702.21b",
+      "ruling": "Attacking does not cause a creature with vigilance to tap.",
+      "seats": [
+        { "bf": ["Venerable Warsinger"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Venerable Warsinger"] }
+      ],
+      "expect": [
+        { "tapped": ["Venerable Warsinger", false] },
+        { "life": [1, 17] },
+        { "zone": ["Venerable Warsinger", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Trample carries the excess damage past a 1/1 blocker",
+      "cr": "702.19b",
+      "ruling": "One point is lethal for the 1/1 and the other two trample through to the defending player.",
+      "seats": [
+        { "bf": ["Venerable Warsinger"] },
+        { "bf": ["Memnite"] }
+      ],
+      "script": [
+        { "attack": ["Venerable Warsinger"], "blocks": [["Memnite", "Venerable Warsinger"]] }
+      ],
+      "expect": [
+        { "zone": ["Memnite", "graveyard"] },
+        { "life": [1, 18] },
+        { "zone": ["Venerable Warsinger", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

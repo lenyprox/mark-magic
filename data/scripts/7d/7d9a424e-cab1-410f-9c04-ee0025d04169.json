@@ -1,0 +1,140 @@
+{
+  "oracleId": "7d9a424e-cab1-410f-9c04-ee0025d04169",
+  "name": "Necrogen Rotpriest",
+  "oracleHash": "68df5ba2",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [
+    "toxic"
+  ],
+  "toxic": 2,
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": false,
+        "filter": {
+          "types": [
+            "Creature"
+          ],
+          "withKeyword": "toxic"
+        }
+      },
+      "effects": [
+        {
+          "op": "poison",
+          "amount": 1,
+          "who": "that-player"
+        }
+      ],
+      "text": "Whenever a creature you control with toxic deals combat damage to a player, that player gets an additional poison counter."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [
+            "B",
+            "G"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}{B}{G}"
+        }
+      },
+      "effects": [
+        {
+          "op": "grant-keyword",
+          "target": {
+            "kind": "creature",
+            "controller": "you",
+            "filter": {
+              "withKeyword": "toxic"
+            }
+          },
+          "keywords": [
+            "deathtouch"
+          ],
+          "duration": "eot"
+        }
+      ],
+      "text": "{1}{B}{G}: Target creature you control with toxic gains deathtouch until end of turn."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Toxic 2",
+      "by": "toxic"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "A non-self `combat-damage-player` trigger already restricts the damaging creature to one its controller controls (game.ts:2165), so the filter carries only 'creature with toxic'.",
+  "verification": {
+    "at": "2026-09-05T13:58:18.541Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "68df5ba2",
+    "scriptHash": "6a534234",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.882,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "data/scenarios/7d/7d9a424e-cab1-410f-9c04-ee0025d04169.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "Whenever a creature you control with toxic deals combat damage to a player, that player gets an additional poison counter. — expected fires for any toxic creature its controller controls, INCLUDING Necrogen Rotpriest itself — scripted combat-damage-player, self:false + filter — verified at game.ts:2172, which applies ctx.obj.controller === perm.controller and has no `ctx.obj !== perm` exclusion, so the source's own damage triggers it. The notes claim (cited as game.ts:2165) is accurate apart from the line number drift. — CR 603.2",
+          "...an additional poison counter. — expected exactly 1, to the damaged player — scripted poison { amount: 1, who: 'that-player' }, which game.ts:1211 routes to item.triggeringPlayer — correct — CR 104.3c",
+          "Toxic 2 — expected reminder-text keyword with value 2 — scripted keywords:['toxic'] + toxic: 2, covers entry present — correct",
+          "{1}{B}{G}: Target creature you control with toxic gains deathtouch until end of turn. — expected instant-speed, repeatable, controller-restricted, toxic-restricted, eot duration — scripted activated, mana {1}{B}{G}, grant-keyword deathtouch, target kind creature controller:you filter withKeyword toxic, duration eot — all present; renders 1.00 — CR 702.2b"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "Whenever a creature you control with toxic deals combat damage to a player... — expected includes Necrogen Rotpriest itself — scripted event self:false + filter — verified correct: game.ts:2189 takes the filter branch (ev.self || !ev.filter ? ctx.obj === perm : ctx.obj.controller === perm.controller && matchesFilter(...)), which does NOT exclude perm itself, and the 'you control' restriction is implicit in the controller check. The script's notes claim matches the code. — CR 603.2",
+          "Toxic 2 — expected both the keyword and the numeric value must be present — scripted keywords:['toxic'] + toxic:2 — both needed, since game.ts:1892 requires src.def.toxic && hasKeyword(s, src, 'toxic'). Correct. — CR 702.164a",
+          "{1}{B}{G}: Target creature you control with toxic gains deathtouch until end of turn. — expected no tap, any-speed, one target, eot duration — scripted cost has mana only, target kind creature/controller you/withKeyword toxic, duration eot — exact match; renders 1.00. — CR 702.2b"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

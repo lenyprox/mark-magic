@@ -37,7 +37,9 @@ import { ownTargetSpecs } from '../engine/legal.js';
 import type { DelayedTrigger, GameState } from '../engine/state.js';
 import { HINT, categoryOfKind, emptySets, type Category, type Hint, type Sets } from './opCoverage.js';
 import { runScenario, scenarioCards, type Scenario } from './scenarioDsl.js';
-import { listScenarioFiles, readScenarioFile } from './scenarioFiles.js';
+import { listScenarioFiles, oracleIdOf, readScenarioFile } from './scenarioFiles.js';
+import { stateOf } from '../cards/scriptState.js';
+const PROBED_STATES: ReadonlySet<string> = new Set(['parsed', 'tested', 'judged', 'reviewed']);
 
 /** Ability kinds are not a category: `kind: 'triggered'` says what the ability is, not what the engine dispatches on. */
 const ABILITY_KINDS = new Set(['triggered', 'activated', 'static', 'spell']);
@@ -192,7 +194,9 @@ export async function collectScenarios(): Promise<{ tasks: { file: string; scena
       for (const list of lists) for (const sc of list) tasks.push({ file: family, scenario: sc });
     }
   }
-  const jsonPaths = listScenarioFiles();
+  // the JSON corpus is evidence about scripts: a file is run only once its card's script reached `tested` / `judged`
+  // (or a person reviewed it, or the parser alone plays the card) — the same gate as test/scenarios-data.test.ts
+  const jsonPaths = listScenarioFiles().filter(p => PROBED_STATES.has(stateOf(oracleIdOf(p)).state));
   for (const p of jsonPaths) for (const sc of readScenarioFile(p).scenarios) tasks.push({ file: path.relative(root, p).split(path.sep).join('/'), scenario: sc });
   return { tasks, suites, jsonFiles: jsonPaths.length };
 }

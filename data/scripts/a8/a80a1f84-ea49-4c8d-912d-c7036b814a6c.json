@@ -1,0 +1,98 @@
+{
+  "oracleId": "a80a1f84-ea49-4c8d-912d-c7036b814a6c",
+  "name": "Augusta, Order Returned",
+  "oracleHash": "43dfa858",
+  "source": "llm",
+  "confidence": 0.6,
+  "mode": "replace",
+  "keywords": [
+    "flying",
+    "vigilance"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "scoped",
+          "who": "each-player",
+          "do": [
+            {
+              "op": "move",
+              "what": {
+                "filter": {},
+                "zone": "graveyard",
+                "who": "you",
+                "count": 1,
+                "choose": "you"
+              },
+              "to": "exile"
+            }
+          ]
+        },
+        {
+          "op": "counters",
+          "target": {
+            "kind": "attacking-creature"
+          },
+          "counter": "+1/+1",
+          "amount": {
+            "count": "opponents",
+            "plus": 1
+          }
+        }
+      ],
+      "text": "Whenever ~ attacks, each player exiles a card from their graveyard. When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flying, vigilance",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "APPROXIMATION: nothing counts the nonland cards a preceding effect exiled, so 'that many' is written as the number of players (one card per player is exiled, so that is the upper bound); the reflexive 'When one or more nonland cards are exiled this way' is folded into the same resolution rather than a second trigger (see needs).",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "43dfa858",
+    "scriptHash": "07d152da",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.429,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.43 < 0.55: \"Whenever ~ attacks, each player exiles a card from their graveyard. When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature.\" rendered as \"whenever ~ attacks, exile a card from your graveyard. put the number of opponents you have plus 1 +1/+1 counters on target attacking creature\""
+    ]
+  }
+}

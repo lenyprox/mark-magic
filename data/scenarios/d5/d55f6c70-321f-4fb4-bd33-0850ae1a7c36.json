@@ -1,0 +1,55 @@
+{
+  "oracleId": "d55f6c70-321f-4fb4-bd33-0850ae1a7c36",
+  "name": "Narset's Reversal",
+  "scenarios": [
+    {
+      "name": "Narset's Reversal copies the spell it targets and the copy resolves under its controller",
+      "cr": "707.10",
+      "ruling": "The copy is created on the stack under Narset's Reversal's controller with the same targets, so the copied Lightning Bolt still deals its damage even though the original never resolves.",
+      "active": 1,
+      "seats": [
+        { "bf": ["Island", "Island"], "hand": ["Narset's Reversal"] },
+        { "bf": ["Mountain"], "hand": ["Lightning Bolt"] }
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["P0"]], "by": 1 },
+        { "cast": "Narset's Reversal", "targets": [["Lightning Bolt"]], "by": 0 },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [0, 17] },
+        { "life": [1, 20] },
+        { "events": { "type": "damage", "min": 1, "max": 1 } },
+        { "zone": ["Narset's Reversal", "graveyard"] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The spell Narset's Reversal copies is returned to its owner's hand and never resolves",
+      "cr": "400.7",
+      "ruling": "The targeted spell leaves the stack for its owner's hand as Narset's Reversal resolves, so only the copy resolves: two cards are drawn, not four, and Divination is back in hand.",
+      "seats": [
+        {
+          "bf": ["Island", "Island", "Island", "Island", "Island"],
+          "hand": ["Divination", "Narset's Reversal"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Divination" },
+        { "cast": "Narset's Reversal", "targets": [["Divination"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Divination", "hand"] },
+        { "handCount": [0, 3] },
+        { "libraryCount": [0, 18] },
+        { "zone": ["Narset's Reversal", "graveyard"] },
+        { "graveyardCount": [0, 1] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

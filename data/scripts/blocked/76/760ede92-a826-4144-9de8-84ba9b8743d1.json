@@ -1,0 +1,23 @@
+{
+  "oracleId": "760ede92-a826-4144-9de8-84ba9b8743d1",
+  "name": "Sothera, the Supervoid",
+  "clause": "At the beginning of your end step, if a player controls no creatures, sacrifice ~, then put a creature card exiled with it onto the battlefield under your control with two additional +1/+1 counters on it.",
+  "needs": [
+    {
+      "opFamily": "condition-any-player",
+      "proposedSignature": "widen controls / controls-le to who: 'you' | 'opponent' | 'any', where 'any' means SOME player (you included) satisfies the count: { kind: 'controls-le', who: 'any', filter: { types: ['Creature'] }, atMost: 0 }",
+      "semantics": "Today controls-le with who: 'opponent' is universal - characteristics.ts:441 evaluates opps.every(...) - so there is no way to write the existential \"if a player controls no creatures\". The two readings coincide at 2 seats and diverge at the 4 seats the sandbox stage runs, so the difference is observable. life-le / life-ge already carry an 'any' member, so this is the same enum widening.",
+      "cr": "104.3, 800.4",
+      "clause": "if a player controls no creatures"
+    },
+    {
+      "opFamily": "exile-tracking",
+      "proposedSignature": "{ op: 'move', to: 'exile', track: 'exiled-with' } and { op: 'exile', target, track: true } record the moved cards on the ability's source (source.exiledWith, already on ObjectState at state.ts:52); plus Filter.exiledWithSource?: boolean so a chosen set can be written { filter: { types: ['Creature'], exiledWithSource: true }, zone: 'exile', who: 'each-player', count: 1 }",
+      "semantics": "An exile effect notes the cards it exiled on its source, the way delve / escape / imprint already do (game.ts:619, 671, 1257), so a later clause on the same permanent can say \"a card exiled with ~\". The list must survive the source leaving the battlefield for the duration of the ability that reads it (Sothera sacrifices itself and then returns one of the cards it exiled). Without it the only expressible form is \"a creature card from exile\", which reaches cards this card never touched.",
+      "cr": "400.7, 610.3, 608.2h",
+      "clause": "put a creature card exiled with it onto the battlefield under your control with two additional +1/+1 counters on it"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

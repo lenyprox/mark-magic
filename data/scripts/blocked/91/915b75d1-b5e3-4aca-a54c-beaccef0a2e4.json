@@ -1,0 +1,23 @@
+{
+  "oracleId": "915b75d1-b5e3-4aca-a54c-beaccef0a2e4",
+  "name": "Innkeeper's Talent",
+  "clause": "{G}: Level 2 / {3}{G}: Level 3 / If you would put one or more counters on a permanent or player, put twice that many of each of those kinds of counters on that permanent or player instead.",
+  "needs": [
+    {
+      "opFamily": "class-levels",
+      "proposedSignature": "{ op: 'set-level'; to: number } as the effect of a sorcery-speed activated ability with activateOnlyIf { kind: 'self-level-eq', value: N-1 }; a trigger { on: 'became-level'; level: number }; and an ability gate `Ability.atLevel?: number` read by abilitiesOf / computeStaticMods",
+      "semantics": "CR 716.2a's three halves of a class level bar: the activated ability that raises the level, the 'When this Class becomes level N' trigger, and the 'as long as this Class is level N or greater' gate on the abilities the bar introduces. A level is a designation on the permanent, not a counter (716.2b), so the existing 'level' counter is not a substitute.",
+      "cr": "716.2a, 716.2b",
+      "clause": "{W}: Level 2 / When this Class becomes level 2, create a token that's a copy of target token you control."
+    },
+    {
+      "opFamily": "counters-replacement:players",
+      "proposedSignature": "`counters-replacement` gains `who?: 'permanents' | 'players' | 'both'` (today it only ever applies to permanents)",
+      "semantics": "'If you would put one or more counters on a permanent OR PLAYER, put twice that many ... on that permanent or player instead' (Innkeeper's Talent level 3, Vorinclex). The doubling logic exists; the player half does not.",
+      "cr": "614.1c, 121.2",
+      "clause": "If you would put one or more counters on a permanent or player, put twice that many of each of those kinds of counters on that permanent or player instead."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

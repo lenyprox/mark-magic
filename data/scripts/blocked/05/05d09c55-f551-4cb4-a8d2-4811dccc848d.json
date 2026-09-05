@@ -1,0 +1,23 @@
+{
+  "oracleId": "05d09c55-f551-4cb4-a8d2-4811dccc848d",
+  "name": "Vraska, Betrayal's Sting",
+  "clause": "Compleated",
+  "needs": [
+    {
+      "opFamily": "layers-lite",
+      "proposedSignature": "{ op: 'become', target: TargetSpec | Ref, types?: CardType[], subtypes?: string[], colors?: Color[], loseOtherTypes?: true, loseAbilities?: true, grants?: Ability[], power?: number, toughness?: number, duration: 'eot' | 'permanent' }",
+      "semantics": "\"Target creature becomes a Treasure artifact with \\\"{T}, Sacrifice this artifact: Add one mana of any color\\\" and loses all other card types and abilities.\" Needs three things animate and lose-abilities cannot do together: a layer-4 type change that REMOVES the printed types (animate only adds), a layer-6 grant of an ACTIVATED ability to ANOTHER permanent (gain-ability pushes onto the source's own grantedAbilities, game.ts:1280), and both applied permanently in one effect so the loss and the grant order correctly.",
+      "cr": "613.1c (layer 4), 613.1f (layer 6), 205.1a",
+      "clause": "-2: Target creature becomes a Treasure artifact with \"{T}, Sacrifice this artifact: Add one mana of any color\" and loses all other card types and abilities."
+    },
+    {
+      "opFamily": "named-keyword:compleated",
+      "proposedSignature": "a face declaration compleated?: { pip: 'W/P' | 'U/P' | 'B/P' | 'R/P' | 'G/P'; life: number; fewerLoyalty: number } plus a covers[].by kind 'compleated' whose anchored line shape is /^compleated$/",
+      "semantics": "{B/P} may be paid with {B} or 2 life; if life was paid, the planeswalker enters with that many fewer loyalty counters. The Phyrexian pip is already carried by ManaCost.phyrexian, so the missing half is the as-enters loyalty reduction conditional on how the cost was actually paid, plus a declaration for the printed line to name - asEnters has a 'counters' variant but no loyalty variant.",
+      "cr": "107.4c, 118.9, 306.5b",
+      "clause": "Compleated"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

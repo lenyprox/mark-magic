@@ -1,0 +1,81 @@
+{
+  "oracleId": "18f0cd0b-3e4f-4637-a62e-75dd1b2f3fce",
+  "name": "Claim Jumper",
+  "scenarios": [
+    {
+      "name": "Claim Jumper searches twice when an opponent is still ahead on lands after the first Plains",
+      "cr": "603.4",
+      "ruling": "Three lands against five: the first Plains makes it four to five, an opponent is still ahead, so the process repeats once.",
+      "seats": [
+        { "bf": ["Snow-Covered Plains", "Snow-Covered Plains", "Snow-Covered Plains"], "hand": ["Claim Jumper"], "libraryTop": ["Plains", "Plains"] },
+        { "bf": ["Mountain", "Mountain", "Mountain", "Mountain", "Mountain"] }
+      ],
+      "script": [
+        { "cast": "Claim Jumper" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zoneCount": [0, "battlefield", 6] },
+        { "tapped": ["Plains", true] },
+        { "zone": ["Claim Jumper", "battlefield"] },
+        { "handCount": [0, 0] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Claim Jumper searches only once when the second check finds nobody ahead",
+      "cr": "603.4",
+      "ruling": "Three lands against four: after the first Plains you are level on lands, so the process does not repeat.",
+      "seats": [
+        { "bf": ["Snow-Covered Plains", "Snow-Covered Plains", "Snow-Covered Plains"], "hand": ["Claim Jumper"], "libraryTop": ["Plains", "Plains"] },
+        { "bf": ["Mountain", "Mountain", "Mountain", "Mountain"] }
+      ],
+      "script": [
+        { "cast": "Claim Jumper" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zoneCount": [0, "battlefield", 5] },
+        { "tapped": ["Plains", true] },
+        { "libraryCount": [0, 21] },
+        { "zone": ["Claim Jumper", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Claim Jumper's ability does not trigger when no opponent controls more lands than you",
+      "cr": "603.4",
+      "seats": [
+        { "bf": ["Snow-Covered Plains", "Snow-Covered Plains", "Snow-Covered Plains"], "hand": ["Claim Jumper"], "libraryTop": ["Plains", "Plains"] },
+        { "bf": ["Mountain", "Mountain"] }
+      ],
+      "script": [
+        { "cast": "Claim Jumper" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zoneCount": [0, "battlefield", 4] },
+        { "libraryCount": [0, 22] },
+        { "zone": ["Plains", "library"] },
+        { "zone": ["Claim Jumper", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Claim Jumper's vigilance keeps it untapped when it attacks",
+      "cr": "702.21b",
+      "seats": [
+        { "bf": ["Claim Jumper"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Claim Jumper"] }
+      ],
+      "expect": [
+        { "tapped": ["Claim Jumper", false] },
+        { "life": [1, 17] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

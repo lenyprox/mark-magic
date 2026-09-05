@@ -1,0 +1,16 @@
+{
+  "oracleId": "5963eef1-1022-42b1-8a0c-fc9850bfc2a3",
+  "name": "Emeritus of Conflict // Lightning Bolt",
+  "clause": "Whenever you cast your third spell each turn, ~ becomes prepared.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:prepare",
+      "proposedSignature": "asEnters { kind: 'prepared' } · effect { op: 'become-prepared' } · altCost { id: 'prepared', from: 'battlefield', castFace: 1 } · SECOND_FACE_LAYOUTS += 'prepare'",
+      "semantics": "A prepared permanent may be used to cast a copy of the spell printed on its faces[1]; doing so unprepares it. Needs a prepared flag on the object, an as-enters and an effect that set it, a cast permission that plays faces[1] as a copy from the battlefield, and 'prepare' added to the second-face layouts so faces[1] is a claimable face at all.",
+      "cr": "701.x (new keyword action), 707.10 (the copy that is cast), 601.3e",
+      "clause": "~ enters prepared. / ~ becomes prepared. (While it's prepared, you may cast a copy of its spell. Doing so unprepares it.)"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

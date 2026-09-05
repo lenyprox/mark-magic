@@ -1,0 +1,114 @@
+{
+  "oracleId": "0c1e2bb8-0629-466c-b435-c4c71cdc755d",
+  "name": "Sapling of Colfenor",
+  "oracleHash": "fab9144a",
+  "source": "llm",
+  "confidence": 0.6,
+  "mode": "replace",
+  "keywords": [
+    "indestructible"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "look-top",
+          "who": "you",
+          "amount": 1
+        },
+        {
+          "op": "gain-life",
+          "amount": {
+            "prop": "toughness",
+            "of": "that"
+          },
+          "who": "you"
+        },
+        {
+          "op": "lose-life",
+          "amount": {
+            "prop": "power",
+            "of": "that"
+          },
+          "who": "you"
+        },
+        {
+          "op": "move",
+          "what": "that",
+          "to": "hand"
+        }
+      ],
+      "text": "Whenever ~ attacks, reveal the top card of your library. If it's a creature card, you gain life equal to that card's toughness, lose life equal to its power, then put it into your hand."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Indestructible",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "draw",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "APPROXIMATION: no condition can ask whether the bound card ('that') is a creature card, so the life gain, the life loss and the move to hand run for whatever the top card is. A noncreature card has power and toughness 0, so the two life effects are correctly 0 for it; the deviation is that a noncreature card is also put into your hand instead of staying on top (see needs).",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "fab9144a",
+    "scriptHash": "e7d6a7b9",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.594,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/0c/0c1e2bb8-0629-466c-b435-c4c71cdc755d.json",
+      "passed": 0,
+      "failed": 3,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "If it's a creature card, ... then put it into your hand — expected a noncreature card stays on top of the library and no life is gained or lost — scripted no condition on the bound card; the move to hand runs unconditionally (script notes admit this). Blind scenario confirms: 'A revealed noncreature card stays on top of the library' failed — Lightning Bolt zone 'hand' !== 'library', library 20 !== 21 — CR CR 608.2a — an 'if' clause in the effect is checked on resolution and the dependent effects don't happen if false",
+          "reveal the top card of your library — expected the card is revealed — public information to all players — scripted op 'look-top' with who:'you' — private look, opponents never see the card — CR CR 701.15 (reveal) vs 701.14 (look at)"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "If it's a creature card, ... then put it into your hand. — expected a noncreature top card stays on top of the library and nothing else happens — scripted no condition; move 'that' to hand runs unconditionally. Blind scenario confirms: Lightning Bolt ended in hand, library 20 vs 21 — CR 608.2a",
+          "reveal the top card of your library — expected reveal — the card becomes public information to all players — scripted op 'look-top' (game.ts:1223) emits action:'look', not a reveal; only the controller sees it — CR 701.16",
+          "gain life equal to that card's toughness, lose life equal to its power — expected P/T of a card in the library — scripted {prop:'toughness'/'power', of:'that'} — render calls it 'that permanent's toughness'; works only because a library card falls back to printed P/T, and yields 0 for noncreature cards — CR 208.1"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

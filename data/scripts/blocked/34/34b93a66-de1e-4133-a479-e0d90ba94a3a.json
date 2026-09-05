@@ -1,0 +1,16 @@
+{
+  "oracleId": "34b93a66-de1e-4133-a479-e0d90ba94a3a",
+  "name": "Mutable Explorer",
+  "clause": "Changeling / When ~ enters, create a tapped Mutavault token.",
+  "needs": [
+    {
+      "opFamily": "other",
+      "proposedSignature": "Keyword 'changeling' and Keyword 'decayed'; { op: 'token'; ...; abilities?: Ability[]; predefined?: string }",
+      "semantics": "Two printed keywords the schema does not carry, and a token that can be given printed abilities (or be named as one of the predefined tokens, e.g. Mutavault) rather than only P/T, colours, types, subtypes and keywords.",
+      "cr": "702.73 (changeling), 702.146 (decayed), 111.1",
+      "clause": "'Changeling' / 'create a tapped Mutavault token' / 'a 2/2 black Zombie creature token with decayed'"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

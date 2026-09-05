@@ -1,0 +1,146 @@
+{
+  "oracleId": "9859fbca-60c3-4a57-a377-51b56f03894f",
+  "name": "Varina, Lich Queen",
+  "oracleHash": "1aa1f3ad",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "you-attack"
+      },
+      "effects": [
+        {
+          "op": "draw",
+          "amount": {
+            "count": "objects",
+            "filter": {
+              "subtypes": [
+                "Zombie"
+              ],
+              "attacking": true
+            },
+            "who": "you"
+          },
+          "who": "you"
+        },
+        {
+          "op": "discard",
+          "amount": {
+            "count": "that-many"
+          },
+          "who": "you"
+        },
+        {
+          "op": "gain-life",
+          "amount": {
+            "count": "that-many"
+          },
+          "who": "you"
+        }
+      ],
+      "text": "Whenever you attack with one or more Zombies, draw that many cards, then discard that many cards. You gain that much life."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}"
+        },
+        "exileFromGraveyard": 2
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 2,
+          "toughness": 2,
+          "colors": [
+            "B"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Zombie"
+          ],
+          "keywords": [],
+          "tapped": true
+        }
+      ],
+      "text": "{2}, Exile two cards from your graveyard: Create a tapped 2/2 black Zombie creature token."
+    }
+  ],
+  "aiHints": {
+    "role": "draw",
+    "value": 7,
+    "timing": "main"
+  },
+  "notes": "The trigger's 'that many' has nothing to feed it (the you-attack event carries no amount), so the DRAW counts the attacking Zombies you control and the discard and the life gain read that amount back as 'that many'. The trigger fires on every attack; with no Zombie attacking the count is 0 and nothing happens.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "1aa1f3ad",
+    "scriptHash": "544962ce",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.55,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/98/9859fbca-60c3-4a57-a377-51b56f03894f.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "tested",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "Whenever you attack with one or more Zombies — expected the ability triggers only if at least one attacking creature is a Zombie — scripted event {on:'you-attack'} with no filter/condition — queueTriggers 'you-attack' fires on ctx.player === controller for ANY attack; the ability goes on the stack with 0 for its amounts instead of not triggering — CR CR 603.2 — trigger condition is part of the event, not the effect",
+          "draw that many cards / discard that many / gain that much life — expected 'that many' is locked to the number of Zombies that attacked, fixed at the moment the trigger condition was met — scripted draw amount = {count:'objects', filter:{subtypes:['Zombie'],attacking:true}, who:'you'} evaluated at RESOLUTION — if an attacking Zombie dies or leaves in response, the count drops (real card still draws the original number) — CR CR 603.2, 608.2 — the value is determined by the triggering event",
+          "(card frame) — expected Varina, Lich Queen prints 'Flying, vigilance, lifelink' above the attack trigger — scripted batch oracleText and scryfallKeywords for this record carry no keywords at all, and the script declares no keywords — faithful to the supplied batch text, but the batch record itself looks incomplete; flagging as a data concern, not scored against the script"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "Whenever you attack with one or more Zombies — expected trigger condition requires at least one attacking Zombie; with no Zombie attacking the ability does not trigger at all — scripted event {on:'you-attack'} with no filter — fires on EVERY attack and puts a do-nothing trigger on the stack (draw 0 / discard 0 / gain 0). Observable: opponents get priority, and 'whenever a triggered ability triggers' effects see it — CR 603.2",
+          "Exile two cards from your graveyard (cost) — expected you choose which two cards to exile — scripted cost.exileFromGraveyard:2; game.ts:667 exiles gy[0] and gy[1] with no choice — CR 601.2h",
+          "draw that many / discard that many / gain that much life — expected all three read the same number of attacking Zombies — scripted draw counts attacking Zombies, discard and gain-life use {count:'that-many'} = item.lastAmount — correct chaining (characteristics.ts:156); no defect found here — CR 608.2"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

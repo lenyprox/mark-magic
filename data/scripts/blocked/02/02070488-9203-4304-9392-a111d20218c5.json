@@ -1,0 +1,16 @@
+{
+  "oracleId": "02070488-9203-4304-9392-a111d20218c5",
+  "name": "Flashback",
+  "clause": "Target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost.",
+  "needs": [
+    {
+      "opFamily": "grant-alt-cost",
+      "proposedSignature": "{ op: 'grant-alt-cost'; target: TargetSpec | { filter: Filter; zone: SetZone; who: ScopeWho; count: Amount | 'all' }; altCost: Omit<AltCost,'cost'> & { cost: AbilityCost | 'its-mana-cost' }; duration: 'eot' | 'permanent' }",
+      "semantics": "Write an alternative cost onto another object for a duration — 'gains flashback until end of turn. The flashback cost is equal to its mana cost.' `altCosts` today is a static declaration on a CardDef only; nothing grants one. cost:'its-mana-cost' covers the common self-referential wording.",
+      "cr": "702.34a, 613.1f",
+      "clause": "Target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

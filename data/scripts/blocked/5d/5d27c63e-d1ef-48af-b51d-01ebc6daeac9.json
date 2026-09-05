@@ -1,0 +1,23 @@
+{
+  "oracleId": "5d27c63e-d1ef-48af-b51d-01ebc6daeac9",
+  "name": "Mikaeus, the Unhallowed",
+  "clause": "Whenever a Human deals damage to you, destroy it.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:undying",
+      "proposedSignature": "add 'undying' (and 'persist') to CoreKeyword so anthem.keywords / grant-keyword / self-keywords can carry it; the body already exists as { op: 'return-self-to-battlefield', counters: { counter: '+1/+1', amount: 1 } } gated on { kind: 'self-no-counters', counter: '+1/+1' }",
+      "semantics": "Undying as a GRANTABLE keyword. The behaviour exists for a card that prints it; what is missing is a keyword token an anthem or pump can hand to OTHER creatures ('Other non-Human creatures you control get +1/+1 and have undying'). Adding it to the Keyword union also gives the round-trip scorer its vocabulary entry, since KEYWORD_EXPANSIONS already carries the undying rules text.",
+      "cr": "702.93a",
+      "clause": "Other non-Human creatures you control get +1/+1 and have undying."
+    },
+    {
+      "opFamily": "trigger:damage-to-player",
+      "proposedSignature": "{ on: 'damage-dealt'; to: 'you' | 'each-player' | 'that-player'; filter?: Filter; combatOnly?: boolean }",
+      "semantics": "Fires whenever a permanent matching `filter` deals damage of any kind to the named player. Today `deals-damage` is matched only when the dealing object IS the source (game.ts:2166) and `combat-damage-player` is combat-only and about creatures you control, so 'Whenever a Human deals damage to you' has no form.",
+      "cr": "119.3, 603.2",
+      "clause": "Whenever a Human deals damage to you, destroy it."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "5564c782-be40-49fc-abc0-6cdcbaaa575a",
+  "name": "Vanguard of the Restless",
+  "clause": "Spirits you control get +1/+1 for each time you've cast your commander from the command zone this game.",
+  "needs": [
+    {
+      "opFamily": "dynamic-anthem",
+      "proposedSignature": "StaticEffect: { kind: 'anthem', power: Amount, toughness: Amount, … }  // widen the two numeric fields to Amount",
+      "semantics": "An anthem whose bonus is a count expression ('+1/+1 for each …'). The amount machinery already evaluates outside a resolving item (a `self-pt` static does exactly this), so this is a widening of two fields plus re-evaluation in computeStaticMods, not a new mechanic.",
+      "cr": "613.4b, 608.2h",
+      "clause": "Spirits you control get +1/+1 for each time you've cast your commander from the command zone this game."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

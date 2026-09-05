@@ -1,0 +1,16 @@
+{
+  "oracleId": "282dfeaa-6243-4f92-838a-5cb54fa85184",
+  "name": "Three Steps Ahead",
+  "clause": "Spree",
+  "needs": [
+    {
+      "opFamily": "spree",
+      "proposedSignature": "`ModeSpec` gains `cost?: ManaCost`; `{ op: 'choose-mode', modes: ModeSpec[], count: 'one-or-more' }`; plus a face declaration `spree: true` with a `covers` kind `by: 'spree'` for the printed `^spree$` line",
+      "semantics": "Spree is an additional cost: as the spell is cast its controller chooses at least one mode, and the chosen modes' `cost` values are added to the total cost - the `modeCost` registry hook already contemplated at src/engine/cost.ts:50 and src/engine/legal.ts:313. Only the chosen modes' effects resolve, in printed order, and targets are chosen per chosen mode. The '+ {N} - ...' oracle lines are the modes, so the `covers` / claiming rules should let the `choose-mode` ability that claims 'Spree' claim them the way a 'Choose one -' line claims its bullets (they are NOT '. ' bullets, so `faceLines` currently demands a claim for each).",
+      "cr": "702.172 (702.172a, 702.172b)",
+      "clause": "Spree / + {1}{U} - Counter target spell. / + {3} - Create a token that's a copy of target artifact or creature you control. / + {2} - Draw two cards, then discard a card."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

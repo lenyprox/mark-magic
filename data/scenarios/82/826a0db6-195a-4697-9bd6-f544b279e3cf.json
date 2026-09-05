@@ -1,0 +1,100 @@
+{
+  "oracleId": "826a0db6-195a-4697-9bd6-f544b279e3cf",
+  "name": "Betor, Kin to All",
+  "scenarios": [
+    {
+      "name": "Betor draws a card at total toughness 10 and does nothing more",
+      "cr": "603.4",
+      "ruling": "The intervening-if checks total toughness 10 or greater; the 20 and 40 checks only happen on resolution, so nothing untaps and nobody loses life.",
+      "seats": [
+        { "bf": ["Betor, Kin to All", "Hill Giant"], "tapped": ["Hill Giant"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "end" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "handCount": [0, 1] },
+        { "libraryCount": [0, 19] },
+        { "tapped": ["Hill Giant", true] },
+        { "life": [1, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "At total toughness 20 Betor also untaps each creature you control",
+      "cr": "608.2",
+      "ruling": "The instructions are followed in order: draw, then untap, then the 40 check which is not met here.",
+      "seats": [
+        { "bf": ["Betor, Kin to All", "Colossal Dreadmaw", "Colossal Dreadmaw", "Grizzly Bears"], "tapped": ["Colossal Dreadmaw", "Colossal Dreadmaw", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "end" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "handCount": [0, 1] },
+        { "tapped": ["Colossal Dreadmaw", false] },
+        { "tapped": ["Grizzly Bears", false] },
+        { "life": [1, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "At total toughness 40 each opponent loses half their life rounded up",
+      "cr": "608.2",
+      "seats": [
+        { "bf": ["Betor, Kin to All", "Colossal Dreadmaw", "Colossal Dreadmaw", "Colossal Dreadmaw", "Colossal Dreadmaw", "Colossal Dreadmaw", "Colossal Dreadmaw"] },
+        { "life": 21 }
+      ],
+      "script": [
+        { "passUntil": "end" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "handCount": [0, 1] },
+        { "life": [1, 10] },
+        { "life": [0, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Betor's ability does not trigger below total toughness 10",
+      "cr": "603.4",
+      "ruling": "An ability with an intervening-if clause does not trigger at all unless the condition is true when it would trigger.",
+      "seats": [
+        { "bf": ["Betor, Kin to All"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "end" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "handCount": [0, 0] },
+        { "libraryCount": [0, 20] },
+        { "life": [1, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Betor's flying cannot be blocked by a ground creature",
+      "cr": "702.9b",
+      "seats": [
+        { "bf": ["Betor, Kin to All"] },
+        { "bf": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "attack": ["Betor, Kin to All"], "refused": [["Grizzly Bears", "Betor, Kin to All"]] }
+      ],
+      "expect": [
+        { "life": [1, 15] },
+        { "zone": ["Betor, Kin to All", "battlefield"] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

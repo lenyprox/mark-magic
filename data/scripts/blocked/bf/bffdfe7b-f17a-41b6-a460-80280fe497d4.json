@@ -1,0 +1,16 @@
+{
+  "oracleId": "bffdfe7b-f17a-41b6-a460-80280fe497d4",
+  "name": "Collective Resistance",
+  "clause": "Escalate {G}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:escalate",
+      "proposedSignature": "a face declaration escalate?: AbilityCost + a covers[].by kind 'escalate' with the anchored shape /^escalate(?:[-] ?| )(.+?)\\.?$/, and a choose-mode form { count: { min: 1, max: 'modes' } } (or count: 'one-or-more') for \"Choose one or more -\"",
+      "semantics": "Escalate is an additional cost paid once per mode chosen beyond the first, which only means anything once choose-mode can express a variable number of modes. Today choose-mode.count is a fixed number, so the parser's own draft records \"Choose one or more -\" as count: 1 - a silently wrong verdict on a line it claims, not just a missing declaration.",
+      "cr": "702.120, 700.2d, 601.2b",
+      "clause": "Escalate {G}"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

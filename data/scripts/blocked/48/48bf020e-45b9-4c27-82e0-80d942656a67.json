@@ -1,0 +1,16 @@
+{
+  "oracleId": "48bf020e-45b9-4c27-82e0-80d942656a67",
+  "name": "Darksteel Garrison",
+  "clause": "Fortified land has indestructible.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:fortify",
+      "proposedSignature": "{ kind: 'fortification', keywords?: Keyword[], power?: number, toughness?: number, fortifyCost: ManaCost, attachFilter?: Filter } as a StaticEffect variant, a Ref 'fortified' alongside 'equipped' / 'enchanted', a covers[].by kind 'fortify' with the shape /^fortify (\\{.+\\})$/, and a filter field on the tapped trigger event",
+      "semantics": "Fortify is equip for lands: the Fortification attaches to a land you control at sorcery speed and stays on the battlefield if the land leaves. equipment is creature-only and its granted keywords ride on a creature's P/T; there is no Ref naming the fortified land; and { on: 'tapped' } carries only self: boolean, so \"whenever fortified land becomes tapped\" cannot be restricted to the attached permanent. Filter.attachedToSource already exists for the dies/ltb case and is the right field for the trigger filter.",
+      "cr": "702.67, 301.5, 301.6",
+      "clause": "Fortified land has indestructible. / Whenever fortified land becomes tapped, ... / Fortify {3}"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,156 @@
+{
+  "oracleId": "361b965f-2ce7-49f8-84e7-7325ea0c948d",
+  "name": "Bow of Nylea",
+  "oracleHash": "29958a52",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "anthem",
+        "power": 0,
+        "toughness": 0,
+        "filter": {
+          "attacking": true
+        },
+        "scope": "you-control",
+        "keywords": [
+          "deathtouch"
+        ]
+      },
+      "text": "Attacking creatures you control have deathtouch."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [
+            "G"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}{G}"
+        },
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "choose-mode",
+          "count": 1,
+          "modes": [
+            [
+              {
+                "op": "counters",
+                "target": {
+                  "kind": "creature"
+                },
+                "counter": "+1/+1",
+                "amount": 1
+              }
+            ],
+            [
+              {
+                "op": "damage",
+                "amount": 2,
+                "target": {
+                  "kind": "creature",
+                  "filter": {
+                    "flying": true
+                  }
+                }
+              }
+            ],
+            [
+              {
+                "op": "gain-life",
+                "amount": 3,
+                "who": "you"
+              }
+            ],
+            [
+              {
+                "op": "move",
+                "what": {
+                  "kind": "graveyard-card",
+                  "who": "you",
+                  "count": 4,
+                  "optional": true
+                },
+                "to": "library",
+                "pos": "bottom"
+              }
+            ]
+          ]
+        }
+      ],
+      "text": "{1}{G}, {T}: Choose one —"
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "The four bullets belong to the 'Choose one -' line and are the four modes of the choose-mode effect.",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "29958a52",
+    "scriptHash": "41c2da07",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 1,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/36/361b965f-2ce7-49f8-84e7-7325ea0c948d.json",
+      "passed": 0,
+      "failed": 6,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "Bow of Nylea deals 2 damage to target creature with flying — expected the damaged creature dies to 2 damage — scripted damage 2 with target {kind:'creature', filter:{flying:true}} — the filter key IS supported (characteristics.ts:250) and legal.ts builds the spec, so the blind failure (Wind Drake survived, no 'deals 2 damage' in the log) reads as the harness mode-selection gap, not a wrong effect. Could not fully rule out a mode-dispatch defect",
+          "Put up to four target cards from your graveyard on the bottom of your library in any order — expected 'in any order' — you choose the relative order of the cards placed on the bottom — scripted move with pos:'bottom' — order is whatever the move loop iterates; the ordering choice is not modelled. Targeting and the 'up to four' are correct (graveyard-card TargetSpec with count:4, optional:true) — CR CR 701.x / 400.7 — the player choosing the order is a real choice"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "• Put up to four target cards from your graveyard on the bottom of your library in any order. — expected up to four TARGET cards, chosen on activation — scripted move what:{kind:'graveyard-card', who:'you', count:4, optional:true} — a resolution-time chooser, not targets. The scenario supplies targets:[['Lightning Bolt','Shock']] which the chooser path never consumes; both cards stayed in the graveyard — CR 115.1, 601.2c",
+          "Blind-result claim: 'Both are the harness mode-selection gap, not a wrong effect' — expected claim should be substantiated — scripted UNSUPPORTED. Mode 0 ({\"answer\":[0]}) and mode 2 ({\"answer\":[2]}, gain 3 life) both PASS, so mode selection demonstrably works; if it always defaulted to mode 0 the life-gain scenario would have failed. Modes 1 and 3 fail for their own reasons — mode 3 is the targeting mismatch above, mode 1 ('deals 2 damage to target creature with flying', target {kind:'creature', filter:{flying:true}}) produced no damage log at all against Wind Drake — CR 700.2",
+          "Attacking creatures you control have deathtouch. — expected static grant to attacking creatures you control — scripted anthem 0/0 with filter {attacking:true}, scope you-control, keywords ['deathtouch'] — correct; matchesFilter honours f.attacking (characteristics.ts:248) and both deathtouch scenarios pass — CR 702.2b"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

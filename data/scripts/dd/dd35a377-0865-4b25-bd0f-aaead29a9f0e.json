@@ -1,0 +1,156 @@
+{
+  "oracleId": "dd35a377-0865-4b25-bd0f-aaead29a9f0e",
+  "name": "Doran, Besieged by Time",
+  "oracleHash": "861fb2da",
+  "source": "llm",
+  "confidence": 0.6,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "cost-adjust",
+        "filter": {
+          "types": [
+            "Creature"
+          ],
+          "toughnessGtPower": true
+        },
+        "amount": -1,
+        "who": "you"
+      },
+      "text": "Each creature spell you cast with toughness greater than its power costs {1} less to cast."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": false,
+        "filter": {
+          "types": [
+            "Creature"
+          ]
+        }
+      },
+      "effects": [
+        {
+          "op": "bind",
+          "as": "that",
+          "from": "triggering"
+        },
+        {
+          "op": "pump",
+          "target": "that",
+          "power": {
+            "max": [
+              {
+                "diff": [
+                  {
+                    "prop": "power",
+                    "of": "that"
+                  },
+                  {
+                    "prop": "toughness",
+                    "of": "that"
+                  }
+                ]
+              },
+              {
+                "diff": [
+                  {
+                    "prop": "toughness",
+                    "of": "that"
+                  },
+                  {
+                    "prop": "power",
+                    "of": "that"
+                  }
+                ]
+              }
+            ]
+          },
+          "toughness": {
+            "max": [
+              {
+                "diff": [
+                  {
+                    "prop": "power",
+                    "of": "that"
+                  },
+                  {
+                    "prop": "toughness",
+                    "of": "that"
+                  }
+                ]
+              },
+              {
+                "diff": [
+                  {
+                    "prop": "toughness",
+                    "of": "that"
+                  },
+                  {
+                    "prop": "power",
+                    "of": "that"
+                  }
+                ]
+              }
+            ]
+          },
+          "duration": "eot"
+        }
+      ],
+      "text": "Whenever a creature you control attacks or blocks, it gets +X/+X until end of turn, where X is the difference between its power and toughness."
+    }
+  ],
+  "aiHints": {
+    "role": "anthem",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "X is written as the absolute difference (the max of the two subtractions), because a diff amount never goes below 0. APPROXIMATION: the blocks trigger event only ever fires for the source itself (game.ts 2166), so the 'or blocks' half of the trigger is not expressible and only the attack half is scripted (see needs).",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "861fb2da",
+    "scriptHash": "2640f867",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Whenever a creature you control attacks or blocks, it gets +X/+X until end of turn, where X is the difference between its power and toughness.",
+          "rendered": "whenever creature you control attacks, that permanent gets +the greatest of the difference between that permanent's power and that permanent's toughness and the difference between that permanent's toughness and that permanent's power/+the greatest of the difference between that permanent's power and that permanent's toughness and the difference between that permanent's toughness and that permanent's power until end of turn",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Whenever a creature you control attacks or blocks, it gets +X/+X until end of turn, where X is the difference between its power and toughness.\" rendered as \"whenever creature you control attacks, that permanent gets +the greatest of the difference between that permanent's power and that permanent's toughness and the difference between that permanent's toughness and that permanent's power/+the greatest of the difference between that permanent's power and that permanent's toughness and the difference between that permanent's toughness and that permanent's power until end of turn\""
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "oracleId": "ecd8d7f4-7b11-4097-afc0-ef3c81edd90c",
+  "name": "Serra Paragon",
+  "clause": "Once during each of your turns, you may play a land from your graveyard or cast a permanent spell with mana value 3 or less from your graveyard. If you do, it gains \"When ~ is put into a graveyard from the battlefield, exile it and you gain 2 life.\"",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "static { kind: 'play-from-zone'; zone: 'graveyard' | 'exile' | 'library-top'; filter?: Filter; oncePerTurn?: boolean; grants?: Ability } and effect { op: 'cast-from-zone'; target: TargetSpec; zone: SetZone; free?: boolean }",
+      "semantics": "A permission to play/cast cards from another zone, optionally limited to once per turn and optionally granting the object an ability while it is played this way; plus the one-shot 'you may cast that card' form an activated ability uses.",
+      "cr": "118.9, 601.1, 601.3e",
+      "clause": "'Once during each of your turns, you may play a land from your graveyard or cast a permanent spell ...' / 'you may cast that card'"
+    },
+    {
+      "opFamily": "layers",
+      "proposedSignature": "{ op: 'grant-ability'; target: TargetSpec | Ref | 'creatures-you-control'; ability: Ability; duration: 'eot' | 'permanent' } (widen the existing source-only form)",
+      "semantics": "Grant a quoted ability to chosen objects for a duration, layer 6, instead of only to the source permanently.",
+      "cr": "613.1f, 611.2c",
+      "clause": "target creature ... gains trample and \"Whenever this creature deals combat damage to a player, draw a card.\""
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

@@ -1,0 +1,87 @@
+{
+  "oracleId": "36117e99-a2bc-46f9-8e17-bd2e2a9c31f4",
+  "name": "Rot Hulk",
+  "scenarios": [
+    {
+      "name": "Rot Hulk's menace cannot be blocked by a single creature",
+      "cr": "702.110b",
+      "ruling": "A creature with menace can't be blocked except by two or more creatures, so a lone blocker is refused and the damage goes through.",
+      "seats": [
+        { "bf": ["Rot Hulk"] },
+        { "bf": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "attack": ["Rot Hulk"], "refused": [["Grizzly Bears", "Rot Hulk"]] }
+      ],
+      "expect": [
+        { "life": [1, 15] },
+        { "life": [0, 20] },
+        { "zone": ["Rot Hulk", "battlefield"] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Rot Hulk entering returns a Zombie card from your graveyard and leaves a non-Zombie behind",
+      "cr": "603.6b",
+      "ruling": "With one opponent X is 1, and only Zombie cards are legal targets, so the Zombie comes back and the Bear stays in the graveyard.",
+      "seats": [
+        { "bf": ["Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp"], "hand": ["Rot Hulk"], "graveyard": ["Walking Corpse", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Rot Hulk" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Walking Corpse", "battlefield"] },
+        { "control": ["Walking Corpse", 0] },
+        { "zone": ["Grizzly Bears", "graveyard"] },
+        { "graveyardCount": [0, 1] },
+        { "zoneCount": [0, "battlefield", 9] },
+        { "zone": ["Rot Hulk", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "With one opponent Rot Hulk returns only one of two Zombie cards",
+      "cr": "107.3",
+      "ruling": "X is the number of opponents you have; against a single opponent the ability may return at most one Zombie card.",
+      "seats": [
+        { "bf": ["Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp"], "hand": ["Rot Hulk"], "graveyard": ["Walking Corpse", "Zombie Goliath"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Rot Hulk" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "graveyardCount": [0, 1] },
+        { "zoneCount": [0, "battlefield", 9] },
+        { "zone": ["Rot Hulk", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "With two opponents Rot Hulk returns two Zombie cards",
+      "cr": "107.3",
+      "ruling": "X is the number of opponents you have, so in a three-player game both Zombie cards come back.",
+      "seats": [
+        { "bf": ["Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp"], "hand": ["Rot Hulk"], "graveyard": ["Walking Corpse", "Zombie Goliath"] },
+        {},
+        {}
+      ],
+      "script": [
+        { "cast": "Rot Hulk" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Walking Corpse", "battlefield"] },
+        { "zone": ["Zombie Goliath", "battlefield"] },
+        { "graveyardCount": [0, 0] },
+        { "zoneCount": [0, "battlefield", 10] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

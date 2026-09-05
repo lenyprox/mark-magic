@@ -1,0 +1,114 @@
+{
+  "oracleId": "74947e47-c4ff-4f47-9845-befa7403cbde",
+  "name": "Preacher of the Schism",
+  "oracleHash": "8bc6827b",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [
+    "deathtouch"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 1,
+          "toughness": 1,
+          "colors": [
+            "W"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Vampire"
+          ],
+          "keywords": [
+            "lifelink"
+          ]
+        }
+      ],
+      "text": "Whenever ~ attacks the player with the most life or tied for most life, create a 1/1 white Vampire creature token with lifelink."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": true
+      },
+      "intervening": {
+        "kind": "more-life-than-opponent"
+      },
+      "effects": [
+        {
+          "op": "draw",
+          "amount": 1,
+          "who": "you"
+        },
+        {
+          "op": "lose-life",
+          "amount": 1,
+          "who": "you"
+        }
+      ],
+      "text": "Whenever ~ attacks while you have the most life or are tied for most life, you draw a card and you lose 1 life."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Deathtouch",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "APPROXIMATIONS: (1) no trigger event can restrict WHICH player is attacked, so the token trigger fires on any attack rather than only on an attack against the player with the most life; (2) 'you have the most life or are tied for most life' is written as the intervening condition 'more-life-than-opponent' (more life than AN opponent), the closest condition the vocabulary has; it misses the tie case and, in multiplayer, is looser than 'the most life'. Both need a life-standing condition family (see needs).",
+  "verification": {
+    "at": "2026-09-05T14:17:43.920Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "8bc6827b",
+    "scriptHash": "2b0cbf04",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.476,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.48 < 0.55: \"Whenever ~ attacks while you have the most life or are tied for most life, you draw a card and you lose 1 life.\" rendered as \"whenever ~ attacks, if you have more life than an opponent, you draw a card. you lose 1 life\""
+    ]
+  }
+}

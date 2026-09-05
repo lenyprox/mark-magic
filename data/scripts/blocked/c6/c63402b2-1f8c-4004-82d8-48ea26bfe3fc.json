@@ -1,0 +1,16 @@
+{
+  "oracleId": "c63402b2-1f8c-4004-82d8-48ea26bfe3fc",
+  "name": "Shimmerwilds Growth",
+  "clause": "Enchanted land is the chosen color.",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "{ kind: 'set-color', scope: 'enchanted' | 'equipped' | 'self' | 'you-control' | 'all', filter?: Filter, colors: Color[] | 'chosen' }",
+      "semantics": "A continuous static that sets an object's colors in layer 5; `'chosen'` reads the source's stored as-enters color choice (`o.chosen.color`, which the `choose` as-enters already writes and `extra-mana-on-tap` already reads).",
+      "cr": "105.2, 613.1e",
+      "clause": "Enchanted land is the chosen color."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

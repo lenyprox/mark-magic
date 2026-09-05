@@ -1,0 +1,16 @@
+{
+  "oracleId": "2f109125-b743-4ecf-84da-690d8e8ddf9c",
+  "name": "Ceaseless Conflict",
+  "clause": "Then create a 3/2 red and white Spirit creature token for each nontoken creature you controlled that was destroyed this way.",
+  "needs": [
+    {
+      "opFamily": "for-each-filtered-binding",
+      "proposedSignature": "{ op: 'for-each'; over: 'those' | 'targets'; filter?: Filter; who?: ScopeWho; do: Effect[] }   AND   Amount { count: 'those'; filter?: Filter }",
+      "semantics": "Filter the CURRENT binding instead of re-reading a zone: 'for each nontoken creature you controlled that was destroyed this way' is the subset of what `destroy all-creatures` just bound. Values read from the binding's last-known information, so objects that have left the battlefield still count.",
+      "cr": "608.2h, 608.2f, 400.7",
+      "clause": "Then create a 3/2 red and white Spirit creature token for each nontoken creature you controlled that was destroyed this way."
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

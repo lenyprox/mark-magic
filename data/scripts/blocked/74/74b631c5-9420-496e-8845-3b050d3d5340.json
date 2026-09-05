@@ -1,0 +1,16 @@
+{
+  "oracleId": "74b631c5-9420-496e-8845-3b050d3d5340",
+  "name": "Streetwise Negotiator",
+  "clause": "Backup 1",
+  "needs": [
+    {
+      "opFamily": "named-keyword:backup",
+      "proposedSignature": "{ op: 'backup'; amount: number } as the body of an { on: 'etb', self: true } trigger, PLUS KEYWORD_EXPANSIONS['backup'] = \"when ~ enters, put {n} +1/+1 counters on target creature. if that's another creature, it also gains the non-backup abilities of ~ until end of turn\" in src/cards/render.ts",
+      "semantics": "Backup N. The counter half is already expressible; the missing half is 'that creature also gains this permanent's other printed abilities until end of turn', which needs a grant of an ability LIST to a TARGET with a duration — gain-ability grants only to the source and only permanently (game.ts:1280). The render entry is required separately: without it the printed 'Backup N' line scores 0 as a renderer gap and no backup card can ever be verified.",
+      "cr": "702.165a, 702.165c",
+      "clause": "Backup 1"
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

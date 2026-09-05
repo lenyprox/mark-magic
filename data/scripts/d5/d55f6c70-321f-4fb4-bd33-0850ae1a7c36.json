@@ -1,0 +1,94 @@
+{
+  "oracleId": "d55f6c70-321f-4fb4-bd33-0850ae1a7c36",
+  "name": "Narset's Reversal",
+  "oracleHash": "26c95311",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "copy-spell",
+          "target": {
+            "kind": "spell",
+            "filter": {
+              "types": [
+                "Instant",
+                "Sorcery"
+              ]
+            }
+          },
+          "newTargets": true
+        },
+        {
+          "op": "bounce",
+          "target": "target:0",
+          "to": "hand"
+        }
+      ],
+      "text": "Copy target instant or sorcery spell, then return it to its owner's hand. You may choose new targets for the copy."
+    }
+  ],
+  "aiHints": {
+    "role": "combo",
+    "value": 6,
+    "timing": "instant"
+  },
+  "notes": "One target, used twice: `copy-spell` declares the only target spec and the `bounce` reads it back as `target:0` (a `stack` TargetRef resolves to the spell's card, composition core §1), so the card asks for one target rather than two.",
+  "verification": {
+    "at": "2026-09-05T13:58:18.541Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "26c95311",
+    "scriptHash": "2922e0e0",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "unreachable",
+      "seats4": "unreachable",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.75,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "data/scenarios/d5/d55f6c70-321f-4fb4-bd33-0850ae1a7c36.json",
+      "passed": 2,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "...then return it to its owner's hand. — expected the targeted spell is returned, not countered; a spell with \"can't be countered\" is still returnable — scripted the bounce path sets it.countered = true on the spell item (game.ts:1320). The zone move is right (moveTo hand, owner-based) and bounce never checks cant-be-countered, so behavior is correct, but the flag would feed any \"whenever a spell is countered\" trigger and mislabels the event. — CR 701.10a / 707.10",
+          "You may choose new targets for the copy. — expected the copy may be re-aimed (the card's whole point — steal an opponent's spell) — scripted newTargets: true declared, but the engine never implements it (no `newTargets` reference outside schema/render/types). Copy keeps the original targets. — CR 707.10c",
+          "Copy target instant or sorcery spell, then return it... — expected exactly one target, used by both clauses, and the copy made before the original leaves the stack — scripted copy-spell declares target 0 and bounce reads it back as `target:0`; effect order is copy-then-bounce. Verified correct — the notes claim holds, and bounce has an explicit branch for a Ref that resolved to a stack spell's card. — CR 707.10"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "You may choose new targets for the copy. — expected the copy's targets may be changed — scripted newTargets: true is never read by the engine (same gap as Dualcaster); the copy inherits orig.targets verbatim. — CR 707.10",
+          "then return it to its owner's hand — expected the spell is removed from the stack and put into its OWNER's hand; it is NOT countered — scripted bounce (game.ts:1321) sets it.countered = true on the removed StackItem before moving the card. Zone-wise correct (moveTo 'hand'), but the countered flag could wrongly satisfy 'whenever a spell is countered' style checks. Engine-level, not a script-authoring error. — CR 701.5a",
+          "Copy target instant or sorcery spell, then return it... — expected exactly one target, and the copy is created before the original leaves the stack — scripted copy-spell declares the only TargetSpec and bounce reads it back as target:0 — correct ordering and single-target; the engine explicitly names this pattern in the bounce comment (game.ts:1316-1318). — CR 707.10"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

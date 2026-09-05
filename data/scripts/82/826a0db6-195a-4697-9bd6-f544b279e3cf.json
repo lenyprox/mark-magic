@@ -1,0 +1,133 @@
+{
+  "oracleId": "826a0db6-195a-4697-9bd6-f544b279e3cf",
+  "name": "Betor, Kin to All",
+  "oracleHash": "1d0f3789",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [
+    "flying"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "end-step",
+        "whose": "your"
+      },
+      "intervening": {
+        "kind": "total-toughness-ge",
+        "value": 10
+      },
+      "effects": [
+        {
+          "op": "draw",
+          "amount": 1,
+          "who": "you"
+        },
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "total-toughness-ge",
+            "value": 20
+          },
+          "then": [
+            {
+              "op": "untap",
+              "target": "creatures-you-control"
+            }
+          ]
+        },
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "total-toughness-ge",
+            "value": 40
+          },
+          "then": [
+            {
+              "op": "scoped",
+              "who": "each-opponent",
+              "do": [
+                {
+                  "op": "lose-life",
+                  "amount": {
+                    "prop": "life",
+                    "of": "you",
+                    "half": "up"
+                  },
+                  "who": "you"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "text": "At the beginning of your end step, if creatures you control have total toughness 10 or greater, draw a card. Then if creatures you control have total toughness 20 or greater, untap each creature you control. Then if creatures you control have total toughness 40 or greater, each opponent loses half their life, rounded up.",
+      "optional": false
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flying",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 5,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-05T13:59:38.385Z",
+    "parserVersion": 4,
+    "registryHash": "811c9dc5",
+    "oracleHash": "1d0f3789",
+    "scriptHash": "fbf13830",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.806,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/82/826a0db6-195a-4697-9bd6-f544b279e3cf.json",
+      "passed": 5,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "each opponent loses half their life, rounded up — expected Each opponent loses half of THEIR OWN life total, rounded up (computed per opponent). — scripted scoped{who:'each-opponent'} → lose-life{who:'you', amount:{prop:'life', of:'you', half:'up'}}. This is correct: 'scoped' sets item.actor (game.ts:1575) and applyEffectCore takes p = item.actor ?? item.controller (game.ts:1017), so both the loser and the prop are the current opponent, and half:'up' → Math.ceil (characteristics.ts:180). The render's 'each opponent loses you's life life' is render lossiness, not a behavioural bug — it is the only reason the round-trip sits at 0.81. Scenario 3 confirms the correct number.",
+          "At the beginning of your end step, if creatures you control have total toughness 10 or greater, ... — expected Intervening-if checked on triggering and again on resolution (creatures dying in response should fizzle it). — scripted Written as `intervening` (correct construct); the engine only checks it when stacking (game.ts:2208). Engine gap, not a script defect. — CR CR 603.4",
+          "Then if ... 20 or greater, untap each creature you control. Then if ... 40 or greater, ... — expected These two are NOT intervening-if — they are checked only as the ability resolves, in order. — scripted Two sequential `conditional` ops with total-toughness-ge 20 and 40, evaluated in order during resolution. Correct; total-toughness-ge counts only creatures you control (characteristics.ts:398)."
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "each opponent loses half their life, rounded up — expected each opponent halves THEIR OWN life, rounded up — not the controller's — scripted scoped{ who: each-opponent } → lose-life{ who: 'you', amount: { prop: 'life', of: 'you', half: 'up' } }. This reads wrong and the renderer prints the misleading \"each opponent loses you's life life\", but it is correct: scoped rebinds item.actor (game.ts:1575), applyOne recomputes `p = item.actor ?? item.controller` (game.ts:1017), and evalAmount's prop/life branch uses that same `ctrl` (characteristics.ts:111). Each opponent therefore halves their own life. Verified rather than a defect — but the encoding is fragile and depends entirely on that rebinding. — CR 107.1a (round up); 118.4",
+          "At the beginning of your end step, if creatures you control have total toughness 10 or greater, draw a card. Then if ... 20 ... untap ... Then if ... 40 ... — expected 10 is an intervening-if gating the whole trigger; 20 and 40 are checked only on resolution, in order — scripted intervening total-toughness-ge 10; then draw; then conditional 20 → untap creatures-you-control; then conditional 40 → each opponent loses half. Ordering, thresholds and check-timing all correct. total-toughness-ge sums toughness of creatures the controller controls (characteristics.ts:398). — CR 603.4; 608.2"
+        ],
+        "at": "2026-09-05T14:44:44.856Z"
+      }
+    ]
+  }
+}

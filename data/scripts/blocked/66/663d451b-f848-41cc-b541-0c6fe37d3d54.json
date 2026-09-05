@@ -1,0 +1,16 @@
+{
+  "oracleId": "663d451b-f848-41cc-b541-0c6fe37d3d54",
+  "name": "Hofri Ghostforge",
+  "clause": "Whenever another nontoken creature you control dies, exile it. If you do, create a token that's a copy of that creature, except it's a Spirit in addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard.\"",
+  "needs": [
+    {
+      "opFamily": "copy-clone",
+      "proposedSignature": "{ op: 'token-copy', target, count, power?: number, toughness?: number, colors?: Color[], name?: string, extraTypes?, extraSubtypes?, extraKeywords?, grantAbility?: Ability, tapped?, attacking? }",
+      "semantics": "A copy with copiable-value exceptions (CR 707.2 layer 1 overrides): P/T, colours, name and a granted ability, on top of the extra types/subtypes/keywords the op already carries.",
+      "cr": "707.2, 706.2, 613.2",
+      "clause": "Create a token that's a copy of it, except it's a 4/4 black Zombie. / except it's 1/1 and has toxic 1. / except it's a Spirit in addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard.\""
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

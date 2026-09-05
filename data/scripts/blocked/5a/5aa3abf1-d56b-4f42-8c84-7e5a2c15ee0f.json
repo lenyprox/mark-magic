@@ -1,0 +1,16 @@
+{
+  "oracleId": "5aa3abf1-d56b-4f42-8c84-7e5a2c15ee0f",
+  "name": "Nissa, Who Shakes the World",
+  "clause": "-8: You get an emblem with \"Lands you control have indestructible.\" Search your library for any number of Forest cards, put them onto the battlefield tapped, then shuffle.",
+  "needs": [
+    {
+      "opFamily": "planeswalker",
+      "proposedSignature": "{ op: 'emblem', ability: Ability }  (stored on pl.ext.emblems, read by computeStaticMods / abilitiesOf)",
+      "semantics": "An emblem is a permanentless object in the command zone with one ability that applies for the rest of the game; it is never targeted and never leaves.",
+      "cr": "114.1, 114.3, 113.1",
+      "clause": "You get an emblem with \"Lands you control have indestructible.\""
+    }
+  ],
+  "wave": "unknown",
+  "attempts": 1
+}

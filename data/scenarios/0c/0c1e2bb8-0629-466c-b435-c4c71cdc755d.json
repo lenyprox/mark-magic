@@ -1,0 +1,67 @@
+{
+  "oracleId": "0c1e2bb8-0629-466c-b435-c4c71cdc755d",
+  "name": "Sapling of Colfenor",
+  "scenarios": [
+    {
+      "name": "Attacking reveals a creature card, gains its toughness, loses its power and puts it in hand",
+      "cr": "603.2",
+      "ruling": "Wall of Omens is 0/4, so you gain 4 life, lose 0 life and the card goes to your hand.",
+      "seats": [
+        { "bf": ["Sapling of Colfenor"], "libraryTop": ["Wall of Omens"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Sapling of Colfenor"] }
+      ],
+      "expect": [
+        { "life": [0, 24] },
+        { "life": [1, 18] },
+        { "zone": ["Wall of Omens", "hand"] },
+        { "handCount": [0, 1] },
+        { "libraryCount": [0, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A revealed noncreature card stays on top of the library and changes no life total",
+      "cr": "603.2",
+      "ruling": "If the revealed card is not a creature card, it remains on top of your library and nothing else happens.",
+      "seats": [
+        { "bf": ["Sapling of Colfenor"], "libraryTop": ["Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Sapling of Colfenor"] }
+      ],
+      "expect": [
+        { "life": [0, 20] },
+        { "life": [1, 18] },
+        { "zone": ["Lightning Bolt", "library"] },
+        { "handCount": [0, 0] },
+        { "libraryCount": [0, 21] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Indestructible Sapling of Colfenor survives lethal combat damage",
+      "cr": "702.12b",
+      "ruling": "A permanent with indestructible is not destroyed by lethal damage, so a 2/5 blocking a 6/6 stays on the battlefield.",
+      "active": 1,
+      "seats": [
+        { "bf": ["Sapling of Colfenor"] },
+        { "bf": ["Kindercatch"] }
+      ],
+      "script": [
+        { "attack": ["Kindercatch"], "blocks": [["Sapling of Colfenor", "Kindercatch"]] }
+      ],
+      "expect": [
+        { "zone": ["Sapling of Colfenor", "battlefield"] },
+        { "zone": ["Kindercatch", "battlefield"] },
+        { "noLog": "Sapling of Colfenor is destroyed" },
+        { "life": [0, 20] },
+        { "life": [1, 20] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}
