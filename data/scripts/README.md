@@ -67,7 +67,7 @@ behaviour:
 | Claimed by | How |
 |---|---|
 | an **ability** | its `text`, normalised, is that line — **and the ability carries behaviour**, and **stays inside its line budget**. See **The ability budget** below. |
-| a **keyword** | the line is nothing but keywords the face has, comma-separated — `"Flying, vigilance"` is claimed by `["flying", "vigilance"]`. A **parameterised** keyword line needs the parameter too, not just the keyword: `"Ward {2}"` needs `wardCost: 2`, `"Toxic 1"` needs `toxic: 1`, `"Swampwalk"` needs `"Swamp"` in `landwalk`, `"Protection from red"` needs `"red"` in `protectionFrom`. A bare `["ward"]` claims nothing. |
+| a **keyword** | the line is nothing but keywords the face has, comma-separated — `"Flying, vigilance"` is claimed by `["flying", "vigilance"]`. A **parameterised** keyword line needs the parameter too, not just the keyword: `"Ward {2}"` needs `wardCost: 2`, `"Toxic 1"` needs `toxic: 1`, `"Swampwalk"` needs `"Swamp"` in `landwalk`, `"Protection from red"` needs `"red"` in `protectionFrom`. A bare `["ward"]` claims nothing — and `"Ward—Pay 3 life."` is claimed by **no** ward declaration at all, because `wardCost` is a number and this format cannot express a non-mana ward cost. Script that line as a triggered ability. |
 | a **`covers`** entry | for a line a non-ability declaration accounts for. Each entry names both the line and the declaration that implements it (`by`) — see **`covers` kinds**. |
 | an **`ignore`** entry | for a line that cannot matter inside a game (below). |
 
@@ -80,13 +80,34 @@ hides a line nothing implements behind one that two things do.
 An ability claims the lines its `text` names only when both hold:
 
 1. **it does something.** `substantiveCount(effects) >= 1` for a `spell` / `triggered` / `activated` ability, and a
-   non-`unknown` `effect` for a `static` one. An effect counts as substantive unless it is a **parser-internal fold
-   marker** — `alt-if-target`, `alt-take`, `fold-counter-if-yours`, `alt-kicked-amount`, `fold-restriction`,
-   `fold-alt-mana`, `fold-new-targets` — or `unknown`. Those ops are folded into the effect before them by the parser
-   and **never reach the engine**, so an ability made of them alone does nothing at all. A *container*
-   (`conditional`, `optional-then`, `optional-pay`, `delayed-trigger`, `gain-ability`, and any op with a nested
-   `Effect[]`) counts 1 only when something inside it is substantive; `choose-mode` counts **once per substantive
-   mode**. An `unknown` anywhere inside the ability disqualifies it outright.
+   non-`unknown`, non-zero `effect` for a `static` one. An effect counts as substantive unless it is a
+   **parser-internal fold marker** — `alt-if-target`, `alt-take`, `fold-counter-if-yours`, `alt-kicked-amount`,
+   `fold-restriction`, `fold-alt-mana`, `fold-new-targets` — or `unknown`. Those ops are folded into the effect
+   before them by the parser and **never reach the engine**, so an ability made of them alone does nothing at all. A
+   *container* (`conditional`, `optional-then`, `optional-pay`, `delayed-trigger`, `gain-ability`, and any op with a
+   nested `Effect[]`) counts 1 only when something inside it is substantive; `choose-mode` counts **once per
+   substantive mode**. An `unknown` anywhere inside the ability disqualifies it outright.
+
+   **…and its MAGNITUDE is not zero.** `{ "op": "draw", "amount": 0 }` is a legal effect that draws nothing, and one
+   per oracle line would otherwise satisfy the whole budget with a card that never changes the game state. An
+   effect is dead when its magnitude is a literal `0` (or the numeric string `"0"`), or when a list it grants is
+   empty; `scripts:check` says which (`effect has zero magnitude: draw 0`).
+
+   | The magnitude of … | is | dead when |
+   |---|---|---|
+   | `damage`, `damage-you`, `draw`, `discard`, `gain-life`, `lose-life`, `mill`, `scry`, `surveil`, `energy`, `poison`, `counters`, `player-counter`, `amass`, `renown`, `earthbend`, `look-top`, `put-from-hand`, `prevent-damage`, `sacrifice`, `add-mana` | `amount` | `amount` is 0 |
+   | `token`, `token-copy`, `impulse`, `return-own`, `search`, `search-land`, `untap-choose`, `extra-land` | `count` | `count` is 0 |
+   | `dig` | `look` | `look` is 0 — a `take: 0` dig still looks at the top of the library and reorders it (parse.ts:520) |
+   | `loot` | `draw` + `discard` | **both** are 0 |
+   | `pump` | `power` + `toughness` + `keywords` | both numbers are 0 **and** it grants no keyword |
+   | `grant-keyword`, `multi-counters` | the list it grants | the list is empty |
+   | a `static` `anthem` / `self-pt` / `self-keywords` / `extra-blocks` | the same fields | +0/+0 granting nothing, or an empty keyword list |
+
+   `'X'` and an `Amount` **count expression** are magnitudes the game resolves later and always count as behaviour.
+   Ops with no magnitude — `destroy`, `exile`, `tap`, `untap`, `sacrifice-self`, `counter`, `bounce`, `fight`,
+   `transform-self`, `proliferate`, … — are substantive by nature, and `set-life` is deliberately not on the list:
+   `set-life 0` is lethal, not empty. `MAGNITUDE_RULES` in `src/cards/scripts.ts` is the table.
+
 2. **it names no more lines than it has effects.** An ability may claim at most **one line per substantive effect**.
    The parser writes an instant/sorcery's *whole face text* into its single `spell` ability (parse.ts:1358), so
    without this one `draw` would finish every line of a card. A `static` / `triggered` / `activated` ability is
@@ -96,10 +117,12 @@ An ability claims the lines its `text` names only when both hold:
    letter (`"…, then"`, `"and that creature…"`), and the two physical lines are joined into one logical line for the
    budget. A part starting with a capital, a `{`, a digit or a bullet is always a line of its own.
 
-`scripts:check` reports `ability has no substantive effect: …` and
-`ability names N lines but declares only M substantive effects`, naming the ability's `text`. The empty-effect case
-is also a schema error (`ability declares no effect`); the marker-only and over-budget cases are not — the array is
-not empty, so only `scripts:check` and `applyScript` can see them.
+`scripts:check` reports `ability has no substantive effect: …` — naming the dead effect and why, e.g.
+`ability has no substantive effect: effect has zero magnitude: draw 0` — and
+`ability names N lines but declares only M substantive effects`, quoting the ability's `text`. The empty-effect case
+is also a schema error (`ability declares no effect`); the marker-only, zero-magnitude and over-budget cases are not
+— the array is not empty and JSON Schema cannot compare a number against the rest of the effect, so only
+`scripts:check` and `applyScript` can see them.
 
 Prefer **one ability per oracle line**: it is always in budget, and it says which effect implements which line.
 
@@ -124,7 +147,7 @@ unanchored one would let an entry claim any line that merely *contains* the keyw
 | `keywords` | `keywords` (+ parameters) | every comma-separated part is a keyword line | each part's keyword **and its parameter** — `wardCost`, `toxic`, `bushido`, `rampage`, `firebending`, `landwalk`, `protectionFrom` | `Flying` |
 | `altCosts` | `altCosts` | `^(flashback\|evoke\|warp\|buyback\|dash)(?:[—-] ?\| )(.+?)\.?$` · `^jump-start$` · `^impending (\d+)[—-] ?(\{.+\})$` · `^escape[—-] ?(\{.+\}), exile (.+?)\.?$` · `^(?:if .+?, )?you may (.+?) rather than pay ~'s mana cost\.?$` | an `altCost` with that `id` **and** `cost.mana.raw` equal to the line's mana symbols (buyback's altCost holds the *total*, so the increment is its tail); `escape` also `exileOtherFromGraveyard.count`; `impending` also `timeCounters`; a pitch clause also `payLife` / `exileFromHand` | `Flashback {2}{R}` |
 | `asEnters` | `asEnters` | `^~ enters (the battlefield )?tapped\.?$` · `…tapped unless (.+?)\.?$` · `^as ~ enters, you may pay (\d+) life\. if you don't, it enters tapped\.?$` · `^(if ~ was kicked, it\|~) enters with ([a-z]+\|\d+) ([+-]1/[+-]1\|[a-z]+) counters? on it…$` · `^as ~ enters, choose a (creature type\|color)\.?$` · Mox Diamond's discard-or-graveyard wording | an entry of the matching `kind`, with the same `life`, the same `counter` (and `amount` when the line prints a number), the same `what` | `As ~ enters, you may pay 2 life. ...` |
-| `costModifiers` | `costModifiers` | `^(delve\|convoke\|improvise)$` · `^affinity for (.+?)\.?$` · `^~ costs \{.+\} less to cast(?: .+?)?\.?$` | that exact `kind` (`delve` / `convoke` / `improvise`), or `reduce` for the two reduction shapes | `Delve` |
+| `costModifiers` | `costModifiers` | `^(delve\|convoke\|improvise)$` · `^affinity for (.+?)\.?$` · `^~ costs (\{.+?\}) less to cast(?: (.+?))?\.?$` | that exact `kind` for `delve` / `convoke` / `improvise`. For the two reduction shapes a `reduce` **whose amount matches**: *affinity for X* needs a **count over the printed subject** (`Affinity for artifacts` → `{ count: "permanents-you-control", filter: { types: ["Artifact"] } }`, singular or plural), a fixed number is never affinity; *`~ costs {N} less`* needs `amount === N` when the amount is a number, and a **count expression** is accepted only on a `for each …` line, scaled by the printed number (`times ?? 1 === N`) | `Delve` · `Affinity for artifacts` |
 | `kicker` | `kicker` | `^(multi)?kicker (\{.+\})$` | `kicker.raw` equals the printed cost | `Kicker {5}` |
 | `cycling` | `cycling` (+ `cyclingSearch`) | `^((?:[a-z]+ )?[a-z]+cycling\|cycling) (\{.+\})$` | `cycling.raw` equals the printed cost; **typecycling** (any prefix) also needs `cyclingSearch` | `Plainscycling {2}` |
 | `entersTapped` | `entersTapped` | `^~ enters (the battlefield )?tapped\.?$` · `…tapped unless (.+?)\.?$` | `true` for the plain form, `{ unless: … }` for the `unless` form — never the other way round | `~ enters tapped.` |
@@ -135,7 +158,7 @@ unanchored one would let an entry claim any line that merely *contains* the keyw
 | `dredge` | `dredge` | `^dredge (\d+)$` | `dredge` equals the printed number | `Dredge 5` |
 | `graveyardReplacement` | `graveyardReplacement` | `^if ~ would be put into a graveyard from anywhere, exile it instead\.?$` · `…, (reveal ~ and )?shuffle it into its owner's library instead\.?$` | `"exile"` for the first, `"shuffle"` for the second | Progenitus's shuffle clause |
 | `protection` | `protectionFrom` | `^protection from (.+?)\.?$` | **every** quality the line lists is in `protectionFrom` | `Protection from everything` |
-| `ward` | `wardCost` | `^ward (\{(\d+)\}\|[—-].+)$` | `wardCost` equals the printed number (the non-numeric `Ward—…` form has no number to match) | `Ward {2}` |
+| `ward` | `wardCost` | `^ward(?: \{(\d+)\}\|\s*[—-]\s*(.+?))\.?$` | `wardCost` equals the printed number. The **non-mana** form (`Ward—Discard a card.`, `Ward—Pay 3 life.`) is claimable by **no** `ward` declaration: `wardCost` is a number and cannot express that cost, so the line must be scripted as a triggered ability | `Ward {2}` |
 | `additionalCosts` | `additionalCosts` | `^as an additional cost to cast ~, (.+?)\.?$` | the clause's leading verb (`sacrifice` / `discard` / `pay … life` / `exile` / `tap` / `return`) matches a field on one declared entry | `As an additional cost to cast ~, sacrifice a creature.` |
 | `toxic` | `toxic` | `^toxic (\d+)$` | `toxic` equals the printed number | `Toxic 1` |
 | `bushido` | `bushido` | `^bushido (\d+)$` | `bushido` equals the printed number | `Bushido 1` |

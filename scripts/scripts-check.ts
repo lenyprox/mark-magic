@@ -1,6 +1,7 @@
 // Validate the scripts under data/scripts: schema (strict, including typed `covers` entries), LF-only bytes,
-// oracle-hash freshness (stale after a Scryfall refresh), every ability carrying a SUBSTANTIVE effect and naming no
-// more lines than it has effects, no line claimed twice, every `covers` entry naming a declaration its face really
+// oracle-hash freshness (stale after a Scryfall refresh), every ability carrying a SUBSTANTIVE effect (one that is
+// neither a parser-internal fold marker nor a zero magnitude such as `draw 0`) and naming no more lines than it has
+// substantive effects, no line claimed twice, every `covers` entry naming a declaration its face really
 // has, a line of that face and the VALUE that declaration prints, every `ignore` line matching a line
 // `scriptableLines(def)` names, every `ignore` reason matching its whitelist entry for this card's pool tier, no
 // `unknown` anywhere, and that EVERY face with playable text (front, `backFace` for a transform / modal DFC,
@@ -106,7 +107,8 @@ for (const id of ids) {
   if (script.oracleHash !== fresh) problems.push(`${id} (${script.name}): stale — oracle text changed (hash ${fresh})`);
 
   // 3. every ability must CARRY BEHAVIOUR and stay inside its LINE BUDGET: an ability with no substantive effect
-  //    claims no line (it would otherwise be a card with the right texts and nothing behind them), and an ability
+  //    claims no line (it would otherwise be a card with the right texts and nothing behind them — including one
+  //    whose effects are all zero-magnitude, reported as "effect has zero magnitude: draw 0"), and an ability
   //    may name at most one line per substantive effect, so a single `draw` cannot finish a three-line spell. The
   //    same pass reports a line two declarations both claim. `faceClaimProblems` owns the rule; `applyScript`
   //    enforces the identical one at runtime through `abilityClaimLines`.

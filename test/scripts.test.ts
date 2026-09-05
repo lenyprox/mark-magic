@@ -8,13 +8,13 @@ import path from 'node:path';
 import { CardDB } from '../src/cards/db.js';
 import {
   abilityClaimProblem, applyScript, COVER_KINDS, COVER_LINE_RE, coverProblem, faceClaimProblems, IGNORE_REASONS,
-  ignoreLineProblem, keywordLineClaimed, keywordPartProblem, MARKER_OPS, normalizeOracleLines, oracleHash,
-  scriptableLines, scriptHash, secondFaceLines, secondFaceUnclaimed, shardOf, ScriptStore, substantiveCount,
-  unmatchedAbilityTexts, useScriptStore,
+  ignoreLineProblem, insubstantiveReasons, keywordLineClaimed, keywordPartProblem, MARKER_OPS, normalizeOracleLines,
+  oracleHash, scriptableLines, scriptHash, secondFaceLines, secondFaceUnclaimed, shardOf, ScriptStore,
+  substantiveCount, unmatchedAbilityTexts, useScriptStore, zeroMagnitudeReason,
   type CardScript, type CoverKind, type ScriptFace, type ScriptSource, type Verification,
 } from '../src/cards/scripts.js';
 import { CardScriptChecked } from '../src/cards/schema.js';
-import type { CardDef, Effect, ManaCost } from '../src/cards/types.js';
+import type { CardDef, Effect, Keyword, ManaCost } from '../src/cards/types.js';
 import { db } from './helpers.js';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'scripts-'));
@@ -281,6 +281,108 @@ test('applyScript: an ability of nothing but fold markers claims no line', () =>
   assert.deepEqual(faceClaimProblems(real, 'Llanowar Elves'), []);
 });
 
+/** One `Ability` of the shape a script declares — typed, so the test never casts an object literal. */
+type ScriptAbility = NonNullable<CardScript['abilities']>[number];
+
+/**
+ * One effect per op that carries a magnitude, written with that magnitude set to a literal 0. Every one of these is
+ * a legal `Effect` that changes nothing at all when it resolves.
+ */
+const ZERO_EFFECTS: [label: string, effect: Effect, reason: string][] = [
+  ['draw', { op: 'draw', amount: 0, who: 'you' }, 'draw 0'],
+  ['scry', { op: 'scry', amount: 0 }, 'scry 0'],
+  ['damage', { op: 'damage', amount: 0, target: { kind: 'any' } }, 'damage 0'],
+  ['gain-life', { op: 'gain-life', amount: 0, who: 'you' }, 'gain-life 0'],
+  ['pump', { op: 'pump', target: 'self', power: 0, toughness: 0, duration: 'eot' }, 'pump 0/0 and grants no keyword'],
+  ['token', { op: 'token', count: 0, power: 2, toughness: 2, colors: ['G'], types: ['Creature'], subtypes: ['Wolf'], keywords: [] }, 'token count 0'],
+  ['mill', { op: 'mill', amount: 0, who: 'target-player' }, 'mill 0'],
+  ['counters', { op: 'counters', target: 'self', counter: '+1/+1', amount: 0 }, 'counters 0'],
+  ['lose-life', { op: 'lose-life', amount: 0, who: 'each-opponent' }, 'lose-life 0'],
+  ['discard', { op: 'discard', amount: 0, who: 'target-player' }, 'discard 0'],
+  ['energy', { op: 'energy', amount: 0 }, 'energy 0'],
+  ['poison', { op: 'poison', amount: 0, who: 'each-opponent' }, 'poison 0'],
+  ['prevent-damage', { op: 'prevent-damage', target: 'self', amount: 0, duration: 'eot' }, 'prevent-damage 0'],
+  ['search', { op: 'search', filter: { types: ['Creature'] }, to: 'hand', count: 0 }, 'search count 0'],
+  ['dig', { op: 'dig', look: 0, take: 0, rest: 'bottom', order: 'any' }, 'dig look 0'],
+  ['loot', { op: 'loot', draw: 0, discard: 0 }, 'loot draw 0, discard 0'],
+  ['grant-keyword', { op: 'grant-keyword', target: 'self', keywords: [], duration: 'eot' }, 'grant-keyword grants no keyword'],
+];
+
+test('substantiveCount: an effect with a zero MAGNITUDE is not behaviour', () => {
+  // THE ROUND-5 BLOCKER: substantiveCount judged an effect by its op alone, so `{ op: 'draw', amount: 0 }` counted
+  // as behaviour and one zero-magnitude effect per line satisfied the whole budget.
+  for (const [label, effect, reason] of ZERO_EFFECTS) {
+    assert.equal(zeroMagnitudeReason(effect), reason, label);
+    assert.equal(substantiveCount([effect]), 0, `${label}: a zero magnitude does nothing`);
+    assert.deepEqual(insubstantiveReasons([effect]), [`effect has zero magnitude: ${reason}`], label);
+  }
+
+  // a numeric STRING zero is the same zero
+  assert.equal(substantiveCount([{ op: 'draw', amount: '0' as unknown as number, who: 'you' }]), 0);
+
+  // …and every magnitude the game resolves later is real behaviour: 'X', a count expression, a plain number
+  const amounts: Extract<Effect, { op: 'draw' }>['amount'][] = ['X', { count: 'creatures-you-control' }, 1];
+  for (const amount of amounts) {
+    assert.equal(zeroMagnitudeReason({ op: 'draw', amount, who: 'you' }), null, JSON.stringify(amount));
+    assert.equal(substantiveCount([{ op: 'draw', amount, who: 'you' }]), 1, JSON.stringify(amount));
+  }
+  assert.equal(substantiveCount([{ op: 'damage', amount: 'X', target: { kind: 'any' } }]), 1);
+  assert.equal(substantiveCount([{ op: 'token', count: { count: 'creatures-you-control' }, power: 1, toughness: 1, colors: [], types: ['Creature'], subtypes: ['Rat'], keywords: [] }]), 1);
+
+  // the numbers that are NOT gates, because a zero there still does something
+  assert.equal(substantiveCount([{ op: 'pump', target: 'self', power: 0, toughness: 0, keywords: ['flying'], duration: 'eot' }]), 1,
+    'a +0/+0 pump that grants a keyword is alive on the keyword alone');
+  assert.equal(substantiveCount([{ op: 'dig', look: 3, take: 0, rest: 'top', order: 'any' }]), 1,
+    'a dig that takes nothing still looks at the top of the library and reorders it (parse.ts:520)');
+  assert.equal(substantiveCount([{ op: 'loot', draw: 1, discard: 0 }]), 1);
+  assert.equal(substantiveCount([{ op: 'set-life', amount: 0, who: 'each-player' }]), 1, 'set-life 0 is lethal, not empty');
+  assert.equal(substantiveCount([{ op: 'destroy', target: { kind: 'creature' } }]), 1, 'an op with no magnitude is substantive by nature');
+  assert.equal(substantiveCount([{ op: 'token', count: 1, power: 0, toughness: 0, colors: [], types: ['Creature'], subtypes: ['Ballista'], keywords: [] }]), 1,
+    'a 0/0 token still enters the battlefield');
+
+  // a container is dead when everything inside it is, however deep
+  assert.equal(substantiveCount([{ op: 'conditional', condition: { kind: 'your-turn' }, then: [{ op: 'draw', amount: 0, who: 'you' }] }]), 0);
+  assert.equal(substantiveCount([{ op: 'choose-mode', count: 1, modes: [[{ op: 'draw', amount: 0, who: 'you' }], [DRAW]] }]), 1);
+
+  // a static ability's own magnitude counts the same way
+  const anthem = (rest: { power?: number; keywords?: Keyword[] }): ScriptAbility => ({
+    kind: 'static', text: 'x',
+    effect: { kind: 'anthem', power: rest.power ?? 0, toughness: 0, filter: {}, scope: 'you-control', keywords: rest.keywords },
+  });
+  assert.match(abilityClaimProblem(anthem({}), 'x')!, /static effect has zero magnitude: anthem \+0\/\+0 and grants nothing/);
+  assert.equal(abilityClaimProblem(anthem({ keywords: ['flying'] }), 'x'), null);
+  assert.equal(abilityClaimProblem(anthem({ power: 1 }), 'x'), null);
+  const noKeywords: ScriptAbility = { kind: 'static', effect: { kind: 'self-keywords', keywords: [] }, text: 'x' };
+  assert.match(abilityClaimProblem(noKeywords, 'x')!, /self-keywords grants no keyword/);
+});
+
+test('applyScript: a zero-magnitude effect claims no line — one "draw 0" per line finishes nothing', () => {
+  const refocus = db.get('Refocus')!;
+  const lines = normalizeOracleLines(refocus);
+  assert.deepEqual(lines, ['Untap target creature.', 'Draw a card.']);
+
+  // the recipe the review found: one zero-magnitude effect per line, one line per ability, budget satisfied
+  const dead = (text: string): ScriptAbility => ({ kind: 'spell', effects: [{ op: 'draw', amount: 0, who: 'you' }], text });
+  const script = scriptFor('Refocus', { abilities: lines.map(dead) });
+  const applied = applyScript(refocus, script);
+  assert.deepEqual(applied.unparsed, lines, 'neither line is claimed');
+  assert.equal(applied.fullyParsed, false);
+  const problems = faceClaimProblems(script, 'Refocus');
+  assert.equal(problems.length, 2);
+  for (const why of problems) assert.match(why, /ability has no substantive effect: effect has zero magnitude: draw 0/);
+  assert.ok(CardScriptChecked.safeParse(script).success, 'the file-level schema cannot see it — the effects array is not empty');
+
+  // one real effect per line finishes the card
+  const alive = scriptFor('Refocus', { abilities: [{ kind: 'spell', effects: [UNTAP], text: lines[0] }, { kind: 'spell', effects: [DRAW], text: lines[1] }] });
+  assert.deepEqual(applyScript(refocus, alive).unparsed, []);
+  assert.equal(applyScript(refocus, alive).fullyParsed, true);
+
+  // …and a zero magnitude does not top up a BUDGET either: two lines, one real effect and one dead one
+  const padded = scriptFor('Refocus', { abilities: [{ kind: 'spell', effects: [UNTAP, { op: 'draw', amount: 0, who: 'you' }], text: lines.join('\n') }] });
+  assert.match(abilityClaimProblem(padded.abilities![0], 'Refocus')!, /^ability names 2 lines but declares only 1 substantive effect$/);
+  assert.deepEqual(applyScript(refocus, padded).unparsed, lines);
+});
+
 test('applyScript: an ability may claim at most one line per substantive effect', () => {
   // THE ROUND-3 BLOCKER: an instant/sorcery's single `spell` ability carries the WHOLE face text (parse.ts:1358),
   // so without a budget one `draw` would finish every line of a card.
@@ -415,6 +517,72 @@ test('applyScript: a line made only of keywords the face has is claimed by them'
   assert.equal(keywordLineClaimed('Flying, first strike', { keywords: ['flying', 'first strike'] }), true);
   assert.equal(keywordLineClaimed('Flying, first strike', { keywords: ['flying'] }), false);
   assert.match(keywordPartProblem('Bushido 1', { keywords: ['bushido'], bushido: 2 })!, /needs bushido 1/);
+});
+
+test('keywords: a "Ward — <non-mana cost>" line is not claimable by a ward declaration at all', () => {
+  // THE ROUND-5 MINOR: the non-mana branch returned null from both checks, so any `wardCost` claimed
+  // "Ward—Pay 3 life." — a cost `wardCost: number` cannot express, and one the engine would never charge.
+  const witch = db.get('Sedgemoor Witch')!;
+  const ward = 'Ward—Pay 3 life.';
+  assert.ok(normalizeOracleLines(witch).includes(ward));
+
+  const declared: ScriptFace = { keywords: ['ward'], wardCost: 3 };
+  assert.match(keywordPartProblem(ward, declared)!, /prints the non-mana ward cost "Pay 3 life".*script the line as a triggered ability instead/);
+  assert.equal(keywordLineClaimed(ward, declared), false);
+  assert.match(coverProblem(declared, { line: ward, by: 'ward' })!, /^names by 'ward' but the line prints the non-mana ward cost/);
+  for (const wardCost of [0, 3, 99]) assert.ok(coverProblem({ wardCost }, { line: ward, by: 'ward' }), `wardCost ${wardCost} must not claim it either`);
+
+  const kept = applyScript(witch, scriptFor('Sedgemoor Witch', { mode: 'extend', keywords: ['menace', 'ward'], wardCost: 3 }));
+  assert.ok(kept.unparsed.includes(ward), 'the line stays unclaimed');
+
+  // scripted as an ability of its own, it is claimed like any other line
+  const scripted = applyScript(witch, scriptFor('Sedgemoor Witch', {
+    mode: 'extend',
+    abilities: [{ kind: 'triggered', event: { on: 'targeted', self: true }, effects: [{ op: 'counter', target: { kind: 'spell' }, unlessPay: 3 }], text: ward }],
+  }));
+  assert.ok(!scripted.unparsed.includes(ward), 'an ability whose text is the line claims it');
+
+  // the mana form is untouched: "Ward {2}" still needs wardCost 2
+  assert.equal(keywordLineClaimed('Ward {2}', { keywords: ['ward'], wardCost: 2 }), true);
+  assert.equal(keywordLineClaimed('Ward {2}', { keywords: ['ward'], wardCost: 3 }), false);
+  assert.equal(coverProblem({ wardCost: 2 }, { line: 'Ward {2}', by: 'ward' }), null);
+});
+
+test('covers: costModifiers compare the printed reduction, and affinity its subject', () => {
+  // THE ROUND-5 MINOR: the rule asked only for a costModifier of kind 'reduce' and never looked at the amount.
+  const frogmite = db.get('Frogmite')!;
+  const line = 'Affinity for artifacts';
+  assert.deepEqual(normalizeOracleLines(frogmite), [line]);
+  assert.deepEqual(frogmite.costModifiers, [{ kind: 'reduce', amount: { count: 'permanents-you-control', filter: { types: ['Artifact'] } } }]);
+  assert.equal(coverProblem({ costModifiers: frogmite.costModifiers }, { line, by: 'costModifiers' }), null);
+
+  // a reduce that counts something else, a fixed number, or another kind entirely is not affinity for artifacts
+  assert.match(coverProblem({ costModifiers: [{ kind: 'reduce', amount: { count: 'permanents-you-control', filter: { subtypes: ['Sliver'] } } }] }, { line, by: 'costModifiers' })!,
+    /the line is affinity for "artifacts", so its reduce must count that subject/);
+  assert.ok(coverProblem({ costModifiers: [{ kind: 'reduce', amount: 2 }] }, { line, by: 'costModifiers' }));
+  assert.ok(coverProblem({ costModifiers: [{ kind: 'delve' }] }, { line, by: 'costModifiers' }));
+  // …and the named type is matched singular or plural (parse.ts:1285 writes the subtype)
+  assert.equal(coverProblem({ costModifiers: [{ kind: 'reduce', amount: { count: 'permanents-you-control', filter: { subtypes: ['Sliver'] } } }] }, { line: 'Affinity for Slivers', by: 'costModifiers' }), null);
+
+  // "~ costs {N} less to cast …": a literal reduction must equal the printed symbols
+  const flat = "~ costs {3} less to cast if you've gained 3 or more life this turn.";
+  assert.equal(coverProblem({ costModifiers: [{ kind: 'reduce', amount: 3 }] }, { line: flat, by: 'costModifiers' }), null);
+  assert.match(coverProblem({ costModifiers: [{ kind: 'reduce', amount: 2 }] }, { line: flat, by: 'costModifiers' })!, /the line prints a reduction of \{3\}/);
+  // …and an EXPRESSION amount is only ever printed by a "for each …" line, scaled by the printed number
+  assert.match(coverProblem({ costModifiers: [{ kind: 'reduce', amount: { count: 'cards-in-graveyard' } }] }, { line: flat, by: 'costModifiers' })!,
+    /a count-expression amount is only printed by a 'for each …' line/);
+  const reveler = db.get('Bedlam Reveler')!;
+  const perEach = normalizeOracleLines(reveler).find(l => l.startsWith('~ costs'))!;
+  assert.equal(perEach, '~ costs {1} less to cast for each instant and sorcery card in your graveyard.');
+  assert.equal(coverProblem({ costModifiers: reveler.costModifiers }, { line: perEach, by: 'costModifiers' }), null);
+  const domain = '~ costs {2} less to cast for each basic land type among lands you control.';
+  assert.equal(coverProblem({ costModifiers: [{ kind: 'reduce', amount: { count: 'domain', times: 2 } }] }, { line: domain, by: 'costModifiers' }), null);
+  assert.match(coverProblem({ costModifiers: [{ kind: 'reduce', amount: { count: 'domain', times: 3 } }] }, { line: domain, by: 'costModifiers' })!,
+    /the line prints a reduction of \{2\} for each basic land type/);
+
+  // delve / convoke / improvise stay exact-keyword
+  assert.equal(coverProblem({ costModifiers: [{ kind: 'delve' }] }, { line: 'Delve', by: 'costModifiers' }), null);
+  assert.match(coverProblem({ costModifiers: [{ kind: 'reduce', amount: 1 }] }, { line: 'Delve', by: 'costModifiers' })!, /needs a costModifier of kind 'delve'/);
 });
 
 test('applyScript: an ignored line counts as claimed and stops blocking fullyParsed', () => {

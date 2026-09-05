@@ -16,7 +16,8 @@
 // Every claim is BUDGETED, so that a claim always costs the author real behaviour:
 //
 //   * an ability claims a line only when it has a SUBSTANTIVE effect (`substantiveCount`: parser-internal fold
-//     markers and `unknown` count 0), and only one line per substantive effect (`abilityClaimProblem`);
+//     markers and `unknown` count 0, and so does an effect whose MAGNITUDE is zero — `draw 0`, `pump +0/+0`, a
+//     token count of 0), and only one line per substantive effect (`abilityClaimProblem`);
 //   * a keyword claims a line only when the face declares that keyword's PARAMETER too (`Ward {2}` needs
 //     `wardCost: 2`, not just `ward` — `keywordLineProblem`);
 //   * a `covers` entry claims a line only when the declaration it names exists on the face, the line matches an
@@ -30,7 +31,7 @@ import path from 'node:path';
 import { projectRoot } from '../config/paths.js';
 import { keywordFromText } from './parse.js';
 import type { PoolTier } from './pool.js';
-import type { Ability, AbilityCost, AltCost, AsEnters, CardDef, Condition, CostModifier, Effect, Filter, Keyword, ManaCost } from './types.js';
+import type { Ability, AbilityCost, AltCost, Amount, AsEnters, CardDef, Condition, CostModifier, Effect, Filter, Keyword, ManaCost, StaticEffect } from './types.js';
 
 /** Where a script came from. Precedence for `put()`: hand > reviewed > llm > generated. */
 export type ScriptSource = 'generated' | 'llm' | 'reviewed' | 'hand';
@@ -491,6 +492,123 @@ const CONTAINER_OPS: ReadonlySet<string> = new Set<string>([
   'conditional', 'optional-then', 'optional-pay', 'choose-mode', 'delayed-trigger', 'gain-ability',
 ]);
 
+// --- magnitudes ------------------------------------------------------------
+//
+// An op alone does not say whether an effect DOES anything. `{ op: 'draw', amount: 0 }` is a legal `Effect` and a
+// legal script entry, and it draws nothing; so are `scry 0`, `pump +0/+0`, a `token` with `count: 0` and a
+// `grant-keyword` with an empty keyword list. Without a magnitude rule an author could write one such effect per
+// oracle line — "draw 0" twice on a two-line card — and satisfy the whole line budget with a card that never
+// changes the game state.
+
+/** One way an effect can be dead: every field in `zero` is a literal 0 and no field in `unlessAny` is a non-empty list. */
+interface MagnitudeRule {
+  zero: readonly string[];
+  unlessAny?: readonly string[];
+  /** How the reason reads after the op: "draw 0", "token count 0", "pump 0/0 and grants no keyword". */
+  label: string;
+}
+
+const AMOUNT: MagnitudeRule = { zero: ['amount'], label: '0' };
+const COUNT: MagnitudeRule = { zero: ['count'], label: 'count 0' };
+
+/**
+ * The magnitude of every op that carries one, named EXPLICITLY, because the field that gates an op is not always
+ * the only number the op holds:
+ *
+ *   * a `token` with `count: 0` creates nothing whatever the token's power is, so only `count` gates it;
+ *   * a `dig` with `take: 0` still looks at the top of the library and reorders it (parse.ts:520, "look at the top
+ *     N cards, then put them back in any order"), so only `look` gates it;
+ *   * `loot` and `pump` are dead only when BOTH of their numbers are zero — "draw 1, discard 0" and "+2/+0" each do
+ *     something — and a +0/+0 pump that grants a keyword is alive on the keyword alone;
+ *   * `set-life` is deliberately absent: `set-life 0` is lethal, not empty.
+ *
+ * A literal `0`, or the numeric string `"0"`, is the only dead value. `'X'` and an `Amount` COUNT EXPRESSION are
+ * magnitudes the game resolves later and always count as behaviour (an author who means "X" writes `'X'`, not 0).
+ * Ops with no magnitude at all — destroy, exile, tap, untap, sacrifice-self, counter, bounce, fight,
+ * transform-self, proliferate, … — are substantive by nature and are not listed here.
+ */
+const MAGNITUDE_RULES: Record<string, readonly MagnitudeRule[]> = {
+  damage: [AMOUNT], 'damage-you': [AMOUNT], draw: [AMOUNT], discard: [AMOUNT], 'gain-life': [AMOUNT],
+  'lose-life': [AMOUNT], mill: [AMOUNT], scry: [AMOUNT], surveil: [AMOUNT], energy: [AMOUNT], poison: [AMOUNT],
+  counters: [AMOUNT], 'player-counter': [AMOUNT], amass: [AMOUNT], renown: [AMOUNT], earthbend: [AMOUNT],
+  'look-top': [AMOUNT], 'put-from-hand': [AMOUNT], 'prevent-damage': [AMOUNT], sacrifice: [AMOUNT],
+  'add-mana': [AMOUNT],
+  token: [COUNT], 'token-copy': [COUNT], impulse: [COUNT], 'return-own': [COUNT], search: [COUNT],
+  'search-land': [COUNT], 'untap-choose': [COUNT], 'extra-land': [COUNT],
+  dig: [{ zero: ['look'], label: 'look 0' }],
+  loot: [{ zero: ['draw', 'discard'], label: 'draw 0, discard 0' }],
+  pump: [{ zero: ['power', 'toughness'], unlessAny: ['keywords'], label: '0/0 and grants no keyword' }],
+};
+
+/** Ops whose whole content is a LIST: an empty one grants nothing. */
+const EMPTY_LIST_RULES: Record<string, { field: string; label: string }> = {
+  'grant-keyword': { field: 'keywords', label: 'grants no keyword' },
+  'multi-counters': { field: 'counters', label: 'puts no counter' },
+};
+
+/**
+ * The same for a `static` ability's effect, keyed by its `kind`: an anthem of +0/+0 that grants no keyword and no
+ * landwalk changes nothing, and neither does `self-pt` +0/+0 or `self-keywords` with an empty list. `aura` and
+ * `equipment` are deliberately NOT listed: a 0/0 aura can still say `cantAttack` / `doesntUntap`, which is real
+ * behaviour.
+ */
+const STATIC_MAGNITUDE_RULES: Record<string, readonly MagnitudeRule[]> = {
+  anthem: [{ zero: ['power', 'toughness'], unlessAny: ['keywords', 'landwalk'], label: '+0/+0 and grants nothing' }],
+  'self-pt': [{ zero: ['power', 'toughness'], label: '+0/+0' }],
+  'extra-blocks': [AMOUNT],
+};
+
+const STATIC_EMPTY_LIST_RULES: Record<string, { field: string; label: string }> = {
+  'self-keywords': { field: 'keywords', label: 'grants no keyword' },
+};
+
+/** A literal zero: `0` or the numeric string `"0"`. `'X'`, `'all'`, `'hand'` and count expressions are not. */
+function isZeroMagnitude(v: unknown): boolean {
+  if (typeof v === 'number') return v === 0;
+  if (typeof v === 'string') { const t = v.trim(); return t !== '' && Number(t) === 0; }
+  return false;
+}
+
+/** The shared lookup behind `zeroMagnitudeReason` and `zeroStaticMagnitudeReason`. */
+function zeroReason(
+  key: string,
+  holder: Record<string, unknown>,
+  rules: Record<string, readonly MagnitudeRule[]>,
+  lists: Record<string, { field: string; label: string }>,
+): string | null {
+  const list = lists[key];
+  if (list) {
+    const v = holder[list.field];
+    if (!Array.isArray(v) || v.length === 0) return `${key} ${list.label}`;
+  }
+  for (const rule of rules[key] ?? []) {
+    if (!rule.zero.length || !rule.zero.every(f => isZeroMagnitude(holder[f]))) continue;
+    if (rule.unlessAny?.some(f => Array.isArray(holder[f]) && (holder[f] as unknown[]).length > 0)) continue;
+    return `${key} ${rule.label}`;
+  }
+  return null;
+}
+
+/**
+ * Why this effect's MAGNITUDE means it does nothing — `"draw 0"`, `"token count 0"`,
+ * `"pump 0/0 and grants no keyword"` — or `null` when it carries real behaviour. `scripts:check` prints it as
+ * `ability has no substantive effect: effect has zero magnitude: draw 0`.
+ */
+export function zeroMagnitudeReason(effect: Effect): string | null {
+  if (!effect || typeof effect !== 'object') return null;
+  const op = (effect as { op?: string }).op;
+  if (!op) return null;
+  return zeroReason(op, effect as unknown as Record<string, unknown>, MAGNITUDE_RULES, EMPTY_LIST_RULES);
+}
+
+/** The same for the effect of a `static` ability, keyed by its `kind` (`anthem +0/+0`, `self-keywords` with none). */
+export function zeroStaticMagnitudeReason(effect: StaticEffect | null | undefined): string | null {
+  if (!effect || typeof effect !== 'object') return null;
+  const kind = (effect as { kind?: string }).kind;
+  if (!kind) return null;
+  return zeroReason(kind, effect as unknown as Record<string, unknown>, STATIC_MAGNITUDE_RULES, STATIC_EMPTY_LIST_RULES);
+}
+
 /**
  * Every `Effect[]` nested anywhere inside ONE effect's own fields, found generically — an array whose every element
  * is an object with an `op`. `conditional.then` / `.else`, `optional-then.first` / `.then`, `optional-pay.then`,
@@ -516,6 +634,8 @@ function nestedEffectArrays(effect: Effect): Effect[][] {
  * How many of these effects DO something.
  *
  *   * a `MARKER_OPS` op counts 0 — it is a parser-internal fold marker, not behaviour;
+ *   * an effect whose MAGNITUDE is zero counts 0 (`zeroMagnitudeReason`): `draw 0` draws nothing, a `token` with
+ *     `count: 0` creates nothing, `pump +0/+0` with no keywords changes nothing;
  *   * a CONTAINER (`conditional`, `optional-then`, `optional-pay`, `delayed-trigger`, plus any op the generic walk
  *     finds a nested `Effect[]` in) counts 1 only when it holds at least one substantive effect, recursively;
  *   * `choose-mode` counts once per SUBSTANTIVE MODE: each mode is a separate thing the card can do, and a two-mode
@@ -532,6 +652,7 @@ export function substantiveCount(effects: readonly Effect[] | undefined): number
     if (!e || typeof e !== 'object') continue;
     const op = (e as { op?: string }).op;
     if (!op || MARKER_OP_SET.has(op)) continue;
+    if (zeroMagnitudeReason(e)) continue;
     if (op === 'choose-mode') {
       for (const mode of (e as Extract<Effect, { op: 'choose-mode' }>).modes ?? []) if (substantiveCount(mode) > 0) n++;
       continue;
@@ -554,7 +675,8 @@ export function substantiveCount(effects: readonly Effect[] | undefined): number
  * engine, and a script of fold markers would do the same one level down.
  *
  *   * `spell` / `triggered` / `activated`: `substantiveCount(effects) >= 1`;
- *   * `static`: an `effect` whose `kind` is not `unknown`.
+ *   * `static`: an `effect` whose `kind` is not `unknown` and whose magnitude is not zero
+ *     (`zeroStaticMagnitudeReason` — an anthem of +0/+0 that grants nothing is not behaviour either).
  *
  * An `unknown` anywhere inside the ability disqualifies it too, so the line it was meant to cover is reported as
  * unclaimed rather than silently swallowed.
@@ -565,8 +687,30 @@ export function substantiveCount(effects: readonly Effect[] | undefined): number
  */
 export function abilityIsSubstantive(ability: Ability): boolean {
   if (!ability || hasUnknown(ability)) return false;
-  if (ability.kind === 'static') return !!ability.effect && ability.effect.kind !== 'unknown';
+  if (ability.kind === 'static') return !!ability.effect && ability.effect.kind !== 'unknown' && !zeroStaticMagnitudeReason(ability.effect);
   return substantiveCount(ability.effects) > 0;
+}
+
+/**
+ * Why each of these effects is NOT substantive, one reason per dead effect and in order — what `scripts:check`
+ * prints after `ability has no substantive effect:`, so the author is told which effect is empty and why
+ * (`effect has zero magnitude: draw 0`) rather than only that the ability declares nothing.
+ */
+export function insubstantiveReasons(effects: readonly Effect[] | undefined): string[] {
+  const out: string[] = [];
+  for (const e of effects ?? []) {
+    if (!e || typeof e !== 'object') { out.push('a malformed effect'); continue; }
+    if (substantiveCount([e]) > 0) continue;
+    const op = (e as { op?: string }).op ?? '(no op)';
+    if (op === 'unknown') { out.push('an unknown effect'); continue; }
+    if (MARKER_OP_SET.has(op)) { out.push(`a parser-internal fold marker (${op})`); continue; }
+    const zero = zeroMagnitudeReason(e);
+    if (zero) { out.push(`effect has zero magnitude: ${zero}`); continue; }
+    if (op === 'choose-mode') { out.push('choose-mode with no substantive mode'); continue; }
+    if (op === 'gain-ability') { out.push('gain-ability granting an ability that does nothing'); continue; }
+    out.push(`${op} holds nothing substantive`);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -589,7 +733,18 @@ const PARAM_KEYWORD: [re: RegExp, keyword: Keyword, field: 'toxic' | 'bushido' |
 
 const LANDWALK_RE = /^(plains|island|swamp|mountain|forest|desert)walk$/i;
 const PROTECTION_RE = /^protection from (.+)$/i;
-const WARD_LINE_RE = /^ward (\{(\d+)\}|[—-].+)$/i;
+/**
+ * A ward line in either printed form: `Ward {2}`, a generic mana cost `wardCost` can express (`m[1]` is the
+ * number), or `Ward—Discard a card.` / `Ward—Pay 3 life.`, a cost this format has NO field for (`m[2]` is the
+ * printed cost). The two are captured separately because only the first is ever claimable by a `ward` declaration
+ * — see `keywordPartProblem` and `COVER_RULES.ward`.
+ */
+const WARD_LINE_RE = /^ward(?: \{(\d+)\}|\s*[—-]\s*(.+?))\.?$/i;
+
+/** Why a non-mana ward line cannot be claimed by a `ward` declaration, whatever `wardCost` says. */
+const WARD_NON_MANA = (cost: string) =>
+  `prints the non-mana ward cost ${JSON.stringify(cost)}, and wardCost is a number — this format cannot express it, `
+  + 'so script the line as a triggered ability instead';
 
 /** The qualities a "Protection from X" line lists, split the way `parse.ts` splits them (parse.ts:1214, :1226). */
 function protectionQualities(rest: string): string[] {
@@ -626,8 +781,11 @@ export function keywordPartProblem(part: string, face: KeywordParams): string | 
     return missing.length ? `${JSON.stringify(p)} needs protectionFrom to list ${JSON.stringify(missing)} (declared ${JSON.stringify(face.protectionFrom ?? [])})` : null;
   }
   if ((m = WARD_LINE_RE.exec(p))) {
+    // "Ward—Discard a card." is a ward whose cost is not mana; `wardCost` is a number, so no ward declaration
+    // implements it and the line has to be scripted as an ability of its own
+    if (m[2] !== undefined) return `${JSON.stringify(p)} ${WARD_NON_MANA(m[2])}`;
     const why = needs('ward'); if (why) return why;
-    if (m[2] !== undefined && face.wardCost !== Number(m[2])) return `${JSON.stringify(p)} needs wardCost ${m[2]} (declared ${String(face.wardCost)})`;
+    if (face.wardCost !== Number(m[1])) return `${JSON.stringify(p)} needs wardCost ${m[1]} (declared ${String(face.wardCost)})`;
     return null;
   }
   if ((m = LANDWALK_RE.exec(p))) {
@@ -707,10 +865,16 @@ export function abilityLogicalLines(text: string, cardName: string): string[] {
 export function abilityClaimProblem(ability: Ability, cardName: string): string | null {
   if (!abilityIsSubstantive(ability)) {
     if (hasUnknown(ability)) return 'ability has no substantive effect: it is nothing but an unknown';
-    if (ability.kind === 'static') return 'ability has no substantive effect: its static effect is unknown or missing';
-    return (ability.effects?.length ?? 0) === 0
-      ? 'ability has no substantive effect: it declares no effect'
-      : 'ability has no substantive effect: every effect it declares is a parser-internal fold marker';
+    if (ability.kind === 'static') {
+      const zero = zeroStaticMagnitudeReason(ability.effect);
+      return zero ? `ability has no substantive effect: static effect has zero magnitude: ${zero}`
+        : 'ability has no substantive effect: its static effect is unknown or missing';
+    }
+    if ((ability.effects?.length ?? 0) === 0) return 'ability has no substantive effect: it declares no effect';
+    const why = insubstantiveReasons(ability.effects);
+    return why.every(w => w.startsWith('a parser-internal fold marker'))
+      ? 'ability has no substantive effect: every effect it declares is a parser-internal fold marker'
+      : `ability has no substantive effect: ${why.join('; ')}`;
   }
   const lines = abilityLogicalLines(ability.text, cardName);
   if (lines.length <= 1) return null;
@@ -789,6 +953,32 @@ const ADDITIONAL_COST_VERB: [re: RegExp, has: (c: AbilityCost) => boolean, field
 
 /** A kind whose declaration carries no value to match: existing at all is the whole of rule (iii). */
 const noValue = (): string | null => null;
+
+/**
+ * The total GENERIC mana a run of symbols prints (`"{2}"` -> 2, `"{1}{1}"` -> 2), or null when any symbol is not a
+ * plain number — a coloured reduction has no single number to compare a declared `amount` to.
+ */
+function genericTotal(symbols: string): number | null {
+  const found = symbols.match(/\{[^}]*\}/g) ?? [];
+  if (!found.length) return null;
+  let n = 0;
+  for (const s of found) { const inner = s.slice(1, -1); if (!/^\d+$/.test(inner)) return null; n += Number(inner); }
+  return n;
+}
+
+/**
+ * Whether a `reduce` amount is a COUNT over the subject an "Affinity for X" line prints: the printed noun, singular
+ * or plural, must be named by the count expression's filter — `Affinity for artifacts` needs
+ * `{ count: 'permanents-you-control', filter: { types: ['Artifact'] } }` and `Affinity for Slivers` the `Sliver`
+ * subtype, which is what parse.ts:1285 writes. A plain numeric amount is never an affinity: affinity scales with
+ * the board, so a fixed reduction does not implement it.
+ */
+function countsSubject(amount: Amount, subject: string): boolean {
+  if (!amount || typeof amount !== 'object') return false;
+  const want = new Set([subject, subject.replace(/s$/, '')]);
+  const names: (string | undefined)[] = [...(amount.filter?.types ?? []), ...(amount.filter?.subtypes ?? []), amount.count];
+  return names.some(n => typeof n === 'string' && want.has(n.toLowerCase()));
+}
 
 /** An `AsEnters` of the kind and parameters the line printed, or a description of what is missing. */
 function asEntersProblem(f: ScriptFace, want: (a: AsEnters) => boolean, describe: string): string | null {
@@ -892,13 +1082,39 @@ export const COVER_RULES: Record<CoverKind, CoverRule> = {
     lines: [
       /^(delve|convoke|improvise)$/i,
       /^affinity for (.+?)\.?$/i,
-      /^~ costs \{.+\} less to cast(?: .+?)?\.?$/i,
+      /^~ costs (\{.+?\}) less to cast(?: (.+?))?\.?$/i,
     ],
     declared: f => !!f.costModifiers?.length,
     value: (f, m, idx) => {
-      const want = idx === 0 ? m[1].toLowerCase() : 'reduce';
-      return (f.costModifiers ?? []).some(c => c.kind === want) ? null
-        : `the line needs a costModifier of kind '${want}', and this face declares ${JSON.stringify((f.costModifiers ?? []).map(c => c.kind))}`;
+      const kinds = (f.costModifiers ?? []).map(c => c.kind);
+      // delve / convoke / improvise carry no value: the keyword IS the declaration
+      if (idx === 0) {
+        const want = m[1].toLowerCase();
+        return kinds.includes(want as CostModifier['kind']) ? null
+          : `the line needs a costModifier of kind '${want}', and this face declares ${JSON.stringify(kinds)}`;
+      }
+      const reduces = (f.costModifiers ?? []).filter(c => c.kind === 'reduce');
+      if (!reduces.length) return `the line needs a costModifier of kind 'reduce', and this face declares ${JSON.stringify(kinds)}`;
+      const amounts = reduces.map(c => c.amount);
+      // "Affinity for artifacts" reduces by the number of artifacts, so the reduce must COUNT that subject
+      if (idx === 1) {
+        const subject = m[1].trim().toLowerCase();
+        return amounts.some(a => countsSubject(a, subject)) ? null
+          : `the line is affinity for ${JSON.stringify(m[1])}, so its reduce must count that subject, and this face declares ${JSON.stringify(amounts)}`;
+      }
+      // "~ costs {2} less to cast …": a literal reduction must equal the printed symbols; a count EXPRESSION is
+      // only ever printed by a "for each …" line, and is scaled by the printed number (parse.ts:1284-1289)
+      const printed = genericTotal(m[1]);
+      const forEach = /^for each\b/i.test((m[2] ?? '').trim());
+      const matches = (a: Amount): boolean => {
+        if (typeof a === 'number') return printed === null || a === printed;
+        if (!forEach) return false;
+        return typeof a === 'object' && printed !== null ? (a.times ?? 1) === printed : true;
+      };
+      if (amounts.some(matches)) return null;
+      const expression = !forEach && amounts.some(a => typeof a !== 'number');
+      return `the line prints a reduction of ${m[1]}${m[2] ? ` ${m[2]}` : ''} but this face declares ${JSON.stringify(amounts)}`
+        + (expression ? " (a count-expression amount is only printed by a 'for each …' line)" : '');
     },
   },
   kicker: {
@@ -969,8 +1185,11 @@ export const COVER_RULES: Record<CoverKind, CoverRule> = {
   ward: {
     lines: [WARD_LINE_RE],
     declared: f => f.wardCost !== undefined,
-    value: (f, m) => m[2] === undefined || f.wardCost === Number(m[2]) ? null
-      : `the line prints ward ${m[1]} but this face declares wardCost ${String(f.wardCost)}`,
+    value: (f, m) => {
+      if (m[2] !== undefined) return `the line ${WARD_NON_MANA(m[2])}`;
+      return f.wardCost === Number(m[1]) ? null
+        : `the line prints ward {${m[1]}} but this face declares wardCost ${String(f.wardCost)}`;
+    },
   },
   additionalCosts: {
     lines: [/^as an additional cost to cast ~, (.+?)\.?$/i],
