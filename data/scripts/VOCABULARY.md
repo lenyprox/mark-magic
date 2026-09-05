@@ -1215,7 +1215,7 @@ alternative costs are built out of (exile the source, sacrifice / return / exile
 
 * engine: `src/engine/ops/cost-alter.ts` — zod mirror: `src/engine/ops/cost-alter.schema.ts`
 * parser rules: `src/cards/rules/cost-alter.ts`
-* scenarios: `test/scenarios/cost-alter.ts` (19, one per op / static / cost part / amount / target kind and per
+* scenarios: `test/scenarios/cost-alter.ts` (29, one per op / static / cost part / amount / target kind and per
   keyword parameter)
 
 Rule numbers refer to the Comprehensive Rules bundled in `data/rules/cr.json`.
@@ -1372,6 +1372,9 @@ could not express.
 | `returnToHandMany` | `{ filter, count }` | return `count` matching permanents you control to their owner's hand (the source included) | 118.3 |
 | `exileFromGraveyardMatching` | `{ count, filter? }` | exile `count` cards matching `filter` from your graveyard, never the source itself; the core `exileFromGraveyard` part counts but cannot filter | 118.3 |
 
+The last three are zone-keyed too (`zoneAllows`), just not by their key: see "Why the exile part is split by zone"
+below.
+
 Each is chosen by the paying player through a `choose-cards` decision, and each refuses to be paid when the zone does
 not hold enough — which is what keeps the ability out of `legalActions`.
 
@@ -1380,10 +1383,25 @@ from that zone, and CR 118.4 says a cost is paid from where the ability says. `l
 skip `ab.fromGraveyard`, so a single part payable from either zone made every one of these 56 abilities activatable
 by the permanent *in play* — it would exile itself from the battlefield to get its graveyard ability's effect. A
 part payable only from the graveyard makes `cost.ts:nonManaCostPayable` refuse it there, which is the gate the
-battlefield scan is missing. The hole itself is older and wider than this family: 131 cards whose graveyard ability
-has a core-only cost (Eternal Dragon, Tymaret, every unearth) are still offered on the battlefield, and so are the
-seven whose graveyard ability is reached through `sacrificeMany` (Metalwork Colossus, Dutiful Griffin, …). Only a
-core change closes those — see the report's `coreChangeNeeded` for `legal.ts`.
+battlefield scan is missing.
+
+**How the counted parts are zone-keyed instead.** The same reasoning covers the seven graveyard-only abilities whose
+cost is `sacrificeMany` / `returnToHandMany` / `exileFromGraveyardMatching` — "Sacrifice two artifacts: Return ~ from
+your graveyard to your hand" (Metalwork Colossus, Salvage Titan, Coffin Puppets, Multani Yavimaya's Avatar, Soul
+Shredder, Bin Chicken, Dutiful Griffin), which on the battlefield would sacrifice two artifacts (the source among
+them) to return the source from *play* to hand: a repeatable recursion loop that does not exist in Magic. Those three
+parts cannot be split into two keys the way `exileSelf` was, because the very same key legitimately pays battlefield
+abilities as well (Time Sieve, Flooded Shoreline, Moorland Haunt — 58 of them). Nor can the family mark those
+abilities itself: parse.ts's built-in activated retry (parse.ts:1976) claims those lines before any family line rule
+is offered them, and sets `fromGraveyard` in `addActivated` (parse.ts:1663). What is left is identity — the value a
+cost part is handed *is* the `ab.cost[<key>]` object on the ability being paid for — so `zoneAllows` finds the owning
+ability among `chars.abilitiesOf(self)` and refuses the part outside the graveyard when that ability is
+`fromGraveyard`. An ability without the flag, and an `AltCost` (whose cost object lives on `def.altCosts`, so the
+scan never finds it — Sea Drake), are not gated at all.
+
+The hole itself is older and wider than this family: 131 cards whose graveyard ability has a core-only cost (Eternal
+Dragon, Tymaret, every unearth) are still offered on the battlefield. Only a core change closes those — see the
+report's `coreChangeNeeded` for `legal.ts`.
 
 **Why the source is not excluded from `sacrificeMany` / `returnToHandMany`.** CR 601.2h lets a permanent be
 sacrificed to pay for its own activated ability, which is exactly Time Sieve ({T}, Sacrifice five artifacts — and
@@ -1435,8 +1453,9 @@ Each of these needs a core change; none of them was made here.
 8. **A graveyard ability is still offered while its card is on the battlefield** when its cost is one the core can
    pay there. `legal.ts:legalActions`'s battlefield scan checks `sorcerySpeed`, `oncePerTurn`, `loyalty`, `tap`,
    `untap`, mana, `activateOnlyIf` and `nonManaCostPayable`, but never `ab.fromGraveyard` (CR 113.6b). The family
-   closes its own 56 cards with the zone-gated `exileSelfFromGraveyard` part above; the 131 with core-only costs and
-   the 7 reached through `sacrificeMany` need the one-line core skip in the report's `coreChangeNeeded`.
+   closes all 63 of its own cards — 56 with the zone-gated `exileSelfFromGraveyard` part and the other 7 with
+   `zoneAllows` on the counted parts, both above — but the 131 whose graveyard ability has a core-only cost still
+   need the one-line core skip in the report's `coreChangeNeeded`.
 9. **`freeCast` is not told which alternative cost the cast chose.** `game.ts:571` runs `FREE_CAST_HOOKS`
    unconditionally, unlike the `CAST_FROM_HOOKS` block two lines above it, which is guarded by `!alt`; the hook
    signature is `(g, p, card, from)`. So a `cast-from … free: true` permission would make a flashback/escape/disturb

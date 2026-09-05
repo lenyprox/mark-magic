@@ -190,6 +190,73 @@ export const costAlter: Scenario[] = [
     ],
   },
   {
+    // The other half of the same zone gate, on the three *counted* cost parts (`zoneAllows`). These abilities cannot
+    // be split into a second key the way `exileSelf` was — `sacrificeMany` also pays Time Sieve's battlefield
+    // ability — so the part reads `fromGraveyard` off the ability that carries the very cost object it is handed.
+    // Pinned by competition, like Mother Bear above: Metalwork Colossus's printed graveyard ability is index 0 and
+    // the scripted draw is index 1, so with the gate missing the Colossus sacrifices two artifacts (itself among
+    // them) and returns itself from PLAY to hand — a sacrifice-two-for-recursion loop that does not exist in Magic.
+    name: "Metalwork Colossus's graveyard ability cannot be activated while it is on the battlefield", cr: '113.6b',
+    ruling: 'An ability that states the zone it functions in functions only from that zone: "Return this card from your graveyard to your hand" cannot be activated by the permanent in play.',
+    seats: [{ bf: ['Metalwork Colossus', 'Ornithopter', 'Ornithopter'] }, {}],
+    scripts: { 'Metalwork Colossus': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'draw', amount: 1, who: 'you' }], text: '{T}: Draw a card.' }] } },
+    script: [{ activate: 'Metalwork Colossus' }, { resolve: true }],
+    expect: [
+      { zone: ['Metalwork Colossus', 'battlefield'] },  // it did not return itself to hand from play
+      { zoneCount: [0, 'battlefield', 3] },             // neither Ornithopter was sacrificed
+      { graveyardCount: [0, 0] },
+      { handCount: [0, 1] },                            // the only legal ability was the scripted draw
+    ],
+  },
+  {
+    name: 'Metalwork Colossus does return itself to hand from the graveyard for the same cost', cr: '113.6b',
+    ruling: 'The ability functions from the graveyard, where sacrificing two artifacts you control pays for it.',
+    seats: [{ bf: ['Ornithopter', 'Ornithopter'], graveyard: ['Metalwork Colossus'] }, {}],
+    script: [{ activate: 'Metalwork Colossus' }, { resolve: true }],
+    expect: [
+      { zone: ['Metalwork Colossus', 'hand'] },
+      { zoneCount: [0, 'battlefield', 0] },             // both Ornithopters paid
+      { graveyardCount: [0, 2] },
+    ],
+  },
+  {
+    // The same gate through `exileFromGraveyardMatching`. Without it the Titan exiles the three graveyard artifacts
+    // and returns itself from the battlefield to hand.
+    name: "Salvage Titan's graveyard ability cannot be activated while it is on the battlefield", cr: '113.6b',
+    ruling: 'The cost is paid from the graveyard because that is the zone the ability functions in (CR 118.4).',
+    seats: [{ bf: ['Salvage Titan', 'Ornithopter'], graveyard: ['Ornithopter', 'Ornithopter', 'Ornithopter'] }, {}],
+    scripts: { 'Salvage Titan': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'draw', amount: 1, who: 'you' }], text: '{T}: Draw a card.' }] } },
+    script: [{ activate: 'Salvage Titan' }, { resolve: true }],
+    expect: [
+      { zone: ['Salvage Titan', 'battlefield'] },
+      { graveyardCount: [0, 3] },                       // the three artifact cards were not exiled
+      { zoneCount: [0, 'exile', 0] },
+      { handCount: [0, 1] },
+    ],
+  },
+  {
+    // And through `returnToHandMany`. The one printed card of this shape (Multani, Yavimaya's Avatar) has an
+    // unparsed characteristic-defining power/toughness and so dies to SBA at 0/0 whatever the gate does, which would
+    // confound the pin — the shape is scripted onto Grizzly Bears instead, exactly as Multani's ability is built.
+    name: 'a scripted graveyard-only "return two lands" ability cannot be activated on the battlefield', cr: '113.6b',
+    ruling: 'Returning two lands you control pays for the ability only from the graveyard, the zone it functions in.',
+    seats: [{ bf: ['Grizzly Bears', 'Forest', 'Forest', 'Forest'] }, {}],
+    scripts: {
+      'Grizzly Bears': {
+        abilities: [
+          { kind: 'activated', cost: { returnToHandMany: { filter: { types: ['Land'] }, count: 2 } }, effects: [{ op: 'bounce', target: 'self' }], text: "Return two lands you control to their owner's hand: Return ~ from your graveyard to your hand.", fromGraveyard: true },
+          { kind: 'activated', cost: { tap: true }, effects: [{ op: 'draw', amount: 1, who: 'you' }], text: '{T}: Draw a card.' },
+        ],
+      },
+    },
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
+    expect: [
+      { zone: ['Grizzly Bears', 'battlefield'] },       // it did not return itself to hand from play
+      { zoneCount: [0, 'battlefield', 4] },             // no land was returned to hand either
+      { handCount: [0, 1] },                            // exactly the scripted draw
+    ],
+  },
+  {
     name: 'Time Sieve is one of the five artifacts it sacrifices to pay for its own ability', cr: '601.2h',
     ruling: 'A permanent may be sacrificed to pay for its own activated ability, so five artifacts on the battlefield is enough when Time Sieve is one of them.',
     seats: [{ bf: ['Time Sieve', 'Ornithopter', 'Ornithopter', 'Ornithopter', 'Ornithopter'] }, {}],

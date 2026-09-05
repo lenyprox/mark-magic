@@ -100,11 +100,16 @@ declare module '../../cards/types.js' {
      * `cost.ts:nonManaCostPayable` refuse the ability there, which is the gate the battlefield scan is missing.
      */
     exileSelfFromGraveyard?: boolean;
-    /** "Sacrifice two creatures" — the core `sacrifice` part is exactly one permanent. */
+    /**
+     * "Sacrifice two creatures" — the core `sacrifice` part is exactly one permanent. These three counted parts pay
+     * for battlefield abilities (Time Sieve) and for graveyard-only ones ("Sacrifice two artifacts: Return ~ from
+     * your graveyard to your hand") alike, so unlike `exileSelf` they cannot be split into two keys; the zone they
+     * are payable in is read off the ability that carries them instead (`zoneAllows`, CR 113.6b).
+     */
     sacrificeMany?: { filter: Filter; count: number };
-    /** "Return two Islands you control to their owner's hand" — the core `returnToHand` part is exactly one. */
+    /** "Return two Islands you control to their owner's hand" — the core `returnToHand` part is exactly one. Zone-gated by `zoneAllows` like `sacrificeMany`. */
     returnToHandMany?: { filter: Filter; count: number };
-    /** "Exile three creature cards from your graveyard" — the core `exileFromGraveyard` part cannot filter. */
+    /** "Exile three creature cards from your graveyard" — the core `exileFromGraveyard` part cannot filter. Zone-gated by `zoneAllows` like `sacrificeMany`. */
     exileFromGraveyardMatching?: { count: number; filter?: Filter };
   }
 }
@@ -182,6 +187,34 @@ function castForbidden(s: GameState, p: PlayerId, card: GameObject): boolean {
     }
   }
   return false;
+}
+
+/**
+ * CR 113.6b, 118.4 — the zone key for the three *counted* cost parts below, and the other half of the gate
+ * `exileSelfFromGraveyard` gives the exile-self shape.
+ *
+ * "Sacrifice two artifacts: Return ~ from your graveyard to your hand." (Metalwork Colossus) is an ability that
+ * states the zone it functions in, so it functions only from the graveyard. legal.ts's battlefield scan never looks
+ * at `ab.fromGraveyard` — the only thing keeping such an ability off the permanent in play is its cost being
+ * unpayable there — and these parts *are* payable on the battlefield, so the permanent would sacrifice two artifacts
+ * (itself among them) to return itself from the battlefield to hand: a repeatable recursion loop that does not exist
+ * in Magic. The family cannot mark the ability itself the way the `activated-from-graveyard` line rule marks the
+ * exile-self shape: parse.ts's built-in activated retry claims these lines first (parse.ts:1976) and sets
+ * `fromGraveyard` in `addActivated` (parse.ts:1663), well before any line rule is offered them.
+ *
+ * The link that is left is identity: the `v` a part is handed is the very `ab.cost[<key>]` object legal.ts and
+ * `game.ts:activateAbility` pass to `cost.ts:nonManaCostPayable`, so the owning ability is found by scanning the
+ * source's own abilities for that object. A part on an ability with `fromGraveyard` is payable only from the
+ * graveyard; anything else — Time Sieve's battlefield sacrifice, Sea Drake's alternative cost (whose cost object
+ * lives on `def.altCosts`, not on an ability, so the scan simply does not find it) — is not gated at all.
+ */
+function zoneAllows(self: GameObject, key: string, v: unknown): boolean {
+  if (self.zone === 'graveyard') return true;                          // the zone every gated ability wants anyway
+  for (const ab of chars.abilitiesOf(self)) {
+    if (ab.kind !== 'activated') continue;
+    if ((ab.cost as unknown as Record<string, unknown>)[key] === v) return ab.fromGraveyard !== true;
+  }
+  return true;                                                          // not one of this card's activated costs
 }
 
 /**
@@ -370,10 +403,13 @@ const COST_ALTER: FamilyModule = {
     // "Sacrifice two creatures": the core `sacrifice` part is exactly one permanent (CR 601.2h). The source itself
     // counts — CR 601.2h lets a permanent be sacrificed to pay for its own activated ability, which is the whole of
     // Time Sieve ({T}, Sacrifice five artifacts, and Time Sieve is one of them), Kuldotha Forgemaster and Breya.
+    // `zoneAllows`: the same ability may be a graveyard-only one ("Sacrifice two artifacts: Return ~ from your
+    // graveyard to your hand"), and then this part is payable only from the graveyard (CR 113.6b).
     sacrificeMany: {
-      payable: (v, s, pl, self) => { const c = v as { filter: Filter; count: number }; return pl.battlefield.filter(o => chars.matchesFilter(s, o, c.filter, self)).length >= c.count; },
+      payable: (v, s, pl, self) => { const c = v as { filter: Filter; count: number }; return zoneAllows(self, 'sacrificeMany', v) && pl.battlefield.filter(o => chars.matchesFilter(s, o, c.filter, self)).length >= c.count; },
       async pay(v, g, p, self, label, item) {
         const c = v as { filter: Filter; count: number };
+        if (!zoneAllows(self, 'sacrificeMany', v)) return false;
         const pl = g.state.players[p];
         const opts = pl.battlefield.filter(o => chars.matchesFilter(g.state, o, c.filter, self));
         if (opts.length < c.count) return false;
@@ -387,9 +423,10 @@ const COST_ALTER: FamilyModule = {
     // the source is not excluded: CR 601.2h lets a permanent pay for its own ability with itself. (An alternative
     // cost's source is on the stack while it is paid, so it is never in `battlefield` here anyway.)
     returnToHandMany: {
-      payable: (v, s, pl, self) => { const c = v as { filter: Filter; count: number }; return pl.battlefield.filter(o => chars.matchesFilter(s, o, c.filter, self)).length >= c.count; },
+      payable: (v, s, pl, self) => { const c = v as { filter: Filter; count: number }; return zoneAllows(self, 'returnToHandMany', v) && pl.battlefield.filter(o => chars.matchesFilter(s, o, c.filter, self)).length >= c.count; },
       async pay(v, g, p, self, label) {
         const c = v as { filter: Filter; count: number };
+        if (!zoneAllows(self, 'returnToHandMany', v)) return false;
         const opts = g.state.players[p].battlefield.filter(o => chars.matchesFilter(g.state, o, c.filter, self));
         if (opts.length < c.count) return false;
         const ids = await g.ask(p, { kind: 'choose-cards', from: opts.map(o => o.id), count: c.count, reason: `Return to hand for ${label}`, exact: true }) as number[];
@@ -400,9 +437,10 @@ const COST_ALTER: FamilyModule = {
     },
     // "Exile three creature cards from your graveyard" — the core part counts but cannot filter.
     exileFromGraveyardMatching: {
-      payable: (v, s, pl, self) => { const c = v as { count: number; filter?: Filter }; return pl.graveyard.filter(o => o.id !== self.id && (!c.filter || chars.matchesFilter(s, o, c.filter, self))).length >= c.count; },
+      payable: (v, s, pl, self) => { const c = v as { count: number; filter?: Filter }; return zoneAllows(self, 'exileFromGraveyardMatching', v) && pl.graveyard.filter(o => o.id !== self.id && (!c.filter || chars.matchesFilter(s, o, c.filter, self))).length >= c.count; },
       async pay(v, g, p, self, label) {
         const c = v as { count: number; filter?: Filter };
+        if (!zoneAllows(self, 'exileFromGraveyardMatching', v)) return false;
         const opts = g.state.players[p].graveyard.filter(o => o.id !== self.id && (!c.filter || chars.matchesFilter(g.state, o, c.filter, self)));
         if (opts.length < c.count) return false;
         const ids = await g.ask(p, { kind: 'choose-cards', from: opts.map(o => o.id), count: c.count, reason: `Exile from graveyard for ${label}`, exact: true }) as number[];
