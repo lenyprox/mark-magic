@@ -471,4 +471,127 @@ core".
 * Timestamps for layer 6 / 7b ordering — `lose-abilities` and `set-pt` approximate them as documented above.
 * Cast-time evaluation of which branch of an older container will run: targets inside `conditional` / `optional-then` / `optional-pay` are asked for (see §3) but are *soft* — an empty option list never refuses the cast, and a pick made for a branch that does not run is simply unused. `then` and `else` still share the container's index (the script schema rejects a script that targets in both; four parser-produced kicker cards do, see HANDOFF §3 item 20).
 * `for-each` over players — `scoped` is the player loop.
-* Parser rules for these wordings — slice 9.0b (`src/cards/rules/composition.ts`); until then only scripts emit them.
+* Parser rules for the wordings the parser cannot read safely — see §8 "Declines"; scripts and the scenario DSL's
+  `scripts` field emit those directly.
+
+---
+
+## 8. Parser wordings (Phase 9.0b, `src/cards/rules/composition.ts`)
+
+The composition rule family teaches `src/cards/parse.ts` the generic wordings above. It is consulted only after every
+built-in stage has declined a sentence (the registry contract in `src/cards/rules/types.ts`), so a parse that worked
+before 9.0b is byte-identical; `npm run parse:diff` shows what moved. An effect rule is handed the built-in
+sub-parsers on an `EffectCtx` (targets, filters, amount phrases, costs, conditions, nested effect lists) and, when the
+sentence began with "you may", parse.ts wraps whatever the rule returns in a `may`. Two guards run on every sub-parse
+a rule makes: no `unknown` child, and no subtype that the text does not name. Since the 9.0b review every printed
+word that becomes a `Filter.subtypes` entry — in the built-in filter parser too — goes through the subtype vocabulary
+(`src/cards/subtypes.ts`, generated from the pool by `npm run gen:subtypes` into `src/cards/subtype-vocab.ts`): "Zombies"
+→ `Zombie`, "Plains" → `Plains`, "Heroes" → `Hero`, "Locus" → `Locus`, and a word that is no subtype ("you control",
+"of their choice", "Target", "non-Angel", "legendary", "snow", "without flying") makes the filter — and the sentence —
+unknown rather than a filter no object matches. Wordings are written the way the parser sees them: the card's own
+name is `~`.
+
+| wording | op |
+|---|---|
+| "For each *set*, *effect about it*" (`it`, `that creature`, …) | `for-each` over the set, `do` reads `that` |
+| "For each opponent / player, *effect*" | `scoped` `each-opponent` / `each-player` (no target inside: a target cannot be chosen per player) |
+| "*effect* for each *set*" (a printed 1 becomes the count, k becomes k × it) | the effect's own amount / count / P&T scaled; `add-mana` gets `perEach` |
+| "*Spirits / nonblack creatures / Treefolk and Forests* you control gain *keywords* / get +N/+N until end of turn" | `for-each` over the filter, `grant-keyword` / `pump` on `that` (those ops take no filter) |
+| "Each opponent / each player / target player / that player / its controller *verb* …" | `scoped` with the clause rewritten to the second person ("sacrifices a creature, then discards a card" → `sacrifice …`, `discard …` as `you`); a leading "may" is a `may` over the whole block; "… and you *do*" / "…, then you *do*" is the controller's own half and stays outside the block; any other "you" in the clause declines |
+| "Each opponent loses half their life, rounded up" and every "*player* loses / gains half their life" | `scoped` around `lose-life` / `gain-life` with `{ prop: 'life', of: 'you', half }` |
+| "You may X. When you do, Y" | `may` [X] then `reflexive` [Y] (CR 603.12) |
+| "You may X. If you do, Y" | the built-in `optional-then`, whose X / Y slots now accept registry wordings (CR 608.2) |
+| "… unless you / they / that player / each opponent pays {2} / pays N life / sacrifices a … / discards a card / returns … / exiles …" | `unless-pays` whose `otherwise` is the clause as the payer; the payer must be the clause's subject (or `you` for an unsubjected clause) |
+| "Put / return it / them / that card / those cards / the exiled card(s) onto / to the battlefield [tapped] [under your / its owner's control] [with N counters on it]" | `move` of the Ref (`put` defaults to `controller: 'you'`, `return` to `'owner'`, CR 610.3c) |
+| "Put it / them … on top / on the bottom of its owner's library", "… into its owner's graveyard", "return it to its owner's hand", "put it into your hand" | `move` of the Ref |
+| "Exile it / that card / those cards until ~ leaves the battlefield"; "exile target … until end of turn" | `move` to exile with `until` |
+| "Return all / each *filter* cards from your graveyard to the battlefield / your hand [tapped]"; "put / return up to N *filter* cards from your graveyard onto the battlefield" | `move` of a chosen set (`zone: 'graveyard', who: 'you', count`) |
+| "Return [another] target *filter* card [with mana value N or less / X] from your graveyard to the battlefield / your hand"; "put target card from your graveyard on the bottom of your library" | the older `return-from-graveyard` (`target: true`), `mvLE` / `mvEQ` in its filter |
+| "Put target *filter* card from a graveyard onto the battlefield under your control" | `move` of a `graveyard-card` target spec |
+| "Return ~ from your graveyard to the battlefield [tapped]" | `move` of `self` (parse.ts marks the activated ability `fromGraveyard`) |
+| "Destroy / exile / tap / untap / sacrifice that creature / those cards / them / each of them" (after a zone change in the same list; a bare "it" is declined) | `destroy` / `move` / `tap` / `untap` on the Ref; `remove-those` for a sacrifice |
+| "Put N *counter* counters on that creature / them / each of them"; "they / those creatures gain *keywords* / get +N/+N until end of turn"; "those creatures don't untap during their controllers' next untap steps" | `counters` / `grant-keyword` / `pump` on `that` / `those`; `no-untap-that` |
+| "*sentence with X*, where X is *amount*"; "… deals damage equal to *amount* to …", "… loses / gains life equal to …", "… draws / discards / mills cards equal to …", "put a number of counters on … equal to …", "create a number of … tokens equal to …" | the sentence's X replaced by the amount (a `-X` slot of a pump is negated: the built-in template drops the sign) |
+| amounts: "the number of *filter* you control / your opponents control / on the battlefield / in your hand / in your graveyard / in all graveyards / in exile"; "its / that creature's / the sacrificed creature's / the exiled card's / ~'s power / toughness / mana value"; "your life total", "that player's life total"; "the number of cards in your / that player's hand"; "the difference between A and B", "A plus B", "A minus N", "half A, rounded up / down", "twice A", "A plus N" | `count: 'objects'` sets, `prop`, `diff`, `sum`, `half`, `times`, `plus` (built-in named counts are kept where they answer first). "its power" is the source when the sentence is about `~`, the first target when it is about a target, declined when both are in play |
+| "Target creature has base power and toughness N/N [until end of turn]", "~ has base power and toughness N/N", "[Until end of turn,] target creature loses all abilities and has base power and toughness N/N" | `set-pt` (`base: true`); the two-effect form is a `scoped` `you` block whose second effect names `target:0` |
+| "Target creature loses all abilities [until end of turn]", "~ loses all abilities", "target creature loses *keywords* until end of turn", "all creatures lose all abilities until end of turn" | `lose-abilities` |
+| "Exchange life totals with target player / opponent"; "exchange control of target A and target B", "… of two target *X*", "… of ~ and target …" | `exchange` |
+| "~ deals N damage to target creature and target player" | one `damage` with a `multi` target spec |
+| "Two / three / any number of / up to N target *X* each get +N/+N [and gain …] / each gain … until end of turn"; "destroy / exile / tap / untap any number of target …" | the spec's `count` (`99` + `optional` for "any number") |
+| "Exile / destroy / tap / untap target *comma list* …", "… *filter* you don't control with mana value N or less" (the built-in target slot stops at a comma and wants the controller last) | the built-in op through the guarded target parser (an "or" list is claimable when it names types and colours only) |
+| "Exile / sacrifice it / them / that creature / those creatures at the beginning of the next end step / your next end step / end of combat"; "return it / them to its owner's hand / to the battlefield … at the beginning of the next end step" | `delayed-trigger` with `bind` and `remove-those` / `move` |
+| "When that creature / it dies this turn, …", "when it leaves the battlefield this turn, …", "at the beginning of the next turn's upkeep, …", "at the beginning of the next end step, …", "at the beginning of your next end step, …" | `delayed-trigger` at `this-turn:dies` / `this-turn:ltb` / `next-turn:upkeep` / `next-end-step` / `your-next-end-step` |
+| "You may *sentence the family claims*"; "you may A and B" / "you may A, then B" | `may` around the effect(s) (one choice over the whole sentence) |
+| "Target creature gains your choice of A or B until end of turn" | `choose-mode` with one `grant-keyword` per mode |
+| a few generic wordings on older ops the owner's decks need: "add N mana in any combination of colors", "discard your hand", "draw half X cards, rounded down", "double the power of target … until end of turn", "sacrifice another *filter*", "As long as *condition*, ~ gets +N/+N and can't block" (a line rule) | `add-mana`, `discard`, `draw`, `double-power`, `sacrifice`, `self-pt` + `self-keywords` |
+
+A triggered ability about another object ("Whenever another creature you control enters, ~ deals damage equal to
+that creature's power …") gets `{ op: 'bind', as: 'that', from: 'triggering' }` at the head of its effects when the
+registry parsed the body and the body reads `that` — the built-ins never see the trigger head and the sentence rule
+never does either, so parse.ts adds it (`triggerBody`).
+
+### Declines
+
+The family declines (leaves `unknown`) what the engine has no form for or what it cannot read safely:
+
+* "You may draw a card unless that player pays {4}" (Rhystic Study, Mystic Remora): `unless-pays` runs its
+  `otherwise` as the payer, and there is no `ScopeWho` for "the controller of the item" to switch back to.
+* an amount that would introduce a target ("draw a card for each tapped creature target opponent controls"), a
+  per-player amount under an each-player op ("deals damage to each player equal to half that player's life total"),
+  "the greatest power among …", "the total power of …", "that many", a cost or filter with a word the built-in parser
+  would drop ("non-Lair land", "nonlegendary"), an "or" list that mixes a type with a subtype or an adjective
+  ("creature, Vehicle, or nonbasic land"), a compound subject ("it and Zombies you control gain …").
+* a bare "it" under destroy / tap / untap / sacrifice / exile ("… gains indestructible until end of turn. Tap it."):
+  too often the source itself, which the frame does not bind.
+* "It deals damage equal to its power to each other creature": a leading "it" is rewritten to the source by the
+  built-ins, and a damage sourced from a bound creature is not the same effect.
+* `scry` / `surveil` with a computed amount (number-only ops), "up to X target …", type changes ("becomes a 0/0
+  Elemental creature …" is not a P/T change), "the exiled card's owner", "Exchange target opponent's life total with
+  ~'s toughness".
+* "destroy / exile / tap / untap target A and target B" never reach the family: the built-in target slot takes the
+  whole phrase as one target (a pre-existing lossy parse, docs/HANDOFF.md §3).
+
+### After the 9.0b review (what moved, and why)
+
+* **"target opponent" as a scope is declined.** `ScopeWho` has no opponent-only word and `legal.ts` offers every
+  player for `target-player`, so a block scoped that way could be pointed at its own controller (Sphinx of
+  Enlightenment drew all four cards itself). "Target opponent draws a card …", "… unless target opponent pays …"
+  stay unparsed until the engine has `target-opponent` (docs/HANDOFF.md item 23).
+* **"*player* may …" is a `may`.** The clause's leading "may" wraps the block's effects; the built-in sentence path
+  does the same for "you may *sentence*" on ops with no `optional` form of their own (`You may mill three cards` →
+  `may [mill 3]`; permissions such as "you may play that card this turn" are not actions and are not wrapped).
+* **"… and you …" stays yours.** "Its controller loses 2 life and you gain 2 life" is a `scoped controller-of-that`
+  block around the loss and a `gain-life` for you after it.
+* **A leading "it" / "that creature" after a sentence that named another object is `that`.** "Gain control of
+  target creature. Untap that creature. It gains haste until end of turn." grants the haste to the stolen
+  creature (`grant-keyword` on `that`), not to the sorcery; with no such antecedent the pronoun is still the
+  source (`~`). Only the shapes the family reads (`gains` / `gets` / `has base power` / `loses`) are rewritten; any
+  other is honestly unknown.
+* **A frame-reading sentence is bound to its antecedent, or unknown — never a silent no-op (9.0b review).** The
+  engine fills `item.affected` only after `destroy` / `exile` / `damage` (to an object) / `tap` / `bounce` /
+  `token` / `token-copy` / `search` / `return-from-graveyard` / `move` / `for-each` / `bind`, a sacrifice cost or a
+  trigger about another object; `pump`, `grant-keyword`, `counters`, `untap`, `gain-control`, `sacrifice` and
+  `counter` bind nothing. `parseEffects` therefore checks every paragraph as it assembles it (parse.ts
+  `bindAntecedent`): a sentence that reads `that` / `those` / `controller-of-that` / `that-controller` /
+  `power-of-that` / `mv-of-that` (or `remove-those` / `no-untap-that` / `attach-to-that`) after a *targeted*
+  antecedent that binds nothing gets `{ op: 'bind', as: 'that', from: 'targets' }` put before that antecedent
+  (Slave of Bolas, Snakeskin Veil, Spidery Grasp, "Put X +1/+1 counters on target creature, where X is that
+  creature's power"; one bind per antecedent, and only when it is the item's only object target so far); after a
+  *group* antecedent (`creatures-you-control`, `all-creatures`, `attacking-creatures`, …) every `that` / `those`
+  of the sentence becomes a `for-each` over the same set (Gleam of Resistance "Untap those creatures", Dauntless
+  Unity's "those creatures get +2/+1 instead" inside the kicked conditional); anything else — an unparsed
+  antecedent, a group antecedent with "its controller", a spell target (a stack ref `bind` cannot take: Dream
+  Fracture, Access Denied, Undermine) — makes the sentence unknown. A self trigger's "its power / toughness /
+  mana value" is the source (`~'s`, `power-of-source`), not the empty frame.
+* **Targets by subtype.** "Target Elf you control gets +2/+2 until end of turn", "target Aura", "target Forest": the
+  subtype names its permanent type (`subtypeKind`), so the target is a real target spec with a `subtypes` filter —
+  never a `for-each` over the words "Target" and "Elf".
+* **Costs.** "unless you sacrifice another creature" carries `other: true` (the source cannot pay for itself).
+* **Trigger heads.** "Whenever ~ or another Ally you control enters / dies" is an `or` event (self + another with
+  `other: true`); "Whenever a creature you control with power 3 or greater enters" keeps the controller out of the
+  filter; "you control no Thopters other than ~" is `other: true`; statics' plurals ("All Slivers have …") are the
+  vocabulary singular.
+* **Restrictions no field carries decline.** "non-Angel creature" (Restoration Angel — an Angel that could target
+  itself blinked itself forever, the `verify:pool` hang), "non-Aura enchantment", "legendary / snow creature",
+  "creature without flying", "1/1 creature", "creature dealt damage by ~ this turn": the line is unparsed (Phase 10
+  script material, or `Filter.notSubtypes` / supertype / `notFlying` fields in 9.1) rather than a wider filter.

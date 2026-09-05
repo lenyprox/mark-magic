@@ -73,7 +73,7 @@ export const PASS_STEPS: Step[] = STEPS.filter(st => st !== 'untap');
 export type PassStep = Exclude<Step, 'untap'>;
 
 export type ScriptStep =
-  | { cast: string; targets?: Ref[][]; x?: number; by?: number; modes?: number[]; alt?: string }
+  | { cast: string; targets?: Ref[][]; x?: number; by?: number; modes?: number[]; alt?: string; kicked?: boolean }
   | { activate: string; ability?: number; targets?: Ref[][]; by?: number }
   | { playLand: string; by?: number }
   /**
@@ -192,7 +192,7 @@ const SCENARIO_FIELDS: Record<string, Guard> = {
 };
 /** Script steps: the discriminating key with a guard for its value, plus the extra keys that step may carry. */
 const SCRIPT_STEPS: Record<string, { value: Guard; opts: Record<string, Guard> }> = {
-  cast: { value: isStr, opts: { targets: isTargets, x: isInt, by: isInt, modes: arrOf(isInt), alt: isStr } },
+  cast: { value: isStr, opts: { targets: isTargets, x: isInt, by: isInt, modes: arrOf(isInt), alt: isStr, kicked: isBool } },
   activate: { value: isStr, opts: { ability: isInt, targets: isTargets, by: isInt } },
   playLand: { value: isStr, opts: { by: isInt } },
   attack: { value: arrOf(isStr), opts: { blocks: isBlocks, refused: isBlocks } },
@@ -485,7 +485,7 @@ export async function runScript(g: Game, steps: ScriptStep[]) {
     if ('cast' in st) {
       const by = (st.by ?? s.priority) as PlayerId;
       const card = findByName(s, st.cast, by); if (!card) throw new Error(`scenario: ${st.cast} not found for P${by}`);
-      const l = legalFor(g, by, x => x.action.type === 'cast' && x.action.cardId === card.id && (st.x === undefined || x.action.x !== undefined) && (!st.modes || JSON.stringify(x.action.modes) === JSON.stringify(st.modes)) && (st.alt === undefined || (x.action as { alt?: string }).alt === st.alt));
+      const l = legalFor(g, by, x => x.action.type === 'cast' && x.action.cardId === card.id && (st.x === undefined || x.action.x !== undefined) && (!st.modes || JSON.stringify(x.action.modes) === JSON.stringify(st.modes)) && (st.alt === undefined || (x.action as { alt?: string }).alt === st.alt) && (st.kicked === undefined || !!(x.action as { kicked?: boolean }).kicked === st.kicked));
       const targets = st.targets?.map(group => group.map(r => toRef(s, r)));
       const ok = await g.performAction(by, { ...l.action, ...(targets ? { targets } : {}), ...(st.x !== undefined ? { x: st.x } : {}) } as typeof l.action);
       if (!ok) throw new Error(`scenario: cast ${st.cast} was rejected`);

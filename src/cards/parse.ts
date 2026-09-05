@@ -1,7 +1,7 @@
 // Oracle-text parser: turns Scryfall oracle text into the ability AST in types.ts.
 // Template based. Anything it does not understand becomes {op:'unknown'} and marks the card partially parsed,
 // so the engine and AI always know exactly what they can and cannot simulate.
-import type { Ability, ActivatedAbility, AbilityCost, Amount, CardDef, CardType, Color, Condition, Effect, Filter, Keyword, ManaCost, ManaSymbol, StaticEffect, TargetSpec, TriggerEvent, TriggeredAbility } from './types.js';
+import type { Ability, ActivatedAbility, AbilityCost, Amount, CardDef, CardType, Color, Condition, Effect, Filter, Keyword, ManaCost, ManaSymbol, ObjectSet, StaticEffect, TargetSpec, TriggerEvent, TriggeredAbility } from './types.js';
 // The parser rule registry (src/cards/rules/<family>.ts, folded by `npm run gen:registry`). Every dispatch point below
 // tries its own built-in table FIRST and reaches the registry only where the built-ins have given up. That ordering is
 // *per sub-parser*, which on its own is not enough: an `unknown`/`null` from a sub-parser is also the signal a LATER
@@ -31,7 +31,9 @@ import type { Ability, ActivatedAbility, AbilityCost, Amount, CardDef, CardType,
 // is that a family only ever claims what every built-in stage declined — but the *shape* of the parse it then
 // produces is its own, so always read `npm run parse:diff` (see docs/vocabulary/README.md).
 import { ANY, CONDITION_RULES, COST_RULES, EFFECT_RULES as REGISTRY_EFFECT_RULES, LINE_RULES, STATIC_RULES, TRIGGER_RULES } from './rules/_registry.js';
-import type { LineCtx } from './rules/types.js';
+import type { EffectCtx, LineCtx } from './rules/types.js';
+import { ABILITY_WORD_RE, SECOND_FACE_LAYOUTS, secondFaceLinesOf } from './oracle-lines.js';
+import { subtypeWord } from './subtypes.js';
 
 /**
  * Version of the *built-in* parser. Bump it whenever a built-in rule or the normalisation above a rule changes — that
@@ -40,7 +42,7 @@ import type { LineCtx } from './rules/types.js';
  * expected re-baseline rather than an accident. Adding a family under src/cards/rules/ does **not** bump it: that
  * shows up as a different `rulesHash` instead.
  */
-export const PARSER_VERSION = 1;
+export const PARSER_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Mana
@@ -109,8 +111,11 @@ const COLOR_WORDS: Record<string, Color> = { white: 'W', blue: 'U', black: 'B', 
 function parseFilterWords(desc: string): Filter | null {
   // e.g. "nonblack creature", "artifact creature", "tapped creature", "creature with flying", "creature with power 4 or greater", "Goblin creature"
   const f: Filter = {};
-  let d = desc.trim().toLowerCase();
-  d = d.replace(/^(an?|another|other|each|all|every)\s+/, (m) => { if (/another|other/.test(m)) f.other = true; return ''; });
+  let d = desc.trim().toLowerCase().replace(/,/g, ' ');
+  if (/ of the chosen type$/.test(d)) { f.chosenType = true; d = d.replace(/ of the chosen type$/, ''); }   // "creature of the chosen type"
+  if (/ other than ~$/.test(d)) { f.other = true; d = d.replace(/ other than ~$/, ''); }                     // "creature other than ~"
+  // "each other creature", "all other Zombies": every leading determiner goes, and "another" / "other" is the flag
+  for (let m: RegExpMatchArray | null; (m = d.match(/^(an?|another|other|each|all|every)\s+/));) { if (/another|other/.test(m[1])) f.other = true; d = d.slice(m[0].length); }
   d = d.replace(/^((?:non[a-z]+,? )+)/, m => m.replace(/,/g, ''));
   { const kwm = d.match(/^(.+?) with (deathtouch|lifelink|trample|haste|menace|reach|vigilance|first strike|double strike|hexproof|indestructible)$/); if (kwm) { f.withKeyword = kwm[2] as Keyword; d = kwm[1]; } }
   const withM = d.match(/\s+with\s+(.+)$/);
@@ -129,7 +134,7 @@ function parseFilterWords(desc: string): Filter | null {
   }
   const words = d.split(/\s+/).filter(Boolean);
   for (let w of words) {
-    if (w === 'or' || w === 'a' || w === 'an') continue;
+    if (w === 'or' || w === 'and' || w === 'and/or' || w === 'a' || w === 'an') continue;   // a type list is any-of
     if (w === 'basic') { f.basic = true; continue; }
     if (w in TYPE_WORDS) (f.types ??= []).push(TYPE_WORDS[w]);
     else if (w.startsWith('non') && w.slice(3) in TYPE_WORDS) (f.notTypes ??= []).push(TYPE_WORDS[w.slice(3)]);
@@ -138,18 +143,24 @@ function parseFilterWords(desc: string): Filter | null {
     else if (w === 'colorless') f.colorless = true;
     else if (w === 'tapped') f.tapped = true;
     else if (w === 'untapped') f.untapped = true;
-    else if (w === 'token') f.token = true;
+    else if (w === 'token' || w === 'tokens') f.token = true;
     else if (w === 'nontoken') f.nontoken = true;
     else if (w === 'attacking') f.attacking = true;
     else if (w === 'blocking') f.blocking = true;
     else if (w === 'nonbasic') f.nonbasic = true;
     else if (w === 'permanent' || w === 'permanents' || w === 'spell' || w === 'spells' || w === 'card' || w === 'cards' || w === 'basic') continue;
-    else if (/^[a-z]+s?$/.test(w) && w[0] !== w[0].toUpperCase()) {
+    else {
       // plural type words: creatures, artifacts...
       const sing = w.replace(/s$/, '');
       if (sing in TYPE_WORDS) (f.types ??= []).push(TYPE_WORDS[sing]);
       else if (sing.startsWith('non') && sing.slice(3) in TYPE_WORDS) (f.notTypes ??= []).push(TYPE_WORDS[sing.slice(3)]);
-      else (f.subtypes ??= []).push(w[0].toUpperCase() + w.slice(1)); // treat as a subtype (Goblin, Elf...)
+      else {
+        // a subtype (Goblin, Elves, Plains, Heroes) — in the vocabulary's own spelling. Any other word ("you control",
+        // "of their choice", "non-Angel", "legendary", "Target") is a restriction this parser has no field for, and a
+        // filter that silently drops it matches the wrong objects: decline instead (src/cards/subtypes.ts).
+        const sub = subtypeWord(w); if (!sub) return null;
+        (f.subtypes ??= []).push(sub);
+      }
     }
   }
   return f;
@@ -477,7 +488,7 @@ const EFFECT_RULES: Rule[] = [
   { re: /^that player may search their library for an? (.+?) card, put it onto the battlefield( tapped)?(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'search', filter: f, to: 'battlefield', tapped: !!m[2], count: 1, optional: true, who: 'that-controller' }; } },
   { re: /^return that card to the battlefield under its owner's control at the beginning of the next end step$/i, make: () => ({ op: 'delayed-trigger', at: 'next-end-step', bind: 'that', effects: [{ op: 'return-to-battlefield', target: 'that', underControlOf: 'owner' }] }) },
   { re: /^permanents you control gain (.+?) until end of turn$/i, make: m => { const k = kwList(m[1]); return k && { op: 'grant-keyword', target: 'permanents-you-control', keywords: k, duration: 'eot' }; } },
-  { re: /^search your library for an? (.+?) card(?: with mana value (\w+) or less)?, reveal it, put it into your hand(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[1]); if (!f) return null; const mv = m[2] ? num(m[2]) : undefined; return { op: 'search', filter: f, to: 'hand', count: 1, reveal: true, ...(mv !== undefined ? { mvLE: mv } : {}) }; } },
+  { re: /^search your library for an? (.+?) card(?: with mana value (\w+) or less)?, reveal (?:it|that card), put it into your hand(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[1]); if (!f) return null; const mv = m[2] ? num(m[2]) : undefined; return { op: 'search', filter: f, to: 'hand', count: 1, reveal: true, ...(mv !== undefined ? { mvLE: mv } : {}) }; } },
   { re: /^untap all (.+?) you control$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'untap-all', filter: f }; } },
   { re: /^proliferate$/i, make: () => ({ op: 'proliferate' }) },
   { re: /^(?:until end of turn, )?(?:you may )?play (?:that card|those cards|it|them|the exiled cards?)(?: this turn)?$/i, make: () => ({ op: 'play-exiled', until: 'eot' }) },
@@ -543,18 +554,23 @@ const EFFECT_RULES: Rule[] = [
   { re: new RegExp(`^put an? ([a-z]+) counter, an? ([a-z]+) counter, and an? ([a-z]+) counter on ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[4]); return t && { op: 'multi-counters', target: t, counters: [m[1], m[2], m[3]].map(x => x.toLowerCase()) }; } },
   { re: /^defending player loses (\w+) life$/i, make: m => ({ op: 'lose-life', amount: num(m[1]), who: 'defending-player' }) },
   { re: /^search your library for a card, then shuffle and put that card on top$/i, make: () => ({ op: 'search', filter: {}, to: 'top', count: 1 }) },
-  { re: /^search your library for an? (.+?) card, (?:reveal it, )?then shuffle and put that card on top$/i, make: m => { const f = parseFilterWords(m[1].replace(/ or /g, ' ')); return f && { op: 'search', filter: f, to: 'top', count: 1 }; } },
+  { re: /^search your library for an? (.+?) card, (?:reveal (?:it|that card), )?then shuffle and put that card on top$/i, make: m => { const f = parseFilterWords(m[1].replace(/ or /g, ' ')); return f && { op: 'search', filter: f, to: 'top', count: 1 }; } },
   { re: /^search your library for a card, put (?:it|that card) into your hand(?:, then shuffle)?$/i, make: () => ({ op: 'search', filter: {}, to: 'hand', count: 1 }) },
   { re: /^search your library for up to (\w+) (.+?) cards?, put them into your graveyard(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[2]); return f && { op: 'search', filter: f, to: 'graveyard', count: num(m[1]) as number, optional: true }; } },
   { re: /^search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand(?:, then shuffle)?$/i, make: () => ({ op: 'search', filter: { types: ['Land'], basic: true }, to: 'battlefield', tapped: true, count: 2, optional: true, split: 'one-battlefield-rest-hand' }) },
   { re: /^search your library for (\w+) basic land cards, put them onto the battlefield tapped(?:, then shuffle)?$/i, make: m => ({ op: 'search', filter: { types: ['Land'], basic: true }, to: 'battlefield', tapped: true, count: num(m[1]) as number }) },
-  { re: /^search your library for an? (.+?) card, (?:reveal it, )?put it into your hand or graveyard(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'search', filter: f, to: 'hand', count: 1 }; } },
+  { re: /^search your library for an? (.+?) card, (?:reveal (?:it|that card), )?put it into your hand or graveyard(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'search', filter: f, to: 'hand', count: 1 }; } },
   { re: /^search your library for an? (.+?) card(?: with mana value (\w+) or less)?, put it into your hand(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[1]); if (!f) return null; const mv = m[2] ? num(m[2]) : undefined; return { op: 'search', filter: f, to: 'hand', count: 1, ...(mv !== undefined ? { mvLE: mv } : {}) }; } },
   { re: /^search your library for an? (.+?) card, put it onto the battlefield( tapped)?$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'search', filter: f, to: 'battlefield', tapped: !!m[2], count: 1 }; } },
 ];
 
 /** Multi-sentence templates matched against the start of a paragraph before it is split into sentences. */
-const PARAGRAPH_RULES: { re: RegExp; make: (m: RegExpMatchArray) => Effect[] | null }[] = [
+/**
+ * `useRegistry` is `false` on the first attempt at every template (the built-ins-only pass the header describes) and
+ * `true` on the retry parseEffects makes only when that attempt declined and a rule family is registered: the same
+ * template, with the registry allowed into its effect slots. A template that ignores the flag behaves as before.
+ */
+const PARAGRAPH_RULES: { re: RegExp; make: (m: RegExpMatchArray, useRegistry: boolean) => Effect[] | null }[] = [
   { re: /^target (player|opponent) reveals their hand\. you choose an? (.+?) card from it(?: with mana value (\d+) or less)?\. that player discards that card\.?/i, make: m => { const f = parseFilterWords(m[2].replace(/,/g, ' ')); if (!f) return null; if (m[3]) f.mvLE = Number(m[3]); return [{ op: 'reveal-hand-discard', who: m[1].toLowerCase() === 'opponent' ? 'target-opponent' : 'target-player', filter: f, count: 1 }]; } },
   { re: /^choose a nonland card name\. target player reveals their hand and discards all cards with that name\.?/i, make: () => [{ op: 'reveal-hand-discard', who: 'target-player', filter: { notTypes: ['Land'] }, count: 'all-named' }] },
   { re: /^look at the top (\w+) cards? of your library\. put (\w+) of them into your hand and the rest on the bottom of your library in (any|a random) order\.?/i, make: m => [{ op: 'dig', look: num(m[1]), take: num(m[2]) as number, rest: 'bottom', order: m[3].toLowerCase() === 'any' ? 'any' : 'random' }] },
@@ -567,12 +583,14 @@ const PARAGRAPH_RULES: { re: RegExp; make: (m: RegExpMatchArray) => Effect[] | n
   { re: /^~ becomes an? (\d+)\/(\d+) ([a-z ]+?) creature(?: with (.+?))? until end of turn\. it's still a land\.?/i, make: m => { const desc = m[3].split(/\s+/).filter(w => w !== 'and'); const colors = desc.filter(w => w in COLOR_WORDS).map(w => COLOR_WORDS[w]); const subs = desc.filter(w => !(w in COLOR_WORDS)).map(w => w[0].toUpperCase() + w.slice(1)); const kw = m[4] ? kwList(m[4]) : []; if (!kw) return null; return [{ op: 'animate', target: 'self', power: Number(m[1]), toughness: Number(m[2]), colors, types: ['Creature'], subtypes: subs, keywords: kw, duration: 'eot' }]; } },
   { re: new RegExp(`^choose ${TGT}\\. its owner shuffles it into their library\\.?`, 'i'), make: m => { const t = parseTarget(m[1]); return t && [{ op: 'shuffle-into-library', target: t }]; } },
   { re: /^choose a color of a permanent you control\. add one mana of that color\.?/i, make: () => [{ op: 'add-mana', mana: 'any-one', options: 'permanent-colors' }] },
-  { re: /^([^.]+?)\. if ~ was kicked, ([^.]+?) instead\.?/i, make: m => { const weak = parseEffects(m[1], false); const strong = parseEffects(m[2].replace(/^that creature /i, '~ ').replace(/^that player /i, 'target player '), false); if (weak.some(e => e.op === 'unknown') || strong.some(e => e.op === 'unknown')) return null; return [{ op: 'conditional', condition: { kind: 'kicked' }, then: strong, else: weak }]; } },
+  { re: /^([^.]+?)\. if ~ was kicked, ([^.]+?) instead\.?/i, make: (m, useRegistry) => { const weak = parseEffects(m[1], useRegistry); const strong = parseEffects(m[2].replace(/^that creature /i, '~ ').replace(/^that player /i, 'target player '), useRegistry); if (weak.some(e => e.op === 'unknown') || strong.some(e => e.op === 'unknown')) return null; return [{ op: 'conditional', condition: { kind: 'kicked' }, then: strong, else: weak }]; } },
   { re: /^you may draw a card\. if you do, discard a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1 }] },
   { re: /^you may discard a card\. if you do, draw a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1, discardFirst: true, optional: true }] },
-  { re: /^you may pay (\{[^ ]+\})\. if you do, (.+?)\.?$/i, make: m => { const then = parseEffects(m[2], false); if (then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-pay', mana: parseManaCost(m[1])!, then }]; } },
+  { re: /^you may pay (\{[^ ]+\})\. if you do, (.+?)\.?$/i, make: (m, useRegistry) => { const then = parseEffects(m[2], useRegistry); if (then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-pay', mana: parseManaCost(m[1])!, then }]; } },
   { re: /^discard a card\. if you do, draw a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1, discardFirst: true }] },
-  { re: /^you may ([^.]+?)\. if you do, ([^.]+?)\.?(?=$| [A-Z~])/i, make: m => { const first = parseEffects(m[1], false); const then = parseEffects(m[2], false); if (first.some(e => e.op === 'unknown') || then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-then', first, then }]; } },
+  // Y is captured greedily up to the next period: under /i the old lazy `([^.]+?)\.?(?=$| [A-Z~])` stopped at the
+  // first space ("draw" of "draw two cards"), so the template declined on nearly every real card (PARSER_VERSION 2).
+  { re: /^you may ([^.]+?)\. if you do, ([^.]+)\.?(?=$| [A-Z~])/i, make: (m, useRegistry) => { const first = parseEffects(m[1], useRegistry); const then = parseEffects(m[2], useRegistry); if (first.some(e => e.op === 'unknown') || then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-then', first, then }]; } },
   { re: /^exile the top card of your library\. (?:you may play (?:it|that card) (this turn|until end of turn|until the end of your next turn)|until (?:end of turn|the end of your next turn), you may play (?:it|that card))\.?/i, make: m => [{ op: 'impulse', count: 1, until: /next turn/i.test(m[1] ?? m[0]) ? 'next-turn' : 'eot' }] },
   { re: /^exile the top (\w+) cards of your library\. (?:you may play (?:them|those cards) (this turn|until end of turn|until the end of your next turn)|until (?:end of turn|the end of your next turn), you may play (?:them|those cards))\.?/i, make: m => [{ op: 'impulse', count: num(m[1]) as number, until: /next turn/i.test(m[0]) ? 'next-turn' : 'eot' }] },
 ];
@@ -618,8 +636,8 @@ const NOT_SUBTYPES = new Set(['and', 'or', 'the', 'a', 'an', 'card', 'cards', 'p
 function subtypeFilter(words: string): Filter | null {
   const w = words.trim();
   if (!/^[A-Za-z]+s?$/.test(w) || NOT_SUBTYPES.has(w.toLowerCase())) return null;
-  const one = singular(w);
-  return { subtypes: [one[0].toUpperCase() + one.slice(1).toLowerCase()] };
+  const one = subtypeWord(w);
+  return one ? { subtypes: [one] } : null;
 }
 /** "each creature you control" / "each +1/+1 counter on it" → Amount (the tail of a "for each ..." clause). */
 function parseEachPhrase(p: string): Amount | null {
@@ -693,25 +711,76 @@ function tokenEffect(m: RegExpMatchArray, nameIdx?: number): Effect | null {
   return { op: 'token', count, power, toughness, colors, types, subtypes, keywords, name: nameIdx ? m[nameIdx] : undefined, attacking: /tapped and attacking/i.test(m[0]) };
 }
 
+/**
+ * The shared vocabulary a registry effect rule may call (src/cards/rules/types.ts `EffectCtx`). Every function runs
+ * with the registry enabled: a rule is only ever consulted on the second (registry) pass of the sentence ladder, so
+ * anything it sub-parses is on that pass too — the built-ins-only pass has already declined the whole sentence.
+ */
+const EFFECT_CTX: EffectCtx = {
+  optional: false,
+  parseEffects: text => parseEffects(text, true),
+  parseEffectSentence: text => parseEffectSentence(text, true),
+  parseTarget, parseFilterWords, parseEachPhrase, parseAmountPhrase, parseManaCost, num, kwList,
+  parseCondition: text => parseCondition(text, true),
+  parseCostPhrase: phrase => parseCostPhrase(phrase, true),
+};
+const EFFECT_CTX_OPTIONAL: EffectCtx = { ...EFFECT_CTX, optional: true };
+
+/**
+ * Normalised sentences no built-in effect template claims. The table is static and its templates are pure functions
+ * of the sentence, so a miss is a fact about the text: the registry pass and every nested sub-parse a rule makes
+ * skip the template scan the built-ins-only pass already ran on that sentence. Hits are never cached (effects are
+ * mutated by foldMarkers and the callers). Bounded by the pool's vocabulary; ~40k strings at most.
+ */
+const BUILTIN_MISSES = new Set<string>();
+/** Ops whose template already reads "you may …" as a permission rather than an action (never wrapped in a `may`). */
+const PERMISSION_OPS = new Set<string>(['play-exiled', 'extra-land', 'fold-new-targets', 'impulse']);
+/** True while an earlier sentence of the paragraph being parsed named an object a later "it" can refer to (parseEffects sets it). */
+let antecedent = false;
+/** How many times a registry effect template (or a paragraph template's registry retry) claimed something — a cheap "did the registry contribute?" probe for triggerBody. */
+let registryClaims = 0;
+
 /** Parse a sentence into an Effect; returns unknown op on failure. */
 export function parseEffectSentence(sentence: string, useRegistry = true): Effect {
   let s = sentence.trim().replace(/\s+/g, ' ').replace(/\.$/, '');
   if (/rather than pay|as an additional cost|additional cost to cast/i.test(s)) return { op: 'unknown', text: sentence.trim() };
   const optional = /^you may /i.test(s);
   s = s.replace(/^you may /i, '').replace(/^then /i, '');
-  s = s.replace(/^(?:it|that creature|that permanent|this creature|this permanent)\b/i, '~');
-  s = s.replace(/\bon it$/i, 'on ~');
+  // A leading "it" / "that creature" is the source ("~") — unless an earlier sentence of the same paragraph named
+  // another object (a target, a token, a bound "that creature"): "Gain control of target creature. Untap that
+  // creature. It gains haste until end of turn." is about the stolen creature, and a `self` there would give the
+  // haste to the sorcery. Such a pronoun becomes the registry's `thatobj` marker (src/cards/rules/composition.ts
+  // reads it as the `that` binding) for the sentence shapes the composition rules take; the built-ins never match
+  // the marker, so a shape nobody claims is honestly unknown rather than silently the source.
+  if (antecedent && /^(?:it|that creature|that permanent) (?:gains?|gets?|has base power|loses?) /i.test(s)) s = s.replace(/^(?:it|that creature|that permanent)\b/i, 'thatobj');
+  else s = s.replace(/^(?:it|that creature|that permanent|this creature|this permanent)\b/i, '~');
+  // "put a counter on it" → the source — except under a "for each …" head, where "it" is the iterated object and no
+  // built-in template ever starts with "for each" (the registry's for-each rule reads the pronoun itself, 9.0b)
+  if (!/^for each /i.test(s)) s = s.replace(/\bon it$/i, 'on ~');
   s = s.replace(/^each other player /i, 'each opponent ');
-  for (const r of EFFECT_RULES) {
-    const m = s.match(r.re);
-    if (m) { const e = r.make(m); if (e) { if (optional && (e.op === 'search' || e.op === 'dig' || e.op === 'shuffle' || e.op === 'counters' || e.op === 'put-from-hand')) e.optional = true; return e; } }
+  if (!BUILTIN_MISSES.has(s)) {
+    for (const r of EFFECT_RULES) {
+      const m = s.match(r.re);
+      if (m) {
+        const e = r.make(m);
+        if (e) {
+          if (optional && (e.op === 'search' || e.op === 'dig' || e.op === 'shuffle' || e.op === 'counters' || e.op === 'put-from-hand')) e.optional = true;
+          // "you may draw a card" is a choice, not a draw: an op with no optional form of its own is wrapped in a `may`
+          // (the op the composition core added); a permission ("you may play that card this turn") is not an action
+          return optional && !(e as { optional?: boolean }).optional && !PERMISSION_OPS.has(e.op) ? { op: 'may', effects: [e] } : e;
+        }
+      }
+    }
+    BUILTIN_MISSES.add(s);
   }
   // Registry hook: family sentence templates, tried only once the built-in table above has declined the sentence —
   // and, from parseSentenceRecursive, only on its second pass, so a family template can never answer a sentence the
-  // built-ins were about to decompose on " and " / ", then".
+  // built-ins were about to decompose on " and " / ", then". A rule is handed the shared sub-parsers on an EffectCtx
+  // (it cannot import them: parse.ts imports the registry). The "you may " the built-ins strip above is handed back
+  // as a `may` wrapper here — the registry never sees those two words, so it cannot express them itself (9.0b).
   if (useRegistry) for (const r of REGISTRY_EFFECT_RULES) {
     const m = s.match(r.re);
-    if (m) { const e = r.make(m); if (e) { if (optional && (e.op === 'search' || e.op === 'dig' || e.op === 'shuffle' || e.op === 'counters' || e.op === 'put-from-hand')) e.optional = true; return e; } }
+    if (m) { const e = r.make(m, optional ? EFFECT_CTX_OPTIONAL : EFFECT_CTX); if (e) { registryClaims++; return optional ? { op: 'may', effects: [e] } : e; } }
   }
   // "Choose one —" modal spells handled at line level.
   return { op: 'unknown', text: sentence.trim() };
@@ -723,17 +792,220 @@ export function parseEffectSentence(sentence: string, useRegistry = true): Effec
  * whose *claim* depends on these effects coming back known (a PARAGRAPH_RULE slot, parseStatic, parseGrantedAbility).
  */
 export function parseEffects(text: string, useRegistry = true): Effect[] {
+  effectsDepth++;
+  try { return parseParagraph(text, useRegistry); } finally { effectsDepth--; }
+}
+
+// ---------------------------------------------------------------------------
+// The binding frame (CR 608.2h; docs/vocabulary/composition.md "Refs"): what a later "it" / "that creature" / "those
+// creatures" / "its controller" / "that spell's mana value" can refer to. The engine fills `item.affected` only after
+// the ops in BINDING_OPS (src/engine/game.ts noteAffected, opMove, opForEach), a sacrifice cost, or a trigger about
+// another object. A sentence that read the frame after anything else acted on nothing while the card counted as
+// parsed (the 9.0b review's Slave of Bolas / Snakeskin Veil / Gleam of Resistance / Dream Fracture), so a paragraph is
+// checked as it is assembled: a frame-reading sentence whose antecedent binds nothing is repaired where the engine has
+// the words for it, and is otherwise unknown —
+//   * a targeted antecedent ("Gain control of target creature. Untap that creature.", "Counter target spell. Its
+//     controller draws a card.") gets a `bind` of the item's targets put before it, so `that` / `those` /
+//     `controller-of-that` / `mv-of-that` are the antecedent's targets (their last known information taken then);
+//   * a group antecedent ("Creatures you control get +1/+2 until end of turn. Untap those creatures.") has every
+//     "those" of the sentence iterate the same set as a `for-each` (CR 608.2f: the set as the effect applies).
+// Only the outermost parseEffects of an item judges (a rule's sub-parse lands in a container the outer list sees);
+// the callers that already hold a frame say so through `withFrame` (a sacrifice cost binds what was sacrificed, a
+// trigger about another object binds it, a spell's earlier paragraphs are the same item).
+// ---------------------------------------------------------------------------
+/** Ops after which `item.affected` holds what they touched (the engine's noteAffected / opMove / opForEach sites). */
+const BINDING_OPS = new Set<string>(['destroy', 'exile', 'search', 'bounce', 'token', 'tap', 'return-from-graveyard', 'earthbend', 'animate', 'token-copy', 'bind', 'move', 'for-each']);
+/** Values that read the frame: the Refs, the frame-bound player words and the older frame-bound counts. */
+const FRAME_WORDS = new Set<string>(['that', 'those', 'controller-of-that', 'that-controller', 'power-of-that', 'mv-of-that']);
+/** Ops that read the frame without naming it in a value. */
+const FRAME_OPS = new Set<string>(['remove-those', 'no-untap-that', 'attach-to-that']);
+/** The child lists an effect can hold, in document order. */
+const CHILD_KEYS = ['first', 'then', 'else', 'effects', 'do', 'otherwise', 'modes'] as const;
+/** The group words the built-in pump / grant / counters templates use, as the object set a `for-each` iterates. */
+const GROUP_SETS: Record<string, ObjectSet> = {
+  'creatures-you-control': { types: ['Creature'], who: 'you' },
+  'other-creatures-you-control': { types: ['Creature'], who: 'you', other: true },
+  'permanents-you-control': { who: 'you' },
+  'attacking-creatures': { types: ['Creature'], who: 'you', attacking: true },
+  'all-creatures': { types: ['Creature'] },
+  'each-creature': { types: ['Creature'] },
+  'all-opponent-creatures': { types: ['Creature'], who: 'each-opponent' },
+};
+/** How deep in nested parseEffects calls we are (1 = the outermost call of an item's text). */
+let effectsDepth = 0;
+/** Set by the callers through withFrame: the frame is already bound when the paragraph starts / the item's earlier effects. */
+let frameBound = false;
+let priorEffects: Effect[] = [];
+/** Run `fn` with the frame the caller holds: `bound` when a cost or the trigger already bound something, `prior` the item's earlier effects (a spell's previous paragraphs, mutated in place when a `bind` is put before an antecedent there). */
+export function withFrame<T>(bound: boolean, prior: Effect[], fn: () => T): T {
+  const b = frameBound, p = priorEffects; frameBound = bound; priorEffects = prior;
+  try { return fn(); } finally { frameBound = b; priorEffects = p; }
+}
+
+const isEffectList = (v: unknown): v is Effect[] => Array.isArray(v) && v.every(x => x && typeof x === 'object' && typeof (x as { op?: unknown }).op === 'string');
+/** Does any value (nested lists included) read the frame? A `for-each` body's `that` is the iteration's, so only its `over` counts; a `bind` writes the frame. */
+function readsFrame(v: unknown): boolean {
+  if (typeof v === 'string') return FRAME_WORDS.has(v);
+  if (Array.isArray(v)) return v.some(readsFrame);
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  if (o.op === 'bind') return false;
+  if (typeof o.op === 'string' && FRAME_OPS.has(o.op)) return true;
+  if (o.op === 'for-each') return o.over === 'those' || readsFrame(o.over);
+  return Object.keys(o).some(k => k !== 'op' && k !== 'text' && k !== 'prompt' && readsFrame(o[k]));
+}
+/** Does the effect itself (its own slots, not its child lists) read the frame? A delayed trigger / reflexive snapshots the frame when it runs, so its whole body counts. */
+function leafReadsFrame(e: Effect): boolean {
+  const o = e as unknown as Record<string, unknown>;
+  if (o.op === 'delayed-trigger' || o.op === 'reflexive' || o.op === 'for-each') return readsFrame(o);
+  return readsFrame({ ...o, first: undefined, then: undefined, else: undefined, effects: undefined, do: undefined, otherwise: undefined, modes: undefined });
+}
+const playerOnly = (t: unknown): boolean => t === 'each-opponent' || t === 'each-player' || (!!t && typeof t === 'object' && ((t as TargetSpec).kind === 'player' || (t as TargetSpec).kind === 'opponent'));
+/** Does the effect bind the frame when it resolves (a `damage` only when it can hit an object)? */
+function opBinds(e: Effect): boolean {
+  const o = e as unknown as Record<string, unknown>;
+  if (o.op === 'damage') return !playerOnly(o.target);
+  return typeof o.op === 'string' && BINDING_OPS.has(o.op);
+}
+/** Does any effect of the list (containers entered; a delayed trigger's / reflexive's body is another item's) bind the frame? */
+function bindsFrame(list: Effect[]): boolean {
+  for (const e of list) {
+    if (opBinds(e)) return true;
+    const o = e as unknown as Record<string, unknown>;
+    if (o.op === 'delayed-trigger' || o.op === 'reflexive') continue;
+    for (const k of CHILD_KEYS) { const c = o[k]; if (k === 'modes' ? Array.isArray(c) && (c as Effect[][]).some(bindsFrame) : isEffectList(c) && bindsFrame(c)) return true; }
+  }
+  return false;
+}
+/**
+ * The object target an effect chooses (its target / what / exchange sides), or null when it targets nothing, only
+ * players, several independent things, or something on the stack — a `bind` of the item's targets takes `object` refs
+ * only (src/engine/game.ts objs), so a countered spell cannot be bound this way ("Counter target spell. Its controller
+ * draws a card." stays unknown until `counter` binds; docs/HANDOFF.md item 23).
+ */
+function objectTarget(e: Effect): TargetSpec | null {
+  const o = e as unknown as Record<string, unknown>;
+  for (const k of ['target', 'what', 'a', 'b']) {
+    const v = o[k];
+    if (v && typeof v === 'object' && typeof (v as TargetSpec).kind === 'string' && !(v as TargetSpec).self && !playerOnly(v) && (v as TargetSpec).kind !== 'multi' && !/spell|ability/.test((v as TargetSpec).kind)) return v as TargetSpec;
+  }
+  return null;
+}
+/** The set a group-word antecedent names (the built-in pump / grant / counters shapes), or null. */
+function groupSet(e: Effect): ObjectSet | null {
+  const o = e as unknown as Record<string, unknown>;
+  const set = typeof o.target === 'string' ? GROUP_SETS[o.target] : undefined;
+  if (!set) return null;
+  return o.filter && typeof o.filter === 'object' ? { ...(o.filter as Filter), ...set } : { ...set };
+}
+interface Slot { list: Effect[]; index: number }
+/** Every effect of a list in document order with the list it sits in — containers before their children; a delayed trigger's / reflexive's body and a for-each's body (another item, another binding) are not entered. */
+function* walkEffects(list: Effect[]): Generator<Slot> {
+  for (let i = 0; i < list.length; i++) {
+    yield { list, index: i };
+    const o = list[i] as unknown as Record<string, unknown>;
+    if (o.op === 'delayed-trigger' || o.op === 'reflexive' || o.op === 'for-each') continue;
+    for (const k of CHILD_KEYS) { const c = o[k]; if (k === 'modes') { if (Array.isArray(c)) for (const md of c as Effect[][]) yield* walkEffects(md); } else if (isEffectList(c)) yield* walkEffects(c); }
+  }
+}
+/** Wrap every frame-reading leaf of `list` whose target / what is `that` / `those` in a `for-each` over `set` (its other frame reads become the iteration's). */
+function iterateGroup(list: Effect[], set: ObjectSet): void {
+  for (let i = 0; i < list.length; i++) {
+    const o = list[i] as unknown as Record<string, unknown>;
+    if (o.op === 'delayed-trigger' || o.op === 'reflexive' || o.op === 'for-each' || o.op === 'bind') continue;
+    const key = o.target === 'that' || o.target === 'those' ? 'target' : o.what === 'that' || o.what === 'those' ? 'what' : null;
+    if (key) { list[i] = { op: 'for-each', over: JSON.parse(JSON.stringify(set)) as ObjectSet, do: [{ ...(o as object), [key]: 'that' } as Effect] }; continue; }
+    for (const k of CHILD_KEYS) { const c = o[k]; if (k === 'modes') { if (Array.isArray(c)) for (const md of c as Effect[][]) iterateGroup(md, set); } else if (isEffectList(c)) iterateGroup(c, set); }
+  }
+}
+/**
+ * The frame-reading sentence `effs` after the item's earlier effects (`prior`, then the paragraph's `out`): `effs`
+ * repaired (a `bind` put before a targeted antecedent, `those` made a `for-each` over a group antecedent), `effs`
+ * itself when the nearest antecedent already binds (or the caller's frame does), or null when nothing can bind it.
+ */
+function bindAntecedent(prior: Effect[], out: Effect[], effs: Effect[], bound: boolean): Effect[] | null {
+  // the effects before the first frame-reading leaf, in document order, and what each names
+  type Namer = { slot: Slot; kind: 'binding' | 'target' | 'group' | 'self'; set?: ObjectSet };
+  const before: Namer[] = []; const after: Namer[] = [];
+  let reading = false; let objectTargets = 0;
+  for (const list of [prior, out, effs]) for (const slot of walkEffects(list)) {
+    const e = slot.list[slot.index];
+    const spec = objectTarget(e); if (spec) objectTargets++;
+    // an effect on the source itself ("this creature gets +1/+1 until end of turn") is the antecedent of a following
+    // "it" ("Untap it."), not the trigger's or the item's frame
+    const onSelf = (e as unknown as { target?: unknown }).target === 'self';
+    const n: Namer | null = opBinds(e) ? { slot, kind: 'binding' } : spec ? { slot, kind: 'target' } : groupSet(e) ? { slot, kind: 'group', set: groupSet(e)! } : onSelf ? { slot, kind: 'self' } : null;
+    // "Put X +1/+1 counters on target creature, where X is that creature's power": the reading effect is its own antecedent
+    const own = list === effs && !reading && n?.kind === 'target' && leafReadsFrame(e);
+    if (list === effs && !reading && leafReadsFrame(e)) reading = true;
+    if (n) (reading && !own ? after : before).push(n);
+  }
+  // "Creatures you control get +1/+1 until end of turn. If ~ was kicked, those creatures get +2/+1 instead." folds the
+  // first sentence into the else branch, after the reference in document order: the only namer there still names the set
+  const nearest = before[before.length - 1] ?? (after.length === 1 && after[0].kind === 'group' ? after[0] : undefined);
+  if (!nearest) return bound ? effs : null;
+  if (nearest.kind === 'binding') return effs;
+  if (nearest.kind === 'self') {
+    // only a plain `that` can stand for the source; `those` / the player and count words keep their frame reading
+    const onlyThat = (v: unknown): boolean => typeof v === 'string' ? !FRAME_WORDS.has(v) || v === 'that' : Array.isArray(v) ? v.every(onlyThat) : !v || typeof v !== 'object' ? true : (v as { op?: unknown }).op === 'bind' || (!FRAME_OPS.has(String((v as { op?: unknown }).op)) && Object.entries(v as Record<string, unknown>).every(([k, x]) => k === 'op' || k === 'text' || onlyThat(x)));
+    if (!onlyThat(effs)) return bound ? effs : null;
+    const rewrite = (v: unknown): unknown => v === 'that' ? 'self' : Array.isArray(v) ? v.map(rewrite) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, k === 'op' || k === 'text' ? x : rewrite(x)])) : v;
+    const rewritten = rewrite(effs) as Effect[];
+    effs.splice(0, effs.length, ...rewritten);
+    return effs;
+  }
+  if (nearest.kind === 'group') {
+    iterateGroup(effs, nearest.set!);
+    return readsFrame(effs) ? null : effs;
+  }
+  // a targeted antecedent: `bind` takes every target of the item, so `that` is its first — the antecedent must be the
+  // item's only object target (a second one would be bound with it, or before it)
+  if (objectTargets !== 1) return bound ? effs : null;
+  const { list, index } = nearest.slot;
+  if (index > 0 && list[index - 1].op === 'bind') return effs;   // an earlier sentence of the paragraph already bound it
+  list.splice(index, 0, { op: 'bind', as: 'that', from: 'targets' });
+  return effs;
+}
+
+/** The body of parseEffects; `effectsDepth` is 1 on the outermost call of an item's text, where the frame is judged. */
+function parseParagraph(text: string, useRegistry: boolean): Effect[] {
   const out: Effect[] = [];
+  const outer = effectsDepth === 1;
+  let bound = outer && (frameBound || bindsFrame(priorEffects));
+  /** One chunk of the paragraph (a paragraph template's effects, a sentence's): admitted, repaired, or unknown when it reads a frame nothing binds. */
+  const admit = (effs: Effect[], sentence: string): Effect[] => {
+    if (!outer) return effs;
+    let kept: Effect[] | null = effs;
+    if (readsFrame(effs)) kept = bindAntecedent(priorEffects, out, effs, bound);
+    if (!kept) return [{ op: 'unknown', text: sentence.trim() }];
+    if (bindsFrame(kept) || bindsFrame(out)) bound = true;
+    return kept;
+  };
   let rest = text.trim();
   // multi-sentence templates first
   let matched = true;
   while (matched && rest) {
     matched = false;
-    for (const r of PARAGRAPH_RULES) { const m = rest.match(r.re); if (!m) continue; const effs = r.make(m); if (!effs) continue; out.push(...effs); rest = rest.slice(m[0].length).trim(); matched = true; break; }
+    for (const r of PARAGRAPH_RULES) {
+      const m = rest.match(r.re); if (!m) continue;
+      // built-ins first: the template's slots are filled by the built-in sub-parsers alone, and only when that declines
+      // (and only on a registry-enabled call) is the same template retried with the registry in its slots
+      let effs = r.make(m, false);
+      if (!effs && useRegistry && ANY.sentence) { effs = r.make(m, true); if (effs) registryClaims++; }
+      if (!effs) continue;
+      out.push(...admit(effs, m[0])); rest = rest.slice(m[0].length).trim(); matched = true; break;
+    }
   }
   if (/\btarget (player|opponent)\b/i.test(rest)) rest = rest.replace(/\bthat player\b/gi, 'target player');
   const sentences = rest.split(/(?<=\.)\s+(?=[A-Z~])/).map(s => s.trim()).filter(Boolean);
-  for (const sent of sentences) out.push(...parseSentenceRecursive(sent, 0, useRegistry));
+  // the paragraph's antecedent for a later "it" / "that creature" (see parseEffectSentence); a nested parse inherits
+  // the paragraph it is part of, and a paragraph never leaks into the next one
+  const savedAntecedent = antecedent;
+  for (const sent of sentences) {
+    out.push(...admit(parseSentenceRecursive(sent, 0, useRegistry), sent));
+    if (/\btarget\b|\btokens?\b|\bthat (?:creature|permanent|card|token)\b|\bthatobj\b/i.test(sent)) antecedent = true;
+  }
+  antecedent = savedAntecedent;
   return foldMarkers(out, false);
 }
 
@@ -860,7 +1132,7 @@ function parseCondition(s: string, useRegistry = true): Condition {
   if (t === 'there are four or more card types among cards in your graveyard') return { kind: 'delirium' };
   if (t === 'you descended this turn') return { kind: 'descended-this-turn' };
   if ((m = t.match(/^you have (\w+) or more unspent mana$/))) return { kind: 'unspent-mana-ge', value: num(m[1]) as number };
-  if ((m = t.match(/^you control no (.+)$/))) { const f = parseFilterWords(singular(m[1])); if (f) return { kind: 'controls-le', who: 'you', filter: f, atMost: 0 }; }
+  if ((m = t.match(/^you control no (.+?)( other than ~)?$/))) { const f = parseFilterWords(singular(m[1])); if (f) return { kind: 'controls-le', who: 'you', filter: m[2] ? { ...f, other: true } : f, atMost: 0 }; }
   if (t === 'an opponent controls more lands than you') return { kind: 'opponent-more-lands' };
   if ((m = t.match(/^(.+?) or if (.+)$/))) { const a = parseCondition(m[1], useRegistry); const b = parseCondition(m[2], useRegistry); if (a.kind !== 'unknown' && b.kind !== 'unknown') return { kind: 'or', conditions: [a, b] }; }
   if (t === '~ entered this turn' || t === '~ entered the battlefield this turn') return { kind: 'self-entered-this-turn' };
@@ -899,6 +1171,14 @@ function parseTrigger(head: string, useRegistry = true): TriggerEvent {
   if ((m = t.match(/^when(?:ever)? you draw your (second|third|fourth|fifth) card (?:in a turn|each turn)$/))) return { on: 'draw', who: 'you', nth: ({ second: 2, third: 3, fourth: 4, fifth: 5 })[m[1]] };
   if ((m = t.match(/^whenever you cast your (second|third|fourth) spell each turn$/))) return { on: 'cast', filter: {}, who: 'you', nth: ({ second: 2, third: 3, fourth: 4 })[m[1]] };
   if ((m = t.match(/^whenever a player casts a spell with mana value equal to the number of (\w+) counters on ~$/))) return { on: 'cast', filter: {}, who: 'any', mvEqualsCounter: m[1] };
+  // "Whenever ~ or another Ally you control enters": the source's own entry or another's (CR 603.2, one trigger event)
+  if ((m = t.match(/^whenever ~ or another (.+?) you control enters(?: the battlefield)?$/))) {
+    const f = parseFilterWords(m[1]); if (f) return { on: 'or', events: [{ on: 'etb', self: true }, { on: 'etb', self: false, filter: { ...f, other: true }, controller: 'you' }] };
+  }
+  // "Whenever a creature you control with power 3 or greater enters": the controller phrase sits inside the filter
+  if ((m = t.match(/^whenever (?:another |an? )?(.+?) you control (with .+?) enters(?: the battlefield)?$/))) {
+    const f = parseFilterWords(`${m[1]} ${m[2]}`); if (f) return { on: 'etb', self: false, filter: f, controller: 'you' };
+  }
   if ((m = t.match(/^whenever (?:another |an? )?(.+?) enters(?: the battlefield)?(?: under your control)?$/))) {
     const f = parseFilterWords(m[1]); if (f) return { on: 'etb', self: false, filter: f, controller: /under your control|you control/.test(t) ? 'you' : 'any' };
   }
@@ -908,6 +1188,9 @@ function parseTrigger(head: string, useRegistry = true): TriggerEvent {
   if (/^(when|whenever) ~ dies$/.test(t)) return { on: 'dies', self: true };
   if (/^(when|whenever) ~ is put into a graveyard from the battlefield$/.test(t)) return { on: 'dies', self: true };
   if (/^(when|whenever) ~ leaves the battlefield$/.test(t)) return { on: 'ltb', self: true };
+  if ((m = t.match(/^whenever ~ or another (.+?)( you control)? dies$/))) {
+    const f = parseFilterWords(m[1]); if (f) return { on: 'or', events: [{ on: 'dies', self: true }, { on: 'dies', self: false, filter: { ...f, other: true }, controller: m[2] ? 'you' : 'any' }] };
+  }
   if ((m = t.match(/^whenever (?:another |an? )?(.+?) you control dies$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'dies', self: false, filter: f, controller: 'you' }; }
   if ((m = t.match(/^whenever (?:another |an? )?(.+?) dies$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'dies', self: false, filter: f, controller: 'any' }; }
   if (/^whenever ~ attacks$/.test(t)) return { on: 'attacks', self: true };
@@ -969,7 +1252,7 @@ function parseCostPhrase(p: string, useRegistry = true): AbilityCost | null {
     else cost.mana = parseManaCost(raw)!;
   }
   else if (pl === 'sacrifice ~' || /^sacrifice this (creature|artifact|permanent|enchantment|land)$/.test(pl)) cost.sacrificeSelf = true;
-  else if ((m = pl.match(/^sacrifice (?:a|an|another) (.+)$/))) { const f = parseFilterWords(m[1]); if (!f) return null; cost.sacrifice = f; }
+  else if ((m = pl.match(/^sacrifice (a|an|another) (.+)$/))) { const f = parseFilterWords(m[2]); if (!f) return null; if (m[1] === 'another') f.other = true; cost.sacrifice = f; }   // "another": not the source itself (CR 601.2h)
   else if ((m = pl.match(/^discard (a|\w+) cards?$/))) cost.discard = num(m[1]) as number;
   else if (pl === 'discard this card' || pl === 'discard ~') cost.discardSelf = true;
   else if (pl === 'discard your hand') cost.discardHand = true;
@@ -1014,7 +1297,8 @@ function describeCost(c: AbilityCost): string {
 // Static abilities
 // ---------------------------------------------------------------------------
 /** Singular creature type from a plural (Elves → Elf, Dwarves → Dwarf, Goblins → Goblin). */
-function singular(w: string): string { if (/ves$/.test(w)) return w.slice(0, -3) + 'f'; if (/(zomb|faer)ies$/i.test(w)) return w.slice(0, -1); if (/ies$/.test(w)) return w.slice(0, -3) + 'y'; return w.replace(/s$/, ''); }
+/** "Zombies" → "Zombie", "Elves" → "Elf", "Plains" → "Plains", "Heroes" → "Hero": the vocabulary's spelling when the word is a subtype, the plain English rule otherwise. */
+function singular(w: string): string { const sub = subtypeWord(w); if (sub) return sub; if (/ves$/.test(w)) return w.slice(0, -3) + 'f'; if (/ies$/.test(w)) return w.slice(0, -3) + 'y'; return w.replace(/s$/, ''); }
 
 function spellTypeFilter(word: string): Filter {
   const w = word.toLowerCase();
@@ -1048,9 +1332,11 @@ function grantedShape(text: string, useRegistry: boolean): Ability | null {
     if (ev.on === 'unknown') return null;
     let inner = tm[3]; const optional = /^you may /i.test(inner);
     if (optional) inner = inner.replace(/^you may /i, '');
-    inner = inner.replace(/this creature|this permanent/gi, '~');
-    const effs = parseEffects(inner, useRegistry);
+    inner = inner.replace(/\bthis creature\b|\bthis permanent\b/gi, '~');
+    const selfEv = 'self' in ev && ev.self === true;
+    let effs = withFrame(!selfEv, [], () => parseEffects(inner, useRegistry));
     if (effs.some(e => e.op === 'unknown')) return null;
+    if (!selfEv && mentionsThat(effs)) effs = [{ op: 'bind', as: 'that', from: 'triggering' }, ...effs];   // same reason as triggerBody
     return { kind: 'triggered', event: ev, effects: effs, text, ...(optional ? { optional: true } : {}) };
   }
   return null;
@@ -1061,7 +1347,34 @@ function grantedShape(text: string, useRegistry: boolean): Ability | null {
  * granted mana ability). They have to move together: parseStatic's built-ins-only pass runs above the spell-text
  * branch of the line loop, so a rule answering one of those slots could take a line off an instant or sorcery.
  */
+/**
+ * Every `subtypes` entry of a parse in the vocabulary's spelling ("Slivers" → "Sliver", "Golems" → "Golem"), or null
+ * when a word is no subtype at all: the static templates below capture any capitalised word ("All Slivers have …",
+ * "Other Golems get +1/+1"), and a filter spelt the way the text pluralised it matches no permanent.
+ */
+function withVocabularySubtypes<T extends object>(v: T): T | null {
+  let ok = true;
+  const walk = (x: unknown): void => {
+    if (!ok || !x || typeof x !== 'object') return;
+    if (Array.isArray(x)) { x.forEach(walk); return; }
+    const o = x as Record<string, unknown>;
+    if (Array.isArray(o.subtypes) && o.subtypes.every(t => typeof t === 'string')) {
+      const fixed = (o.subtypes as string[]).map(t => subtypeWord(t));
+      if (fixed.some(t => t === null)) { ok = false; return; }
+      o.subtypes = fixed;
+    }
+    for (const k of Object.keys(o)) if (k !== 'subtypes') walk(o[k]);
+  };
+  walk(v);
+  return ok ? v : null;
+}
+
 function parseStatic(line: string, card: { types: CardType[]; subtypes: string[] }, useRegistry = true): StaticEffect | StaticEffect[] | null {
+  const st = parseStaticRaw(line, card, useRegistry);
+  return st === null ? null : withVocabularySubtypes(st);
+}
+
+function parseStaticRaw(line: string, card: { types: CardType[]; subtypes: string[] }, useRegistry = true): StaticEffect | StaticEffect[] | null {
   const t = line.trim().replace(/\.$/, '');
   let m: RegExpMatchArray | null;
   // anthems
@@ -1127,15 +1440,27 @@ function parseStatic(line: string, card: { types: CardType[]; subtypes: string[]
   if (/^whenever enchanted (?:land|forest) is tapped for mana, its controller adds an additional one mana of the chosen color$/i.test(t)) return { kind: 'extra-mana-on-tap', enchanted: true, mana: 'chosen-color' };
   if (/^during your turn, your opponents can't cast spells or activate abilities of artifacts, creatures, or enchantments$/i.test(t) || /^your opponents can't cast spells during your turn$/i.test(t)) return { kind: 'opponents-cant-cast', during: 'your-turn' };
   if ((m = t.match(/^(other )?creatures you control have (.+)$/i))) { const kw = kwList(m[2]); if (!kw) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { types: ['Creature'] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw }; }
-  if ((m = t.match(/^(other )?([A-Z][a-z]+)s? (?:creatures )?you control get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?$/))) {
+  if ((m = t.match(/^(other )?([A-Z][a-z]+)s? (?:creatures )?you control get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?$/)) && subtypeWord(m[2])) {
     const kw = m[5] ? kwList(m[5]) : []; if (kw === null) return null;
     return { kind: 'anthem', power: Number(m[3]), toughness: Number(m[4]), filter: { subtypes: [singular(m[2])] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw };
   }
-  if ((m = t.match(/^(other )?([A-Z][a-z]+ves) (?:creatures )?you control get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?$/))) {
+  if ((m = t.match(/^(other )?([A-Z][a-z]+ves) (?:creatures )?you control get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?$/)) && subtypeWord(m[2])) {
     const kw = m[5] ? kwList(m[5]) : []; if (kw === null) return null;
     return { kind: 'anthem', power: Number(m[3]), toughness: Number(m[4]), filter: { subtypes: [singular(m[2])] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw };
   }
-  if ((m = t.match(/^([Oo]ther )?([A-Z][a-z]+)s? (?:creatures )?you control have (.+)$/))) { const kw = kwList(m[3]); if (!kw) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { subtypes: [m[2]] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw }; }
+  if ((m = t.match(/^([Oo]ther )?([A-Z][a-z]+)s? (?:creatures )?you control have (.+)$/)) && subtypeWord(m[2])) { const kw = kwList(m[3]); if (!kw) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { subtypes: [m[2]] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw }; }
+  // "Attacking creatures you control have double strike", "Land creatures you control have flying", "Nonblack creatures
+  // you control have …": the filter word alone (a `types` list is any-of, so "land creature" would name every land and
+  // every creature), the anthem's own creature gate does the rest
+  if ((m = t.match(/^(other )?(\w+) creatures you control have (.+)$/i)) && !/^(other|creatures?|permanents?)$/i.test(m[2])) {
+    const f = parseFilterWords(m[2]); const kw = kwList(m[3]); if (!f || !kw || !kw.length || f.subtypes) return null;
+    return { kind: 'anthem', power: 0, toughness: 0, filter: f, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw };
+  }
+  // "Artifacts you control have hexproof", "Other enchantments you control have indestructible": every permanent of the type
+  if ((m = t.match(/^(other )?(artifacts|enchantments|lands|planeswalkers|(?:\w+ )?permanents) you control have (.+)$/i))) {
+    const f = parseFilterWords(m[2].replace(/s$/, '')); const kw = kwList(m[3]); if (!f || !kw || !kw.length || f.subtypes) return null;
+    return { kind: 'anthem', power: 0, toughness: 0, filter: f, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw, anyPermanent: true };
+  }
   if ((m = t.match(/^(?:all )?(other )?creatures get ([+-]\d+)\/([+-]\d+)$/i))) return { kind: 'anthem', power: Number(m[2]), toughness: Number(m[3]), filter: { types: ['Creature'] }, scope: 'all' };
   if ((m = t.match(/^(other )?(\w+) creatures you control get ([+-]\d+)\/([+-]\d+)$/i))) { const f = parseFilterWords(m[2] + ' creature'); if (!f) return null; return { kind: 'anthem', power: Number(m[3]), toughness: Number(m[4]), filter: f, scope: m[1] ? 'other-you-control' : 'you-control' }; }
   if ((m = t.match(/^creatures your opponents control get ([+-]\d+)\/([+-]\d+)$/i))) return { kind: 'anthem', power: Number(m[1]), toughness: Number(m[2]), filter: { types: ['Creature'] }, scope: 'all', keywords: [] , ...({ opponentsOnly: true } as object) };
@@ -1169,7 +1494,7 @@ function parseStatic(line: string, card: { types: CardType[]; subtypes: string[]
   }
   if ((m = t.match(/^spells( you cast| your opponents cast)? cost \{(\d+)\} (less|more) to cast$/i))) return { kind: 'cost-adjust', filter: {}, amount: (m[3].toLowerCase() === 'less' ? 1 : -1) * Number(m[2]), who: m[1] === ' you cast' ? 'you' : m[1] === ' your opponents cast' ? 'opponent' : 'any' };
   if ((m = t.match(/^spells you cast from anywhere other than your hand cost \{(\d+)\} less to cast$/i))) return { kind: 'cost-adjust', filter: {}, amount: Number(m[1]), who: 'you', from: 'non-hand' };
-  if ((m = t.match(/^(\w+) spells you cast cost \{(\d+)\} less to cast$/i))) return { kind: 'cost-adjust', filter: { subtypes: [m[1]] }, amount: Number(m[2]), who: 'you' };
+  if ((m = t.match(/^(\w+) spells you cast cost \{(\d+)\} less to cast$/i))) { const f = parseFilterWords(m[1]); return f && { kind: 'cost-adjust', filter: f, amount: Number(m[2]), who: 'you' }; }   // "Green spells" (Emerald Medallion), "Goblin spells\"
   if ((m = t.match(/^as long as (.+?), ~ gets ([+-]\d+)\/([+-]\d+), has (.+?)(?:, and attacks each combat if able)?$/i))) {
     const c = parseCondition(m[1], useRegistry); const kw = kwList(m[4]); if (c.kind === 'unknown' || !kw) return null;
     return [{ kind: 'self-pt', power: Number(m[2]), toughness: Number(m[3]), ...({ condition: c } as object) }, { kind: 'self-keywords', keywords: kw, condition: c, ...(/attacks each combat if able/i.test(t) ? { mustAttack: true } : {}) } as StaticEffect];
@@ -1263,7 +1588,9 @@ function tryLineRules(def: CardDef, line: string, rawLine: string, row: OracleRo
 
 /** Record a parsed activated ability on the def — shared by the built-in pass and the registry retry below it. */
 function addActivated(def: CardDef, line: string, act: ActivatedAbility): void {
-  if (/from your graveyard/i.test(line) && act.effects.some(e => e.op === 'bounce' && e.target === 'self')) act.fromGraveyard = true;
+  // "Return ~ from your graveyard to your hand / the battlefield": the ability is activated while the card is in the
+  // graveyard. The registry's `move` of `self` is recognised here because an effect rule cannot set the flag itself.
+  if (/from your graveyard/i.test(line) && act.effects.some(e => (e.op === 'bounce' && e.target === 'self') || (e.op === 'move' && e.what === 'self'))) act.fromGraveyard = true;
   if (act.effects.some(e => e.op === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
   if (act.manaAbility) for (const e of act.effects) if (e.op === 'add-mana' && Array.isArray(e.mana)) def.producesMana.push(...e.mana); else if (e.op === 'add-mana') def.producesMana.push('W', 'U', 'B', 'R', 'G');
   def.abilities.push(act);
@@ -1272,6 +1599,32 @@ function addActivated(def: CardDef, line: string, act: ActivatedAbility): void {
 /** Record one (or several) parsed static effects on the def — likewise shared by both passes. */
 function addStatic(def: CardDef, line: string, st: StaticEffect | StaticEffect[]): void {
   for (const e of Array.isArray(st) ? st : [st]) { if (e.kind === 'anthem' && e.whileInGraveyard) def.graveyardStatic = true; def.abilities.push({ kind: 'static', effect: e, text: line }); }
+}
+
+/**
+ * The effects of a triggered ability's body. Built-ins first, as everywhere: the built-ins-only parse is kept whenever
+ * it is complete. When only the registry pass completes it and the trigger is about another object ("Whenever another
+ * creature enters, ~ deals damage equal to that creature's power ..."), the body's `that` is the triggering object, so
+ * a `bind` from `triggering` is put at the head of the list — the registry cannot do that itself: a sentence rule
+ * never sees the trigger head. A self trigger's "it" was already rewritten to `~` above.
+ */
+function triggerBody(body: string, selfEv: boolean): Effect[] {
+  const before = registryClaims;
+  // a trigger about another object holds it as the frame from the start (the `bind` below, or the engine's trigger context)
+  const effs = foldMarkers(withFrame(!selfEv, [], () => parseEffects(body)), true);
+  // the engine records only `triggeringId` for a plain trigger (game.ts, the trigger → stack site), never
+  // `item.affected`, so EVERY complete non-self body that reads the frame — a built-in parse's `that` as much as a
+  // registry claim's — gets the bind that makes `that` the triggering object (9.0b re-review 2)
+  void before;
+  if (!selfEv && effs.every(e => e.op !== 'unknown') && mentionsThat(effs)) return [{ op: 'bind', as: 'that', from: 'triggering' }, ...effs];
+  return effs;
+}
+/** Does any effect (nested lists included) read the `that` binding — a Ref, a `prop ... of: 'that'`, a `controller-of-that`, the older `power-of-that` / `mv-of-that` counts and `that-controller`? */
+function mentionsThat(v: unknown): boolean {
+  if (v === 'that' || v === 'those' || v === 'controller-of-that' || v === 'power-of-that' || v === 'mv-of-that' || v === 'that-controller') return true;
+  if (Array.isArray(v)) return v.some(mentionsThat);
+  if (v && typeof v === 'object') return FRAME_OPS.has(String((v as { op?: unknown }).op)) || Object.values(v as Record<string, unknown>).some(mentionsThat);
+  return false;
 }
 
 export function parseCard(row: OracleRow): CardDef {
@@ -1361,7 +1714,7 @@ export function parseCard(row: OracleRow): CardDef {
     if ((m = line.match(/^ward \{(\d+)\}$/i)) || (m = line.match(/^ward \{(\d+)\}\s*$/i))) { def.keywords.push('ward'); def.wardCost = Number(m[1]); continue; }
     if ((m = line.match(/^kicker (\{[^ ]+\})$/i))) { def.kicker = parseManaCost(m[1])!; continue; }
     if ((m = line.match(/^cycling (\{[^ ]+\})$/i))) { def.cycling = parseManaCost(m[1])!; continue; }
-    if ((m = line.match(/^equip ([A-Z][a-z]+) (\{[^ ]+\})$/))) { const eqt = def.abilities.find(a => a.kind === 'static' && a.effect.kind === 'equipment') as { effect: Extract<StaticEffect, { kind: 'equipment' }> } | undefined; const c = parseManaCost(m[2]); if (eqt && c) { eqt.effect.equipCost = c; eqt.effect.equipFilter = { subtypes: [m[1]] }; continue; } }
+    if ((m = line.match(/^equip ([A-Z][a-z]+) (\{[^ ]+\})$/))) { const eqt = def.abilities.find(a => a.kind === 'static' && a.effect.kind === 'equipment') as { effect: Extract<StaticEffect, { kind: 'equipment' }> } | undefined; const c = parseManaCost(m[2]); const sub = subtypeWord(m[1]); if (eqt && c && sub) { eqt.effect.equipCost = c; eqt.effect.equipFilter = { subtypes: [sub] }; continue; } }
     if ((m = line.match(/^equip (\{[^ ]+\})$/i))) { const eq = def.abilities.find(a => a.kind === 'static' && a.effect.kind === 'equipment') as { effect: Extract<StaticEffect, { kind: 'equipment' }> } | undefined; if (eq) eq.effect.equipCost = parseManaCost(m[1])!; else def.abilities.push({ kind: 'static', effect: { kind: 'equipment', power: 0, toughness: 0, keywords: [], equipCost: parseManaCost(m[1])! }, text: line }); continue; }
     if (/^enchant [a-z ,]+$/i.test(line) && row.subtypes.includes('Aura')) continue; // recorded in aura static
     if (/^~ enters (?:the battlefield )?tapped\.?$/i.test(line)) { def.entersTapped = true; continue; }
@@ -1419,7 +1772,7 @@ export function parseCard(row: OracleRow): CardDef {
     if ((m = line.match(/^affinity for (\w+?)s?$/i))) { const f = parseFilterWords(m[1]); if (f) { (def.costModifiers ??= []).push({ kind: 'reduce', amount: { count: 'permanents-you-control', filter: f } }); continue; } }
     if ((m = line.match(/^~ costs \{(\d+)\} less to cast for each basic land type among lands you control\.?$/i))) { (def.costModifiers ??= []).push({ kind: 'reduce', amount: { count: 'domain', times: Number(m[1]) } }); continue; }
     if ((m = line.match(/^~ costs \{(\d+)\} less to cast for each card type among cards in your graveyard\.?$/i))) { (def.costModifiers ??= []).push({ kind: 'reduce', amount: { count: 'card-types-in-graveyard', times: Number(m[1]) } }); continue; }
-    if ((m = line.match(/^(basic land|\w+)cycling (\{[^ ]+\})$/i))) { def.cycling = parseManaCost(m[2])!; def.cyclingSearch = m[1].toLowerCase() === 'basic land' ? { types: ['Land'], basic: true } : { subtypes: [m[1][0].toUpperCase() + m[1].slice(1).toLowerCase()] }; continue; }
+    if ((m = line.match(/^(basic land|\w+)cycling (\{[^ ]+\})$/i))) { def.cycling = parseManaCost(m[2])!; def.cyclingSearch = m[1].toLowerCase() === 'basic land' ? { types: ['Land'], basic: true } : { subtypes: [subtypeWord(m[1]) ?? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase()] }; continue; }
     if ((m = line.match(/^~ costs \{(\d+)\} less to cast for each (.+?) you control\.?$/i))) { const f = parseFilterWords(m[2]); if (f) { (def.costModifiers ??= []).push({ kind: 'reduce', amount: { count: 'permanents-you-control', filter: f, times: Number(m[1]) } }); continue; } }
     if ((m = line.match(/^as an additional cost to cast ~, (.+?)\.?$/i)) && !/^you may/i.test(m[1])) { const c = parseCost(m[1]); if (c) { (def.additionalCosts ??= []).push(c); continue; } unknown(def, line); continue; }
     if ((m = line.match(/^(crew|saddle) (\d+)$/i))) { const saddle = m[1].toLowerCase() === 'saddle'; def.abilities.push({ kind: 'activated', cost: { tapCreaturesTotalPower: { power: Number(m[2]), other: saddle } }, effects: [{ op: saddle ? 'saddle-self' : 'crew-self' }], text: line, instantSpeed: true }); continue; }
@@ -1469,8 +1822,11 @@ export function parseCard(row: OracleRow): CardDef {
       const selfEv = 'self' in ev && ev.self === true;
       // "it" in a self-referential trigger body is the source, unless the body introduces another referent
       if (selfEv && !/\btarget\b|\bthat (creature|card|player|permanent|land|spell)\b|\banother\b|\bcards?\b|\btokens?\b|\bcopy\b/i.test(body)) body = body.replace(/\b(it|this creature|this permanent)\b(?!s)/gi, '~');
+      // "When ~ dies, draw cards equal to its power": "its" is the source too (the frame-bound `power-of-that` would read
+      // nothing on a self trigger); "cards" / "tokens" are not referents for "its", another object or a target is
+      if (selfEv && !/\btarget (?!(?:player|opponent)\b)|\bthat (creature|card|permanent|land|spell|token)\b|\banother\b|\bcopy\b|\benchanted\b|\bequipped\b/i.test(body)) body = body.replace(/\bits (power|toughness|mana value)\b/gi, "~'s $1");
       const once = /\. this ability triggers only once each turn\.?$/i.test(body); if (once) body = body.replace(/\.? this ability triggers only once each turn\.?$/i, '');
-      const effs = /^choose (one|two)( —|\.)?$/i.test(body.trim()) ? [{ op: 'choose-mode', modes: [], count: /two/i.test(body) ? 2 : 1 } as Effect] : foldMarkers(parseEffects(body), true);
+      const effs = /^choose (one|two)( —|\.)?$/i.test(body.trim()) ? [{ op: 'choose-mode', modes: [], count: /two/i.test(body) ? 2 : 1 } as Effect] : triggerBody(body, selfEv);
       const ab: TriggeredAbility = { kind: 'triggered', event: ev, effects: effs, text: line, optional, intervening, ...(once ? { oncePerTurn: true } : {}) };
       if (ev.on === 'unknown' || effs.some(e => e.op === 'unknown') || (intervening && intervening.kind === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
       def.abilities.push(ab); continue;
@@ -1487,7 +1843,8 @@ export function parseCard(row: OracleRow): CardDef {
 
     // --- spell text / ETB-less effect text on permanents (e.g. "Destroy target creature." on a sorcery)
     if (isSpell) {
-      const effs = parseEffects(line);
+      // one item: an earlier paragraph's binding (or an additional sacrifice cost) is this paragraph's frame too
+      const effs = withFrame(!!def.additionalCosts?.some(c => c.sacrifice), spellEffects, () => parseEffects(line));
       spellEffects.push(...effs);
       if (effs.some(e => e.op === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
       continue;
@@ -1509,6 +1866,12 @@ export function parseCard(row: OracleRow): CardDef {
     def.abilities.push({ kind: 'spell', effects: folded, text: text });
   }
   def.keywords = [...new Set(def.keywords)];
+  // --- second face of a split / adventure / flip card: the engine cannot cast that half, so its lines are recorded as
+  //     unparsed — the same list scripts.ts's `secondFaceLines` / `secondFaceUnclaimed` accounts for (src/cards/oracle-lines.ts)
+  if (row.faces && row.faces.length > 1 && SECOND_FACE_LAYOUTS.includes(row.layout)) {
+    const second = secondFaceLinesOf(row.layout, { name: row.faces[1].name, oracleText: row.faces[1].oracle_text });
+    if (second.length) { def.fullyParsed = false; for (const l of second) if (!def.unparsed.includes(l)) def.unparsed.push(l); }
+  }
   // --- back face of a modal / transforming double-faced card
   if (row.faces && row.faces.length > 1 && (row.layout === 'modal_dfc' || row.layout === 'transform') && row.faces[1].type_line) {
     const f = row.faces[1]; const tl = parseTypeLine(f.type_line ?? '');
@@ -1520,8 +1883,6 @@ export function parseCard(row: OracleRow): CardDef {
 }
 
 const ROMAN: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4, V: 5 };
-/** Ability words carry no rules meaning (CR 207.2c); strip them so the clause parses like any other. */
-const ABILITY_WORD_RE = /^(Revolt|Converge|Delirium|Metalcraft|Threshold|Landfall|Domain|Morbid|Raid|Ferocious|Formidable|Hellbent|Spell mastery|Flurry|Imprint|Constellation|Coven|Magecraft|Pack tactics|Alliance|Celebration|Valiant|Eerie|Survival|Paradox|Corrupted|Fateful hour|Lieutenant|Undergrowth|Enrage|Adamant|Addendum|Kinship|Chroma|Grandeur|Radiance|Parley|Descend \d+|Fathomless descent|Max speed|Heist|Mayhem|Job select|Renew|Endure|Exhaust|Mobilize|Harmonize|Behold|Channel|Battalion|Heroic|Inspired|Bloodrush|Strive|Tempting offer|Will of the council|Council's dilemma|Secret council|Cohort|Rally|Sweep|Join forces|Hero's reward|Undaunted|Legacy|Eminence|Start your engines!) — /i;
 
 function parseTypeLine(tl: string): { types: string[]; supertypes: string[]; subtypes: string[] } {
   const [left, right] = tl.split(' — ');
@@ -1552,7 +1913,8 @@ function parseActivatedLine(line: string, useRegistry = true, bodyRegistry = tru
   if (/ activate only once each turn\.?$/i.test(body)) { oncePerTurn = true; body = body.replace(/ activate only once each turn\.?$/i, ''); }
   const only = body.match(/ activate only if (.+?)\.?$/i);
   if (only) { const c = parseCondition(only[1], useRegistry); if (c.kind === 'unknown') return null; activateOnlyIf = c; body = body.slice(0, only.index); }
-  const effs = foldMarkers(parseEffects(body, bodyRegistry), true);
+  // a sacrifice cost binds what was sacrificed before the effects run (src/engine/game.ts payCost)
+  const effs = foldMarkers(withFrame(!!cost.sacrifice, [], () => parseEffects(body, bodyRegistry)), true);
   const manaAbility = effs.some(e => e.op === 'add-mana') && effs.every(e => e.op === 'add-mana' || e.op === 'damage-you' || ((e.op === 'lose-life' || e.op === 'gain-life') && e.who === 'you'));
   return { kind: 'activated', cost, effects: effs, text: line, sorcerySpeed, oncePerTurn, manaAbility, activateOnlyIf, instantSpeed };
 }

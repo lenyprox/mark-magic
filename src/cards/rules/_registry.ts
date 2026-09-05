@@ -17,8 +17,11 @@
 // *type*-import parse.ts (for `OracleRow`). Everything a rule needs at runtime is handed to it on `LineCtx`.
 import type { ConditionRule, CostRule, EffectRule, LineRule, RuleFamily, StaticRule, TriggerRule } from './types.js';
 
+import family_composition from './composition.js';
 
-const GENERATED: RuleFamily[] = [];
+const GENERATED: RuleFamily[] = [
+  family_composition,
+];
 
 // ---------------------------------------------------------------- flat arrays (mutated in place by rebuild())
 export const EFFECT_RULES: EffectRule[] = [];

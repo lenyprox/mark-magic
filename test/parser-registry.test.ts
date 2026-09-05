@@ -248,13 +248,24 @@ function noFamilies(fn: () => void): void {
   try { fn(); } finally { if (hadProbe) registerRules(PROBE); }
 }
 
-/** Run `fn` with `fam` as the only registered family, so the ANY flags describe that family alone. */
+/** Run `fn` with `fam` as the only RUNTIME family, so the ANY flags describe that family plus the generated ones. */
 function onlyFamily(fam: RuleFamily, fn: () => void): void {
   const hadProbe = RULE_FAMILIES.some(f => f.name === PROBE.name);
   if (hadProbe) unregisterRules(PROBE.name);
   registerRules(fam);
   try { fn(); } finally { unregisterRules(fam.name); if (hadProbe) registerRules(PROBE); }
 }
+
+/**
+ * The ANY flags with no runtime family registered — what the generated families (src/cards/rules/<family>.ts; the
+ * composition core since 9.0b arms sentence / granted / static / line) arm on their own. A single-kind probe family
+ * must arm exactly its own flags on top of those.
+ */
+const GENERATED_ANY = (() => { let out = { ...ANY }; noFamilies(() => { out = { ...ANY }; }); return out; })();
+const withGenerated = (flags: typeof ANY): typeof ANY => ({
+  sentence: flags.sentence || GENERATED_ANY.sentence, activated: flags.activated || GENERATED_ANY.activated, trigger: flags.trigger || GENERATED_ANY.trigger,
+  granted: flags.granted || GENERATED_ANY.granted, static: flags.static || GENERATED_ANY.static, line: flags.line || GENERATED_ANY.line,
+});
 
 const prow = (types: string[], text: string): OracleRow => ({ ...row(types, text), name: 'Probe Subject', oracle_id: 'probe-single-kind-0001' });
 
@@ -275,7 +286,7 @@ test('a family with only condition rules is consulted by every ladder that reach
 
   onlyFamily(CONDITIONS_ONLY, () => {
     // Conditions alone must still arm the sentence, activated, granted-ability and static passes.
-    assert.deepEqual({ ...ANY }, { sentence: true, activated: true, trigger: false, granted: true, static: true, line: false });
+    assert.deepEqual({ ...ANY }, withGenerated({ sentence: true, activated: true, trigger: false, granted: true, static: true, line: false }));
 
     // (a) the sentence ladder: "<effects> if <condition>", which only the second pass reaches.
     assert.deepEqual(parseEffects('Draw a card if the probe is charged.'), [
@@ -325,7 +336,7 @@ test('a family with only trigger rules is consulted by every ladder that reaches
 
   onlyFamily(TRIGGERS_ONLY, () => {
     // Triggers alone arm the trigger-head retry, and through parseGrantedAbility the static retry as well.
-    assert.deepEqual({ ...ANY }, { sentence: false, activated: false, trigger: true, granted: true, static: true, line: false });
+    assert.deepEqual({ ...ANY }, withGenerated({ sentence: false, activated: false, trigger: true, granted: true, static: true, line: false }));
 
     // (a) the line loop's trigger-head retry, narrow head.
     const narrow = parseCard(prow(['Creature'], 'Whenever Probe Subject wardsignals, draw a card.'));
@@ -360,7 +371,7 @@ test('a family with only static rules fires at the one site that reaches statics
   noFamilies(() => assert.equal(parseCard(prow(['Creature'], 'Probe Subject is wardguarded.')).fullyParsed, false));
 
   onlyFamily(STATICS_ONLY, () => {
-    assert.deepEqual({ ...ANY }, { sentence: false, activated: false, trigger: false, granted: false, static: true, line: false });
+    assert.deepEqual({ ...ANY }, withGenerated({ sentence: false, activated: false, trigger: false, granted: false, static: true, line: false }));
 
     // The line loop's static retry — the only pass that reaches parseStatic with the registry enabled. (parseStatic's
     // other call, the "whenever you tap ... for mana" pre-check, is built-ins-only by design: the built-in trigger

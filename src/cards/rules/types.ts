@@ -20,14 +20,44 @@
 // a family reuses the shared vocabulary (filters, targets, amounts, costs) instead of re-implementing it. The only
 // import from parse.ts is the `OracleRow` *type*, which is erased.
 import type { OracleRow } from '../parse.js';
-import type { Ability, AbilityCost, AltCost, AsEnters, CardDef, CardType, Condition, CostModifier, Effect, Keyword, ManaCost, StaticEffect, TriggerEvent } from '../types.js';
+import type { Ability, AbilityCost, AltCost, Amount, AsEnters, CardDef, CardType, Condition, CostModifier, Effect, Filter, Keyword, ManaCost, StaticEffect, TargetSpec, TriggerEvent } from '../types.js';
 
 /**
  * One sentence template — exactly the shape of parse.ts's built-in `Rule`. `re` is matched against the *normalised*
  * sentence (trimmed, whitespace collapsed, trailing "." removed, the card's own name and "this creature"/"it" already
  * rewritten to `~`, a leading "You may "/"Then " stripped). Return `null` to decline the match and let later rules try.
+ * `ctx` hands the rule the built-in sub-parsers (see `EffectCtx`); a rule that needs none may ignore it.
  */
-export interface EffectRule { re: RegExp; make: (m: RegExpMatchArray) => Effect | null }
+export interface EffectRule { re: RegExp; make: (m: RegExpMatchArray, ctx: EffectCtx) => Effect | null }
+
+/**
+ * The shared vocabulary an effect rule may call, handed in by parse.ts (a rule cannot import it: parse.ts imports the
+ * registry). Every parser here runs with the registry enabled — a rule is only consulted on the second pass of the
+ * sentence ladder, so what it sub-parses is on that pass too. `optional` says the sentence began with "you may "
+ * (already stripped): parse.ts wraps whatever the rule returns in a `may`, so the rule need not.
+ */
+export interface EffectCtx {
+  optional: boolean;
+  /** A paragraph or sentence list → effects (the same ladder every built-in body goes through). */
+  parseEffects: (text: string) => Effect[];
+  /** One sentence → one effect (`unknown` when nothing claims it). */
+  parseEffectSentence: (text: string) => Effect;
+  /** "target creature you control", "up to two target lands", "any target" → a TargetSpec, or null. */
+  parseTarget: (phrase: string) => TargetSpec | null;
+  /** "nonblack creature", "Goblin", "artifact creature with flying" → a Filter, or null. Lossy on words it does not know. */
+  parseFilterWords: (desc: string) => Filter | null;
+  /** The tail of a "for each ..." clause → an Amount, or null. */
+  parseEachPhrase: (phrase: string) => Amount | null;
+  /** "the number of Forests you control", "its power" → an Amount, or null. */
+  parseAmountPhrase: (phrase: string) => Amount | null;
+  parseCondition: (text: string) => Condition;
+  parseCostPhrase: (phrase: string) => AbilityCost | null;
+  parseManaCost: (raw: string | null | undefined) => ManaCost | null;
+  /** "a", "two", "X", "3" → 1, 2, 'X', 3 (an unknown word reads as 1). */
+  num: (s: string | undefined) => Amount;
+  /** "flying, first strike and trample" → a keyword list, or null when a word is not a keyword. */
+  kwList: (s: string) => Keyword[] | null;
+}
 
 /** The card characteristics `parseStatic` is given (the front face's types and Scryfall's subtypes). */
 export interface StaticCard { types: CardType[]; subtypes: string[] }

@@ -29,6 +29,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot } from '../config/paths.js';
+import { normalizeOracleLine, normalizeOracleText, SECOND_FACE_LAYOUTS as SECOND_FACE_LAYOUTS_SHARED, secondFaceLinesOf } from './oracle-lines.js';
 import { keywordFromText } from './parse.js';
 import type { PoolTier } from './pool.js';
 import type { Ability, AbilityCost, AltCost, Amount, AsEnters, CardDef, Condition, CostModifier, Effect, Filter, Keyword, ManaCost, StaticEffect } from './types.js';
@@ -253,32 +254,10 @@ export function scriptHash(script: CardScript): string {
 }
 
 // ---------------------------------------------------------------------------
-// Oracle line normalisation — the same transformation `parse.ts` applies before it splits a card into lines, so
-// `covers` / `ignore` entries can be compared to what the parser saw. Exposed so the tools do not re-derive it.
+// Oracle line normalisation lives in ./oracle-lines.ts (shared with parse.ts, so the two can never drift); the two
+// functions are re-exported here because every tool and test imports them from this module.
 // ---------------------------------------------------------------------------
-
-/** Ability words carry no rules meaning (CR 207.2c); the parser strips them. Mirrors parse.ts:ABILITY_WORD_RE. */
-const ABILITY_WORD_RE = /^(Revolt|Converge|Delirium|Metalcraft|Threshold|Landfall|Domain|Morbid|Raid|Ferocious|Formidable|Hellbent|Spell mastery|Flurry|Imprint|Constellation|Coven|Magecraft|Pack tactics|Alliance|Celebration|Valiant|Eerie|Survival|Paradox|Corrupted|Fateful hour|Lieutenant|Undergrowth|Enrage|Adamant|Addendum|Kinship|Chroma|Grandeur|Radiance|Parley|Descend \d+|Fathomless descent|Max speed|Heist|Mayhem|Job select|Renew|Endure|Exhaust|Mobilize|Harmonize|Behold|Channel|Battalion|Heroic|Inspired|Bloodrush|Strive|Tempting offer|Will of the council|Council's dilemma|Secret council|Cohort|Rally|Sweep|Join forces|Hero's reward|Undaunted|Legacy|Eminence|Start your engines!) — /i;
-
-const FLAVOUR_PREFIX_RE = /^(?![IVX]+ — )[A-Z0-9][^—.]{0,30} — (?=When\b|Whenever\b|At |\{|[A-Z])/;
-
-/** Normalise a whole oracle text the way `parseCard` does: card name -> `~`, reminder text dropped, `−` -> `-`. */
-export function normalizeOracleText(text: string, cardName: string): string {
-  const shortName = cardName.split(' // ')[0];
-  const nick = shortName.includes(',') ? shortName.split(',')[0] : null;
-  const escaped = shortName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  let norm = text.replace(new RegExp(escaped, 'g'), '~');
-  if (nick) norm = norm.replace(new RegExp(nick.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w])', 'g'), '~');
-  norm = norm.replace(/\bthis (creature|permanent|artifact|enchantment|land|spell|planeswalker|saga|vehicle|aura|equipment|card)\b/gi, '~').replace(/\(([^)]*)\)/g, '').replace(/−/g, '-');
-  const cut = norm.split('\n');
-  const back = cut.findIndex(l => l.trim().startsWith('//'));
-  return back >= 0 ? cut.slice(0, back).join('\n') : norm;
-}
-
-/** Strip the per-line prefixes the parser removes before it matches a line (ability words, "Foo — " flavour heads). */
-export function normalizeOracleLine(line: string): string {
-  return line.trim().replace(ABILITY_WORD_RE, '').replace(FLAVOUR_PREFIX_RE, '').trim();
-}
+export { normalizeOracleLine, normalizeOracleText } from './oracle-lines.js';
 
 /**
  * Every oracle LINE of a card as the parser normalises it: the front face's lines, any modal bullet embedded in a
@@ -335,7 +314,10 @@ export function faceScriptableLines(def: Pick<CardDef, 'name' | 'oracleText' | '
   const out: string[] = [];
   const push = (l: string) => { const t = l.trim(); if (t && !out.includes(t)) out.push(t); };
   for (const l of normalizeOracleLines({ ...def, backFace: undefined })) push(l);
-  for (const u of def.unparsed) push(u);
+  // the parser reports the second face of a split / adventure / flip card in `unparsed` too; those lines belong to
+  // `secondFace.covers`, not to this face's
+  const second = new Set(secondFaceLines(def));
+  for (const u of def.unparsed) if (!second.has(u.trim())) push(u);
   return out;
 }
 
@@ -1316,8 +1298,8 @@ export function faceLines(def: Pick<CardDef, 'name' | 'oracleText' | 'layout' | 
 // The second face of a split / adventure / flip card
 // ---------------------------------------------------------------------------
 
-/** Layouts whose `faces[1]` carries castable / playable text that `parse.ts` never parses (parse.ts:1146, :1362). */
-export const SECOND_FACE_LAYOUTS: readonly string[] = ['split', 'adventure', 'flip'];
+/** Layouts whose `faces[1]` carries castable / playable text the engine cannot play (parse.ts records its lines as unparsed). */
+export const SECOND_FACE_LAYOUTS: readonly string[] = SECOND_FACE_LAYOUTS_SHARED;
 
 /** The second face of a split / adventure / flip card, or null when this card has none with text. */
 export function secondFaceOf(def: Pick<CardDef, 'layout' | 'faces'>): { name: string; oracleText: string } | null {
@@ -1329,18 +1311,11 @@ export function secondFaceOf(def: Pick<CardDef, 'layout' | 'faces'>): { name: st
 
 /**
  * The lines `script.secondFace` must claim: `faces[1].oracle_text` normalised against the SECOND face's own name, so
- * "Stomp deals 2 damage to any target." reads as "~ deals 2 damage to any target." exactly as the parser would have
- * written it. Empty for every other layout, so nothing changes for the rest of the pool.
+ * "Stomp deals 2 damage to any target." reads as "~ deals 2 damage to any target." — the same list `parseCard` records
+ * in `def.unparsed` for these layouts (src/cards/oracle-lines.ts). Empty for every other layout.
  */
 export function secondFaceLines(def: Pick<CardDef, 'layout' | 'faces'>): string[] {
-  const face = secondFaceOf(def);
-  if (!face) return [];
-  const out: string[] = [];
-  for (const raw of normalizeOracleText(face.oracleText, face.name).split('\n')) {
-    const l = normalizeOracleLine(raw);
-    if (l && !l.startsWith('• ') && !out.includes(l)) out.push(l);
-  }
-  return out;
+  return secondFaceLinesOf(def.layout, def.faces?.[1]);
 }
 
 /** Everything a script face declares that must be free of `unknown` for that face to count as simulated. */

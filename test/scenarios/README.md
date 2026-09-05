@@ -107,6 +107,7 @@ Steps run in order. `by` is a seat index and defaults to the player who currentl
 | `{ "cast": "Name", "modes": [1] }` | choose modes by index (0 = first bullet) |
 | `{ "cast": "Name", "alt": "morph" }` | pay an alternative cost: `pitch`, `life`, `evoke`, `warp`, `impending`, `flashback`, `escape`, `jump-start`, `from-graveyard`, `buyback`, `dash`, `morph` |
 | `{ "cast": "Name", "by": 1 }` | seat 1 casts it (this is how you respond to a spell on the stack) |
+| `{ "cast": "Name", "kicked": true }` | pay the kicker (`false` insists on the plain cast; without the key the first legal variant is taken, which is the plain one) |
 | `{ "activate": "Name" }` | activate an ability of that permanent (or card in a graveyard, for unearth and friends) |
 | `{ "activate": "Name", "ability": 1, "targets": [["P1"]] }` | pick the ability by index when a card has several |
 | `{ "playLand": "Name" }` | play a land from hand |

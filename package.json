@@ -15,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:example": "tsc -p tsconfig.example.json --noEmit",
     "gen:registry": "node scripts/gen-registry.mjs",
+    "gen:subtypes": "node scripts/gen-subtypes.mjs",
     "web:index": "node scripts/build-web-index.mjs",
     "data:mana": "node scripts/build-mana-sprite.mjs",
     "dev": "npm run dev -w apps/web -- --webpack",
