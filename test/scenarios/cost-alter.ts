@@ -75,6 +75,36 @@ export const costAlter: Scenario[] = [
     ],
   },
 
+  {
+    // `costAdjust` runs BEFORE game.ts's `pl.spellsCastThisTurn++`, while `parseCondition` calibrates "you've cast
+    // another spell this turn" for a resolving spell (which has already been counted). Without the cost-time shift
+    // the discount would only arrive on the third spell and {1}{U} would not be payable here at all.
+    name: "Gigastorm Titan's discount arrives on the second spell of the turn, not the third", cr: '601.2f',
+    ruling: `"If you've cast another spell this turn" is satisfied by the one spell cast before it, so {4}{U} becomes {1}{U}.`,
+    seats: [{ bf: ['Island', 'Island', 'Mountain'], hand: ['Gigastorm Titan', 'Lightning Bolt'] }, {}],
+    script: [
+      { cast: 'Lightning Bolt', targets: [['P1']] }, { resolve: true },
+      { cast: 'Gigastorm Titan' }, { resolve: true },
+    ],
+    expect: [
+      { life: [1, 17] },
+      { zone: ['Gigastorm Titan', 'battlefield'] },    // only the {3} reduction makes {4}{U} payable off two Islands
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'Gigastorm Titan cast as the first spell of the turn pays its full cost', cr: '601.2f',
+    ruling: 'With no other spell cast this turn the condition fails, so the full {4}{U} is paid.',
+    seats: [{ bf: ['Island', 'Plains', 'Swamp', 'Mountain', 'Forest'], hand: ['Gigastorm Titan'] }, {}],
+    script: [{ cast: 'Gigastorm Titan' }, { resolve: true }],
+    expect: [
+      { zone: ['Gigastorm Titan', 'battlefield'] },
+      // every one of the five lands is tapped: an over-eager discount (counting the spell being cast as the
+      // "another" spell) would have made it {1}{U} and left three of them untapped.
+      { tapped: ['Island', true] }, { tapped: ['Plains', true] }, { tapped: ['Swamp', true] }, { tapped: ['Mountain', true] }, { tapped: ['Forest', true] },
+    ],
+  },
+
   // ------------------------------------------------------------------ the `party` amount (CR 700.7)
   {
     name: 'Sea Gate Colossus costs {1} less for each of the four creatures in a full party', cr: '700.7',
@@ -138,6 +168,36 @@ export const costAlter: Scenario[] = [
     expect: [
       { graveyardCount: [0, 0] },
       { counters: ['Drivnod, Carnage Dominus', { indestructible: 1 }] },
+    ],
+  },
+  {
+    // Regression pin for the zone gate on `exileSelfFromGraveyard`. legal.ts's battlefield scan does not skip
+    // `ab.fromGraveyard`, so the only thing that keeps a graveyard ability off the battlefield is its cost being
+    // unpayable there. The DSL has no "this action is not offered" expectation, so the pin is made by competition:
+    // `{ activate }` takes the FIRST legal ability of that permanent, and Mother Bear's printed graveyard ability is
+    // index 0 while the scripted draw is index 1. With the gate missing, index 0 wins and Mother Bear exiles itself
+    // from PLAY for two 2/2 Bears; with it, only the draw is legal.
+    name: "Mother Bear's graveyard ability cannot be activated while Mother Bear is on the battlefield", cr: '113.6b',
+    ruling: 'An ability that states the zone it functions in functions only from that zone: "Exile this card from your graveyard" cannot be paid by the permanent in play.',
+    seats: [{ bf: ['Mother Bear', 'Forest', 'Forest', 'Forest', 'Forest', 'Forest'] }, {}],
+    scripts: { 'Mother Bear': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'draw', amount: 1, who: 'you' }], text: '{T}: Draw a card.' }] } },
+    script: [{ activate: 'Mother Bear' }, { resolve: true }],
+    expect: [
+      { zone: ['Mother Bear', 'battlefield'] },        // it did not exile itself from play
+      { zoneCount: [0, 'exile', 0] },
+      { zoneCount: [0, 'battlefield', 6] },            // five Forests and the Bear; no Bear tokens were made
+      { handCount: [0, 1] },                           // the only legal ability was the scripted draw
+    ],
+  },
+  {
+    name: 'Time Sieve is one of the five artifacts it sacrifices to pay for its own ability', cr: '601.2h',
+    ruling: 'A permanent may be sacrificed to pay for its own activated ability, so five artifacts on the battlefield is enough when Time Sieve is one of them.',
+    seats: [{ bf: ['Time Sieve', 'Ornithopter', 'Ornithopter', 'Ornithopter', 'Ornithopter'] }, {}],
+    script: [{ activate: 'Time Sieve' }, { resolve: true }],
+    expect: [
+      { zone: ['Time Sieve', 'graveyard'] },           // the source itself paid
+      { zoneCount: [0, 'battlefield', 0] },            // all five artifacts are gone
+      { graveyardCount: [0, 5] },
     ],
   },
   {
@@ -245,6 +305,54 @@ export const costAlter: Scenario[] = [
     expect: [
       { zone: ['Runeclaw Bear', 'battlefield'] },
       { zoneCount: [0, 'graveyard', 0] },
+    ],
+  },
+  {
+    // game.ts:571 runs FREE_CAST_HOOKS unconditionally, unlike the CAST_FROM_HOOKS block two lines above it, which
+    // is guarded by `!alt` — and the hook is not told which alternative cost the cast chose. Without the family's
+    // own guard the flashback cast below would take ZERO_COST *and* still pay the flashback cost, so no Mountain
+    // would be tapped.
+    name: "a free cast-from permission does not make a card's own flashback cost free", cr: '118.9',
+    ruling: 'An alternative cost replaces the mana cost; the "without paying its mana cost" permission is a different way to cast the card, not a discount on top of flashback.',
+    seats: [{ bf: ['Grizzly Bears', 'Mountain', 'Mountain', 'Mountain', 'Mountain', 'Mountain'], graveyard: ['Firebolt'] }, {}],
+    scripts: bearsStatic({ kind: 'cast-from', zone: 'graveyard', free: true }, 'You may cast spells from your graveyard without paying their mana costs.'),
+    script: [{ cast: 'Firebolt', alt: 'flashback', targets: [['P1']] }, { resolve: true }],
+    expect: [
+      { life: [1, 18] },
+      { zone: ['Firebolt', 'exile'] },                // flashback exiles it (CR 702.34a)
+      // the {4}{R} flashback cost was really paid: all five Mountains are tapped
+      { tapped: ['Mountain', true] }, { mana: [0, ''] },
+    ],
+  },
+  {
+    // The family's `legalActions` provider does not go through legal.ts:castActionsFor, which is the only place the
+    // core applies `opponents-cant-cast` (legal.ts:293), so the provider re-checks it itself. This pins the *scope*
+    // of that re-check: Grand Abolisher locks its controller's turn only, so on seat 0's own turn the permission
+    // still works. (The other half — nothing is offered on seat 1's turn — the DSL cannot express: it has no
+    // "this action is not offered" expectation.)
+    name: 'a cast-from permission still works on your own turn while an opponent controls Grand Abolisher', cr: '601.2',
+    ruling: `"During your turn, your opponents can't cast spells" restricts only the Abolisher controller's turn.`,
+    seats: [{ bf: ['Grizzly Bears', 'Forest', 'Forest'], graveyard: ['Runeclaw Bear'] }, { bf: ['Grand Abolisher'] }],
+    scripts: bearsStatic({ kind: 'cast-from', zone: 'graveyard', filter: { types: ['Creature'] } }, 'You may cast creature spells from your graveyard.'),
+    script: [{ cast: 'Runeclaw Bear' }, { resolve: true }],
+    expect: [
+      { zone: ['Runeclaw Bear', 'battlefield'] },
+      { tapped: ['Forest', true] },
+    ],
+  },
+  {
+    // The marker `cast-free` sets is deleted in a `finally`: a throw inside the nested cast would otherwise leave it
+    // on the card, and both hooks read it BEFORE their zone check, so the card would stay free-castable from any
+    // zone for the rest of the game (and `ext` is JSON-plain, so clone.ts and serialize.ts would carry it into every
+    // rollout). This pins the happy path; the throwing path is not scriptable from the DSL.
+    name: 'a cast-free leaves no free-cast marker on the card it cast', cr: '608.2f',
+    ruling: 'The permission is granted for that one cast only.',
+    seats: [{ bf: ['Mountain', 'Mountain', 'Mountain', 'Mountain'], hand: ['Electrodominance', 'Lightning Bolt'] }, {}],
+    script: [{ cast: 'Electrodominance', x: 2, targets: [['P1']] }, { resolve: true }, { resolve: true }],
+    expect: [
+      { life: [1, 15] },
+      { zone: ['Lightning Bolt', 'graveyard'] },
+      { ext: ['Lightning Bolt', 'costAlterFree', undefined] },
     ],
   },
   {

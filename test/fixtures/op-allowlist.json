@@ -14,7 +14,6 @@
     "exile-graveyard",
     "explore",
     "extra-land",
-    "extra-turn",
     "fight",
     "fold-new-targets",
     "gain-ability",
@@ -80,7 +79,6 @@
     "self-tapped",
     "self-untapped",
     "self-was-cast",
-    "spells-cast-this-turn-ge",
     "turn-le",
     "unspent-mana-ge",
     "you-lost-life-this-turn"
@@ -104,7 +102,6 @@
     "extra-mana-on-tap",
     "lifegain-multiplier",
     "opponent-creatures-etb-tapped",
-    "opponents-cant-cast",
     "tokens-replacement",
     "unspent-mana-becomes-red"
   ],

@@ -195,7 +195,10 @@ const COST_ALTER_RULES: RuleFamily = {
         if (!cost) return false;
         const effects = ctx.parseEffects(body);
         if (!effects.length || effects.some(e => e.op === 'unknown')) return false;
-        ctx.addAbility({ kind: 'activated', cost: { ...cost, exileSelf: true }, effects, text: line, fromGraveyard: true, ...(sorcery ? { sorcerySpeed: true } : {}) });
+        // `exileSelfFromGraveyard`, not `exileSelf`: the cost part carries the zone the ability functions in
+        // (CR 113.6b, 118.4). legal.ts's battlefield scan does not skip `ab.fromGraveyard`, so a part payable from
+        // the battlefield would let the permanent exile itself from PLAY to get this ability's effect.
+        ctx.addAbility({ kind: 'activated', cost: { ...cost, exileSelfFromGraveyard: true }, effects, text: line, fromGraveyard: true, ...(sorcery ? { sorcerySpeed: true } : {}) });
         return true;
       },
     },

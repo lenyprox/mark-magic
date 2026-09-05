@@ -64,6 +64,7 @@ export const schema: FamilySchema = {
   amounts: ['party'],
   costParts: {
     exileSelf: z.literal(true),
+    exileSelfFromGraveyard: z.literal(true),
     sacrificeMany: z.strictObject({ filter: Filter, count: z.number().int().min(1) }),
     returnToHandMany: z.strictObject({ filter: Filter, count: z.number().int().min(1) }),
     exileFromGraveyardMatching: z.strictObject({ count: z.number().int().min(1), filter: Filter.optional() }),

@@ -89,8 +89,17 @@ declare module '../../cards/types.js' {
   interface TargetKindRegistry { 'exiled-with-card': true }
   interface AltCostIdRegistry { 'free-cast': true }
   interface AbilityCostExt {
-    /** "Exile this artifact:" / "Exile this card from your graveyard:" — the source pays for itself (CR 118.3). */
+    /** "Exile this artifact:" — the source on the BATTLEFIELD pays for itself (CR 118.3). */
     exileSelf?: boolean;
+    /**
+     * "Exile this card from your graveyard:" — the same payment made from the graveyard, and a *separate* key on
+     * purpose. CR 113.6b: an ability that states the zone it functions in functions only from that zone, and
+     * legal.ts's battlefield scan does not skip `ab.fromGraveyard`, so one key payable from either zone would let
+     * every one of these abilities be activated by the permanent on the battlefield (it would exile itself from
+     * play to get the graveyard ability's effect). A key that is payable only from the graveyard makes
+     * `cost.ts:nonManaCostPayable` refuse the ability there, which is the gate the battlefield scan is missing.
+     */
+    exileSelfFromGraveyard?: boolean;
     /** "Sacrifice two creatures" — the core `sacrifice` part is exactly one permanent. */
     sacrificeMany?: { filter: Filter; count: number };
     /** "Return two Islands you control to their owner's hand" — the core `returnToHand` part is exactly one. */
@@ -140,9 +149,52 @@ function alterApplies(e: CostAlterStatic, s: GameState, p: PlayerId, card: GameO
   if (e.nthSpellEachTurn !== undefined && s.players[p].spellsCastThisTurn !== e.nthSpellEachTurn - 1) return false;
   // a `self` alteration reads its condition about the card being cast, which is not on the battlefield: give the
   // condition a controller the way castSpell does for an alternative cost's condition (CR 601.2f).
-  if (e.condition && !chars.conditionHolds(s, e.self ? { ...card, controller: p } : src, e.condition)) return false;
+  if (e.condition && !condAtCostTime(s, p, e.self ? { ...card, controller: p } : src, e.condition)) return false;
   return true;
 }
+
+/**
+ * A cost alteration's condition, evaluated while the total cost is being determined (CR 601.2f) rather than while
+ * something resolves. The one condition that reads differently in the two frames is the spell counter: `parse.ts`
+ * calibrates "you've cast another spell this turn" for a *resolving* spell, which has already been counted
+ * (`{kind:'spells-cast-this-turn-ge', value:2}` = one other spell plus this one), but `cost.ts:costAdjust` runs
+ * before game.ts's `pl.spellsCastThisTurn++`, so the spell being cast is not in the count yet. Adding it back is
+ * what makes Gigastorm Titan's discount arrive on the second spell of the turn instead of the third — the same
+ * off-by-one `nthSpellEachTurn` handles with its `- 1` above. Only the caster's own counter is about to move, so
+ * a static owned by somebody else is left to the core.
+ */
+function condAtCostTime(s: GameState, p: PlayerId, src: GameObject, cond: Condition): boolean {
+  if (cond.kind === 'spells-cast-this-turn-ge' && src.controller === p) return s.players[p].spellsCastThisTurn + 1 >= cond.value;
+  return chars.conditionHolds(s, src, cond);
+}
+
+/**
+ * The core's "can't cast" lock (CR 601.2), re-checked for this family's own cast actions. legal.ts enforces it in
+ * exactly one place — `castActionsFor` (legal.ts:293) — which a `LEGAL_PROVIDERS` hook does not go through, so
+ * without this the `cast-from` permission below would offer a cast straight through a Grand Abolisher. Mirrors
+ * `characteristics.ts:castForbiddenBy`, which is not part of the `chars` bundle a synchronous hook may import.
+ */
+function castForbidden(s: GameState, p: PlayerId, card: GameObject): boolean {
+  for (const q of s.players) {
+    if (q.id === p || q.lost || s.activePlayer !== q.id) continue;
+    for (const src of chars.battlefieldOf(s, q.id)) for (const ab of chars.abilitiesOf(src)) {
+      if (ab.kind === 'static' && ab.effect.kind === 'opponents-cant-cast' && (!ab.effect.filter || chars.matchesFilter(s, card, ab.effect.filter, src))) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Is a `free: true` permission unusable for this card right now? `castSpell` computes `free` from FREE_CAST_HOOKS
+ * *unconditionally* (game.ts:571), unlike the CAST_FROM_HOOKS block two lines above it, which is guarded by `!alt`
+ * — and the hook is not told which alternative cost the cast chose. So a card with flashback/escape/disturb from
+ * this zone would be cast for ZERO mana (game.ts:574) and still pay the alternative cost's non-mana parts
+ * (game.ts:615). Until the core hands the hook its `alt` (see the report's coreChangeNeeded), the permission
+ * abstains for those cards instead of mis-pricing them, and `legalActions` skips them so both halves agree.
+ * CR 601.2f, 118.9.
+ */
+const freeBlockedByAlt = (card: GameObject, from: 'graveyard' | 'exile'): boolean =>
+  !!chars.defOf(card).altCosts?.some(a => a.from === from);
 
 /**
  * The family's statics on the battlefield, collected in one pass and memoised per state — `legalActions` and
@@ -270,9 +322,13 @@ const COST_ALTER: FamilyModule = {
       if (e.optional && !(await c.g.ask(c.p, { kind: 'may', prompt: `Cast a card ${e.from === 'exiled-with' ? `exiled with ${c.src.def.name}` : `from your ${e.from}`} without paying its mana cost?`, source: c.item.name }))) return;
       const [id] = await c.g.ask(c.p, { kind: 'choose-cards', from: opts.map(o => o.id), count: 1, reason: `Cast without paying its mana cost (${c.item.name})`, exact: false }) as number[];
       const pick = opts.find(o => o.id === id); if (!pick) return;
+      // try/finally, not two statements: `castCard` runs the whole cast path (assignTargets, payMana, payCost,
+      // queueTriggers), and a throw anywhere in it would leave `costAlterFree` on the card — a marker both hooks
+      // below read BEFORE their zone check, so a leak would make the card free-castable from any zone for the rest
+      // of the game, and `ext` is JSON-plain, so clone.ts and serialize.ts would carry it into every rollout.
       extSet(pick, 'costAlterFree', true);                              // read by the freeCast hook below
-      const ok = await castCard(c.g, c.p, pick, e.from === 'exiled-with' ? 'exile' : e.from);
-      extDel(pick, 'costAlterFree');
+      let ok = false;
+      try { ok = await castCard(c.g, c.p, pick, e.from === 'exiled-with' ? 'exile' : e.from); } finally { extDel(pick, 'costAlterFree'); }
       c.g.note(ok ? `${c.g.pname(c.p)} casts ${pick.def.name} without paying its mana cost.` : `${c.g.pname(c.p)} cannot cast ${pick.def.name}.`);
     },
 
@@ -302,16 +358,24 @@ const COST_ALTER: FamilyModule = {
     // "Exile this artifact:" on the battlefield, "Exile this card from your graveyard:" on an ability with
     // `fromGraveyard` — the same part either way, since the source pays with itself (CR 118.3).
     exileSelf: {
-      payable: (v, _s, _pl, self) => v === true && (self.zone === 'battlefield' || self.zone === 'graveyard'),
-      async pay(_v, g, _p, self) { if (self.zone !== 'battlefield' && self.zone !== 'graveyard') return false; g.moveTo(self, 'exile', 'top', 'cost'); return true; },
+      payable: (v, _s, _pl, self) => v === true && self.zone === 'battlefield',
+      async pay(_v, g, _p, self) { if (self.zone !== 'battlefield') return false; g.moveTo(self, 'exile', 'top', 'cost'); return true; },
     },
-    // "Sacrifice two creatures": the core `sacrifice` part is exactly one permanent (CR 601.2h).
+    // "Exile this card from your graveyard:" — the graveyard half, and the zone gate legal.ts's battlefield scan
+    // lacks (CR 113.6b, 118.4): the ability functions only from the graveyard, so its cost is payable only there.
+    exileSelfFromGraveyard: {
+      payable: (v, _s, _pl, self) => v === true && self.zone === 'graveyard',
+      async pay(_v, g, _p, self) { if (self.zone !== 'graveyard') return false; g.moveTo(self, 'exile', 'top', 'cost'); return true; },
+    },
+    // "Sacrifice two creatures": the core `sacrifice` part is exactly one permanent (CR 601.2h). The source itself
+    // counts — CR 601.2h lets a permanent be sacrificed to pay for its own activated ability, which is the whole of
+    // Time Sieve ({T}, Sacrifice five artifacts, and Time Sieve is one of them), Kuldotha Forgemaster and Breya.
     sacrificeMany: {
-      payable: (v, s, pl, self) => { const c = v as { filter: Filter; count: number }; return pl.battlefield.filter(o => o.id !== self.id && chars.matchesFilter(s, o, c.filter, self)).length >= c.count; },
+      payable: (v, s, pl, self) => { const c = v as { filter: Filter; count: number }; return pl.battlefield.filter(o => chars.matchesFilter(s, o, c.filter, self)).length >= c.count; },
       async pay(v, g, p, self, label, item) {
         const c = v as { filter: Filter; count: number };
         const pl = g.state.players[p];
-        const opts = pl.battlefield.filter(o => o.id !== self.id && chars.matchesFilter(g.state, o, c.filter, self));
+        const opts = pl.battlefield.filter(o => chars.matchesFilter(g.state, o, c.filter, self));
         if (opts.length < c.count) return false;
         const ids = await g.ask(p, { kind: 'choose-cards', from: opts.map(o => o.id), count: c.count, reason: `Sacrifice for ${label}`, exact: true }) as number[];
         const chosen = ids.slice(0, c.count).map(id => opts.find(o => o.id === id)).filter((o): o is GameObject => !!o);
@@ -319,12 +383,14 @@ const COST_ALTER: FamilyModule = {
         return true;
       },
     },
-    // "Return two Islands you control to their owner's hand" (Sea Drake's alternative cost).
+    // "Return two Islands you control to their owner's hand" (Sea Drake's alternative cost). As with `sacrificeMany`
+    // the source is not excluded: CR 601.2h lets a permanent pay for its own ability with itself. (An alternative
+    // cost's source is on the stack while it is paid, so it is never in `battlefield` here anyway.)
     returnToHandMany: {
-      payable: (v, s, pl, self) => { const c = v as { filter: Filter; count: number }; return pl.battlefield.filter(o => o.id !== self.id && chars.matchesFilter(s, o, c.filter, self)).length >= c.count; },
+      payable: (v, s, pl, self) => { const c = v as { filter: Filter; count: number }; return pl.battlefield.filter(o => chars.matchesFilter(s, o, c.filter, self)).length >= c.count; },
       async pay(v, g, p, self, label) {
         const c = v as { filter: Filter; count: number };
-        const opts = g.state.players[p].battlefield.filter(o => o.id !== self.id && chars.matchesFilter(g.state, o, c.filter, self));
+        const opts = g.state.players[p].battlefield.filter(o => chars.matchesFilter(g.state, o, c.filter, self));
         if (opts.length < c.count) return false;
         const ids = await g.ask(p, { kind: 'choose-cards', from: opts.map(o => o.id), count: c.count, reason: `Return to hand for ${label}`, exact: true }) as number[];
         const chosen = ids.slice(0, c.count).map(id => opts.find(o => o.id === id)).filter((o): o is GameObject => !!o);
@@ -354,12 +420,15 @@ const COST_ALTER: FamilyModule = {
     if (!boardStatics(s).perms.some(x => x.ctl === p)) return;
     for (const zone of ['graveyard', 'exile'] as const) for (const card of pl[zone]) {
       const perm = permissionFor(s, p, card, zone); if (!perm) continue;
+      if (castForbidden(s, p, card)) continue;                         // CR 601.2: the lock legal.ts applies in castActionsFor
+      const free = perm.free && !freeBlockedByAlt(card, zone);         // see freeBlockedByAlt: agrees with the freeCast hook
+      if (perm.free && !free) continue;                                // a free permission that cannot be honoured offers nothing
       const def = chars.defOf(card);
       const spell = def.abilities.find(ab => ab.kind === 'spell');
       if (needsTargets(spell ? spell.effects : [])) continue;           // see needsTargets: no target options to offer
       if (!(def.types.includes('Instant') || def.keywords.includes('flash')) && !sorceryTiming) continue;
-      if (!perm.free && !(def.manaCost && g.findPayment(pl, def.manaCost, 0, alterTotal(s, p, card, zone)))) continue;
-      const la: LegalAction = { action: { type: 'cast', cardId: card.id, from: zone }, label: `cast ${def.name} from ${zone}${perm.free ? ' (free)' : ''}`, manaValue: perm.free ? 0 : def.manaValue };
+      if (!free && !(def.manaCost && g.findPayment(pl, def.manaCost, 0, alterTotal(s, p, card, zone)))) continue;
+      const la: LegalAction = { action: { type: 'cast', cardId: card.id, from: zone }, label: `cast ${def.name} from ${zone}${free ? ' (free)' : ''}`, manaValue: free ? 0 : def.manaValue };
       out.push(la);
     }
   },
@@ -386,6 +455,7 @@ const COST_ALTER: FamilyModule = {
   freeCast: (g, p, card, from) => {
     if (extGet<boolean>(card, 'costAlterFree') === true) return true;
     if (from !== 'graveyard' && from !== 'exile') return undefined;
+    if (freeBlockedByAlt(card, from)) return undefined;                 // the hook cannot see the chosen alternative cost
     return permissionFor(g.state, p, card, from)?.free ? true : undefined;
   },
 

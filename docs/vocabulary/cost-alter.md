@@ -157,16 +157,34 @@ could not express.
 
 | key | value | meaning | CR |
 |---|---|---|---|
-| `exileSelf` | `true` | exile the source to pay — from the battlefield ("Exile this artifact:") or from the graveyard ("Exile this card from your graveyard:", where the ability is marked `fromGraveyard`) | 118.3 |
-| `sacrificeMany` | `{ filter, count }` | sacrifice exactly `count` permanents you control matching `filter`, never the source itself; the core `sacrifice` part is exactly one | 118.3, 601.2h |
-| `returnToHandMany` | `{ filter, count }` | return `count` matching permanents you control to their owner's hand | 118.3 |
-| `exileFromGraveyardMatching` | `{ count, filter? }` | exile `count` cards matching `filter` from your graveyard; the core `exileFromGraveyard` part counts but cannot filter | 118.3 |
+| `exileSelf` | `true` | exile the source **from the battlefield** to pay ("Exile this artifact:") | 118.3 |
+| `exileSelfFromGraveyard` | `true` | exile the source **from the graveyard** to pay ("Exile this card from your graveyard:", on an ability marked `fromGraveyard`) | 113.6b, 118.3 |
+| `sacrificeMany` | `{ filter, count }` | sacrifice exactly `count` permanents you control matching `filter` — the source included; the core `sacrifice` part is exactly one | 118.3, 601.2h |
+| `returnToHandMany` | `{ filter, count }` | return `count` matching permanents you control to their owner's hand (the source included) | 118.3 |
+| `exileFromGraveyardMatching` | `{ count, filter? }` | exile `count` cards matching `filter` from your graveyard, never the source itself; the core `exileFromGraveyard` part counts but cannot filter | 118.3 |
 
 Each is chosen by the paying player through a `choose-cards` decision, and each refuses to be paid when the zone does
 not hold enough — which is what keeps the ability out of `legalActions`.
 
+**Why the exile part is split by zone.** CR 113.6b: an ability that states which zone it functions in functions only
+from that zone, and CR 118.4 says a cost is paid from where the ability says. `legal.ts`'s battlefield scan does not
+skip `ab.fromGraveyard`, so a single part payable from either zone made every one of these 56 abilities activatable
+by the permanent *in play* — it would exile itself from the battlefield to get its graveyard ability's effect. A
+part payable only from the graveyard makes `cost.ts:nonManaCostPayable` refuse it there, which is the gate the
+battlefield scan is missing. The hole itself is older and wider than this family: 131 cards whose graveyard ability
+has a core-only cost (Eternal Dragon, Tymaret, every unearth) are still offered on the battlefield, and so are the
+seven whose graveyard ability is reached through `sacrificeMany` (Metalwork Colossus, Dutiful Griffin, …). Only a
+core change closes those — see the report's `coreChangeNeeded` for `legal.ts`.
+
+**Why the source is not excluded from `sacrificeMany` / `returnToHandMany`.** CR 601.2h lets a permanent be
+sacrificed to pay for its own activated ability, which is exactly Time Sieve ({T}, Sacrifice five artifacts — and
+Time Sieve is an artifact), Kuldotha Forgemaster, Breya, Whisper, Metalwork Colossus and Turntimber Sower. The core
+`sacrifice` part excludes the source, but it is a *different* cost ("Sacrifice a creature" alongside "Sacrifice this
+creature"), so the convention does not carry over. `exileFromGraveyardMatching` keeps the exclusion: it is paid by
+abilities that already exile the source through `exileSelfFromGraveyard`, and a card cannot be exiled twice.
+
 ```json
-{ "kind": "activated", "cost": { "mana": { "generic": 2, "x": 0, "pips": ["B"], "hybrid": [], "phyrexian": [], "raw": "{2}{B}" }, "exileSelf": true }, "fromGraveyard": true, "sorcerySpeed": true, "effects": [ ], "text": "{2}{B}, Exile this card from your graveyard: …" }
+{ "kind": "activated", "cost": { "mana": { "generic": 2, "x": 0, "pips": ["B"], "hybrid": [], "phyrexian": [], "raw": "{2}{B}" }, "exileSelfFromGraveyard": true }, "fromGraveyard": true, "sorcerySpeed": true, "effects": [ ], "text": "{2}{B}, Exile this card from your graveyard: …" }
 ```
 ```json
 { "id": "pitch", "label": "free", "from": "hand", "cost": { "sacrificeMany": { "filter": { "subtypes": ["Mountain"] }, "count": 2 } } }
@@ -205,7 +223,24 @@ Each of these needs a core change; none of them was made here.
    mana.
 6. **A `cast-from` permission for a spell with targets** is not offered as a legal action — see §3.
 7. **A land hidden away** cannot be played from exile: `play-land` accepts `from: 'graveyard' | 'library'` only.
-8. **A family static has no renderer.** `render.ts:renderStatic` falls back to the words of the `kind` for a static a
+8. **A graveyard ability is still offered while its card is on the battlefield** when its cost is one the core can
+   pay there. `legal.ts:legalActions`'s battlefield scan checks `sorcerySpeed`, `oncePerTurn`, `loyalty`, `tap`,
+   `untap`, mana, `activateOnlyIf` and `nonManaCostPayable`, but never `ab.fromGraveyard` (CR 113.6b). The family
+   closes its own 56 cards with the zone-gated `exileSelfFromGraveyard` part above; the 131 with core-only costs and
+   the 7 reached through `sacrificeMany` need the one-line core skip in the report's `coreChangeNeeded`.
+9. **`freeCast` is not told which alternative cost the cast chose.** `game.ts:571` runs `FREE_CAST_HOOKS`
+   unconditionally, unlike the `CAST_FROM_HOOKS` block two lines above it, which is guarded by `!alt`; the hook
+   signature is `(g, p, card, from)`. So a `cast-from … free: true` permission would make a flashback/escape/disturb
+   cast from that zone cost zero mana *and* still pay the alternative cost's non-mana parts (`game.ts:615`). Until
+   the core passes `alt`, the family's permission abstains for any card with an alternative cost from that zone
+   (`freeBlockedByAlt`), and `legalActions` skips those cards so both halves agree — an under-approximation rather
+   than a wrong price. CR 118.9, 601.2f.
+10. **`castSpell` does not re-check the "can't cast" lock.** `opponents-cant-cast` is enforced in exactly one place,
+   `legal.ts:castActionsFor` (legal.ts:293); `game.ts:castSpell` has no equivalent, for a cast from hand as much as
+   for one through this family's permission. The family's `legalActions` provider therefore applies the same check
+   itself (`castForbidden`), which restores parity with the core convention but does not make `performAction`
+   authoritative. CR 601.2.
+11. **A family static has no renderer.** `render.ts:renderStatic` falls back to the words of the `kind` for a static a
    family owns (`RENDERERS` is consulted for effect ops only), so a script whose only ability is a `cost-alter` static
    round-trips as "cost alter".
 
@@ -222,7 +257,7 @@ The rule family is consulted only after every built-in stage has declined the te
 | "Return two Islands you control to their owner's hand" | `returnToHandMany` |
 | "Exile ~" | `exileSelf` |
 | "Exile three creature cards from your graveyard" | `exileFromGraveyardMatching` |
-| "{2}{B}, Exile ~ from your graveyard: … [Activate only as a sorcery.]" | an activated ability with `exileSelf`, `fromGraveyard` (and `sorcerySpeed`) — the built-in activated branch cannot mark an ability as activatable from the graveyard, so the whole line is claimed here |
+| "{2}{B}, Exile ~ from your graveyard: … [Activate only as a sorcery.]" | an activated ability with `exileSelfFromGraveyard`, `fromGraveyard` (and `sorcerySpeed`) — the built-in activated branch cannot mark an ability as activatable from the graveyard, so the whole line is claimed here |
 | "Hideaway N" | the enters trigger of §5 |
 | "~ costs {N} less/more to cast if <condition>" | the `cost-alter` static, `self` |
 | "~ costs {N} less to cast for each creature in your party" | `costModifiers: [{ kind: 'reduce', amount: { count: 'party' } }]` |
