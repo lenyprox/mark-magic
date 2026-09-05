@@ -9,6 +9,7 @@ import { TextureCache, type TexEntry } from './textures';
 import { CardInteraction, CAMERA_DISTANCE, enableDeviceOrientation, disableDeviceOrientation } from './interaction';
 import { type FrameMask, WHOLE_CARD } from './frames';
 import { QualityProbe, type Quality, type QualitySetting, dprFor, prefersReducedMotion, onReducedMotionChange } from './support';
+import { SceneRenderer, ScenePackCache, type ScenePack } from './scene';
 
 export type Finish = 0 | 1 | 2;
 
@@ -26,6 +27,8 @@ export interface CardSpec {
   reducedMotion?: boolean;
   /** Foil strength multiplier for this card (default 1). */
   foilStrength?: number;
+  /** Opt in to the 2.5D scene under the art (needs a scene pack; off by default: the print's relief is the look). */
+  scene?: boolean;
 }
 
 export interface Tuning {
@@ -34,6 +37,18 @@ export interface Tuning {
   glare: number;       // broad glare amount
   tiltScale: number;   // multiplies every card's max tilt
   radius: number;      // corner radius as a fraction of the width (4.6%)
+  // ---- 2.5D scene (cards with a scene pack) ----
+  sceneMix: number;    // how much of the art window shows the lit scene (0 = the print)
+  parallax: number;    // camera shear per tilt
+  rays: number;        // volumetric ray strength
+  glow: number;        // bloom strength
+  metal: number;       // specular gain
+  ambient: number;     // at-rest motion (0 = still)
+  flowSpeed: number;   // painted fire / magic flow speed
+  embers: number;      // ember count / brightness multiplier
+  haze: number;        // heat haze strength
+  exposure: number;
+  sceneDebug: number;  // 0 off, 1 depth, 2 matte, 3 bg, 4 material, 5 fx, 6 flow, 7 rays+emissive, 8 albedo
 }
 
 export interface RendererStats {
@@ -46,6 +61,10 @@ export interface RendererStats {
   quality: Quality;
   dpr: number;
   contextLost: boolean;
+  sceneCards: number;  // cards drawn with a 2.5D scene this frame
+  sceneMs: number;     // CPU ms spent submitting scene passes
+  sceneMix: number;    // scene crossfade of the first scene card (diagnostics)
+  registrations: number; // total register() calls (diagnostics)
 }
 
 export interface CardHandle {
@@ -83,11 +102,17 @@ interface CardInstance {
   baseFace: 0 | 1;
   rect: { left: number; top: number; width: number; height: number };
   pins: TexEntry[];
+  scenePins: ScenePack[];
+  sceneTime: number;
+  sceneTex: WebGLTexture | null;
+  sceneRect: [number, number, number, number] | null;
   destroyed: boolean;
 }
 
 const PAD = 0.14;              // viewport padding around the anchor so tilt / lift can overflow
 const HOVER_LIFT = 0.055;      // world units toward the camera on hover (~2% larger)
+const AMBIENT_CARDS = 4;       // scene cards that keep animating at rest (nearest the viewport centre)
+const AMBIENT_INTERVAL = 31;   // ms between frames when only ambient scene motion needs drawing (~30 fps)
 
 export class CardGL {
   readonly canvas: HTMLCanvasElement;
@@ -95,6 +120,10 @@ export class CardGL {
   private prog: GLProgram | null = null;
   private quad: { vao: WebGLVertexArrayObject; count: number } | null = null;
   private textures: TextureCache | null = null;
+  private scene: SceneRenderer | null = null;
+  private scenePacks: ScenePackCache | null = null;
+  private ambientOnly = false;
+  private lastDrawAt = 0;
   private cards = new Map<number, CardInstance>();
   private nextId = 1;
   private rafId = 0;
@@ -120,7 +149,7 @@ export class CardGL {
 
   quality: Quality;
   qualitySetting: QualitySetting;
-  tuning: Tuning = { relief: 1, foil: 1, glare: 1, tiltScale: 1, radius: 0.046 };
+  tuning: Tuning = { relief: 1, foil: 1, glare: 1, tiltScale: 1, radius: 0.046, sceneMix: 1, parallax: 0.6, rays: 1, glow: 1, metal: 1, ambient: 1, flowSpeed: 1, embers: 1, haze: 1, exposure: 1, sceneDebug: 0 };
   stats: RendererStats;
 
   constructor(canvas: HTMLCanvasElement, opts: { quality?: QualitySetting; onStats?: (s: RendererStats) => void } = {}) {
@@ -129,7 +158,7 @@ export class CardGL {
     this.quality = this.qualitySetting === 'medium' ? 'medium' : 'high';
     if (this.qualitySetting === 'auto') this.probe = new QualityProbe();
     this.statsCb = opts.onStats ?? null;
-    this.stats = { fps: 0, frameMs: 0, avgFrameMs: 0, draws: 0, live: 0, running: false, quality: this.quality, dpr: 1, contextLost: false };
+    this.stats = { fps: 0, frameMs: 0, avgFrameMs: 0, draws: 0, live: 0, running: false, quality: this.quality, dpr: 1, contextLost: false, sceneCards: 0, sceneMs: 0, sceneMix: 0, registrations: 0 };
     this.initContext();
     this.attachEvents();
     this.resize();
@@ -147,6 +176,16 @@ export class CardGL {
     this.quad = createQuad(gl);
     if (!this.textures) this.textures = new TextureCache(gl); else this.textures.reset(gl);
     this.unsubs.push(this.textures.onChange(() => this.requestFrame()));
+    if (!this.scenePacks) { this.scenePacks = new ScenePackCache(gl); this.unsubs.push(this.scenePacks.onChange(() => { this.dirty = true; this.requestFrame(); })); }
+    else this.scenePacks.reset(gl);
+    try {
+      if (!this.scene) this.scene = new SceneRenderer(gl, this.textures.noise, this.textures.noiseSize);
+      else this.scene.reset(gl, this.textures.noise);
+    } catch (err) {
+      // the scene passes are optional: without them cards render the print as before
+      this.scene = null;
+      if (process.env.NODE_ENV !== 'production') console.warn('[CardGL] scene renderer unavailable', err);
+    }
     gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.CULL_FACE);
     gl.enable(gl.BLEND);
@@ -229,6 +268,7 @@ export class CardGL {
     this.destroyed = true;
     this.stopLoop();
     this.disableDeviceOrientation();
+    this.scene?.destroy();
     for (const u of this.unsubs) u();
     this.unsubs = [];
     this.ro?.disconnect();
@@ -243,9 +283,10 @@ export class CardGL {
 
   register(anchor: HTMLElement, spec: CardSpec): CardHandle {
     const id = this.nextId++;
+    this.stats.registrations++;
     const inst: CardInstance = {
       id, anchor, spec: { ...spec }, live: true, ready: false, readyCbs: new Set(), settleCbs: new Set(), wasMoving: false,
-      baseFace: spec.face, rect: { left: 0, top: 0, width: 0, height: 0 }, pins: [], destroyed: false,
+      baseFace: spec.face, rect: { left: 0, top: 0, width: 0, height: 0 }, pins: [], scenePins: [], sceneTime: 0, sceneTex: null, sceneRect: null, destroyed: false,
       ctrl: new CardInteraction({ maxTilt: spec.maxTilt * this.tuning.tiltScale, reducedMotion: spec.reducedMotion ?? this.reduced }),
     };
     this.cards.set(id, inst);
@@ -290,6 +331,9 @@ export class CardGL {
         self.ro?.unobserve(anchor);
         for (const p of inst.pins) self.textures?.pin(p, -1);
         inst.pins = [];
+        for (const p of inst.scenePins) self.scenePacks?.pin(p, -1);
+        inst.scenePins = [];
+        self.scene?.release(id);
         self.dirty = true;
         self.requestFrame();
       },
@@ -316,6 +360,8 @@ export class CardGL {
     if (!tx) return;
     for (const p of inst.pins) tx.pin(p, -1);
     inst.pins = [];
+    for (const p of inst.scenePins) this.scenePacks?.pin(p, -1);
+    inst.scenePins = [];
     const now = performance.now();
     const faces: (0 | 1)[] = inst.spec.hasBack && inst.spec.face !== inst.baseFace ? [inst.baseFace, inst.spec.face] : [inst.spec.face];
     for (const f of faces) {
@@ -323,6 +369,11 @@ export class CardGL {
       const n = tx.normalMap(inst.spec.printingId, f, now);
       tx.pin(a, 1); tx.pin(n, 1);
       inst.pins.push(a, n);
+      if (this.scene && this.scenePacks && inst.spec.scene) {
+        const s = this.scenePacks.get(inst.spec.printingId, f, now);
+        this.scenePacks.pin(s, 1);
+        inst.scenePins.push(s);
+      }
     }
   }
 
@@ -347,6 +398,12 @@ export class CardGL {
     this.rafId = 0;
     const gl = this.gl, prog = this.prog, quad = this.quad, tx = this.textures;
     if (!gl || !prog || !quad || !tx || this.lost) return;
+    if (this.ambientOnly && !this.dirty && now - this.lastDrawAt < AMBIENT_INTERVAL) {
+      // only at-rest scene motion wants a frame: hold at ~30 fps
+      this.rafId = requestAnimationFrame(this.tick);
+      return;
+    }
+    this.lastDrawAt = now;
     const t0 = performance.now();
     const dt = this.lastTime ? Math.min(0.05, (now - this.lastTime) / 1000) : 1 / 60;
     this.lastTime = now;
@@ -370,6 +427,47 @@ export class CardGL {
       visible.push(inst);
     }
 
+    // 1b. scene passes (their own framebuffers) for the visible cards that have a pack
+    let sceneCards = 0, sceneMs = 0, sceneAnimating = false;
+    if (this.scene && this.scenePacks) {
+      const pool: { inst: CardInstance; d: number }[] = [];
+      for (const inst of visible) {
+        const pack = inst.spec.scene ? this.scenePacks.get(inst.spec.printingId, inst.spec.face, now) : null;
+        const ready = !!pack && pack.status === 'ready' && this.tuning.sceneMix > 0;
+        inst.ctrl.sceneMix.target = ready ? 1 : 0;
+        if (!ready) { inst.sceneTex = null; inst.sceneRect = null; continue; }
+        const cx = inst.rect.left + inst.rect.width / 2 - vw / 2, cy = inst.rect.top + inst.rect.height / 2 - vh / 2;
+        pool.push({ inst, d: cx * cx + cy * cy });
+      }
+      pool.sort((a, b) => a.d - b.d);
+      pool.forEach(({ inst }, i) => {
+        const pack = this.scenePacks!.get(inst.spec.printingId, inst.spec.face, now);
+        const json = pack.json!;
+        const ctrl = inst.ctrl;
+        const interacting = inst.wasMoving || ctrl.hover.x > 0.01;
+        const ambient = !ctrl.reducedMotion && this.tuning.ambient > 0 && i < AMBIENT_CARDS;
+        const animate = !ctrl.reducedMotion && (interacting || ambient);
+        if (animate) inst.sceneTime += dt;
+        sceneAnimating = sceneAnimating || ambient;
+        const mt = Math.max(1, ctrl.maxTilt);
+        const art = json.art;
+        const artW = inst.rect.width * (art[2] - art[0]) * this.dpr;
+        let pointer: [number, number] | null = null;
+        if (ctrl.pointerInside) pointer = [(ctrl.px.x - art[0]) / (art[2] - art[0]), (ctrl.py.x - art[1]) / (art[3] - art[1])];
+        const tex = this.scene!.render({
+          id: inst.id, pack, widthPx: artW,
+          tilt: [ctrl.rotY.x / mt, ctrl.rotX.x / mt], tiltVel: [ctrl.rotY.v / mt, ctrl.rotX.v / mt],
+          hover: ctrl.hover.x, pointer, time: inst.sceneTime, dt, animate, quality: this.quality, tuning: this.tuning,
+        });
+        inst.sceneTex = tex;
+        inst.sceneRect = art;
+        if (tex) { sceneCards++; sceneMs += this.scene!.lastMs; if (sceneCards === 1) this.stats.sceneMix = ctrl.sceneMix.x * Math.min(1, this.tuning.sceneMix); }
+      });
+      this.scenePacks.evict();
+    }
+    this.stats.sceneCards = sceneCards;
+    this.stats.sceneMs = sceneMs;
+
     // 2. draw
     gl.disable(gl.SCISSOR_TEST);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -383,6 +481,7 @@ export class CardGL {
     gl.uniform1i(prog.u('uAlbedo'), 0);
     gl.uniform1i(prog.u('uNormalMap'), 1);
     gl.uniform1i(prog.u('uNoise'), 2);
+    gl.uniform1i(prog.u('uScene'), 3);
     gl.uniform3f(prog.u('uCamPos'), 0, 0, CAMERA_DISTANCE);
     gl.uniform1f(prog.u('uQuality'), this.quality === 'high' ? 1 : 0);
     gl.uniform1f(prog.u('uRelief'), this.tuning.relief);
@@ -412,8 +511,10 @@ export class CardGL {
     }
     this.emitStats(now, false);
 
-    if (anyMoving || this.dirty || pendingTextures) this.requestFrame();
-    else { this.stats.running = false; this.lastTime = 0; this.emitStats(now, true); }
+    if (anyMoving || this.dirty || pendingTextures || sceneAnimating) {
+      this.ambientOnly = sceneAnimating && !anyMoving && !this.dirty && !pendingTextures;
+      this.requestFrame();
+    } else { this.ambientOnly = false; this.stats.running = false; this.lastTime = 0; this.emitStats(now, true); }
   };
 
   private emitStats(now: number, force: boolean) {
@@ -495,6 +596,12 @@ export class CardGL {
     gl.bindTexture(gl.TEXTURE_2D, albedo.tex);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, hasNormal ? nmap.tex : tx.flatNormal);
+    const sceneOn = !!inst.sceneTex && !!inst.sceneRect && face === spec.face;
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, sceneOn ? inst.sceneTex : tx.flatNormal);
+    gl.uniform1f(prog.u('uSceneMix'), sceneOn ? ctrl.sceneMix.x * Math.min(1, this.tuning.sceneMix) : 0);
+    const sr = inst.sceneRect ?? [0, 0, 1, 1];
+    gl.uniform4f(prog.u('uSceneRect'), sr[0], sr[1], sr[2], sr[3]);
 
     if (ctrl.reducedMotion && spec.hasBack && ctrl.flipFade.x > 0 && ctrl.flipFade.x < 1) {
       // crossfade flip: draw both faces with complementary opacity
@@ -507,6 +614,7 @@ export class CardGL {
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, other.tex);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, onm.status === 'ready' ? onm.tex : tx.flatNormal);
         gl.uniform1f(prog.u('uMirror'), showBack ? 1 : -1);
+        gl.uniform1f(prog.u('uSceneMix'), 0);
         gl.uniform1f(prog.u('uOpacity'), showBack ? 1 - fade : fade);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       }

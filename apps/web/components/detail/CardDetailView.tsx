@@ -4,11 +4,12 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { parseAsString, useQueryState } from 'nuqs';
-import { ExternalLink, Plus, RefreshCw } from 'lucide-react';
+import { ExternalLink, Layers, Plus, RefreshCw } from 'lucide-react';
 import type { CardDetail, PrintingDetail } from '@cards/query';
 import { Card3D } from '@/components/card/Card3D';
 import { FinishToggle, type FinishName } from '@/components/card';
 import { defaultFinish } from '@/lib/gl/frames';
+import { hasSceneToggle } from '@/lib/gl/scene-cards';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Badge, RarityBadge } from '@/components/ui/Display';
@@ -24,6 +25,7 @@ export function CardDetailView({ detail, initialPrinting }: { detail: CardDetail
   const [p, setP] = useQueryState('p', parseAsString.withOptions({ shallow: true, history: 'replace' }));
   const [face, setFace] = useState<0 | 1>(0);
   const [finish, setFinish] = useState<FinishName | null>(null);
+  const [scene, setScene] = useState(false);
   const byId = useMemo(() => new Map(detail.printings.map(x => [x.id, x])), [detail.printings]);
   const printing: PrintingDetail = byId.get(p ?? initialPrinting ?? '') ?? byId.get(detail.representativePrintingId) ?? detail.printings[0];
   const faces = printing?.faces?.length ? printing.faces : [];
@@ -40,7 +42,7 @@ export function CardDetailView({ detail, initialPrinting }: { detail: CardDetail
     <div className={styles.detail}>
       <div className={styles.heroCol}>
         <div className={styles.hero} data-card-hero data-printing={printing?.id} data-face={face}>
-          <Card3D key={printing?.id ?? detail.representativePrintingId} live="always" size="large" tilt="hero" priority face={face} onFaceChange={setFace} finish={finish ?? undefined}
+          <Card3D key={printing?.id ?? detail.representativePrintingId} live="always" size="large" tilt="hero" priority face={face} onFaceChange={setFace} finish={finish ?? undefined} scene={scene && hasSceneToggle(printing?.id)}
             printing={{ printingId: printing?.id ?? detail.representativePrintingId, name, layout: printing?.layout ?? detail.layout, frame: printing?.frame, frameEffects: printing?.frameEffects, finishes: printing?.finishes, fullArt: printing?.fullArt, textless: printing?.textless, borderColor: printing?.borderColor, hasBack: printing ? printing.hasBack : detail.hasBack }}
             aria-label={`${name}, ${typeLine}`}
             imgProps={{ style: { viewTransitionName: cardTransitionName(printing?.id ?? detail.representativePrintingId) }, 'data-card-anchor': printing?.id } as React.ImgHTMLAttributes<HTMLImageElement>} />
@@ -50,6 +52,11 @@ export function CardDetailView({ detail, initialPrinting }: { detail: CardDetail
           {detail.hasBack && <Button size="sm" icon={<RefreshCw />} onClick={() => setFace(f => (f === 0 ? 1 : 0))} aria-pressed={face === 1} aria-keyshortcuts="f">{face === 0 ? 'Show back' : 'Show front'}</Button>}
           {printing?.scryfallUri && <Button size="sm" variant="ghost" trailing={<ExternalLink />} onClick={() => window.open(printing.scryfallUri!, '_blank', 'noopener')}>Scryfall</Button>}
         </div>
+        {hasSceneToggle(printing?.id) && (
+          <div className={styles.heroTools}>
+            <Button size="sm" icon={<Layers />} onClick={() => setScene(v => !v)} aria-pressed={scene}>{scene ? '2.5D scene: on' : '2.5D scene: off'}</Button>
+          </div>
+        )}
       </div>
 
       <div className={styles.facts}>

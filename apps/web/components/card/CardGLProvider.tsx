@@ -28,7 +28,7 @@ export function useCardGL(): CardGLContextValue | null {
   return useContext(CardGLContext);
 }
 
-const DEFAULT_TUNING: Tuning = { relief: 1, foil: 1, glare: 1, tiltScale: 1, radius: 0.046 };
+const DEFAULT_TUNING: Tuning = { relief: 1, foil: 1, glare: 1, tiltScale: 1, radius: 0.046, sceneMix: 1, parallax: 0.6, rays: 1, glow: 1, metal: 1, ambient: 1, flowSpeed: 1, embers: 1, haze: 1, exposure: 1, sceneDebug: 0 };
 
 /** Hard budget of simultaneously registered live cards. Beyond it `register` returns null and Card3D stays on its
  *  CSS/image fallback — this is what keeps a four-seat table from putting forty cards on the GPU at once. */

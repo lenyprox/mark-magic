@@ -54,3 +54,5 @@ export const DATA_DIR = (): string => {
 export const MASTER_DB = () => path.join(DATA_DIR(), 'master', 'master.db');
 export const USER_DB = () => path.join(DATA_DIR(), 'user.db');
 export const IMAGE_DIR = () => path.join(DATA_DIR(), 'images');
+/** 2.5D scene packs written by tools/scene/analyze.py: <SCENE_DIR>/<id[0:2]>/<id>-<face>/{scene.json,...}. */
+export const SCENE_DIR = () => path.join(DATA_DIR(), 'scene');

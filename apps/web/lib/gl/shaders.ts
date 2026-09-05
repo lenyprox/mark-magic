@@ -45,6 +45,9 @@ out vec4 fragColor;
 uniform sampler2D uAlbedo;
 uniform sampler2D uNormalMap;
 uniform sampler2D uNoise;
+uniform sampler2D uScene;      // the card's lit 2.5D scene (t space: y up), see scene.ts
+uniform float uSceneMix;    // 0..1 how much of the art window shows the scene
+uniform vec4 uSceneRect;    // the scene pack's art window in card uv
 
 // per frame
 uniform vec3 uLightPos;     // world-space point light (card width = 1 unit)
@@ -115,6 +118,13 @@ void main() {
   vec3 Vts = vec3(dot(V, T), dot(V, B), dot(V, Np));
   vec2 par = Vts.xy / max(Vts.z, 0.35) * (height - 0.5) * 0.0022 * uQuality * uHasNormal;
   vec3 albedo = texture(uAlbedo, uv + par).rgb;
+  if (uSceneMix > 0.001) {
+    vec2 auv = uv + par;
+    vec2 su = (auv - uSceneRect.xy) / (uSceneRect.zw - uSceneRect.xy);
+    float inside = rectMask(auv, uSceneRect, 0.0025);
+    vec3 sc = texture(uScene, vec2(su.x, 1.0 - su.y)).rgb;
+    albedo = mix(albedo, sc, uSceneMix * inside);
+  }
 
   // ---- frame-aware region weights ----
   float wArt = 1.0;

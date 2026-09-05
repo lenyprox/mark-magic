@@ -13,6 +13,7 @@ import styles from './page.module.css';
 interface Ref { label: string; url: string; pick?: (items: CardSummary[]) => CardSummary | undefined }
 
 const REFS: Ref[] = [
+  { label: 'Scene: Cloud', url: '/api/cards?mode=printing&set=fic&q=n:"cloud, ex-soldier"&ps=20', pick: it => it.find(i => i.collectorNumber === '2') ?? it[0] },
   { label: '2015 rare', url: '/api/cards?mode=printing&set=dmu&q=n:"sheoldred, the apocalypse"&ps=10', pick: it => it.find(i => !i.frameEffects.includes('showcase') && i.borderColor !== 'borderless') ?? it[0] },
   { label: '1997 frame', url: '/api/cards?mode=printing&set=7ed&q=n:"llanowar elves"&ps=3' },
   { label: 'Etched foil', url: '/api/cards?mode=printing&set=cmr&r=mythic&ps=60', pick: it => it.find(i => i.finishes.includes('etched')) },
@@ -51,6 +52,7 @@ function CardDev() {
   const [cacheCount, setCacheCount] = useState<number | null>(null);
   const [pipeline, setPipeline] = useState(() => normalMapPipelineInfo());
   const [orientation, setOrientation] = useState<'off' | 'on' | 'denied'>('off');
+  const [cloudScene, setCloudScene] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +120,7 @@ function CardDev() {
           <div><dt>loop</dt><dd className={stats?.running ? styles.on : styles.off}>{stats ? (stats.running ? 'running' : 'idle') : '–'}</dd></div>
           <div><dt>quality</dt><dd>{stats?.quality ?? '–'} @{stats?.dpr ?? '–'}x</dd></div>
           <div><dt>nmaps</dt><dd>{pipeline.mode} q{pipeline.queued} r{pipeline.inflight} · idb {cacheCount ?? '–'}</dd></div>
+          <div><dt>scene</dt><dd>{stats ? `${stats.sceneCards} · ${stats.sceneMs.toFixed(2)} ms` : '–'}</dd></div>
         </dl>
       </header>
 
@@ -155,6 +158,22 @@ function CardDev() {
         {slider('Tilt scale', 'tiltScale', 0, 2)}
         {slider('Glare', 'glare', 0, 2)}
         {slider('Corner radius', 'radius', 0.02, 0.08, 0.002)}
+        {slider('Scene mix', 'sceneMix', 0, 1)}
+        {slider('Parallax', 'parallax', 0, 1.5)}
+        {slider('Rays', 'rays', 0, 3)}
+        {slider('Glow', 'glow', 0, 3)}
+        {slider('Metal', 'metal', 0, 3)}
+        {slider('Ambient motion', 'ambient', 0, 2)}
+        {slider('Flow speed', 'flowSpeed', 0, 3)}
+        {slider('Embers', 'embers', 0, 2)}
+        {slider('Heat haze', 'haze', 0, 3)}
+        {slider('Exposure', 'exposure', 0.4, 2)}
+        <div className={styles.control}>
+          <span>Scene view</span>
+          <div className={styles.row}>
+            {(['lit', 'depth', 'matte', 'bg', 'material', 'fx', 'flow', 'rays', 'albedo', 'solid'] as const).map((name, i) => <button key={name} type="button" className={t.sceneDebug === i ? styles.active : undefined} aria-pressed={t.sceneDebug === i} onClick={() => gl.setTuning({ sceneDebug: i })}>{name}</button>)}
+          </div>
+        </div>
         <div className={styles.control}>
           <span>Diagnostics</span>
           <div className={styles.row}>
@@ -171,9 +190,12 @@ function CardDev() {
         <div className={styles.refs}>
           {refs.map(({ label, card }) => (
             <figure key={card.printingId} className={styles.ref}>
-              <Card3D printing={card} finish={finishFor(card)} live={live} size={size} motion={motion} tilt={size === 'large' ? 'hero' : 'default'} tapped={tapped} layer={layer} priority />
+              <Card3D printing={card} finish={finishFor(card)} live={live} size={size} motion={motion} tilt={size === 'large' ? 'hero' : 'default'} tapped={tapped} layer={layer} priority scene={label === 'Scene: Cloud' && cloudScene} />
               <figcaption>
                 <strong>{label}</strong>
+                {label === 'Scene: Cloud' && (
+                  <button type="button" className={cloudScene ? styles.active : undefined} aria-pressed={cloudScene} onClick={() => setCloudScene(v => !v)}>{cloudScene ? '2.5D scene: on' : '2.5D scene: off'}</button>
+                )}
                 <span>{card.name}</span>
                 <span className={styles.meta}>{card.setCode.toUpperCase()} · {card.frame ?? '?'} · {card.layout}{card.frameEffects.length ? ` · ${card.frameEffects.join(', ')}` : ''}{card.fullArt ? ' · full art' : ''} · {card.finishes.join('/')}</span>
               </figcaption>

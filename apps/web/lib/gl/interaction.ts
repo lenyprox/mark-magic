@@ -61,6 +61,8 @@ export class CardInteraction {
   readonly flipFade = new Tween(0, 1 / 0.32);
   readonly foilMix = new Tween(0, 1 / 0.18);
   readonly reliefMix = new Tween(0, 1 / 0.24);
+  /** 0..1 crossfade of the 2.5D scene into the art window once its pack is on the GPU. */
+  readonly sceneMix = new Tween(0, 1 / 0.4);
 
   maxTilt: number;
   reducedMotion: boolean;
@@ -159,6 +161,7 @@ export class CardInteraction {
     moving = this.flipFade.step(dt) || moving;
     moving = this.foilMix.step(dt) || moving;
     moving = this.reliefMix.step(dt) || moving;
+    moving = this.sceneMix.step(dt) || moving;
     const dirty = this.pointerDirty;
     this.pointerDirty = false;
     return moving || dirty;

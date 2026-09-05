@@ -54,6 +54,8 @@ export interface Card3DProps {
   embedded?: boolean;
   /** Extra attributes for the underlying <img> (view-transition names, data attributes). */
   imgProps?: CardImageProps['imgProps'];
+  /** Show the 2.5D scene under the art when this printing has a scene pack (default off). */
+  scene?: boolean;
 }
 
 const FLIP_ICON = (
@@ -69,7 +71,7 @@ export function Card3D(props: Card3DProps) {
   return <Card3DGL {...props} />;
 }
 
-function Card3DGL({ printing, face: faceProp, finish: finishProp, size = 'normal', live = 'hover', layer = 'base', quality, interactive = true, tapped, motion = 'auto', tilt, className, style, width, priority, onActivate, onFaceChange, 'aria-label': ariaLabel, embedded = false, imgProps }: Card3DProps) {
+function Card3DGL({ printing, face: faceProp, finish: finishProp, size = 'normal', live = 'hover', layer = 'base', quality, interactive = true, tapped, motion = 'auto', tilt, className, style, width, priority, onActivate, onFaceChange, 'aria-label': ariaLabel, embedded = false, imgProps, scene = false }: Card3DProps) {
   const gl = useCardGL()!;
   const wrapRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<CardHandle | null>(null);
@@ -89,7 +91,8 @@ function Card3DGL({ printing, face: faceProp, finish: finishProp, size = 'normal
   const spec = useMemo<CardSpec>(() => ({
     printingId: printing.printingId, face, finish: finishCode(finish), mask, size, hasBack, maxTilt, tapped,
     reducedMotion: motion === 'auto' ? undefined : motion === 'reduced',
-  }), [printing.printingId, face, finish, mask, size, hasBack, maxTilt, tapped, motion]);
+    scene,
+  }), [printing.printingId, face, finish, mask, size, hasBack, maxTilt, tapped, motion, scene]);
 
   // The live spec is read through a ref so `acquire` stays referentially stable across prop changes
   // (a new identity would tear the registration down and lose the flip / settle animations).
@@ -150,6 +153,7 @@ function Card3DGL({ printing, face: faceProp, finish: finishProp, size = 'normal
     if (prev.reducedMotion !== spec.reducedMotion) patch.reducedMotion = spec.reducedMotion;
     if (prev.printingId !== spec.printingId) patch.printingId = spec.printingId;
     if (prev.hasBack !== spec.hasBack) patch.hasBack = spec.hasBack;
+    if (prev.scene !== spec.scene) patch.scene = spec.scene;
     if (Object.keys(patch).length) h.setSpec(patch);
   }, [spec]);
 
