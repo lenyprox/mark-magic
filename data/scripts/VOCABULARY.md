@@ -1216,7 +1216,7 @@ ability whose whole substance is a keyword action.
 
 | file | what it holds |
 |---|---|
-| `src/engine/ops/keyword-action.ts` | the ops, conditions, triggers, cost parts, the amount form, the step hook, the combat hooks and the Incubator token ability |
+| `src/engine/ops/keyword-action.ts` | the ops, conditions, triggers, cost parts, the amount form, the step hooks (goad expiry, the discover hand-back), the CR 400.7 `leave` reset, the combat hooks and the Incubator token ability |
 | `src/engine/ops/keyword-action.schema.ts` | the zod variants a per-card script is validated against (tooling only) |
 | `src/cards/rules/keyword-action.ts` | the printed wordings that produce them |
 | `test/scenarios/keyword-action.ts` | one scenario per op, condition, trigger, amount and cost part |
@@ -1231,6 +1231,12 @@ Two things run through the whole family:
   `goadedBy` / `goadedTurn` are booleans and numbers in the object's `ext` bag, every one of them information all
   players have (a manifested card's *identity* is hidden by the core's own face-down handling), so the family
   registers no `redact` hook.
+* **Family state dies with the permanent (CR 400.7).** All eight of those keys are written on the *object*, and a
+  permanent that leaves the battlefield becomes a new object that remembers none of it, so the family's `leave` hook
+  deletes every one of them — the same reset the core does beside it for `setPT`, `lost`, `damagedBy` and
+  `o.counters`. A bounced, blinked or reanimated creature can therefore become monstrous again (CR 701.31b), is no
+  longer suspected (CR 701.61a: it can block again, and has lost its menace), no longer harnessed (a recast Infinity
+  Stone's `intervening: harnessed` ability is switched back off), and no longer goaded.
 
 Every op below binds what it touched as `that` / `those`, so the sentence after it can read the frame
 (`docs/vocabulary/composition.md` §Refs): `manifest`, `manifest-dread` and `cloak` bind the face-down permanent
@@ -1397,7 +1403,9 @@ counters.
 | `target` | `TargetSpec \| Ref` | the creature that connives |
 
 Its controller draws `amount`, discards `amount`, and the creature gets a +1/+1 counter for each **nonland** card
-discarded this way. Raises `connives`.
+discarded this way. Raises `connives`. The draw and the discard belong to the controller, so they still happen when
+the permanent has already left the battlefield (killed in response to the connive trigger); only the counters are
+lost with it.
 
 ```json
 { "op": "connive", "amount": 1, "target": "self" }
@@ -1420,9 +1428,15 @@ that half of the choice is not offered).
 |---|---|---|
 | `amount` | `Amount` | the mana-value ceiling |
 
-Exiles cards from the top of your library until a nonland card with mana value ≤ `amount` is exiled, opens a
-free-play window on it for the turn (the core `play-exiled` op, `free: true`) and puts the rest on the bottom in a
-random order. Raises `discovers`. **Gap:** the real thing casts it during its own resolution (see *Known gaps*).
+Exiles cards from the top of your library until a nonland card with mana value ≤ `amount` is exiled. Its controller
+then makes CR 701.56a's choice — **cast it without paying its mana cost, or put it into your hand** — and the cards
+that were not taken go to the bottom of the library **in a random order** (CR 701.56b, `Game.rng.shuffle`, exactly as
+the core's `cascade` does). Raises `discovers`.
+
+The cast half is a free-play window for the turn (the core `play-exiled` op with `free: true`) rather than a cast
+during resolution — see *Known gaps* — so the family's `cleanup-end` step puts a card whose window closed unused into
+its owner's hand: that is the *other* outcome CR 701.56a allows, and it means **a discovered card is never stranded
+in exile**, not even for a discover that resolved on an opponent's turn.
 
 ```json
 { "op": "discover", "amount": 4 }
@@ -1488,7 +1502,9 @@ cannot reach it.
 | `amount` | `Amount` | N |
 | `target` | `TargetSpec \| Ref` | the creature that endures |
 
-Its controller chooses: N +1/+1 counters on it, **or** an N/N white Spirit creature token.
+Its controller chooses: N +1/+1 counters on it, **or** an N/N white Spirit creature token. The choice is theirs even
+when the creature has already left the battlefield, where the Spirit is then the only mode left (there is nothing to
+put the counters on).
 
 ```json
 { "op": "endure", "amount": 3, "target": "self" }
@@ -1546,6 +1562,8 @@ create a token") is spelled with `scoped`.
 No fields. "You may sacrifice a creature." If you do, the source **exploits** it: the sacrificed creature is bound
 as `that`, and the `exploits` event fires. The printed keyword line `Exploit` becomes an ETB trigger carrying this
 op, so `When ~ exploits a creature, …` is a separate `{ on: 'exploits', self: true }` ability, exactly as printed.
+The trigger is on the stack independently of its source (CR 603.4), so the sacrifice still happens — and the
+`exploits` half still fires — when the exploiting creature has already left the battlefield.
 
 ```json
 { "op": "exploit" }
@@ -1650,10 +1668,12 @@ report; none of them is silent — the behaviour is either absent or logged as a
    statics on `o.def.abilities`, which no hook can extend, so a goaded creature is recorded, logged and readable
    (`ext.goadedBy`, the `goaded` log line, the `suspected`-style condition surface) but its controller is still free
    not to attack with it. Fixing it needs a `FamilyModule` hook in that computation (reported as `coreChangeNeeded`).
-2. **Discover casts nothing during its own resolution.** CR 701.56b casts the exiled card as part of the discover;
-   the engine's cast entry points (`makeStackItem` + `autoPickTargets` + `putTargets`) are private, so the family
-   opens a free-play window for the turn instead (the core `play-exiled` op with `free: true`). The card is exiled
-   either way, and the player may still play it for free — a turn later at worst.
+2. **Discover's free cast is a window for the turn, not a cast during resolution.** CR 701.56a casts the exiled
+   card as part of the discover; the engine's cast entry points (`autoPickTargets` and `putTargets`) are private to
+   `Game`, so a player who takes the cast half gets a free-play window for the turn instead (the core `play-exiled`
+   op with `free: true`). The card is **not** lost either way: the other half of CR 701.56a's choice (put it into
+   your hand) is offered up front, and a window that closed unused hands the card to its owner at `cleanup-end`.
+   What is still approximate is only the timing — the caster may hold priority and cast it later in the turn.
 3. **A cloaked permanent has no ward {2}.** Ward is a printed keyword with a cost the engine reads off the card;
    there is no way to grant a *valued* ward to a permanent from a family hook.
 4. **Nothing turns a manifested or cloaked creature face up.** The core's `turn-face-up` action is gated on

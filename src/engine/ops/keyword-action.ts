@@ -16,13 +16,18 @@
 // manifested creature's *identity* is hidden by the core's own face-down handling, not by anything here), so the
 // family registers no `redact` hook. Nothing in the bag is anything but a boolean or a number.
 //
+// The bag belongs to the OBJECT, not the card: the `leave` hook wipes every key in `PERMANENT_EXT` when a permanent
+// leaves the battlefield, because CR 400.7 makes the thing that comes back a new object with no memory of any of it.
+//
 // Rules that are approximations rather than the printed thing are listed in docs/vocabulary/keyword-action.md under
 // "Known gaps"; each one is also a line in the family's report. The two that matter most: goad records the state and
 // raises the event but cannot *force* the attack (the engine's attack requirement is read off printed statics), and
-// discover opens a free-cast window for the turn instead of casting during its own resolution.
+// discover's free cast is a window for the turn rather than a cast during its own resolution — the card is still
+// never lost, because CR 701.56a's other half (put it into your hand) is offered up front and an unused window hands
+// the card over at `cleanup-end`.
 import type { Amount, CardType, Effect, Filter, ManaCost, Ref, TargetSpec } from '../../cards/types.js';
 import type { FamilyModule, Game, GameObject, GameState, OpCtx, PlayerId, StackItem, TokenSpec } from './types.js';
-import { extDel, extGet, extGetOr, extSet } from './ext.js';
+import { extDel, extGet, extGetOr, extPush, extSet } from './ext.js';
 import { chars } from './chars.js';
 
 // ------------------------------------------------------------------ 1. the AST this family adds
@@ -136,6 +141,18 @@ async function objectsOf(c: OpCtx, t: TargetSpec | Ref): Promise<GameObject[]> {
   return c.objs();
 }
 
+/**
+ * The same list, but for the keyword actions whose *player-facing* half survives the permanent (CR 701.48a connive:
+ * the controller still draws and discards, only the counters are lost; CR 701.64a endure: the controller may still
+ * take the Spirit). An object that left the battlefield in response keeps its `lastKnown` snapshot, so it still names
+ * a controller (CR 608.2g); an object that was never on the battlefield at all is dropped.
+ */
+async function objectsOrLastKnown(c: OpCtx, t: TargetSpec | Ref): Promise<GameObject[]> {
+  return (await objectsOf(c, t)).filter(o => o.zone === 'battlefield' || o.lastKnown !== undefined);
+}
+/** Who a keyword action's draws and choices belong to: the permanent's controller, or the one it last had. */
+const ownerOf = (o: GameObject): PlayerId => o.zone === 'battlefield' ? o.controller : (o.lastKnown?.controller ?? o.owner);
+
 /** A family log line plus the typed event behind it — one place, so every keyword action is greppable in the stream. */
 function announce(g: Game, p: PlayerId, action: string, text: string, o?: GameObject, amount?: number): void {
   g.emit({ type: 'keyword-action', action, player: p, ...(o ? { id: o.id, name: chars.name(o) } : {}), ...(amount === undefined ? {} : { amount }) }, text);
@@ -216,6 +233,26 @@ async function behold(g: Game, p: PlayerId, what: Filter, src: GameObject, label
   else announce(g, p, 'behold', `${g.pname(p)} beholds ${chars.name(o)}.`, o);
   return true;
 }
+
+/**
+ * Every `ext` key this family writes on a PERMANENT. CR 400.7: an object that leaves the battlefield becomes a *new*
+ * object that remembers nothing about the old one, so the `leave` hook below deletes every one of them — the same
+ * reset the core does two lines above its own `LEAVE_HOOKS` call for `setPT`, `lost`, `damagedBy` and `counters`.
+ * Without it a bounced-and-recast creature stays monstrous (CR 701.31b: it could never become monstrous again),
+ * suspected (CR 701.61a: it could never block again and would keep menace forever), harnessed, cloaked, manifested
+ * or goaded.
+ */
+const PERMANENT_EXT = ['monstrous', 'suspected', 'harnessed', 'goadedBy', 'goadedTurn', 'manifested', 'cloaked', 'clashWon'] as const;
+
+/**
+ * CR 701.56a: a discovered card is CAST for free or PUT INTO YOUR HAND — it is never left behind in exile. The cast
+ * half is a free-play window (an op cannot cast during its own resolution the way the core's `cascade` does), and a
+ * window nobody used would strand the card, so the card is remembered here and the family's `cleanup-end` step puts
+ * it into its owner's hand when the turn it was discovered on ends: the other outcome CR 701.56a allows, never a
+ * card lost to exile. `{ id, turn }` is JSON-plain, so it clones and serializes like any other ext value.
+ */
+interface DiscoverPending { [k: string]: number; id: number; turn: number }
+const DISCOVER_PENDING = 'kaDiscoverPending';
 
 /** The Incubator token (CR 701.54a): a colorless artifact with "{2}: Transform this artifact." */
 const INCUBATOR_INDEX = -91;
@@ -343,20 +380,23 @@ const KEYWORD_ACTION: FamilyModule = {
       announce(c.g, c.p, 'incubate', `${c.g.pname(c.p)} incubates ${n}${k > 1 ? ` ${k} times` : ''}.`, made[0], n);
     },
 
-    // ---- CR 701.48a: draw N, discard N, then a +1/+1 counter for each nonland card discarded this way.
+    // ---- CR 701.48a: draw N, discard N, then a +1/+1 counter for each nonland card discarded this way. The draw and
+    // the discard belong to the permanent's controller and happen even when the permanent has already left the
+    // battlefield (killed in response to the connive trigger); only the counters are lost with it.
     'connive': async (e: KaConnive, c) => {
       const n = c.amt(e.amount); if (n <= 0) return;
-      const list = (await objectsOf(c, e.target)).filter(o => o.zone === 'battlefield');
+      const list = await objectsOrLastKnown(c, e.target);
       if (!list.length) return;
       for (const o of list) {
-        const w = o.controller;
+        const w = ownerOf(o);
         for (let i = 0; i < n; i++) await c.g.draw(w);
         const hand = c.s.players[w].hand;
         const toss = await pick(c.g, w, hand, Math.min(n, hand.length), `${c.item.name}: connive ${n} — discard`);
         let nonland = 0;
         for (const card of toss) { if (!chars.isLand(card)) nonland++; c.g.discard(w, card.id); }
-        if (nonland > 0) c.g.addCounters(o, '+1/+1', nonland);
-        announce(c.g, w, 'connive', `${chars.name(o)} connives ${n}: ${nonland} +1/+1 counter${nonland === 1 ? '' : 's'}.`, o, n);
+        const gone = o.zone !== 'battlefield';
+        if (nonland > 0 && !gone) c.g.addCounters(o, '+1/+1', nonland);
+        announce(c.g, w, 'connive', `${chars.name(o)} connives ${n}: ${gone ? 'it has left the battlefield, so no counters' : `${nonland} +1/+1 counter${nonland === 1 ? '' : 's'}`}.`, o, n);
         c.g.queueTriggers('connives', { obj: o, player: w, amount: nonland });
       }
       bind(c, list);
@@ -365,7 +405,9 @@ const KEYWORD_ACTION: FamilyModule = {
     // ---- CR 701.50a: "you may discard a card. If you do, draw a card." (the Lesson sideboard is out of scope).
     'learn': async (_e: KaLearn, c) => { await c.apply({ op: 'loot', draw: 1, discard: 1, discardFirst: true, optional: true }); },
 
-    // ---- CR 701.56a: exile from the top until a nonland card with mana value ≤ N; the rest go to the bottom at random.
+    // ---- CR 701.56a: exile from the top until a nonland card with mana value ≤ N, then CAST IT FOR FREE OR PUT IT
+    // INTO YOUR HAND (the discovering player chooses; the card is never left in exile), and CR 701.56b: the cards
+    // that were not taken go to the BOTTOM IN A RANDOM ORDER, so the bottom of the library does not become known.
     'discover': async (e: KaDiscover, c) => {
       const n = c.amt(e.amount); const pl = c.s.players[c.p];
       const exiled: GameObject[] = []; let hit: GameObject | undefined;
@@ -375,10 +417,25 @@ const KEYWORD_ACTION: FamilyModule = {
         if (!chars.isLand(card) && chars.manaValueOf(card) <= n) { hit = card; break; }
       }
       if (!exiled.length) return;
-      if (hit) { bind(c, [hit]); await c.apply({ op: 'play-exiled', until: 'eot', free: true }); }
+      let took = '';
+      if (hit) {
+        bind(c, [hit]);
+        const cast = `cast ${chars.name(hit)} without paying its mana cost`, hand = `put ${chars.name(hit)} into your hand`;
+        if (await c.g.ask(c.p, { kind: 'choose-option', options: [cast, hand], reason: `${c.item.name}: discover ${n}` }) === hand) {
+          c.g.moveTo(hit, 'hand', 'top', 'effect');
+          took = ` and puts ${chars.name(hit)} into their hand`;
+        } else {
+          // The free cast is a play window for the turn (an op cannot cast during its own resolution); if it goes
+          // unused the `cleanup-end` sweep below hands the card to its owner, so nothing is stranded in exile.
+          await c.apply({ op: 'play-exiled', until: 'eot', free: true });
+          extPush<DiscoverPending>(c.s, DISCOVER_PENDING, { id: hit.id, turn: c.s.turn });
+          took = ` and may cast ${chars.name(hit)} for free this turn`;
+        }
+      }
       const rest = exiled.filter(x => x !== hit);
+      c.g.rng.shuffle(rest);                                          // CR 701.56b — exactly what the core's cascade does
       for (const card of rest) c.g.moveTo(card, 'library', 'bottom', 'tuck');
-      announce(c.g, c.p, 'discover', `${c.g.pname(c.p)} discovers ${n}: exiles ${exiled.length} card${exiled.length === 1 ? '' : 's'}${hit ? ` and may play ${chars.name(hit)} for free this turn` : ''}.`, hit, n);
+      announce(c.g, c.p, 'discover', `${c.g.pname(c.p)} discovers ${n}: exiles ${exiled.length} card${exiled.length === 1 ? '' : 's'}${took}.`, hit, n);
       c.g.queueTriggers('discovers', { player: c.p, amount: n });
     },
 
@@ -417,19 +474,21 @@ const KEYWORD_ACTION: FamilyModule = {
     // ---- CR 701.62a: exile cards with total mana value N or greater from your graveyard.
     'collect-evidence': async (e: KaCollectEvidence, c) => { await collectEvidence(c.g, c.p, c.amt(e.amount), c.item.name); },
 
-    // ---- CR 701.64a: its controller chooses N +1/+1 counters on it, or an N/N white Spirit token.
+    // ---- CR 701.64a: its controller chooses N +1/+1 counters on it, or an N/N white Spirit token. The choice is the
+    // controller's even when the creature has already left the battlefield: the Spirit mode still works, so it is
+    // then the only mode left (there is nothing to put the counters on any more).
     'endure': async (e: KaEndure, c) => {
       const n = c.amt(e.amount); if (n <= 0) return;
-      const list = (await objectsOf(c, e.target)).filter(o => o.zone === 'battlefield');
+      const list = await objectsOrLastKnown(c, e.target);
       if (!list.length) return;
       for (const o of list) {
-        const w = o.controller;
+        const w = ownerOf(o); const gone = o.zone !== 'battlefield';
         const counters = `put ${n} +1/+1 counter${n > 1 ? 's' : ''} on ${chars.name(o)}`;
         const token = `create a ${n}/${n} white Spirit creature token`;
-        const choice = await c.g.ask(w, { kind: 'choose-option', options: [counters, token], reason: `${c.item.name}: endure ${n}` });
+        const choice = gone ? token : await c.g.ask(w, { kind: 'choose-option', options: [counters, token], reason: `${c.item.name}: endure ${n}` });
         if (choice === token) await c.apply({ op: 'token', count: 1, power: n, toughness: n, colors: ['W'], types: ['Creature'], subtypes: ['Spirit'], keywords: [], name: 'Spirit' });
         else c.g.addCounters(o, '+1/+1', n);
-        announce(c.g, w, 'endure', `${chars.name(o)} endures ${n}.`, o, n);
+        announce(c.g, w, 'endure', `${chars.name(o)} endures ${n}${gone ? ' (it has left the battlefield: only the Spirit mode is left)' : ''}.`, o, n);
       }
     },
 
@@ -463,9 +522,10 @@ const KEYWORD_ACTION: FamilyModule = {
       c.item.triggeringPlayer = saved;
     },
 
-    // ---- CR 702.110a: you may sacrifice a creature; if you do, this creature "exploits" it.
+    // ---- CR 702.110a: you may sacrifice a creature; if you do, this creature "exploits" it. The exploit trigger is on
+    // the stack independently of its source (CR 603.4), so the sacrifice still happens when the exploiting creature
+    // has already left the battlefield, and the "when this exploits a creature" half still fires.
     'exploit': async (_e: KaExploit, c) => {
-      if (c.src.zone !== 'battlefield') return;
       const mine = chars.battlefieldOf(c.s, c.p).filter(o => chars.isCreature(o));
       if (!mine.length) return;
       if (!(await c.g.ask(c.p, { kind: 'may', prompt: `${chars.name(c.src)}: sacrifice a creature (exploit)?`, source: c.item.name }))) return;
@@ -539,8 +599,18 @@ const KEYWORD_ACTION: FamilyModule = {
     },
   },
 
-  // Goad lasts "until your next turn" (CR 701.39a): it ends as the goader's next turn begins.
+  // CR 400.7: an object that leaves the battlefield is a NEW object with no memory of the old one, so every marker
+  // this family wrote on the permanent dies with it - the same reset the core does for `setPT`, `lost`, `damagedBy`
+  // and `counters` around this very hook. Without it a bounced, blinked or reanimated creature comes back monstrous
+  // (CR 701.31b: monstrosity could never fire again), suspected (CR 701.61a: unable to block and permanently menacing),
+  // harnessed (an Infinity Stone's `intervening: harnessed` ability stays switched on), cloaked, manifested or goaded.
+  leave: (_g, o, zone) => {
+    if (zone === 'battlefield' || o.ext === undefined) return;   // battlefield-to-battlefield is the same object
+    for (const k of PERMANENT_EXT) extDel(o, k);
+  },
+
   steps: {
+    // Goad lasts "until your next turn" (CR 701.39a): it ends as the goader's next turn begins.
     'turn-start': (g, ap) => {
       for (const o of chars.allPermanents(g.state)) {
         if (extGet<number>(o, 'goadedBy') !== ap) continue;
@@ -548,6 +618,22 @@ const KEYWORD_ACTION: FamilyModule = {
         extDel(o, 'goadedBy'); extDel(o, 'goadedTurn');
         g.note(`${chars.name(o)} is no longer goaded.`);
       }
+    },
+    // CR 701.56a: a discovered card is cast or put into its owner's hand - never left in exile. A free-cast window
+    // that expired unused resolves to the other half of that choice as the turn it opened on ends.
+    'cleanup-end': (g) => {
+      const pending = extGet<DiscoverPending[]>(g.state, DISCOVER_PENDING);
+      if (pending === undefined) return;
+      const keep: DiscoverPending[] = [];
+      for (const d of pending) {
+        if (d.turn > g.state.turn) { keep.push(d); continue; }     // a window that has not closed yet (never today)
+        const o = chars.findObject(g.state, d.id);
+        if (o === undefined || o.zone !== 'exile') continue;        // cast, or moved on by something else
+        delete o.castableFromExile;
+        g.moveTo(o, 'hand', 'top', 'return');
+        g.note(`${chars.name(o)} was discovered and not cast, so it goes to its owner's hand.`);
+      }
+      if (keep.length) extSet<DiscoverPending[]>(g.state, DISCOVER_PENDING, keep); else extDel(g.state, DISCOVER_PENDING);
     },
   },
 

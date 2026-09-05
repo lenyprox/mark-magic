@@ -17,6 +17,15 @@ const bearsFree = (effects: Effect[], text = 'keyword-action'): Record<string, S
 /** Lightning Bolt's spell becomes <effects> ({R}, instant). */
 const bolt = (effects: Effect[], text = 'keyword-action'): Record<string, ScenarioScript> =>
   ({ 'Lightning Bolt': { mode: 'replace', abilities: [{ kind: 'spell', effects, text }] } });
+/** Grizzly Bears gains two free abilities, so one activation can be answered by another in the same turn. */
+const bearsTwo = (a: Effect[], b: Effect[], ta = 'keyword-action', tb = 'bounce'): Record<string, ScenarioScript> =>
+  ({ 'Grizzly Bears': { abilities: [
+    { kind: 'activated', cost: {}, effects: a, text: ta },
+    { kind: 'activated', cost: {}, effects: b, text: tb },
+  ] } });
+/** "Return it to its owner's hand" as a free ability body, for the CR 400.7 scenarios. */
+const bounceSelf: Effect[] = [{ op: 'bounce', target: 'self', to: 'hand' }];
+
 /** A watcher: Hill Giant gains a triggered ability that gains 4 life, so a family trigger firing is a life total. */
 const watcher = (event: object, text: string): Record<string, ScenarioScript> =>
   ({ 'Hill Giant': { abilities: [{ kind: 'triggered', event: event as never, effects: [{ op: 'gain-life', amount: 4, who: 'you' }], text }] } });
@@ -379,5 +388,102 @@ export const keywordAction: Scenario[] = [
     scripts: bearsFree(polarity({ op: 'harness', target: 'self' }, 'harnessed')),
     script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
     expect: [{ life: [0, 25] }, { ext: ['Grizzly Bears', 'harnessed', true] }],
+  },
+
+  // ---------------------------------------------------------------- CR 400.7: family state does not survive a zone change
+  // Every marker this family writes on a permanent (`monstrous`, `suspected`, `harnessed`, `goadedBy`, `manifested`,
+  // `cloaked`, `clashWon`) belongs to the OBJECT, and a permanent that leaves the battlefield and comes back is a new
+  // object that remembers none of it. These three pin the family's `leave` hook; without it the second monstrosity is
+  // refused forever, the recast creature can never block again, and the ∞ ability of a recast Infinity Stone stays on.
+  {
+    name: 'a bounced and recast creature is a new object: it can become monstrous a second time', cr: '400.7',
+    seats: [{ bf: ['Grizzly Bears', 'Forest', 'Forest'] }, {}],
+    scripts: bearsTwo([{ op: 'monstrosity', amount: 2 }], bounceSelf, 'monstrosity 2'),
+    script: [
+      { activate: 'Grizzly Bears', ability: 0 }, { resolve: true },
+      { activate: 'Grizzly Bears', ability: 1 }, { resolve: true },
+      { cast: 'Grizzly Bears' }, { resolve: true },
+      { activate: 'Grizzly Bears', ability: 0 }, { resolve: true },
+    ],
+    // CR 701.31b: the new object is not monstrous, so monstrosity 2 works again — 2/2 + two counters, not a refusal
+    expect: [{ pt: ['Grizzly Bears', 4, 4] }, { counters: ['Grizzly Bears', { '+1/+1': 2 }] }, { noLog: 'is already monstrous' }],
+  },
+  {
+    name: 'a bounced and recast creature is no longer suspected or harnessed, and can block again', cr: '400.7',
+    seats: [{ bf: ['Grizzly Bears', 'Forest', 'Forest'] }, { bf: ['Hill Giant'] }],
+    scripts: bearsTwo([{ op: 'suspect', target: 'self' }, { op: 'harness', target: 'self' }], bounceSelf, 'suspect and harness'),
+    script: [
+      { activate: 'Grizzly Bears', ability: 0 }, { resolve: true },
+      { activate: 'Grizzly Bears', ability: 1 }, { resolve: true },
+      { cast: 'Grizzly Bears' }, { resolve: true },
+      { passUntil: 'end' }, { passUntil: 'declare-attackers' },
+      // the block is really offered to the engine: while `suspected` survived the bounce, CR 701.61a refused it
+      { attack: ['Hill Giant'], blocks: [['Grizzly Bears', 'Hill Giant']] },
+    ],
+    expect: [{ ext: ['Grizzly Bears', 'suspected', undefined] }, { ext: ['Grizzly Bears', 'harnessed', undefined] }, { life: [0, 20] }],
+  },
+  {
+    name: 'a goaded creature that leaves the battlefield is no longer goaded', cr: '400.7',
+    seats: [{ bf: ['Grizzly Bears', 'Forest'] }, { bf: ['Hill Giant'] }],
+    scripts: bearsTwo(
+      [{ op: 'goad', target: { kind: 'creature', controller: 'opponent' } }],
+      [{ op: 'bounce', target: { kind: 'creature', controller: 'opponent' }, to: 'hand' }], 'goad', 'bounce theirs'),
+    script: [
+      { activate: 'Grizzly Bears', ability: 0, targets: [['Hill Giant']] }, { resolve: true },
+      { activate: 'Grizzly Bears', ability: 1, targets: [['Hill Giant']] }, { resolve: true },
+    ],
+    expect: [{ zone: ['Hill Giant', 'hand'] }, { ext: ['Hill Giant', 'goadedBy', undefined] }, { ext: ['Hill Giant', 'goadedTurn', undefined] }],
+  },
+
+  // ---------------------------------------------------------------- discover: the card is never stranded (CR 701.56a/b)
+  {
+    name: 'discover: the card may be put into your hand instead of cast', cr: '701.56a',
+    seats: [{ bf: ['Grizzly Bears', 'Forest'], libraryTop: ['Hill Giant'] }, {}],
+    scripts: bearsFree([{ op: 'discover', amount: 4 }], 'discover 4'),
+    script: [{ answer: 'put Hill Giant into your hand' }, { activate: 'Grizzly Bears' }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'hand'] }, { log: 'puts Hill Giant into their hand' }],
+  },
+  {
+    name: 'discover: a free-cast window nobody used hands the card over rather than stranding it in exile', cr: '701.56a',
+    seats: [{ bf: ['Grizzly Bears', 'Forest'], libraryTop: ['Hill Giant'] }, {}],
+    scripts: bearsFree([{ op: 'discover', amount: 4 }], 'discover 4'),
+    // the default choice is the free cast; the turn then ends without it being taken
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }, { turns: 1 }],
+    expect: [{ zone: ['Hill Giant', 'hand'] }, { log: 'discovered and not cast' }],
+  },
+  {
+    name: 'discover: the cards that were not taken go to the bottom in a random order', cr: '701.56b',
+    seats: [{ bf: ['Grizzly Bears', 'Forest'], libraryTop: ['Hill Giant', 'Runeclaw Bear', 'Shivan Dragon', 'Serra Angel', 'Shock'] }, {}],
+    // discover 1 exiles all five (Shock is the first nonland with mana value ≤ 1) and bottoms the other four; milling
+    // the twenty filler cards brings that pile back to the top, so `look-top` names whichever card the shuffle put
+    // first. The scenario rng is seeded (seed 1), so the permutation is fixed: Runeclaw Bear, NOT the Hill Giant that
+    // an unshuffled `rest` would leave first — the bottom of the library must not become known and ordered.
+    scripts: bearsFree([{ op: 'discover', amount: 1 }, { op: 'mill', amount: 20, who: 'you' }, { op: 'look-top', who: 'you', amount: 1 }], 'discover 1'),
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
+    expect: [{ libraryCount: [0, 4] }, { log: /looks at the top card of P0's library \(Runeclaw Bear\)/ }, { noLog: /looks at the top card of P0's library \(Hill Giant\)/ }],
+  },
+
+  // ---------------------------------------------------------------- the action outlives the permanent
+  {
+    name: 'connive still draws and discards when the permanent has left the battlefield', cr: '701.48a',
+    seats: [{ bf: ['Grizzly Bears', 'Forest'], hand: ['Hill Giant'], libraryTop: ['Runeclaw Bear'] }, {}],
+    scripts: bearsFree([{ op: 'bounce', target: 'self', to: 'hand' }, { op: 'connive', amount: 1, target: 'self' }], 'bounce then connive'),
+    // only the +1/+1 counters are lost with the permanent; the controller still draws one and discards one
+    expect: [{ zone: ['Runeclaw Bear', 'hand'] }, { graveyardCount: [0, 1] }, { log: 'connives 1' }],
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
+  },
+  {
+    name: 'endure still offers the Spirit when the creature has left the battlefield', cr: '701.64a',
+    seats: [{ bf: ['Grizzly Bears', 'Forest'] }, {}],
+    scripts: bearsFree([{ op: 'bounce', target: 'self', to: 'hand' }, { op: 'endure', amount: 2, target: 'self' }], 'bounce then endure'),
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
+    expect: [{ events: { type: 'create-token', min: 1, max: 1 } }, { log: 'only the Spirit mode is left' }],
+  },
+  {
+    name: 'exploit still sacrifices a creature when the exploiting creature has left the battlefield', cr: '702.110a',
+    seats: [{ bf: ['Grizzly Bears', 'Hill Giant', 'Forest'] }, {}],
+    scripts: bearsFree([{ op: 'bounce', target: 'self', to: 'hand' }, { op: 'exploit' }], 'bounce then exploit'),
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'graveyard'] }, { log: 'exploits Hill Giant' }],
   },
 ];
