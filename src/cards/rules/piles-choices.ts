@@ -13,7 +13,8 @@
 //   * a rule never emits the frame words `that` / `those` unless the sentence really follows a binding antecedent:
 //     parse.ts's `bindAntecedent` declines a frame-reading sentence whose antecedent does not bind, and the ops of a
 //     family are not in its `BINDING_OPS` list. `from: 'those'` is therefore emitted only after "reveal the top N
-//     cards of your library", which parses to the built-in `look-top` (a binding op).
+//     cards of your library", whose rule keeps the built-in `look-top` (a binding op) at the front of the block it
+//     emits for exactly that reason.
 import type { CardType, Filter } from '../types.js';
 import type { EffectRule, RuleFamily, TriggerRule } from './types.js';
 
@@ -44,10 +45,13 @@ const effects: EffectRule[] = [
   // "Reveal the top five cards of your library and separate them into two piles." (Steam Augury, Intrude on the Mind)
   { re: /^reveal the top (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards? of your library and separate them into (two|three) piles$/i,
     make: m => ({ op: 'separate-piles', from: { zone: 'library', who: 'you', top: num(m[1]) }, piles: num(m[2]), separator: 'you', reveal: true }) },
-  // "Reveal the top five cards of your library." on its own — the built-in `look-top` binds the cards as `those`, which
-  // the "an opponent separates those cards …" sentence below then reads (Fact or Fiction, Sphinx of Uthuun, Unesh).
+  // "Reveal the top five cards of your library." on its own (Fact or Fiction, Sphinx of Uthuun, Unesh). Two ops, in a
+  // `scoped you` no-op container: the built-in `look-top` is the only one parse.ts counts as BINDING the cards it read
+  // — which is what the "an opponent separates those cards …" sentence below needs, and what a family op can never be
+  // — and `reveal-cards` is the half `look-top` does not do, making those cards public knowledge (CR 701.20a vs
+  // 701.20e). The container still binds `those` for the next sentence: parse.ts's `bindsFrame` enters a `do` list.
   { re: /^reveal the top (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards? of your library$/i,
-    make: m => ({ op: 'look-top', who: 'you', amount: num(m[1]) }) },
+    make: m => ({ op: 'scoped', who: 'you', do: [{ op: 'look-top', who: 'you', amount: num(m[1]) }, { op: 'reveal-cards', what: 'those' }] }) },
   // "An opponent separates those cards into two piles."
   { re: /^an opponent separates those cards into (two|three) piles$/i,
     make: m => ({ op: 'separate-piles', from: 'those', piles: num(m[1]), separator: 'an-opponent' }) },

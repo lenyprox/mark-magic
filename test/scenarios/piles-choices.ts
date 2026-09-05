@@ -140,6 +140,58 @@ export const pilesChoices: Scenario[] = [
     expect: [{ life: [0, 29] }, { unsimulated: 0 }],
   },
 
+  // ------------------------------------------------------------------ reveal (CR 701.20a)
+  {
+    // review fix 5: "Reveal the top N cards" used to be `look-top` alone — a LOOK (CR 701.20e), which shows the cards
+    // to their owner only. Nothing recorded them as public, so `redact` handed a hidden-information agent
+    // `__hidden__` for every one of them and the opponent Fact or Fiction asks to split the pile split it blind.
+    name: 'reveal-cards shows the top cards to every player and binds those for the sentence after it', cr: '701.20a',
+    seats: [{ bf: ['Mountain'], hand: ['Lightning Bolt'], libraryTop: ['Grizzly Bears', 'Hill Giant', 'Shock'] }, {}],
+    scripts: bolt([
+      { op: 'reveal-cards', what: { zone: 'library', who: 'you', top: 3 } },
+      { op: 'separate-piles', from: 'those', piles: 2, separator: 'an-opponent' },
+      { op: 'choose-pile', chooser: 'you' },
+      { op: 'chosen-fate', chosen: { how: 'move', to: 'hand' }, other: { how: 'move', to: 'graveyard' } },
+    ]),
+    script: [{ cast: 'Lightning Bolt' }, { resolve: true }],
+    expect: [
+      // the reveal is the core `library` event (the same one `dig` and `explore` emit), which is what carries the
+      // public-knowledge record; a bare log line would not have made the cards visible to anybody
+      { events: { type: 'library', min: 1 } }, { log: 'P0 reveals Grizzly Bears, Hill Giant, Shock' },
+      { zone: ['Grizzly Bears', 'hand'] }, { zone: ['Hill Giant', 'graveyard'] }, { zone: ['Shock', 'graveyard'] },
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    // the same fix on the other route into a pile: the pool a separator is handed is public knowledge, so the
+    // `reveal` word announces a real reveal rather than writing a log line nothing else can see.
+    name: 'separate-piles with reveal makes the pool public, not just a log line', cr: '701.20a',
+    seats: [{ bf: ['Mountain'], hand: ['Lightning Bolt'], libraryTop: ['Grizzly Bears', 'Hill Giant', 'Shock', 'Divination'] }, {}],
+    scripts: bolt([
+      { op: 'separate-piles', from: { zone: 'library', who: 'you', top: 4 }, piles: 2, separator: 'an-opponent', reveal: true },
+      { op: 'choose-pile', chooser: 'you' },
+      { op: 'chosen-fate', chosen: { how: 'move', to: 'hand' } },
+    ]),
+    script: [{ cast: 'Lightning Bolt' }, { resolve: true }],
+    expect: [
+      { events: { type: 'library', min: 1 } }, { log: 'P0 reveals Grizzly Bears, Hill Giant, Shock, Divination' },
+      { zone: ['Grizzly Bears', 'hand'] }, { zone: ['Shock', 'library'] }, { unsimulated: 0 },
+    ],
+  },
+  {
+    // the printed card, parsed: "Reveal the top five cards of your library." now emits the built-in `look-top` (the
+    // binding op the next sentence's "those" needs) AND `reveal-cards`, so the opponent who separates the piles has
+    // seen the five cards. Two `library` events — the look and the reveal — where there used to be one.
+    name: 'Fact or Fiction reveals the top five cards before an opponent separates them', cr: '701.20a',
+    seats: [{ bf: ['Island', 'Island', 'Island', 'Island'], hand: ['Fact or Fiction'], libraryTop: ['Grizzly Bears', 'Hill Giant', 'Shock', 'Divination', 'Mountain'] }, {}],
+    script: [{ cast: 'Fact or Fiction' }, { resolve: true }],
+    expect: [
+      { log: 'P0 reveals Grizzly Bears, Hill Giant, Shock, Divination, Mountain' }, { events: { type: 'library', min: 2 } },
+      { zone: ['Grizzly Bears', 'hand'] }, { zone: ['Hill Giant', 'hand'] }, { zone: ['Shock', 'graveyard'] },
+      { unsimulated: 0 },
+    ],
+  },
+
   // ------------------------------------------------------------------ piles (CR 700.3)
   {
     name: 'separate-piles, choose-pile and chosen-fate: the opponent picks a pile and the two piles go to different zones', cr: '700.3',

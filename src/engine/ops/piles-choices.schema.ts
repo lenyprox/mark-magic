@@ -86,6 +86,8 @@ export const schema: FamilySchema = {
       resolve: z.enum(['majority', 'per-vote']),
       tie: z.enum(['all', 'first']).optional(),
     }) as unknown as Variant,
+    // CR 701.20a — reveal (the set becomes public knowledge, so a hidden-information chooser can see it)
+    z.strictObject({ op: z.literal('reveal-cards'), what: FromSchema }) as unknown as Variant,
     // CR 700.3 — piles
     z.strictObject({
       op: z.literal('separate-piles'),

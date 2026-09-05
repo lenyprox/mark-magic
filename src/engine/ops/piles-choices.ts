@@ -15,6 +15,10 @@
 //
 // Everything the family remembers is public information — piles of revealed cards, the modes a permanent has already
 // chosen, a Class's level, who was chosen — so no `redact` hook is needed; the `ext` bag is JSON-plain throughout.
+// "Public" is a claim the family has to MAKE, not assume: a card in a library or a hand is blanked by `redact`
+// (src/engine/view.ts) for every hidden-information agent unless its id is on `state.knowledge`, and the shipped
+// human/UI agent is one (`DeferredAgent.hidden`). So `reveal-cards` and `separate-piles` record the set they show as
+// publicly known (CR 701.20a), which is what lets the opponent Fact or Fiction asks to split the pile see it.
 //
 // Cross-effect state. `separate-piles` / `choose-objects` / `choose-for-each-player` record their result on the
 // SOURCE (`src.ext.pcPiles` / `pcChosen` / `pcUnchosen`) as well as binding `those`, because the printed English puts
@@ -67,6 +71,12 @@ export interface VoteEffect {
   /** How a `majority` tie is broken: every tied option happens (`all`), or the earliest-listed one (`first`, the default). */
   tie?: 'all' | 'first';
 }
+/**
+ * CR 701.20a: show a set of cards to every player. Their identities become public knowledge for good (the engine's
+ * `knowledge.revealed`), and `those` binds them — this is the "Reveal the top N cards of your library" sentence,
+ * which the parser emits after the built-in `look-top` that binds the frame.
+ */
+export interface RevealCardsEffect { op: 'reveal-cards'; what: 'those' | ChoiceSet }
 /** CR 700.3: group a set of objects into piles. The piles are recorded on the source; nothing moves zone. */
 export interface SeparatePilesEffect { op: 'separate-piles'; from: 'those' | ChoiceSet; piles: number; separator?: ChoiceWho; reveal?: boolean }
 /** CR 700.3: a player chooses one of the piles the source holds. Binds `those` to it and records the chosen / unchosen split. */
@@ -94,7 +104,7 @@ export interface ExtraVotesStatic { kind: 'extra-votes'; amount: number }
 // ------------------------------------------------------------------ 2. declaration merging (never edit types.ts)
 declare module '../../cards/types.js' {
   interface EffectRegistry {
-    pcChooseModes: ChooseModesEffect; pcVote: VoteEffect; pcSeparatePiles: SeparatePilesEffect; pcChoosePile: ChoosePileEffect;
+    pcChooseModes: ChooseModesEffect; pcVote: VoteEffect; pcRevealCards: RevealCardsEffect; pcSeparatePiles: SeparatePilesEffect; pcChoosePile: ChoosePileEffect;
     pcChooseObjects: ChooseObjectsEffect; pcChooseForEachPlayer: ChooseForEachPlayerEffect; pcChosenFate: ChosenFateEffect; pcSetLevel: SetLevelEffect;
   }
   interface ConditionRegistry { pcSelfLevel: SelfLevelCondition }
@@ -162,6 +172,31 @@ async function gather(c: OpCtx, from: 'those' | ChoiceSet): Promise<GameObject[]
     for (const o of slice) if (chars.matchesFilter(c.s, o, from.filter, c.src)) out.push(o);
   }
   return out;
+}
+
+/**
+ * CR 701.20a: reveal `list` — every player may see those cards from now on.
+ *
+ * Who may see what is `state.knowledge`, not the log: `redact` (src/engine/view.ts) blanks every library and opposing
+ * hand card whose id is not in `knownTop` / `knownInHand` / `revealed`, and `Game.ask` hands a hidden-information
+ * agent that redacted state (the shipped `DeferredAgent` — the UI and the human — is one). A pile of library cards
+ * nobody recorded is therefore a pile its separator and its chooser cannot see, which is the whole decision on Fact
+ * or Fiction. `Game.reveal` is private, so this records the reveal exactly the way `game.ts` does for `dig` with
+ * `reveal` and for `explore`: the id goes onto `knowledge.revealed`, and the reveal is announced with the core
+ * `library` event (its renderer is the "P0 reveals A, B." log line, one event per owner in seat order).
+ *
+ * Only a card in a hidden zone needs the entry — a permanent, a graveyard card or a stack object is public already
+ * (CR 400.2). The list is append-only, as in the core: CR 701.20d ends a reveal when the library is reordered, and
+ * neither `game.ts` nor this family models that (see the doc's §5).
+ */
+function revealPublic(c: OpCtx, list: GameObject[], announce: boolean): void {
+  const known = c.s.knowledge.revealed;
+  for (const o of list) if ((o.zone === 'library' || o.zone === 'hand') && !known.includes(o.id)) known.push(o.id);
+  if (!announce || !list.length) return;
+  for (const pl of c.s.players) {
+    const mine = list.filter(o => o.owner === pl.id);
+    if (mine.length) c.g.emit({ type: 'library', player: pl.id, action: 'reveal', cards: mine.map(nameOf) });
+  }
 }
 
 /** Record the chosen / unchosen split on the source so a later `chosen-fate` (a later SENTENCE of the same card) can read it. */
@@ -317,13 +352,26 @@ const PILES_CHOICES: FamilyModule = {
       for (const i of (e.tie === 'all' ? winners : [winners[0]])) for (const eff of e.options[i].effects) await c.apply(eff);
     },
 
+    // ---- CR 701.20a: reveal ------------------------------------------------------------------------------------
+    // "Reveal the top five cards of your library." The built-in `look-top` in front of it (the parser emits the two
+    // together, because only a core op binds the frame — see src/cards/rules/piles-choices.ts) shows the cards to
+    // their owner alone (CR 701.20e); this is the half that makes them public.
+    'reveal-cards': async (e: RevealCardsEffect, c) => {
+      const list = await gather(c, e.what);
+      revealPublic(c, list, true);
+      bindThose(c, list);
+    },
+
     // ---- CR 700.3: piles ---------------------------------------------------------------------------------------
     'separate-piles': async (e: SeparatePilesEffect, c) => {
       const pool = await gather(c, e.from);
       clearRecord(c.src);                                          // a new separation replaces the old record, empty pool included
       if (!pool.length) { extSet(c.src, 'pcPiles', []); recordEmpty(c); return; }
       const who = await chooser(c, e.separator ?? 'you');
-      if (e.reveal) c.g.note(`${c.g.pname(who)} reveals ${pool.map(nameOf).join(', ')}.`);
+      // The piles this family makes are public (face-down piles are declined — see the doc's §5), so the pool is
+      // recorded as known whether or not the printed sentence says "Reveal"; the word only decides whether the
+      // reveal is ANNOUNCED. Without the record a hidden-information separator would split cards it cannot see.
+      revealPublic(c, pool, e.reveal === true);
       // CR 700.3a: every object goes into exactly one pile, and the separator chooses the SIZES as well as the
       // contents (see `pileSize` — 5/0 and 4/1 are legal splits of a five-card pool).
       const piles: number[][] = [];

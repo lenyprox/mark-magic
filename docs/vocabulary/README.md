@@ -5,7 +5,7 @@ Vocabulary documents (one per wave; what script authors and the round-trip rende
 | document | contents |
 |---|---|
 | [composition.md](composition.md) | Phase 9.0 composition core: `Ref` / `ScopeWho` binding rules, the amount forms (`objects`, `diff`, `sum`, `max`, `min`, `prop`), `multi` targets, and the ops `for-each`, `bind`, `reflexive`, `scoped`, `may`, `unless-pays`, `move`, `set-pt`, `lose-abilities`, `exchange`, plus the delayed-trigger points `this-turn:dies` / `this-turn:ltb` / `next-turn:upkeep` / `until-eot:end` |
-| [piles-choices.md](piles-choices.md) | Phase 9.1 piles, votes and opponent-made choices: `choose-modes` (repeated modes, "that hasn't been chosen", an opponent chooses, pawprint budgets), `vote`, `separate-piles` / `choose-pile` / `choose-objects` / `choose-for-each-player` / `chosen-fate`, and Class levels (`set-level`, the `self-level` condition, the `became-level` trigger, the `extra-votes` static) |
+| [piles-choices.md](piles-choices.md) | Phase 9.1 piles, votes and opponent-made choices: `choose-modes` (repeated modes, "that hasn't been chosen", an opponent chooses, pawprint budgets), `vote`, `reveal-cards`, `separate-piles` / `choose-pile` / `choose-objects` / `choose-for-each-player` / `chosen-fate`, and Class levels (`set-level`, the `self-level` condition, the `became-level` trigger, the `extra-votes` static) |
 | this file | how a family module extends the engine, the hook table, the lints, the op-coverage ratchet and the parser rule registry |
 
 The engine is extended through **families**: one file per mechanic, `src/engine/ops/<family>.ts`, whose default export

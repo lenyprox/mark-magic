@@ -11,6 +11,13 @@ Everything the family stores is **public information** — the piles of a reveal
 already chosen, a Class's level, which permanents were chosen — so no `redact` hook is needed. All of it is
 JSON-plain, in the `ext` bag of the **source** object, and `clone.ts` deep-copies it automatically.
 
+That is a claim the family has to **make**, not one it may assume. Who may see a card is `state.knowledge`
+(`knownTop` / `knownInHand` / `revealed`), and `redact` (`src/engine/view.ts`) replaces every library card and every
+opposing hand card that is not listed there with `__hidden__` before `Game.ask` hands the state to a
+hidden-information agent — which the shipped `DeferredAgent` (the UI, and a human) is. So `reveal-cards` and
+`separate-piles` **record the set they show as publicly known** (CR 701.20a). Without that record the opponent Fact
+or Fiction asks to separate the piles would be splitting five cards it cannot see.
+
 ---
 
 ## 1. The shared vocabulary
@@ -128,6 +135,28 @@ earliest-listed); `per-vote` runs each option's effects once per vote it receive
 { "op": "vote", "resolve": "per-vote", "options": [{ "label": "time", "effects": [{ "op": "counters", "target": "self", "counter": "+1/+1", "amount": 1 }] }, { "label": "money", "effects": [{ "op": "token", "count": 1, "power": 0, "toughness": 0, "colors": [], "types": ["Artifact"], "subtypes": ["Treasure"], "keywords": [], "treasure": true }] }] }
 ```
 
+### `reveal-cards` — CR 701.20a
+
+```ts
+{ op: 'reveal-cards'; what: From }
+```
+
+Shows a set of cards to **every** player: each card in a hidden zone (a library, a hand) is added to
+`state.knowledge.revealed`, so `redact` stops blanking it, and the reveal is announced with the core `library`
+event — the same one `dig` and `explore` emit, rendering as `P0 reveals A, B, C.` (one event per owner). `those`
+binds to the revealed cards.
+
+This is the half a **look** does not do: CR 701.20e shows the cards to one player, CR 701.20a to all of them, and
+the built-in `look-top` is a look. The parser therefore emits the two together for "Reveal the top N cards of your
+library" — see §4.
+
+```json
+{ "op": "reveal-cards", "what": { "zone": "library", "who": "you", "top": 5 } }
+```
+```json
+{ "op": "scoped", "who": "you", "do": [{ "op": "look-top", "who": "you", "amount": 5 }, { "op": "reveal-cards", "what": "those" }] }
+```
+
 ### `separate-piles` — CR 700.3
 
 ```ts
@@ -142,7 +171,11 @@ pool, and that free choice is the whole strategic content of Fact or Fiction and
 decision kind: for each pile but the last, the separator is asked a `choose-option` for the size (`"0 cards"`,
 `"1 card"`, …) and then a `choose-cards` for the contents. **The even split is offered first**, so an agent that
 answers `options[0]` — which is what `src/engine/agents/defaults.ts` does — still makes the balanced split, while a
-real agent reaches every other partition. `reveal` logs the contents.
+real agent reaches every other partition.
+
+The pool becomes **public knowledge** (as `reveal-cards` above) whether or not `reveal` is set: the piles this family
+makes are public — face-down piles are declined, see §5 — and a separator that cannot see the cards cannot make the
+choice CR 700.3a gives it. `reveal` decides only whether the reveal is *announced* (the printed word "Reveal").
 
 ```json
 { "op": "separate-piles", "from": { "zone": "library", "who": "you", "top": 5 }, "piles": 2, "separator": "you", "reveal": true }
@@ -307,7 +340,7 @@ whose antecedent does not bind and a family's ops are not in its `BINDING_OPS` l
 | wording | op |
 |---|---|
 | "Reveal the top N cards of your library and separate them into two piles" | `separate-piles` from the library top, separator `you`, `reveal` |
-| "Reveal the top N cards of your library" | the built-in `look-top` (see the approximation below) |
+| "Reveal the top N cards of your library" | a `scoped you` block: the built-in `look-top`, then `reveal-cards` (see below) |
 | "An opponent separates those cards into two piles" | `separate-piles` `from: 'those'`, separator `an-opponent` |
 | "An opponent chooses one of those piles" | `choose-pile` with `chooser: 'an-opponent'` |
 | "Put that pile into your hand and the other into your graveyard" | `chosen-fate` |
@@ -319,11 +352,19 @@ whose antecedent does not bind and a family's ops are not in its `BINDING_OPS` l
 | "… all other creatures they control that don't share a creature type with the chosen creature they control" | the same with `excludeSharing: 'creature-type'` |
 | "When this Class becomes level N, …" (a trigger head) | the `became-level` event |
 
-**Approximation: "reveal" is read as `look-top`.** The engine has no "reveal the top N cards" op, and `look-top` is
-the only op parse.ts recognises as *binding* the cards it read, which is what "…separates **those cards**…" needs.
-The two differ only in who may see the cards; nothing in the cards this claims depends on that. It moves 46 cards
-whose *unparsed lines are unchanged* (their next sentence is still unknown) and makes four pile cards parse in full;
-`npm run parse:diff` shows 0 previously fully-parsed cards moved and 0 cards with more unparsed lines than before.
+**"Reveal the top N cards of your library" is two ops in a `scoped you` container**, `look-top` then
+`reveal-cards`. `look-top` has to be there and has to be first: it is the only op in the sentence that parse.ts
+counts as *binding* the cards it read (`BINDING_OPS` is core, and no family op is in it), and the next sentence
+— "An opponent separates **those cards** into two piles." — is declined outright if nothing before it binds. The
+container is transparent to that judgement: `bindsFrame` walks a `do` list. `reveal-cards` then does the half
+`look-top` does not, making the cards public (CR 701.20a vs 701.20e).
+
+Reading the sentence as `look-top` **alone** was the first cut, and it was wrong in a way the log did not show: the
+cards stayed unknown to everybody, so under any hidden-information agent — the UI, a human, anything with
+`agent.hidden` — the opponent asked to separate the piles was splitting five `__hidden__` cards, which is the entire
+decision Fact or Fiction is made of. The rule moves 46 cards whose *unparsed lines are unchanged* (their next
+sentence is still unknown) and makes four pile cards parse in full; `npm run parse:diff` shows 0 previously
+fully-parsed cards moved and 0 cards with more unparsed lines than before.
 
 ### Declines
 
@@ -360,7 +401,18 @@ whose *unparsed lines are unchanged* (their next sentence is still unknown) and 
   your hand and the other into your graveyard." because the sentence before it failed to parse. The runtime
   `unsimulated` report above is the substitute; a real fix belongs in `parse.ts`'s `bindAntecedent`, whose
   `BINDING_OPS` list is core.
-* **Face-down piles** (CR 700.3, Atris, Curator of Destinies): the family always keeps piles public.
+* **Face-down piles** (CR 700.3, Atris, Curator of Destinies): the family always keeps piles public — `separate-piles`
+  records its whole pool as publicly known, so a face-down pile would need a knowledge model this does not have.
+* **Un-revealing.** `knowledge.revealed` is append-only here, as it is in the core (`dig` with `reveal`, `explore`
+  never take an id back off it). CR 701.20d ends a reveal when the library is shuffled or reordered, so a pile put
+  back on the bottom of a library stays publicly known when the rules say it should not. Fixing it belongs with
+  `Game.shuffle` / `moveTo`, which are core.
+* **A look that the looker can see.** `look-top` records nothing at all, so a player who looks at the top of their
+  own library still gets `__hidden__` back from `redact` (CR 701.20e wants `knowledge.knownTop`). That is core
+  (`src/engine/game.ts`); this family only fixes the *reveal* half, for the sentences it claims.
+* **Revealing what a choice is made from.** `choose-objects` and `choose-for-each-player` do not reveal their pool:
+  every printed card that reaches them chooses among permanents, or among cards an earlier sentence already
+  revealed. A script that points `choose-objects` at a library or a hand should put a `reveal-cards` in front of it.
 * **Level-gated statics whose kind has no `condition` field** (`cost-adjust`, `counters-replacement`,
   `grant-ability`, …). `anthem`, `self-keywords` and `self-pt` carry one; the rest would need `Ability.atLevel`,
   a core change.
