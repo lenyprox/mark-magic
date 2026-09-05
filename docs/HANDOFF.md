@@ -387,6 +387,12 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     died in the same damage step kept its `blocking` link and the after-turn invariant fired. Fixed: `Game.endGame`
     (every `winner` write) drops `attacking` / `blocking` / `blockedBy` / `attackers`, and `src/play/replay.ts`
     mirrors it on the elimination that leaves at most one player and on `game-over`. Goldens unchanged.
+30. **Combat damage indexed another attacker's entry** (fuzz bucket 450c456a): when every blocker of an attacker already
+    had lethal damage marked but was still on the battlefield (an indestructible blocker facing a double striker,
+    or the AI's `simulateCombat` between passes), no damage entry was pushed for that attacker and the leftover
+    damage was added to the previous attacker's entry — or to nothing, which threw. Fixed in `combatDamage`: the
+    remainder goes to the attacker's own last entry, else to its first blocker (CR 510.1c). Scenario in
+    test/scenarios/composition.ts (Grizzly Bears with double strike into Darksteel Myr).
 
 ## 4. Remaining Phase 8 slices
 

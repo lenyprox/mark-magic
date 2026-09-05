@@ -2358,12 +2358,16 @@ export class Game {
       const defender: GameObject | PlayerId = pw && pw.zone === 'battlefield' ? pw : a.attacking;
       if (!blockers.length) { if (a.blockedBy.length === 0 && !(a as GameObject & { wasBlocked?: boolean }).wasBlocked) damage.push({ src: a, to: defender, n: p }); continue; }
       const dt = hasKeyword(s, a, 'deathtouch'), trample = hasKeyword(s, a, 'trample');
+      const mine = damage.length;   // the entries pushed for THIS attacker start here
       for (const b of blockers) {
         const lethal = dt ? 1 : Math.max(0, toughness(s, b) - b.damage);
         const assign = Math.min(p, lethal); if (assign > 0) damage.push({ src: a, to: b, n: assign }); p -= assign;
         if (p <= 0) break;
       }
-      if (p > 0) { if (trample) damage.push({ src: a, to: defender, n: p }); else damage[damage.length - 1].n += p; }
+      // the rest goes to the last blocker it assigned to (CR 510.1c: every point must be assigned), or — when every
+      // blocker already had lethal damage marked (an indestructible blocker facing a double striker, fuzz bucket
+      // 450c456a) — to the first blocker; never to another attacker's entry
+      if (p > 0) { if (trample) damage.push({ src: a, to: defender, n: p }); else if (damage.length > mine) damage[damage.length - 1].n += p; else damage.push({ src: a, to: blockers[0], n: p }); }
     }
     for (const q of s.players) for (const o of q.battlefield) {
       if (q.id === ap || !o.blocking.length || !dealsNow(o)) continue;

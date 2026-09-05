@@ -5,7 +5,7 @@
 // through the DSL's `scripts` field: an activated {T} ability added to Grizzly Bears, or Lightning Bolt's spell text
 // replaced. The cards, the lands and the opponents' creatures are real; the expectations are about what the op did.
 import type { Effect, TargetSpec } from '../../src/cards/types.js';
-import { type Scenario, type ScenarioScript } from './dsl.js';
+import { attackWith, type Scenario, type ScenarioScript } from './dsl.js';
 
 /** Grizzly Bears gains "{T}: <effects>" (the printed vanilla body stays). */
 const bears = (effects: Effect[], text = 'composition'): Record<string, ScenarioScript> =>
@@ -853,5 +853,13 @@ export const composition: Scenario[] = [
     scripts: { 'Grizzly Bears': { abilities: [{ kind: 'activated', cost: {}, effects: [{ op: 'pump', target: 'self', power: 2, toughness: 0, duration: 'eot' }], text: 'pump' }, { kind: 'triggered', event: { on: 'dies', self: true }, effects: [{ op: 'gain-life', amount: { count: 'power-of-source' }, who: 'you' }], text: 'lki' }] } },
     script: [{ activate: 'Grizzly Bears', ability: 0 }, { resolve: true }, { cast: 'Lightning Bolt', targets: [['Grizzly Bears']] }, { resolve: true }, { resolve: true }],
     expect: [{ zone: ['Grizzly Bears', 'graveyard'] }, { life: [0, 24] }],
+  },
+  // ------------------------------------------------------------------ combat damage assignment (fuzz bucket 450c456a)
+  {
+    name: 'a double striker blocked by an indestructible 0/1 assigns its regular damage to that blocker and deals none to the player', cr: '510.1c',
+    seats: [{ bf: ['Grizzly Bears'] }, { bf: ['Darksteel Myr'], life: 20 }],
+    scripts: { 'Grizzly Bears': { keywords: ['double strike'] } },
+    script: [attackWith(['Grizzly Bears'], [['Darksteel Myr', 'Grizzly Bears']])],
+    expect: [{ life: [1, 20] }, { zone: ['Darksteel Myr', 'battlefield'] }, { zone: ['Grizzly Bears', 'battlefield'] }, { unsimulated: 0 }],
   },
 ];
