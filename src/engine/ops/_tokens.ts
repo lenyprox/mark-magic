@@ -14,6 +14,9 @@ export const BUILTIN_TOKEN_ABILITIES: Record<string, TokenAbility> = {
   // Treasure: {T}, Sacrifice: add one mana of any colour.
   Treasure: {
     index: -1, flag: 'treasure',
+    // a tapped Treasure offers nothing here and falls through to the generic activated-ability / equip scan, exactly
+    // as the hardcoded `if (o.token?.treasure && !o.tapped) { ...; continue; }` did
+    covers: (_g, _p, o) => !o.tapped,
     legal: (_g, _p, o) => o.tapped ? null : { action: { type: 'activate', objectId: o.id, abilityIndex: -1 }, label: 'sacrifice Treasure for mana' },
     async activate(g, p, o) {
       const color = (await g.ask(p, { kind: 'choose-color', reason: 'Treasure' })) as ManaSymbol;
@@ -24,6 +27,7 @@ export const BUILTIN_TOKEN_ABILITIES: Record<string, TokenAbility> = {
   // surfaces no explicit legal action — exactly as before.
   Spawn: {
     index: -1, flag: 'spawn',
+    covers: () => false,                                            // never had a branch of its own: always fell through
     legal: () => null,
     async activate(g, p, o) { g.addMana(p, ['C'], o.token?.name ?? 'token'); g.moveTo(o, 'graveyard', 'top', 'sacrifice'); return true; },
   },

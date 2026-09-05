@@ -9,7 +9,18 @@ import path from 'node:path';
 import { familyFiles, OUT_FILE, render, SHARED } from '../scripts/gen-registry.mjs';
 
 const OPS = 'src/engine/ops';
-function opsFiles(): string[] { return fs.readdirSync(OPS).filter(f => f.endsWith('.ts')).map(f => path.join(OPS, f)); }
+/** Every .ts under src/engine/ops, recursively (a family may sit in a subdirectory), name-sorted so the lints are deterministic. */
+function opsFiles(dir: string = OPS): string[] {
+  const out: string[] = [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+  for (const e of entries) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...opsFiles(full));
+    else if (e.name.endsWith('.ts')) out.push(full);
+  }
+  return out;
+}
 
 test('src/engine/ops imports nothing from node: (the web worker has no node builtins)', () => {
   const offenders: string[] = [];
@@ -33,19 +44,40 @@ function writtenValue(src: string, start: number): string {
   return src.slice(start);
 }
 
-test('src/engine/ops never puts a Set, a Map or any class instance into an ext bag (ext is JSON-plain)', () => {
-  // Every shape of an ext write — `x.ext.k = <v>`, `x.ext = { k: <v> }`, `extSet(o, 'k', <v>)`, `extPush(o, 'k', <v>)`
-  // — and the WHOLE assigned expression is scanned, so `{ k: new Set<string>() }` and `new Map()` are both caught.
-  const starts = /(?:\.ext\b[^\n=]*=(?!=)|\b(?:extSet|extPush)\s*\()/g;
-  const nonPlain = /\bnew\s+(?!Array\b)([A-Za-z_$][\w$]*)\s*[<(]/;
-  const offenders: string[] = [];
-  for (const f of opsFiles()) {
-    const src = fs.readFileSync(f, 'utf8');
-    for (const m of src.matchAll(starts)) {
-      const bad = nonPlain.exec(writtenValue(src, m.index + m[0].length));
-      if (bad) offenders.push(`${f}: new ${bad[1]} in ${m[0].trim()}...`);
-    }
+// Every shape of an ext write — `x.ext.k = <v>`, `x.ext = { k: <v> }`, `extSet(o, 'k', <v>)`, `extPush(o, 'k', <v>)`
+// — and the WHOLE assigned expression is scanned, so the generic and spaced forms (`new Set<string>()`,
+// `new Map<string, number>()`, `new Set ()`) and a Set/Map handed to `extSet` are caught, not just a bare `new Set()`.
+const EXT_WRITE = /(?:\.ext\b[^\n=]*=(?!=)|\b(?:extSet|extPush)\s*\()/g;
+const NON_PLAIN = /\bnew\s+(?!Array\b)([A-Za-z_$][\w$]*)\s*[<(]/;
+/** `<class> in <the write that assigned it>` for every non-JSON value written into an ext bag in `src`. */
+function extOffenders(src: string, label: string): string[] {
+  const out: string[] = [];
+  for (const m of src.matchAll(EXT_WRITE)) {
+    const bad = NON_PLAIN.exec(writtenValue(src, m.index + m[0].length));
+    if (bad) out.push(`${label}: new ${bad[1]} in ${m[0].trim()}...`);
   }
+  return out;
+}
+
+test('the JSON-plain ext lint catches every shape a Set or Map can be written in', () => {
+  // the detector itself, pinned: each of these must be reported, and each plain form must not be
+  const caught = [
+    "o.ext.seen = new Set();", "o.ext.seen = new Set<string>();", "o.ext.seen = new Set ();",
+    "o.ext.byId = new Map<string, number>();", "o.ext = { seen: new Set<string>(), n: 1 };",
+    "extSet(o, 'seen', new Set());", "extSet(o, 'byId', new Map<string, number>());",
+    "extPush(o, 'piles', new Set());", "pl.ext.state = new SomeClass();",
+  ];
+  for (const line of caught) assert.equal(extOffenders(line, 'x').length, 1, `not caught: ${line}`);
+  const clean = [
+    "o.ext.seen = [];", "o.ext.ids = new Array(3);", "extSet(o, 'seen', [1, 2, 3]);",
+    "extSet(o, 'byId', { a: 1 });", "o.ext = { seen: [], byId: {} };", "if (o.ext.n === new Date().getDay()) return;",
+  ];
+  for (const line of clean) assert.deepEqual(extOffenders(line, 'x'), [], `false positive: ${line}`);
+});
+
+test('src/engine/ops never puts a Set, a Map or any class instance into an ext bag (ext is JSON-plain)', () => {
+  const offenders: string[] = [];
+  for (const f of opsFiles()) offenders.push(...extOffenders(fs.readFileSync(f, 'utf8'), f));
   assert.deepEqual(offenders, [], 'ext must stay JSON-plain: use arrays and plain objects (see src/engine/ops/ext.ts)');
 });
 
@@ -56,5 +88,6 @@ test('src/engine/ops/_registry.ts is what gen:registry produces (run `npm run ge
   assert.equal(onDisk.includes('\r'), false, 'the generated barrel must be written with LF endings');
   // the family scan skips the underscore files, the shared plumbing (types.ts, ext.ts, chars.ts) and every *.schema.ts
   const skipped = fs.readdirSync(OPS).filter(f => f.endsWith('.ts') && !familyFiles().includes(f));
+  skipped.sort();
   for (const f of skipped) assert.ok(f.startsWith('_') || SHARED.has(f) || f.endsWith('.schema.ts'), `${f} should be a family but the generator skipped it`);
 });

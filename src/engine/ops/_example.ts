@@ -145,6 +145,7 @@ const EXAMPLE: FamilyModule = {
       ? { zone: 'exile', emit: `${o.def.name} is exiled instead of dying (example).` } : null,
     damage: (_g, _src, target, n) => typeof target === 'number' ? n : Math.max(0, n - (extGetOr<number>(target, 'exampleShield', 0))),
     draw: () => false,                                   // true = the draw was replaced (no card is drawn)
+    // the unguarded fold: `delta` can be negative (a removal), `o` can be in any zone and `counter` can be 'loyalty'
     counters: (_g, _o, counter, delta) => counter === 'time' ? delta : delta,
     lifeGain: (_g, _p, n) => n,
   },
@@ -211,12 +212,15 @@ const EXAMPLE: FamilyModule = {
   },
 
   // Built-in abilities of a predefined token, keyed by token name (Treasure/Clue/Food/Spawn live in `_tokens.ts`).
+  // An entry's optional `covers` (default true) says whether it replaces the generic activated-ability scan in
+  // `legalActions` for that token, or falls through to it (a tapped Treasure, every Eldrazi Spawn).
   tokenAbilities: {},
 
   // Called from moveTo when a permanent leaves the battlefield ("exile until this leaves").
   leave: (_g, o) => extDel(o, 'exampleAttachedShield'),
 
   // What the chosen modes add to the mana cost actually paid (entwine, escalate, spree, multikicker); null abstains.
+  // `legalActions` enumerates payment plans once per mode set, so this reaches the legal cast's `pay.cost` too.
   modeCost: (def: CardDef, modes: number[], _alt: AltCost | undefined, _kicked: boolean): ManaCost | null =>
     modes.length > 1 ? { generic: modes.length - 1, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '' } : null,
   // Cost alteration the core's fixed-amount `cost-adjust` static cannot express (positive = cheaper, negative = a tax).
