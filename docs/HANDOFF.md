@@ -47,11 +47,13 @@ orchestrated by a Claude Code session. The plan has three phases, continuing the
 | 6e35aa7 | 8g | goldens (`test/fixtures/golden/`, `golden:check` / `golden:accept`), fidelity ratchet (`fidelity:check` / `fidelity:accept`, `test/fixtures/fidelity.json`), `test/determinism.test.ts`, inert-clause aggregation (`sim:batch --track-unsimulated`), worker pools settle on thread death |
 | 9d945ba | 8x | engine fixes: static-mods recursion (layer-6 re-entrant reads), one `landScorer` for AiAgent/RolloutAgent (land from graveyard/exile), `Game.blockLegal` shared by declare-blockers and `simulateCombat` (menace, CR 509.1a) |
 | e817a4f | 8a-3 | script format v2 (sharded, `llm` source, backFace/secondFace, typed value-matched covers, ignore whitelist, verification block, `scriptHash`), line-claim accounting for `fullyParsed`, `src/cards/pool.ts` tiers, `src/cards/schema.ts` (zod) + `typecheck:schema`, `scripts:check` v2, `scripts:shard`, `scripts:schema` |
+| edceb29 | 9.0a | composition core, engine side: `Ref`, ten composition ops, amount forms, `multi` targets, four delayed-at points, `src/engine/refs.ts`, zod schema + structural gate + op-coverage probes extended, `docs/vocabulary/composition.md`; soft cast-time target requirements for older-container branches; `docs/workflows/phase-9-0a-composition-core.js` |
 
-Numbers on `main` at handoff (`npm run verify:all` green in 1 m 53 s on a quiet machine): `coverage:pool` 11,541 /
-34,513 fully parsed overall, paper headline 11,391 / 32,081 (35.5%); `verify:pool` 11,064 sandbox-ok / 477
-unreachable; `parse:diff` 0 changed; goldens and the three seeded baselines replay identically; `npm test` 439
-tests; bench 45.4 games/s 60-card and 4.66 Commander (quiet machine; ≥ 20 / ≥ 4 budget).
+Numbers on `main` after 9.0a (2026-09-05, machine shared with a second session): `coverage:pool` 11,541 / 34,513 fully
+parsed overall, paper headline 11,391 / 32,081 (35.5%) — unchanged by design (parser rules are 9.0b); `verify:pool`
+11,064 sandbox-ok / 477 unreachable; `parse:diff` 0 changed; goldens replay identically; fidelity 13.28 / 16.12 /
+8.33 / 20.38 (ceilings unchanged); `npm test` 546 tests; `coverage:ops` 0 not allowlisted (allowlist shrank by 17
+entries); bench 47.2 games/s 60-card and 4.89 Commander (≥ 20 / ≥ 4 budget).
 
 ### Branches not yet merged
 
