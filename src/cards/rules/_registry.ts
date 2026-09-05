@@ -18,9 +18,11 @@
 import type { ConditionRule, CostRule, EffectRule, LineRule, RuleFamily, StaticRule, TriggerRule } from './types.js';
 
 import family_composition from './composition.js';
+import family_saga from './saga.js';
 
 const GENERATED: RuleFamily[] = [
   family_composition,
+  family_saga,
 ];
 
 // ---------------------------------------------------------------- flat arrays (mutated in place by rebuild())

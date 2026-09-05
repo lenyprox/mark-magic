@@ -5,6 +5,7 @@ Vocabulary documents (one per wave; what script authors and the round-trip rende
 | document | contents |
 |---|---|
 | [composition.md](composition.md) | Phase 9.0 composition core: `Ref` / `ScopeWho` binding rules, the amount forms (`objects`, `diff`, `sum`, `max`, `min`, `prop`), `multi` targets, and the ops `for-each`, `bind`, `reflexive`, `scoped`, `may`, `unless-pays`, `move`, `set-pt`, `lose-abilities`, `exchange`, plus the delayed-trigger points `this-turn:dies` / `this-turn:ltb` / `next-turn:upkeep` / `until-eot:end` |
+| [saga.md](saga.md) | Phase 9.1 saga family: the lore track and CR 714.2b chapter *crossing*, `read ahead`, the `saga-lore` op, the `saga` target kind, the `lore-counter-put` / `saga-final-chapter` triggers, the `saga-lore-ge` condition, and the two chapter-line parser rules |
 | this file | how a family module extends the engine, the hook table, the lints, the op-coverage ratchet and the parser rule registry |
 
 The engine is extended through **families**: one file per mechanic, `src/engine/ops/<family>.ts`, whose default export

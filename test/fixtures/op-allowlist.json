@@ -88,7 +88,6 @@
   ],
   "triggers": [
     "blocks",
-    "chapter",
     "combat-begin",
     "draw",
     "draw-step",

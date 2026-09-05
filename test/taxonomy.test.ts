@@ -103,10 +103,11 @@ const CARDS: [name: string, primary: Family | null][] = [
   ['Browbeat', 'generic'],
 
   // --- generic composition
-  ['History of Benalia', 'generic'],
   ['Tireless Tracker', 'generic'],
 
   // --- cards the parser finishes: no family, no queue entry
+  // History of Benalia was 'generic' until the saga family (9.1) taught the parser its multi-chapter line.
+  ['History of Benalia', null],
   ['Grizzly Bears', null],
   ['Lightning Bolt', null],
   ['Llanowar Elves', null],
