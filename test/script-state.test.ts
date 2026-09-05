@@ -7,10 +7,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { CardDB } from '../src/cards/db.js';
 import {
-  blockedPathFor, defaultSources, deriveStates, emptyHistogram, listBlocked, openNeeds, PLAYABLE_SQL, poolRows,
-  readBlocked, SCRIPT_STATES, SCRIPT_STATE_TABLE, stateOf, unlockedOpFamilies,
-  type BlockedNote, type ScriptState, type StateDef, type StateSources,
+  blockedPathFor, defaultSources, deriveStates, emptyHistogram, judgeCountFor, listBlocked, listReviews, openNeeds,
+  PLAYABLE_SQL, poolRows, readBlocked, readReview, reviewPathFor, SCRIPT_STATES, SCRIPT_STATE_TABLE, stateOf,
+  unearnedHumanSource, unlockedOpFamilies,
+  type BlockedNote, type ReviewNote, type ScriptState, type StateDef, type StateSources,
 } from '../src/cards/scriptState.js';
+import { edhrecTopIds, judgeRuleOver, ownerDeckIds, twoJudgeIds, TWO_JUDGE_EDHREC_MAX } from '../src/cards/waveScope.js';
 import { oracleHash, ScriptStore, scriptHash, shardOf, type CardScript, type Verification } from '../src/cards/scripts.js';
 
 // ---------------------------------------------------------------------------
@@ -28,8 +30,9 @@ function fixture(over: Partial<StateSources> = {}): StateSources & { root: strin
   const scriptsDir = path.join(root, 'scripts');
   const blockedDir = path.join(root, 'blocked');
   const scenarioDir = path.join(root, 'scenarios');
-  for (const d of [scriptsDir, blockedDir, scenarioDir]) fs.mkdirSync(d, { recursive: true });
-  return { root, scripts: new ScriptStore(scriptsDir), blockedDir, scenarioDir, unlocked: new Set(['draw']), judges: 1, ...over };
+  const reviewedDir = path.join(root, 'reviewed');
+  for (const d of [scriptsDir, blockedDir, scenarioDir, reviewedDir]) fs.mkdirSync(d, { recursive: true });
+  return { root, scripts: new ScriptStore(scriptsDir), blockedDir, scenarioDir, reviewedDir, unlocked: new Set(['draw']), judges: 1, ...over };
 }
 
 const def = (over: Partial<StateDef> = {}): StateDef => ({ oracleId: ID, name: 'Fixture Card', oracleText: TEXT, fullyParsed: false, ...over });
@@ -65,6 +68,18 @@ const putBlocked = (src: StateSources, note: Partial<BlockedNote> = {}) => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(full, null, 2) + '\n');
   return full;
+};
+
+/** What `scripts:promote --human` writes: a signed note pinning both hashes of the script the person read. */
+const putReview = (src: StateSources, s: CardScript, over: Partial<ReviewNote> = {}): ReviewNote => {
+  const note: ReviewNote = {
+    oracleId: ID, name: 'Fixture Card', by: 'Jared', at: '2026-02-01T10:00:00.000Z',
+    scriptHash: scriptHash(s), oracleHash: oracleHash(TEXT), ...over,
+  };
+  const file = reviewPathFor(ID, src.reviewedDir);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(note, null, 2) + '\n');
+  return note;
 };
 
 const putScenarios = (src: StateSources) => {
@@ -154,12 +169,74 @@ test('stale: the oracle text changed under the script', () => {
   assert.match(info.why, /oracle text changed/);
 });
 
-test('reviewed: a person wrote or checked the script, whatever the verification says', () => {
+// ---------------------------------------------------------------------------
+// reviewed — a REVIEW NOTE, never the script's own `source`
+// ---------------------------------------------------------------------------
+
+test("a script that merely DECLARES source 'hand' / 'reviewed' is not reviewed and is not covered", () => {
   for (const source of ['reviewed', 'hand'] as const) {
     const src = fixture();
     put(src, script({ source }));
-    assert.equal(stateIn(src), 'reviewed');
+    const info = stateOf(ID, { ...src, def: def() });
+    // the whole point: an author agent can copy this word out of a worked example, so it buys the card nothing
+    assert.equal(info.state, 'scripted', `source '${source}' must not promote a card`);
+    assert.equal(SCRIPT_STATE_TABLE[info.state].covered, false);
+    assert.equal(SCRIPT_STATE_TABLE[info.state].queueable, true, 'and the queue must issue it again');
+    assert.equal(info.unearnedHumanSource, true);
+    assert.equal(info.review, undefined);
   }
+  // an 'llm' script is never flagged
+  const clean = fixture();
+  put(clean, script());
+  assert.equal(stateOf(ID, { ...clean, def: def() }).unearnedHumanSource, undefined);
+});
+
+test('reviewed: a review note for THIS script, whatever the verification says', () => {
+  const src = fixture();
+  const s = script();
+  put(src, s);
+  const note = putReview(src, s);
+  const info = stateOf(ID, { ...src, def: def() });
+  assert.equal(info.state, 'reviewed');
+  assert.equal(SCRIPT_STATE_TABLE.reviewed.covered, true);
+  assert.match(info.why, /Jared reviewed this exact script/);
+  assert.deepEqual(info.review, note);
+  assert.equal(info.unearnedHumanSource, undefined, 'a note makes the claim earned');
+  assert.deepEqual(listReviews(src.reviewedDir).map(n => n.oracleId), [ID]);
+  assert.deepEqual(readReview(ID, src.reviewedDir), note);
+});
+
+test('a review note for a DIFFERENT script (or a changed oracle text) does not promote', () => {
+  for (const over of [{ scriptHash: 'deadbeef' }, { oracleHash: 'deadbeef' }] as const) {
+    const src = fixture();
+    const s = script();
+    put(src, s);
+    putReview(src, s, over);
+    const info = stateOf(ID, { ...src, def: def() });
+    assert.equal(info.state, 'scripted', `${JSON.stringify(over)} must invalidate the review`);
+    assert.equal(info.reviewStale, true);
+  }
+});
+
+test('an unsigned or unreadable review note is treated as none', () => {
+  for (const body of ['{ not json', JSON.stringify({ oracleId: ID, scriptHash: 'x', oracleHash: 'y' }), JSON.stringify({ by: '  ', scriptHash: 'x', oracleHash: 'y' })]) {
+    const src = fixture();
+    const file = reviewPathFor(ID, src.reviewedDir);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, body);
+    assert.equal(readReview(ID, src.reviewedDir), null);
+    put(src, script());
+    assert.equal(stateIn(src), 'scripted');
+  }
+});
+
+test('unearnedHumanSource is exactly "claims a person, has no note"', () => {
+  const s = script({ source: 'hand' });
+  const note = { oracleId: ID, name: 'x', by: 'Jared', at: 'now', scriptHash: scriptHash(s), oracleHash: oracleHash(TEXT) };
+  assert.equal(unearnedHumanSource(s, null), true);
+  assert.equal(unearnedHumanSource(s, note), false);
+  assert.equal(unearnedHumanSource(script({ source: 'llm' }), null), false);
+  assert.equal(unearnedHumanSource(script({ source: 'generated' }), null), false);
 });
 
 test('scripted: a fresh script with no verification', () => {
@@ -270,6 +347,27 @@ test('tested: one faithful verdict is NOT enough when two judges are required (w
   assert.match(info.why, /1 of 2 faithful/);
 });
 
+test('the judge count is a property of the CARD, not of the invocation', () => {
+  // plan 2.4: two judges for the owner's decks and the EDHREC top-1k, one elsewhere. Before this the queue decided
+  // it once per RUN, so the same card was `judged` under `defaultSources()` and `tested` under the owner-decks queue.
+  const other = '99999999-8888-7777-6666-555555555555';
+  const rule = judgeRuleOver(new Set([ID]));
+  assert.equal(judgeCountFor({ judges: rule }, ID), 2);
+  assert.equal(judgeCountFor({ judges: rule }, other), 1);
+  assert.equal(judgeCountFor({ judges: 2 }, other), 2, 'a bare count still forces the whole run');
+
+  const src = fixture({ judges: rule });
+  putScenarios(src);
+  const s = script();
+  put(src, { ...s, verification: tested(s, { judge: [judge('faithful')] }) });
+  const info = stateOf(ID, { ...src, def: def() });
+  assert.equal(info.state, 'tested', 'a two-judge card is not judged on one verdict');
+  assert.match(info.why, /1 of 2 faithful/);
+  // the same script under a card the rule does not name IS judged
+  assert.equal(stateOf(ID, { ...src, judges: judgeRuleOver(new Set([other])), def: def() }).state, 'judged');
+  assert.equal(TWO_JUDGE_EDHREC_MAX, 1000, "plan 2.4's EDHREC top-1k");
+});
+
 test('judged: two faithful verdicts satisfy the two-judge rule', () => {
   const src = fixture({ judges: 2 });
   putScenarios(src);
@@ -313,6 +411,21 @@ test('unlockedOpFamilies carries the core vocabulary and no `unknown`', () => {
   const u = unlockedOpFamilies();
   for (const op of ['draw', 'destroy', 'move', 'set-pt', 'lose-abilities', 'etb', 'anthem']) assert.ok(u.has(op), `expected ${op}`);
   assert.ok(!u.has('unknown'));
+});
+
+test('the real two-judge set is the owner decks PLUS the EDHREC top-1k (plan 2.4)', () => {
+  const db = CardDB.shared();
+  const top = edhrecTopIds(db, TWO_JUDGE_EDHREC_MAX);
+  assert.ok(top.size > 500 && top.size <= TWO_JUDGE_EDHREC_MAX, `top-1k has ${top.size} cards`);
+  const two = twoJudgeIds(db);
+  for (const id of top) assert.ok(two.has(id), `${id} is EDHREC top-1k and must need two judges`);
+  const decks = ownerDeckIds(db).ids;
+  assert.ok(decks.length > 400);
+  for (const id of decks) assert.ok(two.has(id), `${id} is in the owner's decks and must need two judges`);
+  // Lightning Bolt is top-1k; a random un-ranked card is not, and needs one judge
+  const rule = judgeRuleOver(two);
+  assert.equal(rule(db.get('Lightning Bolt')!.oracleId), 2);
+  assert.equal(rule('00000000-0000-0000-0000-000000000000'), 1);
 });
 
 test('PLAYABLE_SQL selects exactly the rows CardDB.all() walks', () => {

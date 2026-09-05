@@ -11,7 +11,9 @@
 //   verified  the mechanical gate passed (schema/lint/sandbox/round-trip) — verification.status >= 'verified'
 //   tested    + at least one PASSING blind scenario per REACHABLE ability (unreachable abilities are excused)
 //   judged    + the judge(s) called it faithful (one judge, or two for wave 10.0 / the owner's decks)
-//   reviewed  a person wrote or checked the script (`source: 'reviewed' | 'hand'`)
+//   reviewed  a PERSON signed off on this exact script — a review note under data/scripts/reviewed/<2-hex>/ whose
+//             scriptHash and oracleHash still match (written only by `scripts:promote --human`). A script that
+//             merely DECLARES `source: 'hand' | 'reviewed'` is not reviewed: an author agent can write that word.
 //   stale     a script exists but the oracle text changed under it — it is NOT applied
 //
 // "Simulated" (what the engine actually plays with) is `parsed` + `scripted` and up; "covered" — the headline number
@@ -30,6 +32,9 @@ import {
   type CardScript, type ScriptSource, type Verification,
 } from './scripts.js';
 import type { CardDef } from './types.js';
+import { defaultJudgeRule, type JudgeRule, type Judges } from './waveScope.js';
+
+export type { JudgeRule, Judges } from './waveScope.js';
 
 // ---------------------------------------------------------------------------
 // The state table
@@ -136,6 +141,80 @@ export function listBlocked(dir = DEFAULT_BLOCKED_DIR()): BlockedNote[] {
 }
 
 // ---------------------------------------------------------------------------
+// Human review notes
+// ---------------------------------------------------------------------------
+
+/**
+ * data/scripts/reviewed/<2-hex>/<oracle_id>.json — the ONLY thing that makes a card `reviewed`.
+ *
+ * The note is written by `scripts:promote --human` (plan 2.4) and pins BOTH hashes of the script the person
+ * actually read, so any later edit to the script or to the oracle text drops the card back onto the mechanical
+ * ladder instead of leaving a human's name on someone else's work. A script's own `source` field is metadata an
+ * author agent can write, and is therefore never evidence of a review.
+ */
+export interface ReviewNote {
+  oracleId: string;
+  name: string;
+  /** The person who signed off (`--by`). */
+  by: string;
+  /** ISO timestamp. */
+  at: string;
+  /** `scriptHash(script)` of the reviewed script — a later edit invalidates the review. */
+  scriptHash: string;
+  /** `oracleHash(oracleText)` at review time — an oracle update invalidates it too. */
+  oracleHash: string;
+  /** What the reviewer wants remembered (optional). */
+  note?: string;
+}
+
+export const DEFAULT_REVIEWED_DIR = (): string => path.join(DEFAULT_SCRIPTS_DIR(), 'reviewed');
+
+/** Where a card's review note is (or would be). */
+export function reviewPathFor(oracleId: string, dir = DEFAULT_REVIEWED_DIR()): string {
+  return path.join(dir, shardOf(oracleId), `${oracleId}.json`);
+}
+
+/** Read one review note, or null when there is none (an unreadable or unsigned one is treated as none). */
+export function readReview(oracleId: string, dir = DEFAULT_REVIEWED_DIR()): ReviewNote | null {
+  const file = reviewPathFor(oracleId, dir);
+  if (!fs.existsSync(file)) return null;
+  try {
+    const n = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<ReviewNote>;
+    if (!n || typeof n !== 'object') return null;
+    if (typeof n.scriptHash !== 'string' || typeof n.oracleHash !== 'string') return null;
+    if (typeof n.by !== 'string' || !n.by.trim()) return null;
+    return {
+      oracleId: n.oracleId ?? oracleId, name: n.name ?? '', by: n.by, at: n.at ?? '',
+      scriptHash: n.scriptHash, oracleHash: n.oracleHash, ...(n.note ? { note: n.note } : {}),
+    };
+  } catch { return null; }
+}
+
+/** Every review note under `dir`, sorted by oracle id. */
+export function listReviews(dir = DEFAULT_REVIEWED_DIR()): ReviewNote[] {
+  if (!fs.existsSync(dir)) return [];
+  const out: ReviewNote[] = [];
+  for (const shard of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    if (!shard.isDirectory()) continue;
+    for (const f of fs.readdirSync(path.join(dir, shard.name)).sort()) {
+      if (!f.endsWith('.json')) continue;
+      const note = readReview(path.basename(f, '.json'), dir);
+      if (note) out.push(note);
+    }
+  }
+  return out.sort((a, b) => (a.oracleId < b.oracleId ? -1 : a.oracleId > b.oracleId ? 1 : 0));
+}
+
+/**
+ * True when the script CLAIMS a human source without a matching review note — the shape the 8k review found: an
+ * author agent copies `"source": "hand"` out of a worked example and its card silently counts as covered. Every
+ * tool that reads scripts prints these, and `stateOf` ignores the claim.
+ */
+export function unearnedHumanSource(script: CardScript, review: ReviewNote | null): boolean {
+  return (script.source === 'hand' || script.source === 'reviewed') && !review;
+}
+
+// ---------------------------------------------------------------------------
 // What the engine can express today
 // ---------------------------------------------------------------------------
 
@@ -186,10 +265,21 @@ export interface StateSources {
   scripts: ScriptStore;
   blockedDir: string;
   scenarioDir: string;
+  /** Where `scripts:promote --human` writes its review notes. */
+  reviewedDir: string;
   /** Op families that exist (see `unlockedOpFamilies`). */
   unlocked: ReadonlySet<string>;
-  /** Faithful verdicts needed for `judged` — 2 for wave 10.0 and the owner's decks, 1 elsewhere (plan 2.4). */
-  judges: 1 | 2;
+  /**
+   * Faithful verdicts needed for `judged`. Plan 2.4 wants TWO for the owner's decks and the EDHREC top-1k and one
+   * elsewhere — a per-CARD question, so this is normally a `JudgeRule`; a bare count is for fixtures and for
+   * `scripts:promote --judges N`.
+   */
+  judges: Judges | JudgeRule;
+}
+
+/** How many faithful verdicts THIS card needs under `src`. */
+export function judgeCountFor(src: Pick<StateSources, 'judges'>, oracleId: string): Judges {
+  return typeof src.judges === 'function' ? src.judges(oracleId) : src.judges;
 }
 
 export function defaultSources(over: Partial<StateSources> = {}): StateSources {
@@ -197,8 +287,9 @@ export function defaultSources(over: Partial<StateSources> = {}): StateSources {
     scripts: over.scripts ?? new ScriptStore(),
     blockedDir: over.blockedDir ?? DEFAULT_BLOCKED_DIR(),
     scenarioDir: over.scenarioDir ?? DEFAULT_SCENARIO_DIR(),
+    reviewedDir: over.reviewedDir ?? DEFAULT_REVIEWED_DIR(),
     unlocked: over.unlocked ?? unlockedOpFamilies(),
-    judges: over.judges ?? 1,
+    judges: over.judges ?? defaultJudgeRule(cardDb),
   };
 }
 
@@ -220,6 +311,12 @@ export interface ScriptStateInfo {
   verificationStale?: boolean;
   /** The blocked note, when one exists (even a spent one — `openNeeds` says whether it still blocks). */
   blocked?: BlockedNote;
+  /** The human review note, when one exists (even a stale one — see `reviewStale`). */
+  review?: ReviewNote;
+  /** True when a review note exists but names a different script or a different oracle text. */
+  reviewStale?: boolean;
+  /** True when the script says `source: 'hand' | 'reviewed'` and no review note backs that up. */
+  unearnedHumanSource?: boolean;
   /** Op families the card still waits for. Non-empty for `blocked`, and for any other state whose card kept a note. */
   openNeeds: string[];
 }
@@ -241,34 +338,40 @@ export function stateOf(oracleId: string, opts: StateOptions = {}): ScriptStateI
   if (!def) throw new Error(`stateOf: no such card in master.db: ${oracleId}`);
   const script = opts.script !== undefined ? opts.script : src.scripts.get(oracleId);
   const note = readBlocked(oracleId, src.blockedDir) ?? undefined;
+  const review = readReview(oracleId, src.reviewedDir);
   const open = note ? openNeeds(note, src.unlocked) : [];
   // `openNeeds` is reported for EVERY state, not only `blocked`: a partly-scripted card can still carry a note whose
   // families have not landed, and `scripts:queue --only-unlocked` drops exactly those.
-  const base = { oracleId, name: def.name, parsedAlone: def.fullyParsed, blocked: note, openNeeds: open };
+  const base = { oracleId, name: def.name, parsedAlone: def.fullyParsed, blocked: note, openNeeds: open, ...(review ? { review } : {}) };
 
   if (script) {
     const fresh = oracleHash(def.oracleText);
+    const claimed = unearnedHumanSource(script, review) ? { unearnedHumanSource: true } : {};
     if (script.oracleHash !== fresh) {
-      return { ...base, state: 'stale', source: script.source, why: `the oracle text changed since the script was written (hash ${fresh}, script says ${script.oracleHash})` };
+      return { ...base, ...claimed, state: 'stale', source: script.source, why: `the oracle text changed since the script was written (hash ${fresh}, script says ${script.oracleHash})` };
     }
-    if (script.source === 'reviewed' || script.source === 'hand') {
-      return { ...base, state: 'reviewed', source: script.source, why: `a person ${script.source === 'hand' ? 'wrote' : 'checked'} this script` };
+    // A PERSON signed THIS script off: the one rung above `judged`, and the only one a script cannot claim for
+    // itself. Both hashes must still match, so an edit after the review drops the card back onto the ladder.
+    if (review && review.scriptHash === scriptHash(script) && review.oracleHash === fresh) {
+      return { ...base, state: 'reviewed', source: script.source, verification: script.verification?.status, why: `${review.by || 'a person'} reviewed this exact script${review.at ? ` on ${review.at}` : ''}` };
     }
+    const reviewStale = review ? { reviewStale: true } : {};
     const v = script.verification;
-    if (!v) return { ...base, state: 'scripted', source: script.source, why: 'the script applies but has never been verified' };
+    const rest = { ...base, ...claimed, ...reviewStale, source: script.source };
+    if (!v) return { ...rest, state: 'scripted', why: 'the script applies but has never been verified' };
     if (v.scriptHash !== scriptHash(script)) {
-      return { ...base, state: 'scripted', source: script.source, verificationStale: true, why: 'the script changed since it was verified — re-run scripts:verify --stale' };
+      return { ...rest, state: 'scripted', verificationStale: true, why: 'the script changed since it was verified — re-run scripts:verify --stale' };
     }
     if (v.oracleHash !== fresh) {
-      return { ...base, state: 'scripted', source: script.source, verificationStale: true, why: 'the oracle text changed since the verification ran' };
+      return { ...rest, state: 'scripted', verificationStale: true, why: 'the oracle text changed since the verification ran' };
     }
     const rank = VERIFICATION_RANK[v.status] ?? 0;
-    if (rank < 2) return { ...base, state: 'scripted', source: script.source, verification: v.status, why: `verification status is '${v.status}'` };
+    if (rank < 2) return { ...rest, state: 'scripted', verification: v.status, why: `verification status is '${v.status}'` };
     const scenarios = scenarioVerdict(oracleId, v, src.scenarioDir);
-    if (!scenarios.ok) return { ...base, state: 'verified', source: script.source, verification: v.status, why: scenarios.why };
-    const judge = judgeVerdict(v, src.judges);
-    if (!judge.ok) return { ...base, state: 'tested', source: script.source, verification: v.status, why: judge.why };
-    return { ...base, state: 'judged', source: script.source, verification: v.status, why: judge.why };
+    if (!scenarios.ok) return { ...rest, state: 'verified', verification: v.status, why: scenarios.why };
+    const judge = judgeVerdict(v, judgeCountFor(src, oracleId));
+    if (!judge.ok) return { ...rest, state: 'tested', verification: v.status, why: judge.why };
+    return { ...rest, state: 'judged', verification: v.status, why: judge.why };
   }
 
   if (def.fullyParsed) return { ...base, state: 'parsed', why: 'the parser alone claims every line' };
@@ -298,7 +401,7 @@ function scenarioVerdict(oracleId: string, v: Verification, dir: string): { ok: 
 }
 
 /** `judged` needs `judges` faithful verdicts and no unfaithful one (an `uncertain` neither promotes nor rejects). */
-function judgeVerdict(v: Verification, judges: 1 | 2): { ok: boolean; why: string } {
+function judgeVerdict(v: Verification, judges: Judges): { ok: boolean; why: string } {
   const list = v.judge ?? [];
   const bad = list.filter(j => j.verdict === 'unfaithful');
   if (bad.length) return { ok: false, why: `a judge called it unfaithful: ${bad[0].issues.slice(0, 2).join('; ') || 'no issue given'}` };

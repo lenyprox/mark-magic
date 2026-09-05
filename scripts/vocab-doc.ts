@@ -2,8 +2,15 @@
 // (plan 2.8 / Part 4: "use only ops in data/scripts/VOCABULARY.md"). Nothing here is hand-written: the vocabulary
 // comes from the strict zod barrel (src/cards/schema.ts — the same schema `scripts:check` validates against, so the
 // document can never promise an op the checker rejects), the family names from the registry barrel
-// (src/engine/ops/_registry.ts), the prose from docs/vocabulary/<family>.md, and the examples from the judged
-// scripts in the store (falling back to data/scripts/_example*.json.txt while no wave has been judged).
+// (src/engine/ops/_registry.ts), the prose from docs/vocabulary/<family>.md, and the worked examples from the two
+// tracked `data/scripts/_example*.json.txt` files.
+//
+// THE GENERATOR READS NO WAVE OUTPUT. It deliberately does NOT walk `data/scripts/**` for judged scripts: the file
+// it writes is TRACKED and pinned by `test/lint-vocab-doc.test.ts`, which `verify:quick` runs on every merge, so a
+// document that were a function of the shards would turn that gate red the moment a wave was promoted — for a
+// reason with nothing to do with the merge, and with nothing in the pipeline regenerating it. The lint pins that
+// independence directly. Per-card style guidance is the QUEUE's job: every batch card carries its own nearest
+// judged scripts in `examples[]` (scripts/scripts-queue.ts).
 //
 //   npm run vocab:doc            # write data/scripts/VOCABULARY.md
 //   npm run vocab:doc -- --check # print nothing, exit 1 if the file on disk is not what would be written
@@ -20,8 +27,7 @@ import {
   DELAYED_AT, EFFECT_VARIANTS, KEYWORDS, MOVE_ZONES, REFS, SCOPE_WHO, SET_ZONES, STATIC_VARIANTS, TARGET_KINDS,
   TRIGGER_VARIANTS,
 } from '../src/cards/schema.js';
-import { COVER_KINDS, DEFAULT_SCRIPTS_DIR, IGNORE_REASONS, ScriptStore } from '../src/cards/scripts.js';
-import { defaultSources, stateOf } from '../src/cards/scriptState.js';
+import { COVER_KINDS, DEFAULT_SCRIPTS_DIR, IGNORE_REASONS } from '../src/cards/scripts.js';
 import { BASE_FAMILIES, isNamedKeyword, type Family } from '../src/cards/taxonomy.js';
 
 export const VOCAB_FILE = (): string => path.join(DEFAULT_SCRIPTS_DIR(), 'VOCABULARY.md');
@@ -117,36 +123,27 @@ export function dslCheatSheet(file = path.join(projectRoot(), 'test', 'scenarios
 const familyHeading = (f: Family): string => `## Family — ${f}`;
 
 /**
- * The excerpt `scripts:queue` embeds in a batch: the core vocabulary (every op an author may use) plus the family's
- * own section when the document has one. Read from the GENERATED file, so a batch can never quote a vocabulary the
- * checker does not implement; regenerate with `npm run vocab:doc` before queueing a wave.
+ * The excerpt `scripts:queue` embeds in a batch: the core vocabulary ONCE (every op an author may use) plus one
+ * section per family the batch actually spans. Read from the GENERATED file, so a batch can never quote a
+ * vocabulary the checker does not implement; regenerate with `npm run vocab:doc` before queueing a wave.
+ *
+ * The core section is ~13 KB, so joining per-family excerpts — which is what the first cut of 8k did — repeated it
+ * once per family and cost tens of KB of pure duplication in a mixed batch.
  */
-export function vocabularyExcerpt(family: Family, file = VOCAB_FILE()): string {
+export function vocabularyFor(families: readonly Family[], file = VOCAB_FILE()): string {
   if (!fs.existsSync(file)) return `data/scripts/VOCABULARY.md is missing — run \`npm run vocab:doc\` before queueing.`;
   const md = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
-  const core = sectionOf(md, '## Core vocabulary');
-  const fam = sectionOf(md, familyHeading(family)) || (isNamedKeyword(family) ? sectionOf(md, familyHeading('other')) : '');
-  return [core, fam].filter(Boolean).join('\n\n');
+  const parts = [sectionOf(md, '## Core vocabulary')];
+  for (const family of [...new Set(families)]) {
+    const fam = sectionOf(md, familyHeading(family)) || (isNamedKeyword(family) ? sectionOf(md, familyHeading('other')) : '');
+    if (fam && !parts.includes(fam)) parts.push(fam);
+  }
+  return parts.filter(Boolean).join('\n\n');
 }
 
-/** Up to `n` judged (or human-reviewed) scripts that use `op`, as pretty JSON. Empty until a wave is judged. */
-function judgedExamplesByOp(n = 2): Map<string, { name: string; json: string }[]> {
-  const out = new Map<string, { name: string; json: string }[]>();
-  const store = new ScriptStore();
-  const sources = defaultSources({ scripts: store });
-  for (const id of store.ids().sort()) {
-    const script = store.get(id);
-    if (!script) continue;
-    let judged = false;
-    try { const st = stateOf(id, { ...sources, script }); judged = st.state === 'judged' || st.state === 'reviewed'; } catch { judged = false; }
-    if (!judged) continue;
-    const json = JSON.stringify(script, null, 2);
-    for (const op of opsUsed(script)) {
-      const list = out.get(op) ?? [];
-      if (list.length < n) { list.push({ name: script.name, json }); out.set(op, list); }
-    }
-  }
-  return out;
+/** One family's excerpt — `vocabularyFor` with a single family. */
+export function vocabularyExcerpt(family: Family, file = VOCAB_FILE()): string {
+  return vocabularyFor([family], file);
 }
 
 /** Every `op` / `kind` / `on` literal that appears anywhere in a script. */
@@ -165,8 +162,6 @@ export function opsUsed(value: unknown, into = new Set<string>()): Set<string> {
 // ---------------------------------------------------------------------------
 
 export function renderVocabulary(): string {
-  const effects = variantDocs(EFFECT_VARIANTS, 'op').filter(d => d.literal !== 'unknown');
-  const examplesByOp = judgedExamplesByOp();
   const families = MODULES.map(m => m.name).sort();
   const prose = proseFiles();
   const scriptsDir = DEFAULT_SCRIPTS_DIR();
@@ -242,37 +237,26 @@ export function renderVocabulary(): string {
 
   out.push('## Examples');
   out.push('');
-  const opsWithExamples = effects.filter(e => (examplesByOp.get(e.literal) ?? []).length);
-  if (opsWithExamples.length) {
-    out.push('Two judged scripts per op (the nearest thing to a style guide there is):');
+  out.push('The two worked examples of the format (also on disk as `data/scripts/_example.json.txt` and');
+  out.push('`_example-split.json.txt`); the family prose below carries a snippet per op. Scripts that have actually');
+  out.push('been judged reach you through your BATCH file (`cards[].examples`), never through this document: this');
+  out.push('file is generated from source alone and never from wave output, so the lint that pins it cannot go red');
+  out.push('because somebody promoted a wave.');
+  out.push('');
+  out.push('The `source` of a script you author is `"llm"`. **Never write `"hand"` or `"reviewed"`**: those mean a');
+  out.push('PERSON signed that exact script off, they are recorded in `data/scripts/reviewed/<2-hex>/<oracle_id>.json`');
+  out.push('by `npm run scripts:promote -- --human`, and a script that claims one without a matching review note is');
+  out.push('ignored by `src/cards/scriptState.ts` and reported by every tool that reads it.');
+  out.push('');
+  for (const f of ['_example.json.txt', '_example-split.json.txt']) {
+    const file = path.join(scriptsDir, f);
+    if (!fs.existsSync(file)) continue;
+    out.push(`### \`${f}\``);
     out.push('');
-    for (const e of opsWithExamples) {
-      out.push(`### \`${e.literal}\``);
-      out.push('');
-      for (const ex of examplesByOp.get(e.literal)!) {
-        out.push(`**${ex.name}**`);
-        out.push('');
-        out.push('```json');
-        out.push(ex.json);
-        out.push('```');
-        out.push('');
-      }
-    }
-  } else {
-    out.push('No script has been judged yet, so there are no per-op examples. The two worked examples of the format');
-    out.push('are these (they are also on disk as `data/scripts/_example.json.txt` and `_example-split.json.txt`);');
-    out.push('the family prose below carries a snippet per op.');
+    out.push('```json');
+    out.push(fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').trim());
+    out.push('```');
     out.push('');
-    for (const f of ['_example.json.txt', '_example-split.json.txt']) {
-      const file = path.join(scriptsDir, f);
-      if (!fs.existsSync(file)) continue;
-      out.push(`### \`${f}\``);
-      out.push('');
-      out.push('```json');
-      out.push(fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').trim());
-      out.push('```');
-      out.push('');
-    }
   }
 
   // one section per taxonomy family, so `scripts:queue` always finds a heading to excerpt for a batch
@@ -336,5 +320,5 @@ function main() {
   console.log(`wrote ${path.relative(projectRoot(), file).split(path.sep).join('/')} (${md.split('\n').length} lines)`);
 }
 
-// run only as a CLI: `scripts:queue` imports `vocabularyExcerpt` / `dslCheatSheet` from here
+// run only as a CLI: `scripts:queue` imports `vocabularyFor` / `dslCheatSheet` from here
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(url.fileURLToPath(import.meta.url))) main();

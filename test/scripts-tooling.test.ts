@@ -7,10 +7,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { CardDB } from '../src/cards/db.js';
-import { oracleHash, ScriptStore, type CardScript, type Verification } from '../src/cards/scripts.js';
-import { unlockedOpFamilies, type BlockedNote } from '../src/cards/scriptState.js';
+import { oracleHash, ScriptStore, scriptHash, type CardScript, type Verification } from '../src/cards/scripts.js';
+import { judgeCountFor, readReview, reviewPathFor, stateOf, unlockedOpFamilies, type BlockedNote } from '../src/cards/scriptState.js';
+import { judgeRuleOver } from '../src/cards/waveScope.js';
 import { clauseTokens, jaccard, ownerDeckIds, parseSelection, typeBucket } from '../scripts/scripts-queue.js';
-import { deriveStatus, dirtyPaths, GUARDED_PATHS, judgeBlock, readResult, scenarioBlock } from '../scripts/scripts-promote.js';
+import { deriveStatus, dirtyPaths, GUARDED_PATHS, humanReview, judgeBlock, readResult, scenarioBlock } from '../scripts/scripts-promote.js';
 import { idsOfBatch, move, quarantinePathFor } from '../scripts/scripts-quarantine.js';
 import { aggregate } from '../scripts/scripts-needs.js';
 
@@ -114,6 +115,62 @@ test('scenario and judge blocks fold the workflow rows the tools write back', ()
   assert.deepEqual(block, { file: 'data/scenarios/aa/x.json', passed: 1, failed: 1, names: ['drain', 'etb draws'] });
   const judge = judgeBlock([{ oracleId: ID, verdict: 'unfaithful', confidence: 0.9, model: 'opus', issues: [{ line: 'Draw a card.', expected: 'draw 1', scripted: 'draw 2', cr: '121.1' }] }], 'now');
   assert.deepEqual(judge, [{ model: 'opus', verdict: 'unfaithful', issues: ['Draw a card. — expected draw 1 — scripted draw 2 — CR 121.1'], at: 'now' }]);
+});
+
+test('scripts:promote --human is the only route to `reviewed`, and it signs what it read', () => {
+  const dir = tmp();
+  const store = new ScriptStore(path.join(dir, 'scripts'));
+  const reviewedDir = path.join(dir, 'reviewed');
+  const bolt = CardDB.shared().get('Lightning Bolt')!;
+  const s: CardScript = {
+    oracleId: bolt.oracleId, name: bolt.name, oracleHash: oracleHash(bolt.oracleText), source: 'llm',
+    abilities: [{ kind: 'spell', effects: [{ op: 'damage', amount: 3, target: { kind: 'any' } }], text: bolt.oracleText }],
+  };
+  store.put(s);
+
+  const rows = humanReview([bolt.oracleId], { by: 'Jared', at: 'NOW', note: 'checked the printed card', store, reviewedDir });
+  assert.deepEqual(rows, [{ oracleId: bolt.oracleId, name: bolt.name, wrote: true }]);
+  const note = readReview(bolt.oracleId, reviewedDir)!;
+  assert.equal(note.by, 'Jared');
+  assert.equal(note.at, 'NOW');
+  assert.equal(note.note, 'checked the printed card');
+  assert.equal(note.scriptHash, scriptHash(s), 'the note pins the script the person actually read');
+  assert.equal(note.oracleHash, oracleHash(bolt.oracleText));
+
+  // that note, and only that note, makes the card `reviewed`
+  assert.equal(stateOf(bolt.oracleId, { scripts: store, reviewedDir, judges: 1 }).state, 'reviewed');
+  assert.equal(stateOf(bolt.oracleId, { scripts: store, reviewedDir: tmp(), judges: 1 }).state, 'scripted');
+
+  // editing the script after the review drops the card back onto the mechanical ladder
+  store.put({ ...s, abilities: [...(s.abilities ?? []), { kind: 'spell', effects: [{ op: 'draw', amount: 1, who: 'you' }], text: 'Draw a card.' }] }, { force: true });
+  const after = stateOf(bolt.oracleId, { scripts: store, reviewedDir, judges: 1 });
+  assert.equal(after.state, 'scripted');
+  assert.equal(after.reviewStale, true);
+});
+
+test('--human refuses a card with no script, and one whose script went stale', () => {
+  const dir = tmp();
+  const store = new ScriptStore(path.join(dir, 'scripts'));
+  const reviewedDir = path.join(dir, 'reviewed');
+  const bolt = CardDB.shared().get('Lightning Bolt')!;
+  assert.match(humanReview([bolt.oracleId], { by: 'x', at: 'NOW', store, reviewedDir })[0].why ?? '', /no script to review/);
+  store.put({ oracleId: bolt.oracleId, name: bolt.name, oracleHash: 'deadbeef', source: 'llm', abilities: [] });
+  assert.match(humanReview([bolt.oracleId], { by: 'x', at: 'NOW', store, reviewedDir })[0].why ?? '', /stale/);
+  store.put({ oracleId: ID, name: 'Not A Real Card', oracleHash: 'deadbeef', source: 'llm', abilities: [] });
+  assert.match(humanReview([ID], { by: 'x', at: 'NOW', store, reviewedDir })[0].why ?? '', /no such card in master.db/);
+  assert.equal(fs.existsSync(reviewPathFor(bolt.oracleId, reviewedDir)), false, 'nothing is written for a refusal');
+  // --dry-run writes nothing either
+  store.put({ oracleId: bolt.oracleId, name: bolt.name, oracleHash: oracleHash(bolt.oracleText), source: 'llm', abilities: [] }, { force: true });
+  assert.equal(humanReview([bolt.oracleId], { by: 'x', at: 'NOW', store, reviewedDir, dryRun: true })[0].wrote, true);
+  assert.equal(fs.existsSync(reviewPathFor(bolt.oracleId, reviewedDir)), false);
+});
+
+test('promotion asks the per-card judge rule, not one number for the whole run', () => {
+  const faithful = { model: 'opus', verdict: 'faithful' as const, issues: [], at: 'now' };
+  const two = judgeRuleOver(new Set([ID]));
+  // the same verification promotes or does not, depending on the CARD
+  assert.equal(deriveStatus(baseVerification({ judge: [faithful] }), judgeCountFor({ judges: two }, ID)), 'tested');
+  assert.equal(deriveStatus(baseVerification({ judge: [faithful] }), judgeCountFor({ judges: two }, ID2)), 'judged');
 });
 
 test('a workflow result may be the bare array or the stamped object', () => {

@@ -245,13 +245,15 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
   judged scripts, vocabulary excerpt, DSL cheat sheet, plus the blind copy with the ASTs stripped and the rulings
   added); `scripts:promote` (writes `verification.scenarios` / `.judge` / `.status` and the blocked notes; refuses
   on a dirty `src test apps scripts package.json` tree, with `--allow-dirty <prefix>` for another session's known
-  files); `scripts:quarantine` (`_quarantine/`, which `ScriptStore` ignores; `--restore`); `scripts:needs`
-  (`needs.json` ranked by cards blocked, and `--taxonomy` for the pool-wide family histogram); `vocab:doc` →
-  `data/scripts/VOCABULARY.md` (generated from the zod barrel + registry + `docs/vocabulary/`, idempotent, pinned
-  by `test/lint-vocab-doc.test.ts`). `data/scripts/README.md` § "Queue, promotion and needs" documents the loop.
+  files; `--human --by <person> --ids …` writes the review notes under `data/scripts/reviewed/` that are the only
+  route to `reviewed`); `scripts:quarantine` (`_quarantine/`, which `ScriptStore` ignores; `--restore`);
+  `scripts:needs` (`needs.json` ranked by cards blocked, and `--taxonomy` for the pool-wide family histogram);
+  `vocab:doc` → `data/scripts/VOCABULARY.md` (generated from the zod barrel + registry + `docs/vocabulary/` and
+  from NO wave output, idempotent, pinned by `test/lint-vocab-doc.test.ts`). `data/scripts/README.md` § "Queue,
+  promotion and needs" documents the loop. How many judges a card needs is `src/cards/waveScope.ts`'s answer (two
+  for the owner's decks and the EDHREC top-1k), asked per card rather than per invocation.
   **Deferred from 8k:** `scripts:render` and `scripts:shard` belong to the 8c slice, so they are not here; the
   batch `examples` list is empty until a wave is judged (the code is live, there is simply nothing judged yet);
-  `vocab:doc` has no per-op example section for the same reason and falls back to the two `_example` files;
   `scripts:promote` cannot itself re-run `scripts:verify`, so a wave must run 8c's gate before promotion; and
   `scripts/` is still outside every `tsconfig` (item 10), so the new CLIs are type-checked only by an explicit
   `tsc` invocation, not by `npm run typecheck:all`.

@@ -143,8 +143,12 @@ export const NAMED_KEYWORDS: readonly string[] = [
   'undaunted', 'undying', 'unearth', 'unleash', 'vanishing', 'wither', 'web-slinging',
 ];
 
-/** Inflections that name the SAME family as their base keyword, so a queue group is not split in two. */
-const KEYWORD_ALIAS: Readonly<Record<string, string>> = {
+/**
+ * Inflections that name the SAME family as their base keyword, so a queue group is not split in two. Applied on
+ * BOTH paths into a named family — the line wording (`namedKeywordOfLine`) and Scryfall's own keyword list — or an
+ * inflected keyword produces two families for one card and counts the same line twice in every histogram.
+ */
+export const KEYWORD_ALIAS: Readonly<Record<string, string>> = {
   prepared: 'prepare', fortified: 'fortify', 'phase out': 'phasing', 'phases out': 'phasing', level: 'level up',
 };
 
@@ -216,10 +220,15 @@ export function familyOfLine(line: string): { family: BaseFamily; why: string } 
   return null;
 }
 
+/** The canonical family name of a printed keyword: its base form when it is an inflection, else itself. */
+export function canonicalKeyword(name: string): string {
+  return KEYWORD_ALIAS[name.toLowerCase()] ?? name.toLowerCase();
+}
+
 /** The named keyword a line is about, or null. The FIRST word wins ("Bestow {4}{W}" is bestow, not an aura line). */
 export function namedKeywordOfLine(line: string): string | null {
   const l = normalizeOracleLine(line).toLowerCase().replace(/^\/\/ /, '').replace(/^• /, '');
-  for (const [name, re] of NAMED_KEYWORD_RES) if (re.test(l)) return KEYWORD_ALIAS[name] ?? name;
+  for (const [name, re] of NAMED_KEYWORD_RES) if (re.test(l)) return canonicalKeyword(name);
   return null;
 }
 
@@ -251,7 +260,8 @@ export function familiesOf(def: TaxonomyDef | CardDef, opts: TaxonomyOptions = {
   const scry = (d.scryfallKeywords ?? []).map(k => k.toLowerCase());
   for (const k of scry) {
     if (!NAMED_KEYWORDS.includes(k)) continue;
-    const fam: Family = `named-keyword:${k}`;
+    // the SAME alias the line path applies: "Prepared" and "prepare" are one family, not two
+    const fam: Family = `named-keyword:${canonicalKeyword(k)}`;
     if (lines.some(l => l.family === fam)) continue;
     // only when the card actually has unparsed text — a keyword the parser finished is not a need
     if (!raw.length) continue;

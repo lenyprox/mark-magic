@@ -2,7 +2,7 @@
   "oracleId": "00000000-0000-0000-0000-000000000001",
   "name": "Example Split // Example Half",
   "oracleHash": "deadbeef",
-  "source": "hand",
+  "source": "llm",
   "mode": "replace",
   "abilities": [
     {

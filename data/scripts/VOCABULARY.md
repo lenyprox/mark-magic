@@ -296,9 +296,16 @@ under `src/engine/ops/<family>.ts`, and each one appears here after `npm run gen
 
 ## Examples
 
-No script has been judged yet, so there are no per-op examples. The two worked examples of the format
-are these (they are also on disk as `data/scripts/_example.json.txt` and `_example-split.json.txt`);
-the family prose below carries a snippet per op.
+The two worked examples of the format (also on disk as `data/scripts/_example.json.txt` and
+`_example-split.json.txt`); the family prose below carries a snippet per op. Scripts that have actually
+been judged reach you through your BATCH file (`cards[].examples`), never through this document: this
+file is generated from source alone and never from wave output, so the lint that pins it cannot go red
+because somebody promoted a wave.
+
+The `source` of a script you author is `"llm"`. **Never write `"hand"` or `"reviewed"`**: those mean a
+PERSON signed that exact script off, they are recorded in `data/scripts/reviewed/<2-hex>/<oracle_id>.json`
+by `npm run scripts:promote -- --human`, and a script that claims one without a matching review note is
+ignored by `src/cards/scriptState.ts` and reported by every tool that reads it.
 
 ### `_example.json.txt`
 
@@ -307,7 +314,7 @@ the family prose below carries a snippet per op.
   "oracleId": "00000000-0000-0000-0000-000000000000",
   "name": "Example Card",
   "oracleHash": "deadbeef",
-  "source": "hand",
+  "source": "llm",
   "confidence": 1,
   "mode": "replace",
   "keywords": [
@@ -407,7 +414,7 @@ the family prose below carries a snippet per op.
   "oracleId": "00000000-0000-0000-0000-000000000001",
   "name": "Example Split // Example Half",
   "oracleHash": "deadbeef",
-  "source": "hand",
+  "source": "llm",
   "mode": "replace",
   "abilities": [
     {

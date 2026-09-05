@@ -2,7 +2,7 @@
   "oracleId": "00000000-0000-0000-0000-000000000000",
   "name": "Example Card",
   "oracleHash": "deadbeef",
-  "source": "hand",
+  "source": "llm",
   "confidence": 1,
   "mode": "replace",
   "keywords": [

@@ -37,7 +37,7 @@ Sibling directories under `data/scripts/`:
 |---|---|
 | `oracleId`, `name` | identity; `oracleId` must match the file name |
 | `oracleHash` | fnv-1a of the card's oracle text when the script was written (`oracleHash(text)`). After a Scryfall refresh changes the text the script is **stale** and is not applied; the coverage report lists stale scripts. |
-| `source` | `generated` (written by the generator, may be overwritten) · `llm` (written by a script agent) · `reviewed` (a person checked it) · `hand` (a person wrote it). Precedence for `put()` is **hand > reviewed > llm > generated**: a lower source never overwrites a higher one, and an `llm` script only overwrites another `llm` script when the existing one has no verification of status `verified` or better. `--force` overrides. |
+| `source` | `generated` (written by the generator, may be overwritten) · `llm` (written by a script agent) · `reviewed` (a person checked it) · `hand` (a person wrote it). **A script agent writes `llm` and nothing else**: `hand` / `reviewed` describe who typed the file, they are *not* a state, and they never promote a card — only a review note under `reviewed/` does (see **State**). Precedence for `put()` is **hand > reviewed > llm > generated**: a lower source never overwrites a higher one, and an `llm` script only overwrites another `llm` script when the existing one has no verification of status `verified` or better. `--force` overrides. |
 | `confidence` | 0..1 for `generated` / `llm`; reviewed and hand scripts are 1 |
 | `mode` | `replace` (default): the script's declarations stand in for the parser's on that face. `extend`: they are added to the parser's, and both sets of claims count. Neither mode "clears" anything — see **Claiming lines**. |
 | `keywords`, `abilities`, `altCosts`, `asEnters`, `costModifiers`, `additionalCosts`, `kicker`, `cycling`, `cyclingSearch`, `entersTapped`, `morph`, `cascade`, `storm`, `rebound`, `dredge`, `graveyardReplacement`, `protectionFrom`, `wardCost`, `toxic`, `bushido`, `rampage`, `landwalk`, `firebending` | the front face's declarations — every non-ability field `CardDef` carries, so the format can express everything the parser can and every `covers` kind has a field to name. `applyScript` applies them all (`replace`: set; `extend`: merge/append). |
@@ -237,12 +237,31 @@ the blocked note, the scenario shard and the ops that are registered right now:
 | `verified` | `verification.status ≥ verified` with matching hashes (schema, lint, sandbox, round-trip) | simulated |
 | `tested` | + a PASSING blind scenario per REACHABLE ability, and the shard is on disk | simulated |
 | `judged` | + enough faithful judge verdicts and no unfaithful one | **covered** |
-| `reviewed` | `source: "reviewed" \| "hand"` — a person wrote or checked it | **covered** |
+| `reviewed` | a **review note** under `reviewed/<2-hex>/<oracle_id>.json` whose `scriptHash` and `oracleHash` still match — written only by `scripts:promote --human` | **covered** |
 | `stale` | a script exists but the oracle text changed under it, so it is not applied | — |
 
 `SCRIPT_STATE_TABLE` is the typed table the dashboard and the queue read (`simulated` / `covered` / `queueable` per
-state). Two judges are required for wave 10.0 and the owner's decks, one elsewhere (`--judges 1|2`); an `uncertain`
-verdict neither promotes nor rejects, and one `unfaithful` verdict outranks any number of faithful ones.
+state). How many faithful verdicts a card needs is a property of the **card**, not of the wave that happens to be
+running: `src/cards/waveScope.ts` asks for **two** for the owner's decks and the EDHREC **top-1k**, one elsewhere
+(`scripts:promote --judges 1|2` forces one number for a whole run). An `uncertain` verdict neither promotes nor
+rejects, and one `unfaithful` verdict outranks any number of faithful ones.
+
+A script's own `source` field is **metadata, never evidence**. `"source": "hand"` or `"reviewed"` in a script an
+agent wrote buys that card nothing: `stateOf` looks only at the review note, so the card is ranked by its
+verification like any other. Every tool that reads scripts prints the cards that claim a human source without a
+note (`unearnedHumanSource` in `src/cards/scriptState.ts`), and `scripts:queue` records them in the wave manifest.
+
+### `reviewed/<2-hex>/<oracle_id>.json`
+
+```json
+{ "oracleId": "…", "name": "Lightning Bolt", "by": "Jared", "at": "2026-02-01T10:00:00.000Z",
+  "scriptHash": "…", "oracleHash": "…", "note": "checked against the printed card" }
+```
+
+Written by `npm run scripts:promote -- --human --by "<person>" --ids <id>[,<id>…] [--note "…"]`, one file per card.
+Both hashes are pinned, so editing the script (or a Scryfall oracle update) drops the card straight back onto the
+mechanical ladder rather than leaving a person's name on work they never read. Nothing else in the pipeline writes
+these files, and `--human` is the only flag that reads `--by`.
 
 A **verification that went stale** (the script or the oracle text changed under it) drops the card back to
 `scripted`, not to `todo`: the script is still applied, it just has to be re-verified.
@@ -268,8 +287,9 @@ Nothing ever deletes a note: `attempts` says how many waves have failed on the c
 
 | Command | What it does |
 |---|---|
-| `npm run scripts:queue -- --wave 10.0 --select "decks:owner"` | derive states → drop `judged` / `reviewed` / `blocked` → group by the RAREST family the card touches → sub-group by card type → order by EDHREC rank (unranked last) → write batches of ≤ `--size` (30) |
+| `npm run scripts:queue -- --wave 10.0 --select "decks:owner"` | derive states → drop every state `SCRIPT_STATE_TABLE` marks un-queueable (`parsed` / `judged` / `reviewed` / `blocked`) → group by the RAREST family the card touches → sub-group by card type → order by EDHREC rank (unranked last) → pack whole families into batches of ≤ `--size` (30) and ≤ `--max-families` (8) |
 | `npm run scripts:promote -- --result <workflow.json>` | write `verification.scenarios` / `.judge` / `.status`, write the blocked notes, print the promotion summary |
+| `npm run scripts:promote -- --human --by "<person>" --ids <id>[,<id>]` | write a review note per card — the only route to `reviewed` |
 | `npm run scripts:quarantine -- --batch <file\|n>` | move scripts to `_quarantine/` (`ScriptStore` ignores it, so they stop being applied); `--restore` reverses |
 | `npm run scripts:needs` | aggregate `blocked/**` → `needs.json`, ranked by cards blocked |
 | `npm run scripts:needs -- --taxonomy` | the pool-wide family histogram (cards touching, lines) — plan Part 3's table, re-measured |
@@ -291,20 +311,24 @@ note still has an open need. Output is deterministic: no clock in a file name, a
   "cards": [{ "oracleId", "name", "typeLine", "pt", "loyalty", "layout",
               "backFace"?, "secondFace"?,          // transform/modal DFC · split/adventure/flip
               "oracleText", "oracleHash",          // oracleHash is what the script must carry
-              "unparsedLines",                     // exactly the lines still to claim ("// " = back face)
+              "unparsedLines",                     // exactly the lines still to claim, ONCE each ("// " = back face)
               "scryfallKeywords", "families", "primaryFamily", "edhrecRank", "state", "stateWhy", "openNeeds",
               "parserDraft",                       // scripts/scripts-draft.ts draftScript(def)
               "examples" }],                       // ≤ 3 nearest JUDGED scripts by token-Jaccard over clauses
-  "vocabulary": "…",                               // the family's excerpt of VOCABULARY.md
+  "vocabulary": "…",                               // VOCABULARY.md's core section ONCE + one section per family
   "dsl": "…" }                                     // sections 1-6 of test/scenarios/README.md
 ```
 
 `NNN.blind.json` is the same list with **`parserDraft`, `examples` and `vocabulary` removed** and the card's
 `rulings` added — a blind scenario author must never see an AST. `manifest.json` carries the wave's counts, the
-state histogram, the family histogram and the batch list.
+state histogram, the family histogram, the batch list and (when there are any) the scripts claiming an unearned
+human `source`.
 
-Cards of one family stay adjacent and the wave is cut into batches afterwards, so a rare keyword does not produce a
-two-card batch; a batch that spans a boundary is named `mixed (a, b)` and carries both families' vocabulary.
+Batches are packed family by family, rarest first: a family is never split across two batches unless it is bigger
+than `--size` on its own, and a batch mixes at most `--max-families` (8) of them, so an author really does see one
+kind of thinking at a time. A batch that holds more than one is named `mixed (a, b, …)`. Its `vocabulary` is the
+core section of `VOCABULARY.md` **once** plus one section per family it spans — the core section is ~13 KB, and
+concatenating per-family excerpts used to repeat it once per family.
 
 ### Promotion
 

@@ -1,6 +1,6 @@
 // Build the batch files a script wave is fanned out over (plan 2.8). Derive every card's state from files, drop the
 // ones no author should see, group by the rarest family the card touches, sub-group by card type, order by EDHREC
-// rank, and write batches of at most `--size` cards.
+// rank, and pack whole families into batches of at most `--size` cards.
 //
 //   npm run scripts:queue -- --wave 10.0 --select "decks:owner"
 //   npm run scripts:queue -- --wave 10.1 --select "edhrec<=5000 commander:legal pool:paper" --only-unlocked --size 30
@@ -13,30 +13,35 @@
 //   edhrec<=N / >=N    printing_meta.edhrec_rank of the card's representative printing (unranked cards fail both)
 //
 // Options: --only-unlocked (drop cards whose blocked note still names a family that does not exist)
-//          --size 30, --limit N (cap the cards queued), --out <dir>, --created-at <iso> (or MTG_QUEUE_NOW).
+//          --size 30, --max-families 8, --limit N (cap the cards queued), --out <dir>,
+//          --created-at <iso> (or MTG_QUEUE_NOW).
 //
 // Output per wave directory: `<NNN>.json` (the author's batch), `<NNN>.blind.json` (the same cards with the parser
 // draft, the example scripts and the vocabulary excerpt REMOVED — what a blind scenario author receives, plus the
 // card's rulings) and `manifest.json`. Nothing in a file name depends on the clock, and `createdAt` is overridable,
-// so two runs on the same tree produce byte-identical output.
+// so two runs on the same tree produce byte-identical output. `buildWave` below is the whole tool: `main` only
+// writes what it returns, which is what lets `test/scripts-queue-output.test.ts` gate the batch shapes themselves.
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { CardDB, parseDeckList } from '../src/cards/db.js';
-import { parseCollectionText } from '../src/collection/formats.js';
+import { CardDB } from '../src/cards/db.js';
 import { projectRoot } from '../src/config/paths.js';
 import { tierOf, type PoolTier } from '../src/cards/pool.js';
 import {
-  defaultSources, emptyHistogram, poolRows, stateOf,
-  type PoolRowDef, type ScriptState, type ScriptStateInfo,
+  defaultSources, emptyHistogram, poolRows, SCRIPT_STATE_TABLE, stateOf,
+  type PoolRowDef, type ScriptState, type ScriptStateInfo, type StateSources,
 } from '../src/cards/scriptState.js';
+import { ownerDeckIds } from '../src/cards/waveScope.js';
 import { DEFAULT_SCRIPTS_DIR, normalizeOracleLine, oracleHash, ScriptStore, type CardScript } from '../src/cards/scripts.js';
 import {
   addToHistogram, emptyFamilyHistogram, familiesOf, histogramRows, type Family, type TaxonomyResult,
 } from '../src/cards/taxonomy.js';
 import type { CardDef } from '../src/cards/types.js';
 import { draftScript } from './scripts-draft.js';
-import { dslCheatSheet, vocabularyExcerpt } from './vocab-doc.js';
+import { dslCheatSheet, vocabularyFor } from './vocab-doc.js';
+
+/** `decks:owner` lives in src/cards/waveScope.ts now (the judge rule needs it too); re-exported for the CLIs. */
+export { ownerDeckIds } from '../src/cards/waveScope.js';
 
 // ---------------------------------------------------------------------------
 // Selection
@@ -57,25 +62,6 @@ export function parseSelection(text: string): Selection {
     throw new Error(`scripts:queue: unknown selection term ${JSON.stringify(term)} (decks:owner | pool:<tier> | commander:legal | edhrec<=N | edhrec>=N)`);
   }
   return sel;
-}
-
-/**
- * The distinct cards of every decks/*.csv and decks/*.txt. A CSV is a collection sheet and a .txt an Arena/plain
- * deck list, exactly as `src/sim/deckRef.ts` decides; the commander inference that file does only moves a card
- * between boards, so the DISTINCT set is the same and is not re-run here. Maybeboard entries are excluded.
- */
-export function ownerDeckIds(db: CardDB, dir = path.join(projectRoot(), 'decks')): { ids: string[]; missing: string[] } {
-  const names = new Set<string>();
-  if (!fs.existsSync(dir)) return { ids: [], missing: [] };
-  for (const f of fs.readdirSync(dir).sort()) {
-    if (!/\.(csv|txt)$/i.test(f)) continue;
-    const text = fs.readFileSync(path.join(dir, f), 'utf8');
-    if (f.toLowerCase().endsWith('.csv')) for (const r of parseCollectionText(text, f).rows) names.add(r.name);
-    else for (const c of parseDeckList(text, f).cards) if (c.board !== 'maybe') names.add(c.name);
-  }
-  const ids = new Set<string>(); const missing: string[] = [];
-  for (const n of [...names].sort()) { const d = db.get(n); if (d) ids.add(d.oracleId); else missing.push(n); }
-  return { ids: [...ids].sort(), missing };
 }
 
 // ---------------------------------------------------------------------------
@@ -118,12 +104,22 @@ export interface BatchCard extends BatchCardFacts {
 /** The blind copy: the same facts with every AST removed, plus the card's rulings (plan Part 4). */
 export interface BlindCard extends BatchCardFacts { rulings: { published_at: string; comment: string }[] }
 
+/** Keys a BLIND card must never carry: they would show the scenario author the very AST they are testing blind. */
+export const BLIND_FORBIDDEN_KEYS = ['parserDraft', 'examples', 'script', 'abilities', 'vocabulary'] as const;
+
 const PT = (d: CardDef) => (d.power !== null || d.toughness !== null ? `${d.power ?? ''}/${d.toughness ?? ''}` : null);
 
-/** The lines a script must claim, front face and back face (back-face lines carry the parser's `// ` marker). */
-function unparsedLines(def: CardDef): string[] {
+/**
+ * The lines a script must claim, front face and back face (back-face lines carry the parser's `// ` marker).
+ *
+ * `parse.ts` ALREADY appends the back face's unparsed lines to `def.unparsed`, prefixed with `// `, for modal_dfc
+ * and transform layouts. Appending them again here printed every back-face line TWICE in both the author batch and
+ * the blind batch; an author who claims each printed line once then wrote two abilities for one line, which
+ * `scripts:check`'s face accounting rejects. `familiesOf` has always deduped the same way.
+ */
+export function unparsedLines(def: Pick<CardDef, 'unparsed' | 'backFace'>): string[] {
   const out = [...def.unparsed];
-  for (const u of def.backFace?.unparsed ?? []) out.push('// ' + u);
+  for (const u of def.backFace?.unparsed ?? []) { const line = '// ' + u; if (!out.includes(line)) out.push(line); }
   return out;
 }
 
@@ -168,8 +164,8 @@ export function jaccard(a: ReadonlySet<string>, b: ReadonlySet<string>): number 
 
 interface JudgedExample { oracleId: string; name: string; tokens: Set<string>; script: CardScript }
 
-/** Every judged script in the store, with its clause tokens. Empty until a wave has been promoted. */
-function judgedExamples(store: ScriptStore, sources: ReturnType<typeof defaultSources>): JudgedExample[] {
+/** Every judged (or human-reviewed) script in the store, with its clause tokens. Empty until a wave is promoted. */
+function judgedExamples(store: ScriptStore, sources: StateSources): JudgedExample[] {
   const out: JudgedExample[] = [];
   for (const id of store.ids().sort()) {
     const script = store.get(id);
@@ -200,7 +196,7 @@ export function typeBucket(def: CardDef): string {
   return def.types.includes('Creature') ? 'Creature' : def.types[0] ?? 'Other';
 }
 
-interface Queued { row: PoolRowDef; state: ScriptStateInfo; tax: TaxonomyResult; rank: number | null; type: string }
+export interface Queued { row: PoolRowDef; state: ScriptStateInfo; tax: TaxonomyResult; rank: number | null; type: string }
 
 /** The taxonomy's view of one row: the unparsed lines of both faces plus Scryfall's own keyword list. */
 function taxDefOf(row: PoolRowDef) {
@@ -217,28 +213,93 @@ function queueOrder(a: Queued, b: Queued): number {
   return a.row.def.oracleId < b.row.def.oracleId ? -1 : 1;
 }
 
+/** How many distinct families one batch may mix before a new batch is started (`--max-families`). */
+export const DEFAULT_MAX_FAMILIES = 8;
+
+/**
+ * Pack whole families into batches. `groups` arrives rarest-family-first; a family is never split across two
+ * batches unless it is bigger than `size` (then it fills batches of its own), and a batch mixes at most
+ * `maxFamilies` of them.
+ *
+ * The first cut of 8k concatenated every family and cut the wave into `size`-sized slices AFTERWARDS, which swept
+ * every singleton family into batch 001 — twenty unrelated cards in the one batch, the opposite of taxonomy.ts's
+ * stated intent ("an author sees thirty cards that need the same thinking").
+ */
+export function packFamilies<T>(groups: { family: Family; cards: T[] }[], size: number, maxFamilies = DEFAULT_MAX_FAMILIES): T[][] {
+  const out: T[][] = [];
+  let cur: T[] = [];
+  let curFamilies = 0;
+  const flush = () => { if (cur.length) { out.push(cur); cur = []; curFamilies = 0; } };
+  for (const g of groups) {
+    if (!g.cards.length) continue;
+    if (g.cards.length >= size) {                       // big enough for batches of its own
+      flush();
+      for (let i = 0; i < g.cards.length; i += size) out.push(g.cards.slice(i, i + size));
+      continue;
+    }
+    if (cur.length + g.cards.length > size || curFamilies >= maxFamilies) flush();
+    cur.push(...g.cards);
+    curFamilies++;
+  }
+  flush();
+  return out;
+}
+
 // ---------------------------------------------------------------------------
-// main
+// buildWave — everything the CLI does except writing files
 // ---------------------------------------------------------------------------
 
-function main() {
-  const args = process.argv.slice(2);
-  const opt = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
-  const flag = (k: string) => args.includes(k);
+export interface WaveOptions {
+  wave: string;
+  selection: Selection;
+  db: CardDB;
+  /** Where the files WOULD be written; only the manifest's `file` paths depend on it. */
+  outDir: string;
+  size?: number;
+  maxFamilies?: number;
+  limit?: number;
+  onlyUnlocked?: boolean;
+  createdAt?: string;
+  /** Overrides for the file sources every state is derived from (the tests point these at a temp tree). */
+  sources?: Partial<StateSources>;
+  /** Restrict the pool to these ids (the tests do; the CLI never does). */
+  ids?: string[];
+}
 
-  const wave = opt('--wave') ?? '';
-  if (!wave) { console.error('scripts:queue: --wave <name> is required (e.g. --wave 10.0)'); process.exit(1); }
-  const select = opt('--select') ?? 'pool:paper';
-  const size = Math.max(1, Number(opt('--size') ?? '30'));
-  const limit = opt('--limit') ? Number(opt('--limit')) : Infinity;
-  const onlyUnlocked = flag('--only-unlocked');
-  const outDir = path.resolve(opt('--out') ?? path.join(DEFAULT_SCRIPTS_DIR(), 'batches', wave));
-  const createdAt = opt('--created-at') ?? process.env.MTG_QUEUE_NOW ?? new Date().toISOString();
+export interface BuiltBatch {
+  batch: string;
+  file: string;
+  family: string;
+  families: Family[];
+  cards: number;
+  types: string[];
+  /** What `<NNN>.json` holds. */
+  full: { manifest: { wave: string; batch: string; family: string; createdAt: string }; cards: BatchCard[]; vocabulary: string; dsl: string };
+  /** What `<NNN>.blind.json` holds — no AST, no examples, no vocabulary. */
+  blind: { manifest: { wave: string; batch: string; family: string; createdAt: string }; cards: BlindCard[]; dsl: string };
+}
 
-  const sel = parseSelection(select);
-  const db = CardDB.shared();
-  const store = new ScriptStore();
-  const sources = defaultSources({ scripts: store, judges: wave === '10.0' || sel.ownerDecks ? 2 : 1 });
+export interface BuiltWave {
+  batches: BuiltBatch[];
+  manifest: Record<string, unknown>;
+  states: Record<ScriptState, number>;
+  /** Scripts that claim `source: 'hand' | 'reviewed'` with no review note under data/scripts/reviewed/. */
+  unearnedHumanSource: { oracleId: string; name: string }[];
+  missingDeckNames: string[];
+}
+
+export function buildWave(opts: WaveOptions): BuiltWave {
+  const { wave, selection: sel, db, outDir } = opts;
+  const size = Math.max(1, opts.size ?? 30);
+  const maxFamilies = Math.max(1, opts.maxFamilies ?? DEFAULT_MAX_FAMILIES);
+  const limit = opts.limit ?? Infinity;
+  const onlyUnlocked = !!opts.onlyUnlocked;
+  const createdAt = opts.createdAt ?? new Date().toISOString();
+
+  const store = opts.sources?.scripts ?? new ScriptStore();
+  // `judges` is deliberately NOT set here: `defaultSources` installs the per-CARD rule of plan 2.4 (two judges for
+  // the owner's decks and the EDHREC top-1k, one elsewhere), so the queue and every other reader agree card by card.
+  const sources = defaultSources({ ...opts.sources, scripts: store });
 
   // legality and EDHREC rank, preloaded: one query each beats 34,513 point lookups
   const commanderLegal = new Set<string>(
@@ -249,13 +310,14 @@ function main() {
     edhrec.set(r.id, r.rank);
   }
 
-  let ids: string[] | undefined;
+  let ids: string[] | undefined = opts.ids;
   let missingDeckNames: string[] = [];
-  if (sel.ownerDecks) { const o = ownerDeckIds(db); ids = o.ids; missingDeckNames = o.missing; }
+  if (sel.ownerDecks && !ids) { const o = ownerDeckIds(db); ids = o.ids; missingDeckNames = o.missing; }
 
   const histogram = emptyHistogram();
   const famHist = emptyFamilyHistogram();
   const queued: Queued[] = [];
+  const unearned: { oracleId: string; name: string }[] = [];
   let considered = 0, droppedState = 0, droppedSelect = 0, droppedNeeds = 0;
 
   for (const row of poolRows({ ids })) {
@@ -268,7 +330,10 @@ function main() {
     if (sel.edhrecMin !== undefined && (rank === null || rank < sel.edhrecMin)) { droppedSelect++; continue; }
     const state = stateOf(row.def.oracleId, { ...sources, def: row.def });
     histogram[state.state]++;
-    if (!(state.state === 'todo' || state.state === 'scripted' || state.state === 'verified' || state.state === 'tested' || state.state === 'stale')) { droppedState++; continue; }
+    if (state.unearnedHumanSource) unearned.push({ oracleId: state.oracleId, name: state.name });
+    // plan 2.8: judged / reviewed / blocked / parsed are never re-issued — the table in scriptState.ts decides,
+    // so a state that stops being queueable there stops being queued here
+    if (!SCRIPT_STATE_TABLE[state.state].queueable) { droppedState++; continue; }
     if (onlyUnlocked && state.openNeeds.length) { droppedNeeds++; continue; }
     const tax = familiesOf(taxDefOf(row));
     addToHistogram(famHist, tax);
@@ -277,66 +342,116 @@ function main() {
 
   // primary family, re-decided against the MEASURED rarity of this selection (the rarest family a card touches wins)
   const freq = new Map<string, number>(famHist.cards);
-  for (const q of queued) {
-    q.tax = familiesOf(taxDefOf(q.row), { frequencies: freq });
-  }
+  for (const q of queued) q.tax = familiesOf(taxDefOf(q.row), { frequencies: freq });
 
-  // Families ordered rarest first, so the exotic work is authored while the wave is fresh; cards of one family stay
-  // ADJACENT and the wave is cut into batches of `size` afterwards. Chunking after the sort rather than per family is
-  // what keeps a wave at the plan's batch count — per-family chunking gives a two-card batch for every rare keyword.
+  // Families ordered rarest first, so the exotic work is authored while the wave is fresh, and packed whole.
   const byFamily = new Map<Family, Queued[]>();
   for (const q of queued) { const k = q.tax.primary; (byFamily.get(k) ?? byFamily.set(k, []).get(k)!).push(q); }
-  const families = [...byFamily.keys()].sort((a, b) => (byFamily.get(a)!.length - byFamily.get(b)!.length) || (a < b ? -1 : 1));
-  const ordered: Queued[] = [];
-  for (const fam of families) for (const q of byFamily.get(fam)!.sort(queueOrder)) ordered.push(q);
+  const groups = [...byFamily.keys()]
+    .sort((a, b) => (byFamily.get(a)!.length - byFamily.get(b)!.length) || (a < b ? -1 : 1))
+    .map(family => ({ family, cards: byFamily.get(family)!.sort(queueOrder) }));
+
+  // `--limit` caps the CARDS queued, family by family, before anything is packed
+  let left = limit;
+  const capped: typeof groups = [];
+  for (const g of groups) {
+    if (left <= 0) break;
+    capped.push(g.cards.length <= left ? g : { family: g.family, cards: g.cards.slice(0, left) });
+    left -= Math.min(left, g.cards.length);
+  }
 
   const examples = judgedExamples(store, sources);
   const cheatSheet = dslCheatSheet();
-
-  fs.mkdirSync(outDir, { recursive: true });
-  const written: { batch: string; file: string; family: string; families: Family[]; cards: number; types: string[] }[] = [];
-  const capped = Number.isFinite(limit) ? ordered.slice(0, limit) : ordered;
-  for (let i = 0; i < capped.length; i += size) {
-    const slice = capped.slice(i, i + size);
-    const id = String(written.length + 1).padStart(3, '0');
+  const batches: BuiltBatch[] = [];
+  for (const slice of packFamilies(capped, size, maxFamilies)) {
+    const id = String(batches.length + 1).padStart(3, '0');
     const fams = [...new Set(slice.map(q => q.tax.primary))];
-    // a readable label; the full list stays in `families` (a wave's tail can span twenty singleton keywords)
+    // a readable label; the full list stays in `families`
     const family = fams.length === 1 ? fams[0] : `mixed (${fams.slice(0, 3).join(', ')}${fams.length > 3 ? `, +${fams.length - 3} more` : ''})`;
     const manifest = { wave, batch: id, family, createdAt };
-    const full = {
-      manifest,
-      cards: slice.map(q => {
-        const f = facts(q.row, q.state, q.tax, q.rank);
-        return { ...f, parserDraft: draftScript(q.row.def), examples: nearestJudged(clauseTokens(f.unparsedLines), examples) } satisfies BatchCard;
-      }),
-      vocabulary: [...new Set(fams.map(f => vocabularyExcerpt(f)))].join('\n\n'),
-      dsl: cheatSheet,
-    };
-    const blind = {
-      manifest,
-      cards: slice.map(q => ({ ...facts(q.row, q.state, q.tax, q.rank), rulings: db.rulings(q.row.def.oracleId).slice(0, 6) } satisfies BlindCard)),
-      dsl: cheatSheet,
-    };
-    writeJson(path.join(outDir, `${id}.json`), full);
-    writeJson(path.join(outDir, `${id}.blind.json`), blind);
-    written.push({ batch: id, file: path.join(outDir, `${id}.json`), family, families: fams, cards: slice.length, types: [...new Set(slice.map(s => s.type))].sort() });
+    batches.push({
+      batch: id,
+      file: path.join(outDir, `${id}.json`),
+      family,
+      families: fams,
+      cards: slice.length,
+      types: [...new Set(slice.map(s => s.type))].sort(),
+      full: {
+        manifest,
+        cards: slice.map(q => {
+          const f = facts(q.row, q.state, q.tax, q.rank);
+          return { ...f, parserDraft: draftScript(q.row.def), examples: nearestJudged(clauseTokens(f.unparsedLines), examples) } satisfies BatchCard;
+        }),
+        // the core vocabulary ONCE plus a section per family this batch spans
+        vocabulary: vocabularyFor(fams),
+        dsl: cheatSheet,
+      },
+      blind: {
+        manifest,
+        cards: slice.map(q => ({ ...facts(q.row, q.state, q.tax, q.rank), rulings: db.rulings(q.row.def.oracleId).slice(0, 6) } satisfies BlindCard)),
+        dsl: cheatSheet,
+      },
+    });
   }
 
   const manifest = {
-    wave, createdAt, selection: sel.raw, size, onlyUnlocked,
-    counts: { considered, queued: written.reduce((a, b) => a + b.cards, 0), batches: written.length, droppedByState: droppedState, droppedBySelection: droppedSelect, droppedByOpenNeeds: droppedNeeds },
+    wave, createdAt, selection: sel.raw, size, maxFamilies, onlyUnlocked,
+    counts: { considered, queued: batches.reduce((a, b) => a + b.cards, 0), batches: batches.length, droppedByState: droppedState, droppedBySelection: droppedSelect, droppedByOpenNeeds: droppedNeeds },
     states: histogram,
     families: histogramRows(famHist),
-    batches: written.map(w => ({ batch: w.batch, file: repoPath(w.file), family: w.family, families: w.families, cards: w.cards, types: w.types })),
+    batches: batches.map(w => ({ batch: w.batch, file: repoPath(w.file), family: w.family, families: w.families, cards: w.cards, types: w.types })),
+    ...(unearned.length ? { unearnedHumanSource: unearned } : {}),
     ...(missingDeckNames.length ? { deckNamesNotInMasterDb: missingDeckNames } : {}),
   };
-  writeJson(path.join(outDir, 'manifest.json'), manifest);
 
-  console.log(`wave ${wave}: ${manifest.counts.queued} card(s) in ${written.length} batch(es) of <= ${size} -> ${repoPath(outDir)}`);
-  console.log(`  considered ${considered}; dropped ${droppedSelect} by selection, ${droppedState} by state${onlyUnlocked ? `, ${droppedNeeds} with open needs` : ''}`);
-  console.log('  states: ' + Object.entries(histogram).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(', '));
-  console.log('  families: ' + histogramRows(famHist).slice(0, 8).map(r => `${r.family} ${r.cards}`).join(', '));
-  if (missingDeckNames.length) console.log(`  WARN ${missingDeckNames.length} deck name(s) not in master.db: ${missingDeckNames.slice(0, 5).join(', ')}`);
+  return { batches, manifest, states: histogram, unearnedHumanSource: unearned, missingDeckNames };
+}
+
+// ---------------------------------------------------------------------------
+// main
+// ---------------------------------------------------------------------------
+
+function main() {
+  const args = process.argv.slice(2);
+  const opt = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
+  const flag = (k: string) => args.includes(k);
+
+  const wave = opt('--wave') ?? '';
+  if (!wave) { console.error('scripts:queue: --wave <name> is required (e.g. --wave 10.0)'); process.exit(1); }
+  const select = opt('--select') ?? 'pool:paper';
+  const outDir = path.resolve(opt('--out') ?? path.join(DEFAULT_SCRIPTS_DIR(), 'batches', wave));
+  const db = CardDB.shared();
+
+  const built = buildWave({
+    wave,
+    selection: parseSelection(select),
+    db,
+    outDir,
+    size: Math.max(1, Number(opt('--size') ?? '30')),
+    maxFamilies: Math.max(1, Number(opt('--max-families') ?? String(DEFAULT_MAX_FAMILIES))),
+    limit: opt('--limit') ? Number(opt('--limit')) : Infinity,
+    onlyUnlocked: flag('--only-unlocked'),
+    createdAt: opt('--created-at') ?? process.env.MTG_QUEUE_NOW ?? new Date().toISOString(),
+  });
+
+  fs.mkdirSync(outDir, { recursive: true });
+  for (const b of built.batches) {
+    writeJson(path.join(outDir, `${b.batch}.json`), b.full);
+    writeJson(path.join(outDir, `${b.batch}.blind.json`), b.blind);
+  }
+  writeJson(path.join(outDir, 'manifest.json'), built.manifest);
+
+  const counts = built.manifest.counts as Record<string, number>;
+  console.log(`wave ${wave}: ${counts.queued} card(s) in ${built.batches.length} batch(es) of <= ${built.manifest.size} -> ${repoPath(outDir)}`);
+  console.log(`  considered ${counts.considered}; dropped ${counts.droppedBySelection} by selection, ${counts.droppedByState} by state${built.manifest.onlyUnlocked ? `, ${counts.droppedByOpenNeeds} with open needs` : ''}`);
+  console.log('  states: ' + Object.entries(built.states).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(', '));
+  console.log('  families: ' + (built.manifest.families as { family: string; cards: number }[]).slice(0, 8).map(r => `${r.family} ${r.cards}`).join(', '));
+  if (built.unearnedHumanSource.length) {
+    console.log(`  WARN ${built.unearnedHumanSource.length} script(s) claim source 'hand'/'reviewed' with no review note under data/scripts/reviewed/ —`);
+    console.log('       the claim is ignored (they are ranked by their verification alone). Re-author them, or sign them off with');
+    console.log(`       npm run scripts:promote -- --human --by "<person>" --ids ${built.unearnedHumanSource.slice(0, 3).map(u => u.oracleId).join(',')}`);
+  }
+  if (built.missingDeckNames.length) console.log(`  WARN ${built.missingDeckNames.length} deck name(s) not in master.db: ${built.missingDeckNames.slice(0, 5).join(', ')}`);
   db.close();
 }
 
@@ -349,5 +464,5 @@ function repoPath(file: string): string {
   return rel && !rel.startsWith('..') ? rel : file.split(path.sep).join('/');
 }
 
-// run only as a CLI: the tests import `parseSelection` / `ownerDeckIds` / `jaccard` from here
+// run only as a CLI: the tests import `buildWave` / `parseSelection` / `packFamilies` / `jaccard` from here
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(url.fileURLToPath(import.meta.url))) main();

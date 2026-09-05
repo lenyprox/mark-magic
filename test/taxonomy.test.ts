@@ -7,7 +7,7 @@ import { CardDB } from '../src/cards/db.js';
 import { parseCard } from '../src/cards/parse.js';
 import {
   addToHistogram, BASE_FAMILIES, DEFAULT_FAMILY_RANK, emptyFamilyHistogram, familiesOf, familyOfLine, FAMILY_RULES,
-  histogramRows, isNamedKeyword, namedKeywordOfLine, NAMED_KEYWORDS, type Family,
+  canonicalKeyword, histogramRows, isNamedKeyword, KEYWORD_ALIAS, namedKeywordOfLine, NAMED_KEYWORDS, type Family,
 } from '../src/cards/taxonomy.js';
 
 const db = CardDB.shared();
@@ -225,6 +225,55 @@ test('Scryfall keywords only add a family when the card still has unparsed text'
   assert.deepEqual(familiesOf({ unparsed: [], scryfallKeywords: ['Flashback'] }).families, []);
   const t = familiesOf({ unparsed: ['Flashback {2}{R}'], scryfallKeywords: ['Flashback'] });
   assert.deepEqual(t.families, ['named-keyword:flashback']);
+});
+
+test('an inflected keyword is ONE family on both paths, not two', () => {
+  // KEYWORD_ALIAS used to be applied only on the line path, so "enters prepared" + Scryfall's "Prepared" produced
+  // `named-keyword:prepare` AND `named-keyword:prepared` for one card, and counted the same line twice in every
+  // histogram `scripts:needs --taxonomy` prints.
+  const t = familiesOf({ unparsed: ['~ enters prepared.'], scryfallKeywords: ['Prepared'] });
+  assert.deepEqual(t.families, ['named-keyword:prepare']);
+  assert.equal(t.lines.length, 1, 'the same line must not be filed twice');
+  assert.equal(canonicalKeyword('Prepared'), 'prepare');
+  assert.equal(canonicalKeyword('Fortified'), 'fortify');
+  assert.equal(canonicalKeyword('Phases out'), 'phasing');
+  assert.equal(canonicalKeyword('cascade'), 'cascade', 'a keyword with no alias is itself');
+  // every alias target is a real family name the line path can also produce
+  for (const [from, to] of Object.entries(KEYWORD_ALIAS)) {
+    assert.notEqual(from, to);
+    assert.equal(canonicalKeyword(to), to, `${to} must be a fixed point`);
+  }
+  // and the histogram sees one card, one line, one family
+  const h = emptyFamilyHistogram();
+  addToHistogram(h, t);
+  assert.equal(h.totalLines, 1);
+  assert.deepEqual(histogramRows(h), [{ family: 'named-keyword:prepare', cards: 1, lines: 1 }]);
+});
+
+test('no card in the pool touches two families that are the same keyword', () => {
+  // 57 pool cards carry Scryfall's "Prepared" while their lines say "becomes prepared"; before the fix each of them
+  // produced named-keyword:prepare AND named-keyword:prepared, inflating every histogram row and splitting the queue
+  // group in two. Scanned over every card that carries an aliased keyword, not a hand-picked list.
+  const aliased = new Set(Object.keys(KEYWORD_ALIAS));
+  const bad: string[] = [];
+  let scanned = 0;
+  for (const row of db.db.prepare('SELECT name, json FROM oracle_cards').iterate() as Iterable<{ name: string; json: string }>) {
+    const o = JSON.parse(row.json) as Record<string, any>;
+    const kws: string[] = (o.keywords ?? []).map(String);
+    if (!kws.some(k => aliased.has(k.toLowerCase()))) continue;
+    scanned++;
+    const def = parseCard({ ...(o as any), representative_id: o.representative_id ?? o.id ?? null });
+    const t = familiesOf({ unparsed: def.unparsed, backFace: def.backFace ?? null, scryfallKeywords: kws });
+    const named = t.families.filter(isNamedKeyword).map(f => f.slice('named-keyword:'.length));
+    if (new Set(named.map(canonicalKeyword)).size < named.length) bad.push(`${row.name}: ${named.join(' + ')}`);
+    // and the same line is never filed twice
+    const lines = t.lines.map(l => `${l.family} ${l.line}`);
+    assert.deepEqual(lines, [...new Set(lines)], row.name);
+  }
+  assert.ok(scanned > 20, `expected the pool to hold aliased-keyword cards, scanned ${scanned}`);
+  assert.deepEqual(bad, [], bad.slice(0, 5).join('\n'));
+  // one of them, concretely
+  assert.deepEqual(tax('Adventurous Eater // Have a Bite').families, ['named-keyword:prepare']);
 });
 
 test('the histogram counts a card once per family and every line once', () => {

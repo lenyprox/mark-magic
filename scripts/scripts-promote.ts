@@ -6,6 +6,16 @@
 //   npm run scripts:promote -- --result data/scripts/reports/10.0-run1.json
 //   npm run scripts:promote -- --result <file> --judges 2 --wave 10.0 --dry-run
 //   npm run scripts:promote -- --result <file> --allow-dirty apps/web/lib/gl --allow-dirty test/scenemap.test.ts
+//   npm run scripts:promote -- --human --by "Jared" --ids <id>,<id> --note "checked against the printed card"
+//
+// `--human` is plan 2.4's ONLY route to the `reviewed` state: it writes one review note per id under
+// `data/scripts/reviewed/<2-hex>/<oracle_id>.json`, pinning the script hash and the oracle hash the person actually
+// read. Nothing else promotes a card to `reviewed` — in particular a script that merely declares
+// `"source": "hand"` does not, because an author agent can write that word (and both worked examples used to).
+//
+// How many faithful verdicts a card needs is a property of the CARD, not of this invocation: `src/cards/waveScope.ts`
+// says two for the owner's decks and the EDHREC top-1k and one elsewhere, and `defaultSources()` installs it. Pass
+// `--judges N` only to force the whole run to one number (a re-derivation experiment).
 //
 // IT REFUSES TO RUN ON A DIRTY TREE. `git status --porcelain -- src test apps scripts package.json` must be empty:
 // promotion writes into data/, and a change anywhere else means an agent edited code it was told not to touch (plan
@@ -18,9 +28,10 @@ import { execFileSync } from 'node:child_process';
 import url from 'node:url';
 import { projectRoot } from '../src/config/paths.js';
 import {
-  blockedPathFor, defaultSources, readBlocked, stateOf, type BlockedNeed, type BlockedNote,
+  blockedPathFor, defaultSources, judgeCountFor, poolRows, readBlocked, readReview, reviewPathFor, stateOf,
+  unearnedHumanSource, type BlockedNeed, type BlockedNote, type Judges, type ReviewNote,
 } from '../src/cards/scriptState.js';
-import { ScriptStore, scriptHash, type CardScript, type Verification } from '../src/cards/scripts.js';
+import { ORACLE_ID_RE, oracleHash, ScriptStore, scriptHash, type CardScript, type Verification } from '../src/cards/scripts.js';
 import { CardDB } from '../src/cards/db.js';
 
 // ---------------------------------------------------------------------------
@@ -112,7 +123,7 @@ export function judgeBlock(rows: WaveVerdict[], at: string): NonNullable<Verific
  * The status plan 2.4 derives. `judges` faithful verdicts and no unfaithful one make it `judged`; a passing blind
  * scenario per reachable ability makes it `tested`; the mechanical gate alone makes it `verified`.
  */
-export function deriveStatus(v: Verification, judges: 1 | 2): Verification['status'] {
+export function deriveStatus(v: Verification, judges: Judges): Verification['status'] {
   if (v.schema !== 'ok' || v.lint === 'fail') return 'scripted';
   const sandboxOk = v.sandbox.seats2 !== 'throws' && v.sandbox.seats2 !== 'invariant' && v.sandbox.seats4 !== 'throws' && v.sandbox.seats4 !== 'invariant';
   if (!sandboxOk || v.roundTrip.score < 0.55) return 'scripted';
@@ -124,17 +135,75 @@ export function deriveStatus(v: Verification, judges: 1 | 2): Verification['stat
   return list.filter(j => j.verdict === 'faithful').length >= judges ? 'judged' : 'tested';
 }
 
+// ---------------------------------------------------------------------------
+// --human: the ONLY route to `reviewed`
+// ---------------------------------------------------------------------------
+
+/** The note a person's sign-off leaves behind. Both hashes are pinned, so any later edit invalidates the review. */
+export function reviewNoteFor(script: CardScript, oracleTextHash: string, by: string, at: string, note?: string): ReviewNote {
+  return {
+    oracleId: script.oracleId, name: script.name, by, at,
+    scriptHash: scriptHash(script), oracleHash: oracleTextHash,
+    ...(note ? { note } : {}),
+  };
+}
+
+export interface HumanRow { oracleId: string; name: string; wrote: boolean; why?: string }
+
+/**
+ * Sign off the scripts named by `ids`. A card with no script, or whose script no longer matches the oracle text,
+ * is refused rather than signed: the note would be stale the moment it was written.
+ */
+export function humanReview(
+  ids: string[],
+  opts: { by: string; at: string; note?: string; dryRun?: boolean; store?: ScriptStore; reviewedDir?: string },
+): HumanRow[] {
+  const store = opts.store ?? new ScriptStore();
+  const rows: HumanRow[] = [];
+  for (const oracleId of [...new Set(ids)].sort()) {
+    const script = store.get(oracleId);
+    if (!script) { rows.push({ oracleId, name: '?', wrote: false, why: 'no script to review' }); continue; }
+    const def = [...poolRows({ ids: [oracleId] })][0]?.def;
+    if (!def) { rows.push({ oracleId, name: script.name, wrote: false, why: 'no such card in master.db' }); continue; }
+    const fresh = oracleHash(def.oracleText);
+    if (script.oracleHash !== fresh) { rows.push({ oracleId, name: script.name, wrote: false, why: 'the script is stale — the oracle text changed under it' }); continue; }
+    const file = reviewPathFor(oracleId, opts.reviewedDir);
+    const note = reviewNoteFor(script, fresh, opts.by, opts.at, opts.note);
+    if (!opts.dryRun) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(note, null, 2) + '\n'); }
+    rows.push({ oracleId, name: script.name, wrote: true });
+  }
+  return rows;
+}
+
 function main() {
   const args = process.argv.slice(2);
   const opt = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
   const many = (k: string) => args.flatMap((a, i) => (a === k && args[i + 1] ? [args[i + 1]] : []));
 
-  const resultFile = opt('--result');
-  if (!resultFile) { console.error('scripts:promote: --result <workflow-result.json> is required'); process.exit(1); }
   const dryRun = args.includes('--dry-run');
-  const judges = (Number(opt('--judges') ?? '1') === 2 ? 2 : 1) as 1 | 2;
-  const allow = many('--allow-dirty').map(p => p.split(path.sep).join('/'));
   const at = opt('--at') ?? process.env.MTG_PROMOTE_NOW ?? new Date().toISOString();
+
+  // --- the human sign-off (plan 2.4's `scripts:promote --human`): no workflow result, no dirty-tree gate — it
+  // writes only data/scripts/reviewed/, and what a person read is not affected by another session's work in progress
+  if (args.includes('--human')) {
+    const by = opt('--by') ?? '';
+    if (!by.trim()) { console.error('scripts:promote --human: --by "<person>" is required (the review is signed)'); process.exit(1); }
+    const ids = (opt('--ids') ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    const bad = ids.filter(id => !ORACLE_ID_RE.test(id));
+    if (!ids.length || bad.length) { console.error(`scripts:promote --human: --ids <oracle_id>[,<oracle_id>…] is required${bad.length ? ` (not an oracle id: ${bad.join(', ')})` : ''}`); process.exit(1); }
+    const rows = humanReview(ids, { by, at, note: opt('--note'), dryRun });
+    const wrote = rows.filter(r => r.wrote);
+    console.log(`${dryRun ? '[dry run] ' : ''}reviewed ${wrote.length}/${rows.length} script(s) as ${by}`);
+    for (const r of wrote) console.log(`  ${r.oracleId} ${r.name} -> ${path.relative(projectRoot(), reviewPathFor(r.oracleId)).split(path.sep).join('/')}`);
+    for (const r of rows.filter(x => !x.wrote)) console.log(`  SKIP ${r.oracleId} ${r.name}: ${r.why}`);
+    process.exit(rows.some(r => !r.wrote) ? 1 : 0);
+  }
+
+  const resultFile = opt('--result');
+  if (!resultFile) { console.error('scripts:promote: --result <workflow-result.json> is required (or --human --by … --ids …)'); process.exit(1); }
+  // per CARD by default (waveScope: the owner's decks and the EDHREC top-1k need two); --judges forces the run
+  const forced = opt('--judges') ? ((Number(opt('--judges')) === 2 ? 2 : 1) as Judges) : undefined;
+  const allow = many('--allow-dirty').map(p => p.split(path.sep).join('/'));
 
   const dirty = dirtyPaths(allow);
   if (dirty.length) {
@@ -150,10 +219,11 @@ function main() {
 
   const store = new ScriptStore();
   const db = CardDB.shared();
-  const sources = defaultSources({ scripts: store, judges });
+  const sources = defaultSources({ scripts: store, ...(forced ? { judges: forced } : {}) });
   const rows: PromotionRow[] = [];
   const rejected: { oracleId: string; name: string; issues: string[] }[] = [];
   const blockedWritten: string[] = [];
+  const unearned: string[] = [];
 
   for (const batch of results) {
     const scenariosBy = new Map<string, WaveScenario[]>();
@@ -166,6 +236,10 @@ function main() {
       const script = store.get(oracleId);
       if (!script) { rows.push({ oracleId, name: '?', status: null, bucket: 'missing', note: `no script under ${path.relative(projectRoot(), store.pathFor(oracleId))}` }); continue; }
       if (!script.verification) { rows.push({ oracleId, name: script.name, status: null, bucket: 'missing', note: 'no verification block — run scripts:verify before promoting' }); continue; }
+      // a script that CLAIMS a person wrote it, with no review note to back that up, is reported and otherwise
+      // treated as any other machine-authored script (see src/cards/scriptState.ts `unearnedHumanSource`)
+      if (unearnedHumanSource(script, readReview(oracleId))) unearned.push(`${oracleId} ${script.name} (source: '${script.source}')`);
+      const judges = judgeCountFor(sources, oracleId);
       const v: Verification = { ...script.verification };
       const sc = scenariosBy.get(oracleId);
       if (sc?.length) v.scenarios = scenarioBlock(sc);
@@ -206,7 +280,7 @@ function main() {
 
   // the summary the orchestrator pastes into the commit message
   const count = (bucket: string) => rows.filter(r => r.bucket === bucket).length;
-  const header = `${dryRun ? '[dry run] ' : ''}promote ${path.basename(resultFile)} (wave ${wave}, ${judges} judge${judges > 1 ? 's' : ''} required)`;
+  const header = `${dryRun ? '[dry run] ' : ''}promote ${path.basename(resultFile)} (wave ${wave}, ${forced ? `${forced} judge${forced > 1 ? 's' : ''} forced` : 'judges per card: 2 for the owner\'s decks and the EDHREC top-1k'})`;
   console.log(header);
   console.log(`  judged ${count('judged')} / tested ${count('tested')} / verified ${count('verified')} / scripted ${count('scripted')} / blocked ${count('blocked')} / rejected ${count('rejected')}${count('missing') ? ` / missing ${count('missing')}` : ''}`);
   for (const r of rows.filter(x => x.bucket === 'missing')) console.log(`  MISSING ${r.oracleId} ${r.name}: ${r.note}`);
@@ -215,6 +289,11 @@ function main() {
     for (const r of rejected) console.log(`    ${r.oracleId} ${r.name}: ${r.issues.slice(0, 2).join(' | ') || 'no issue text'}`);
   }
   if (blockedWritten.length) console.log(`  ${blockedWritten.length} blocked note(s) ${dryRun ? 'would be ' : ''}written under data/scripts/blocked/`);
+  if (unearned.length) {
+    console.log(`  WARN ${unearned.length} script(s) claim a human source with no review note under data/scripts/reviewed/:`);
+    for (const u of unearned.slice(0, 10)) console.log(`    ${u}`);
+    console.log('    The claim is ignored. Sign one off with: npm run scripts:promote -- --human --by "<person>" --ids <id>');
+  }
 
   // a promoted card whose derived state disagrees with the file is a bug in the pipeline, not in the data
   if (!dryRun) {
