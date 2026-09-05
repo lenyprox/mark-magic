@@ -74,7 +74,10 @@ function resultAmount(word: string): Amount | null {
   const w = word.trim().toLowerCase();
   if (w === 'the other result') return { count: 'roll-other-result' };
   if (w === 'the result' || w === 'that result' || w === 'the total of those results') return { count: 'roll-result' };
-  if (w === 'the number of coins that came up heads' || w === 'the number of flips you won') return { count: 'flips-won' };
+  // Two counts, not one: CR 705.2's first sentence turns on whether a card says "came up heads" or "you won", and the
+  // engine reads that distinction back off the ability to decide whether anybody wins these flips at all.
+  if (w === 'the number of coins that came up heads') return { count: 'coins-heads' };
+  if (w === 'the number of flips you won') return { count: 'flips-won' };
   return null;
 }
 
@@ -114,10 +117,104 @@ function xIsTheResult(v: unknown): unknown {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// The branch conditions, and the one thing a branch may NOT say
+// ---------------------------------------------------------------------------------------------------------------
+
+/** "you win the flip" / "it comes up tails" / "the result is 15 or more" -> a Condition; null for anything else. */
+function familyCondition(text: string): Condition | null {
+  const t = text.trim().toLowerCase().replace(/\.$/, '');
+  // "you win the flip" / "you won the flip" / "you win one or more flips" / "you win two or more flips"
+  let m = t.match(/^you (win|won|lose|lost) (?:the flip|a flip|(a|one|two|three|four|five|\d+) or more flips)$/);
+  if (m) {
+    const outcome = m[1] === 'win' || m[1] === 'won' ? 'won' : 'lost';
+    const least = m[2] === undefined ? 1 : count(m[2]);
+    return typeof least === 'number' ? { kind: 'coin-flip', outcome, ...(least > 1 ? { least } : {}) } : null;
+  }
+  // "it comes up heads" / "the coin comes up heads" / "it's heads"
+  m = t.match(/^(?:it|the coin|that coin) (?:comes up|came up) (heads|tails)$/) ?? t.match(/^it's (heads|tails)$/);
+  if (m) return { kind: 'coin-flip', outcome: m[1] as 'heads' | 'tails' };
+  // "the result is 15 or more" — the bounds a results table spells as a striation, for the cards that print prose
+  m = t.match(/^the result is (\d+) or (more|greater|higher)$/);
+  if (m) return { kind: 'roll-result', least: Number(m[1]) };
+  m = t.match(/^the result is (\d+) or (less|lower|fewer)$/);
+  if (m) return { kind: 'roll-result', most: Number(m[1]) };
+  m = t.match(/^the result is (\d+)$/);
+  if (m) return { kind: 'roll-result', least: Number(m[1]), most: Number(m[1]) };
+  return null;
+}
+
+/** The Refs and frame-bound words a branch can name (src/engine/refs.ts); a `bind` writes the frame instead. */
+const FRAME_WORDS = new Set(['that', 'those', 'controller-of-that', 'that-controller', 'power-of-that', 'mv-of-that']);
+function readsFrame(v: unknown): boolean {
+  if (typeof v === 'string') return FRAME_WORDS.has(v);
+  if (Array.isArray(v)) return v.some(readsFrame);
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  if (o.op === 'bind') return false;
+  return Object.keys(o).some(k => k !== 'op' && k !== 'text' && k !== 'prompt' && readsFrame(o[k]));
+}
+/** Does the clause choose an object target of its own — the thing a later "it" in the same ability is about? */
+function declaresObjectTarget(v: unknown): boolean {
+  if (Array.isArray(v)) return v.some(declaresObjectTarget);
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  for (const k of ['target', 'what', 'a', 'b']) {
+    const t = o[k] as { kind?: unknown } | undefined;
+    if (t && typeof t === 'object' && typeof t.kind === 'string' && t.kind !== 'player' && t.kind !== 'opponent') return true;
+  }
+  return Object.keys(o).some(k => k !== 'text' && k !== 'prompt' && declaresObjectTarget(o[k]));
+}
+
+/**
+ * WHY THERE IS BOOKKEEPING HERE AT ALL. "Flip a coin. If you win the flip, target Orc creature gets +2/+0 until end of
+ * turn. If you lose the flip, it gets -0/-2 until end of turn." (Orcish Captain). "It" is the TARGET — chosen when the
+ * ability is activated, whichever way the coin falls (CR 115.1) — but the pronoun parses to the binding-frame Ref
+ * `that`, and parse.ts's antecedent repair reads the winning branch's `pump` as an unconditional binder and leaves the
+ * losing branch to read a frame that branch never filled. `resolveRef` then answers nothing and the -0/-2 is dropped
+ * in silence: a wrong parse claimed as a right one.
+ *
+ * A branch may not read a binding a SIBLING BRANCH made — only one of them runs. So: the roll / flip sentence rules
+ * open an instruction, this rule remembers whether an earlier branch of it chose the target, and a later branch that
+ * reads the frame vetoes its own condition clause, which makes the sentence honestly `unknown` instead of silently
+ * empty. A lone branch that reads the frame (Creepy Doll's "Whenever ~ deals combat damage to a creature, flip a coin.
+ * If you win the flip, destroy that creature.") is untouched: its `that` is the TRIGGER's frame, which parse.ts binds
+ * for it, and no sibling branch claimed the antecedent.
+ *
+ * The rule never claims a sentence — it returns null either way and lets parse.ts's own "If <c>, <e>" split build the
+ * `conditional`, so nothing that parses correctly today moves.
+ */
+let branches: { targeted: boolean } | null = null;
+/** The condition clause the branch rule refused; the condition rules below decline exactly that clause, once. */
+let vetoed: string | null = null;
+/** Reentrancy: the rule sub-parses, and a sub-parse must not clobber the outer sentence's bookkeeping. */
+let inBranch = false;
+
+/** Called by the roll / flip sentence rules: a new roll or flip instruction, whose branches have said nothing yet. */
+function openInstruction<T>(e: T): T { branches = { targeted: false }; vetoed = null; return e; }
+
+// ---------------------------------------------------------------------------------------------------------------
 // Sentence rules
 // ---------------------------------------------------------------------------------------------------------------
 
 const effects: EffectRule[] = [
+  // ---- The dangling-pronoun veto (see `branches` above). Claims nothing; runs first so it sees every branch.
+  {
+    re: /^if (.+?), (.+)$/i,
+    make: (m, ctx) => {
+      if (inBranch) return null;
+      vetoed = null;
+      const head = m[1].trim().toLowerCase();
+      if (!familyCondition(head)) return null;                    // not one of this family's branches
+      inBranch = true;
+      let effs: Effect[];
+      try { effs = ctx.parseEffects(m[2]); } finally { inBranch = false; }
+      if (!effs.length || effs.some(e => e.op === 'unknown')) return null;
+      if (readsFrame(effs)) { if (branches?.targeted) vetoed = head; }
+      else if (branches && declaresObjectTarget(effs)) branches.targeted = true;
+      return null;
+    },
+  },
+
   // ---- "Roll a d20" / "Roll two six-sided dice" / "Roll X six-sided dice", with the modifiers printed in the same
   //      sentence (CR 706.1, 706.2). "and choose one result" / "and ignore the lower roll" say what several dice mean.
   {
@@ -140,18 +237,18 @@ const effects: EffectRule[] = [
         } else return null;                                 // "for each player being attacked", "onto the battlefield", …
       }
       if (keep !== undefined && one) return null;           // "choose one result" of one die is not a wording that exists
-      return { op: 'roll-die', sides: dice.sides, ...(one ? {} : { count: n }), ...(keep ? { keep } : {}), ...(plus !== undefined ? { plus } : {}) };
+      return openInstruction({ op: 'roll-die', sides: dice.sides, ...(one ? {} : { count: n }), ...(keep ? { keep } : {}), ...(plus !== undefined ? { plus } : {}) });
     },
   },
 
   // ---- "Flip a coin" (CR 705.1) and its two counted forms.
-  { re: /^flips? a coin$/i, make: () => ({ op: 'flip-coin' }) },
+  { re: /^flips? a coin$/i, make: () => openInstruction({ op: 'flip-coin' }) },
   {
     re: /^flips? (two|three|four|five|six|seven|eight|nine|ten|x|\d+) coins$/i,
-    make: m => { const n = count(m[1]); return n === null ? null : { op: 'flip-coin', count: n }; },
+    make: m => { const n = count(m[1]); return n === null ? null : openInstruction({ op: 'flip-coin', count: n }); },
   },
   // "Flip a coin until you lose a flip" (CR 705.2): the streak of wins is what the rest of the ability counts.
-  { re: /^flips? a coin until you lose a flip$/i, make: () => ({ op: 'flip-coin', until: 'lose' }) },
+  { re: /^flips? a coin until you lose a flip$/i, make: () => openInstruction({ op: 'flip-coin', until: 'lose' }) },
 
   // ---- "… equal to the result" / "…, where X is the result" (CR 706.2). src/cards/rules/composition.ts carries the
   //      same six sentence shapes for the amounts IT knows; those rules are consulted first (file-name order) and
@@ -169,37 +266,17 @@ const effects: EffectRule[] = [
 // Condition rules — "if you win the flip, …" becomes a core `conditional` through parse.ts's own "If <c>, <e>" split
 // ---------------------------------------------------------------------------------------------------------------
 
+/** A family condition clause, unless the branch rule above vetoed exactly this one (which it does once, then forgets). */
+function claimCondition(text: string, kind: 'coin-flip' | 'roll-result'): Condition | null {
+  const t = text.trim().toLowerCase().replace(/\.$/, '');
+  if (vetoed !== null && vetoed === t) { vetoed = null; return null; }
+  const c = familyCondition(t);
+  return c && c.kind === kind ? c : null;
+}
+
 const conditions: ConditionRule[] = [
-  {
-    name: 'coin-flip-outcome',
-    make: (text): Condition | null => {
-      const t = text.trim().toLowerCase().replace(/\.$/, '');
-      // "you win the flip" / "you won the flip" / "you win one or more flips" / "you win two or more flips"
-      let m = t.match(/^you (win|won|lose|lost) (?:the flip|a flip|(a|one|two|three|four|five|\d+) or more flips)$/);
-      if (m) {
-        const outcome = m[1] === 'win' || m[1] === 'won' ? 'won' : 'lost';
-        const least = m[2] === undefined ? 1 : count(m[2]);
-        return typeof least === 'number' ? { kind: 'coin-flip', outcome, ...(least > 1 ? { least } : {}) } : null;
-      }
-      // "it comes up heads" / "the coin comes up heads" / "it's heads"
-      m = t.match(/^(?:it|the coin|that coin) (?:comes up|came up) (heads|tails)$/) ?? t.match(/^it's (heads|tails)$/);
-      if (m) return { kind: 'coin-flip', outcome: m[1] as 'heads' | 'tails' };
-      return null;
-    },
-  },
-  {
-    name: 'roll-result',
-    make: (text): Condition | null => {
-      const t = text.trim().toLowerCase().replace(/\.$/, '');
-      let m = t.match(/^the result is (\d+) or (more|greater|higher)$/);
-      if (m) return { kind: 'roll-result', least: Number(m[1]) };
-      m = t.match(/^the result is (\d+) or (less|lower|fewer)$/);
-      if (m) return { kind: 'roll-result', most: Number(m[1]) };
-      m = t.match(/^the result is (\d+)$/);
-      if (m) return { kind: 'roll-result', least: Number(m[1]), most: Number(m[1]) };
-      return null;
-    },
-  },
+  { name: 'coin-flip-outcome', make: (text): Condition | null => claimCondition(text, 'coin-flip') },
+  { name: 'roll-result', make: (text): Condition | null => claimCondition(text, 'roll-result') },
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -211,10 +288,13 @@ const triggers: TriggerRule[] = [
     name: 'dice-rolled',
     make: (head): TriggerEvent | null => {
       const t = head.trim().toLowerCase().replace(/,$/, '');
-      // CR 706.1: the ability triggers once for the roll instruction, whatever number of dice it named.
-      const m = t.match(/^whenever (you|a player|another player|each player) rolls? (?:one or more dice|a die|dice)$/);
+      // Two wordings that count differently (CR 706.1). "one or more dice" is once for the roll instruction whatever
+      // number of dice it named (Brazen Dwarf); "A DIE" is once per die — The Space Family Goblinson's printed ruling
+      // is explicit ("If you roll more than one die at a time, however, that does count as multiple die rolls"), and
+      // Hammer Jammer and As Luck Would Have It carry the same wording.
+      const m = t.match(/^whenever (you|a player|another player|each player) rolls? (one or more dice|a die|dice)$/);
       if (!m) return null;
-      return { on: 'dice-rolled', who: m[1] === 'you' ? 'you' : 'any' };
+      return { on: m[2] === 'a die' ? 'die-rolled' : 'dice-rolled', who: m[1] === 'you' ? 'you' : 'any' };
     },
   },
   {
@@ -249,6 +329,45 @@ function rollTail(effs: Effect[]): boolean {
   return false;
 }
 
+/**
+ * A striation's effects go in a `conditional.then`, and NOTHING expands a `choose-mode` there: `Game.effectiveEffects`
+ * expands one only at the top level of a stack item's effect list, and `applyEffectCore` has `case 'choose-mode':
+ * break; // expanded earlier`. A row that parsed into one would be silently dead — Nothic's whole ability and two of
+ * Herald of Hadar's three striations were, both claimed `fullyParsed`.
+ *
+ * A `choose-mode` with ONE mode and `count: 1` is not a choice at all: the core's own expansion of it is "take mode 0",
+ * which is exactly splicing the mode in place, so those are flattened (that is where parse.ts's " and " decomposition
+ * puts "You draw a card and you lose 1 life"). Anything with a real choice in it is refused, and the row is recorded
+ * unparsed rather than claimed. Returns null when one survives at any depth.
+ */
+function flattenTrivialModes(effs: Effect[]): Effect[] | null {
+  const out: Effect[] = [];
+  for (const e of effs) {
+    const o = e as unknown as { op: string; modes?: Effect[][]; count?: unknown };
+    if (o.op === 'choose-mode') {
+      if (o.modes?.length !== 1 || o.count !== 1) return null;
+      const inner = flattenTrivialModes(o.modes[0]); if (!inner) return null;
+      out.push(...inner); continue;
+    }
+    // a container's own child lists are just as dead: descend before admitting the effect
+    let bad = false;
+    const walk = (v: unknown): unknown => {
+      if (Array.isArray(v)) {
+        if (v.every(x => !!x && typeof x === 'object' && typeof (x as { op?: unknown }).op === 'string')) {
+          const f = flattenTrivialModes(v as Effect[]); if (!f) { bad = true; return v; } return f;
+        }
+        return v.map(walk);
+      }
+      if (!v || typeof v !== 'object') return v;
+      return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, k === 'text' || k === 'prompt' ? x : walk(x)]));
+    };
+    const cleaned = walk(e) as Effect;
+    if (bad) return null;
+    out.push(cleaned);
+  }
+  return out;
+}
+
 const lines: LineRule[] = [
   {
     name: 'results-table-row',
@@ -259,8 +378,10 @@ const lines: LineRule[] = [
       // ability). Only the ability last added counts — a table never skips a line.
       const host = ctx.def.abilities[ctx.def.abilities.length - 1];
       if (!host || host.kind === 'static' || !rollTail(host.effects)) return false;
-      const effs = ctx.parseEffects(m[4]);
-      if (!effs.length || effs.some(e => e.op === 'unknown')) { ctx.markUnparsed(); return true; }
+      const parsed = ctx.parseEffects(m[4]);
+      if (!parsed.length || parsed.some(e => e.op === 'unknown')) { ctx.markUnparsed(); return true; }
+      const effs = flattenTrivialModes(parsed);
+      if (!effs) { ctx.markUnparsed(); return true; }             // a real modal choice inside a striation is dead (see above)
       const least = Number(m[1]);
       const most = m[2] !== undefined ? Number(m[2]) : m[3] !== undefined ? undefined : least;   // "N+" is open-ended
       host.effects.push({

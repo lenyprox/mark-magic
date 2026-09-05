@@ -54,6 +54,8 @@ export const schema: FamilySchema = {
       op: z.literal('flip-coin'),
       count: AmountSchema.optional(),
       until: z.literal('lose').optional(),
+      // CR 705.2 first sentence: `false` is a flip nobody wins or loses. Omitted, the op reads the ability's own text.
+      winner: z.boolean().optional(),
     }),
   ],
   conditions: [
@@ -70,7 +72,8 @@ export const schema: FamilySchema = {
   ],
   triggers: [
     z.strictObject({ on: z.literal('dice-rolled'), who: z.enum(['you', 'any']) }),
+    z.strictObject({ on: z.literal('die-rolled'), who: z.enum(['you', 'any']) }),
     z.strictObject({ on: z.literal('coin-flipped'), who: z.enum(['you', 'any']), outcome: z.enum(['won', 'lost']).optional() }),
   ],
-  amounts: ['roll-result', 'roll-other-result', 'flips-won'],
+  amounts: ['roll-result', 'roll-other-result', 'flips-won', 'coins-heads'],
 };

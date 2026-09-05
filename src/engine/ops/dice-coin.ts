@@ -20,14 +20,26 @@
 //
 // WHAT THE RANDOMNESS IS. `g.rng` is the game's seeded mulberry32 stream — the same one that shuffles libraries — so
 // a game replays identically from its seed and an AI rollout of a coin-flip card is as reproducible as any other.
-// CR 705.2 lets the flipping player call heads or tails; on a fair coin the call is immaterial, so this family always
-// calls heads: "wins the flip" and "comes up heads" are the same event here, which is what every printed card that
-// uses both wordings assumes.
+// CR 705.2 lets the flipping player call heads or tails; on a fair coin the call is immaterial, so a *called* flip
+// always calls heads and "wins the flip" is then exactly "comes up heads".
+//
+// NOT EVERY FLIP HAS A WINNER. CR 705.2 first sentence: "Some effects that instruct a player to flip a coin care only
+// about whether the coin comes up heads or tails. No player wins or loses a coin flip for this kind of effect." Such a
+// flip must not fire "whenever you win a coin flip" (Tavern Scoundrel, Chance Encounter, Zndrsplt) and must read false
+// for `{ kind: 'coin-flip', outcome: 'won' }`, while "whenever you flip a coin" still fires and `outcome: 'heads'`
+// still reads. `flip-coin` therefore carries a `winner` flag. A script states it outright; when it is absent the op
+// infers it from the resolving ability's own effect list, which is the CR test verbatim — an ability that reads only
+// "comes up heads / tails" (`outcome: 'heads' | 'tails'`, `{ count: 'coins-heads' }`) and never "wins / loses the
+// flip" (`outcome: 'won' | 'lost'`, `{ count: 'flips-won' }`) is exactly "an effect that cares only whether the coin
+// comes up heads or tails". An ability that says neither (Tavern Scoundrel's own "Flip a coin.") is a called flip,
+// which is CR 705.2's default. See docs/vocabulary/dice-coin.md for what the PARSER can and cannot see.
 //
 // WHERE THE RESULT LIVES. One JSON-plain record on the game's `ext` bag, `s.ext.diceCoin`, rewritten by each roll or
 // flip and read by the conditions and the amount counts. It carries the id of the source that produced it, so a
-// condition on one permanent can never read another card's roll, and a step hook drops it at end of turn. Nothing in
-// it is hidden information (CR 705.1 flips and CR 706.1 rolls happen in the open), so there is no redaction hook.
+// condition on one permanent can never read another card's roll, and the record is dropped as soon as the ability
+// that made it has finished resolving (the `sba` hook below — `checkSBA` is never called part-way through an item, so
+// that boundary is exactly "one resolving ability"). Nothing in it is hidden information (CR 705.1 flips and CR 706.1
+// rolls happen in the open), so there is no redaction hook.
 import type { Amount, Effect, FamilyModule, GameObject, GameState, PlayerId } from './types.js';
 import { extDel, extGet, extSet } from './ext.js';
 import { chars } from './chars.js';
@@ -44,8 +56,12 @@ import { chars } from './chars.js';
  */
 export interface RollDieEffect { op: 'roll-die'; sides: number; count?: Amount; keep?: 'sum' | 'choose-one' | 'highest' | 'lowest'; plus?: Amount }
 
-/** "Flip a coin", "Flip five coins", "flip a coin until you lose a flip" (CR 705.1-705.2). */
-export interface FlipCoinEffect { op: 'flip-coin'; count?: Amount; until?: 'lose' }
+/**
+ * "Flip a coin", "Flip five coins", "flip a coin until you lose a flip" (CR 705.1-705.2).
+ *   winner  does a player win or lose these flips? Omitted = inferred from the resolving ability (see the header):
+ *           `false` is CR 705.2's first sentence — the flip comes up heads or tails and nobody wins it.
+ */
+export interface FlipCoinEffect { op: 'flip-coin'; count?: Amount; until?: 'lose'; winner?: boolean }
 
 /** "If you win the flip", "if it comes up tails", "If you win two or more flips" (`least`). */
 export interface CoinFlipCondition { kind: 'coin-flip'; outcome: 'won' | 'lost' | 'heads' | 'tails'; least?: number }
@@ -54,20 +70,26 @@ export interface RollResultCondition { kind: 'roll-result'; least?: number; most
 
 /** "Whenever you roll one or more dice" / "Whenever a player rolls one or more dice" — once per roll instruction. */
 export interface DiceRolledTrigger { on: 'dice-rolled'; who: 'you' | 'any' }
+/**
+ * "Whenever you roll a die" — once per DIE, not per instruction (CR 706.1). The printed ruling on The Space Family
+ * Goblinson says it outright: "If you roll more than one die at a time, however, that does count as multiple die
+ * rolls." Hammer Jammer and As Luck Would Have It carry the same wording.
+ */
+export interface DieRolledTrigger { on: 'die-rolled'; who: 'you' | 'any' }
 /** "Whenever you win a coin flip" / "Whenever a player wins a coin flip" / "Whenever you lose a coin flip"; no `outcome` = any flip. */
 export interface CoinFlippedTrigger { on: 'coin-flipped'; who: 'you' | 'any'; outcome?: 'won' | 'lost' }
 
 /** One roll instruction: every die that was rolled and the result the ability goes on to use. */
 export interface DieRollEvent { type: 'die-roll'; player: PlayerId; source: string; sides: number; naturals: number[]; result: number }
-/** One coin flip. `won` is CR 705.2's winner; a "comes up heads" card reads the same field. */
-export interface CoinFlipEvent { type: 'coin-flip'; player: PlayerId; source: string; outcome: 'heads' | 'tails'; won: boolean }
+/** One coin flip. `winner` is CR 705.2's "did anybody call it?"; `won` is that player's result (false when nobody did). */
+export interface CoinFlipEvent { type: 'coin-flip'; player: PlayerId; source: string; outcome: 'heads' | 'tails'; won: boolean; winner: boolean }
 
 // ------------------------------------------------------------------ 2. declaration merging (never edit types.ts)
 declare module '../../cards/types.js' {
   interface EffectRegistry { diceRoll: RollDieEffect; diceFlip: FlipCoinEffect }
   interface ConditionRegistry { diceCoinFlip: CoinFlipCondition; diceRollResult: RollResultCondition }
-  interface TriggerRegistry { diceRolled: DiceRolledTrigger; diceCoinFlipped: CoinFlippedTrigger }
-  interface AmountCountRegistry { 'roll-result': true; 'roll-other-result': true; 'flips-won': true }
+  interface TriggerRegistry { diceRolled: DiceRolledTrigger; diceDieRolled: DieRolledTrigger; diceCoinFlipped: CoinFlippedTrigger }
+  interface AmountCountRegistry { 'roll-result': true; 'roll-other-result': true; 'flips-won': true; 'coins-heads': true }
 }
 declare module '../events.js' {
   interface EventRegistry { diceDieRoll: DieRollEvent; diceCoinFlip: CoinFlipEvent }
@@ -83,12 +105,37 @@ declare module '../events.js' {
 type DiceRecord = {
   kind: 'roll' | 'coin';
   srcId: number;
-  /** A roll's final result (CR 706.2), or the number of flips won. */ result: number;
+  /** A roll's final result (CR 706.2), or the number of coins that came up heads. */ result: number;
   /** "the other result" of a "roll two and choose one" (0 when there is none). */ other: number;
   /** Coins: how many came up each way. */ heads: number; tails: number;
+  /** Coins: did a player call these flips (CR 705.2)? `false` = nobody won or lost them. */ winner: boolean;
   /** Every natural die result of the instruction, in rolling order (CR 706.2). */ naturals: number[];
 };
 const KEY = 'diceCoin';
+
+/**
+ * CR 705.2 first sentence, applied to the ability that is flipping: does anybody win these coins? The effect that
+ * instructs the flip IS this ability, so its own effect list is the whole test — "cares only about whether the coin
+ * comes up heads or tails" is "reads `heads` / `tails` and never `won` / `lost`". An ability that reads neither
+ * (Tavern Scoundrel's bare "Flip a coin.") keeps CR 705.2's default: the player calls it and wins or loses it.
+ */
+function abilityCallsTheFlip(effs: readonly Effect[]): boolean {
+  let winLose = false; let headsTails = false;
+  const walk = (v: unknown): void => {
+    if (Array.isArray(v)) { for (const x of v) walk(x); return; }
+    if (!v || typeof v !== 'object') return;
+    const o = v as Record<string, unknown>;
+    if (o.kind === 'coin-flip') { if (o.outcome === 'won' || o.outcome === 'lost') winLose = true; else headsTails = true; }
+    if (o.count === 'flips-won') winLose = true;
+    if (o.count === 'coins-heads') headsTails = true;
+    for (const k of Object.keys(o)) if (k !== 'text' && k !== 'prompt') walk(o[k]);
+  };
+  walk(effs as unknown);
+  return winLose || !headsTails;
+}
+
+/** `ctx.amount` of a `coin-flipped` event: 1 = the flip was won, 0 = it was lost, -1 = nobody won it (CR 705.2). */
+const WON = 1; const LOST = 0; const NO_WINNER = -1;
 
 /** The record, when it belongs to `src` (or when the caller has no source to check it against). */
 function recordFor(s: GameState, src: GameObject | undefined, kind: 'roll' | 'coin'): DiceRecord | undefined {
@@ -133,9 +180,15 @@ const DICE_COIN: FamilyModule = {
         other = rest.length ? Math.max(...rest) : 0;
       }
       const result = kept + (e.plus === undefined ? 0 : c.amt(e.plus));
-      extSet<DiceRecord>(c.s, KEY, { kind: 'roll', srcId: c.src.id, result, other, heads: 0, tails: 0, naturals });
+      extSet<DiceRecord>(c.s, KEY, { kind: 'roll', srcId: c.src.id, result, other, heads: 0, tails: 0, winner: false, naturals });
       c.item.lastAmount = result;                                          // "… equal to that result" reads it as "that many"
       c.g.emit({ type: 'die-roll', player: c.p, source: chars.name(c.src), sides, naturals, result });
+      // Two events, because the two printed wordings count differently (CR 706.1): "whenever you roll ONE OR MORE
+      // dice" is once for the instruction however many dice it named, while "whenever you roll A DIE" is once per die
+      // ("If you roll more than one die at a time, however, that does count as multiple die rolls" — The Space Family
+      // Goblinson). `amount` is that die's natural result for the per-die event and the instruction's result for the
+      // other one; an ignored die (CR 706.6) was still rolled, so every natural counts here.
+      for (const n of naturals) c.g.queueTriggers('die-rolled', { obj: c.src, player: c.p, amount: n });
       c.g.queueTriggers('dice-rolled', { obj: c.src, player: c.p, amount: result });
     },
 
@@ -143,17 +196,20 @@ const DICE_COIN: FamilyModule = {
     'flip-coin': async (e: FlipCoinEffect, c) => {
       const want = Math.min(MAX_DICE, Math.max(0, e.count === undefined ? 1 : c.amt(e.count)));
       const flips = e.until === 'lose' ? MAX_FLIPS : want;
+      // CR 705.2: is this a *called* flip? "until you lose a flip" says so in the instruction itself; otherwise the
+      // script's own `winner` decides, and with nothing written the ability's text decides (see the header).
+      const winner = e.until === 'lose' ? true : e.winner ?? abilityCallsTheFlip(c.item.effects);
       let heads = 0; let tails = 0;
       for (let i = 0; i < flips; i++) {
-        // CR 705.2: the flipping player calls heads or tails; on a fair coin the call is immaterial, so this family
-        // always calls heads and "wins the flip" is exactly "comes up heads".
-        const won = c.g.rng.next() < 0.5;
-        if (won) heads++; else tails++;
-        c.g.emit({ type: 'coin-flip', player: c.p, source: chars.name(c.src), outcome: won ? 'heads' : 'tails', won });
-        c.g.queueTriggers('coin-flipped', { obj: c.src, player: c.p, amount: won ? 1 : 0 });
-        if (e.until === 'lose' && !won) break;
+        // On a fair coin the call is immaterial, so a called flip always calls heads and "wins the flip" is exactly
+        // "comes up heads". A flip nobody called still comes up heads or tails — it is just never won or lost.
+        const up = c.g.rng.next() < 0.5;
+        if (up) heads++; else tails++;
+        c.g.emit({ type: 'coin-flip', player: c.p, source: chars.name(c.src), outcome: up ? 'heads' : 'tails', won: winner && up, winner });
+        c.g.queueTriggers('coin-flipped', { obj: c.src, player: c.p, amount: !winner ? NO_WINNER : up ? WON : LOST });
+        if (e.until === 'lose' && !up) break;
       }
-      extSet<DiceRecord>(c.s, KEY, { kind: 'coin', srcId: c.src.id, result: heads, other: 0, heads, tails, naturals: [] });
+      extSet<DiceRecord>(c.s, KEY, { kind: 'coin', srcId: c.src.id, result: heads, other: 0, heads, tails, winner, naturals: [] });
       c.item.lastAmount = heads;                                           // "draw two cards for each flip" reads it as "that many"
     },
   },
@@ -163,6 +219,8 @@ const DICE_COIN: FamilyModule = {
     'coin-flip': (cond: CoinFlipCondition, s, src) => {
       const r = recordFor(s, src, 'coin');
       if (!r) return false;
+      const won = cond.outcome === 'won' || cond.outcome === 'lost';
+      if (won && !r.winner) return false;                 // CR 705.2: nobody won or lost a heads/tails-only flip
       const n = cond.outcome === 'won' || cond.outcome === 'heads' ? r.heads : r.tails;
       return n >= (cond.least ?? 1);
     },
@@ -179,18 +237,27 @@ const DICE_COIN: FamilyModule = {
     'roll-result': (_a, s, _ctrl, _x, src) => recordFor(s, src, 'roll')?.result ?? 0,
     /** "the other result" of a "roll two dice and choose one result". */
     'roll-other-result': (_a, s, _ctrl, _x, src) => recordFor(s, src, 'roll')?.other ?? 0,
-    /** "for each flip you won" / "the number of coins that came up heads" (CR 705.2). */
-    'flips-won': (_a, s, _ctrl, _x, src) => recordFor(s, src, 'coin')?.heads ?? 0,
+    /** "for each flip you won" (CR 705.2): zero when nobody won these flips. */
+    'flips-won': (_a, s, _ctrl, _x, src) => { const r = recordFor(s, src, 'coin'); return r && r.winner ? r.heads : 0; },
+    /** "the number of coins that came up heads" — the count CR 705.2's first sentence cares about, winner or not. */
+    'coins-heads': (_a, s, _ctrl, _x, src) => recordFor(s, src, 'coin')?.heads ?? 0,
   },
 
   triggers: {
     /** "Whenever you roll one or more dice": once per roll instruction, however many dice it rolled (CR 706.1). */
     'dice-rolled': (ev: DiceRolledTrigger, perm, ctx, _s, event) =>
       event === 'dice-rolled' && (ev.who === 'any' || ctx.player === perm.controller),
-    /** "Whenever you win a coin flip" (CR 705.2): `ctx.amount` is 1 for a flip that was won and 0 for one that was lost. */
+    /** "Whenever you roll a die": once per die of the instruction (CR 706.1; The Space Family Goblinson's ruling). */
+    'die-rolled': (ev: DieRolledTrigger, perm, ctx, _s, event) =>
+      event === 'die-rolled' && (ev.who === 'any' || ctx.player === perm.controller),
+    /**
+     * "Whenever you win a coin flip" (CR 705.2). `ctx.amount` is WON / LOST / NO_WINNER; a trigger with no `outcome`
+     * ("whenever you flip a coin") fires for every flip, and one that asks for a winner fires for none of a flip
+     * nobody called — CR 705.2 first sentence, which is why NO_WINNER must not read as "lost".
+     */
     'coin-flipped': (ev: CoinFlippedTrigger, perm, ctx, _s, event) =>
       event === 'coin-flipped' && (ev.who === 'any' || ctx.player === perm.controller)
-      && (ev.outcome === undefined || (ev.outcome === 'won') === (ctx.amount === 1)),
+      && (ev.outcome === undefined || ctx.amount === (ev.outcome === 'won' ? WON : LOST)),
   },
 
   events: {
@@ -207,12 +274,23 @@ const DICE_COIN: FamilyModule = {
       logged: true, cr: '705.2',
       render: (ev, pname) => {
         const e = ev as CoinFlipEvent;
-        return `${pname(e.player)} flips a coin for ${e.source}: ${e.outcome} (${e.won ? 'wins' : 'loses'} the flip).`;
+        // CR 705.2: a flip nobody called is reported as what it is — a coin that came up heads or tails and no more.
+        const call = e.winner === false ? 'no winner' : e.won ? 'wins the flip' : 'loses the flip';
+        return `${pname(e.player)} flips a coin for ${e.source}: ${e.outcome} (${call}).`;
       },
     },
   },
 
-  // The record is scoped to one resolving ability; nothing should read it a turn later, so it goes with the turn.
+  /**
+   * The record is scoped to ONE RESOLVING ABILITY, and this is what makes that true rather than aspirational: an item
+   * finishes resolving and `resolveTop` runs `checkSBA` (src/engine/game.ts), which is the only place SBAs are ever
+   * checked — never part-way through an item — so dropping the record here means the next ability starts with none.
+   * Without it the record was scoped to (source, turn) and a *second* ability of the same permanent read the first
+   * one's roll. Returns false: nothing about the game changed, so the SBA loop must not run again for it.
+   */
+  sba: (g) => { extDel(g.state, KEY); return false; },
+  // Belt and braces for anything that could roll outside a stack item (an as-enters roll): the record never outlives
+  // the turn either.
   steps: { 'cleanup-end': (g) => extDel(g.state, KEY) },
 
   // Round-trip English (src/cards/render.ts). The results-table striations render themselves: they are `conditional`s
@@ -240,7 +318,9 @@ function amountWord(a: Amount): string {
   const count = (a as { count?: string }).count;
   return count === 'cards-in-hand' ? 'the number of cards in your hand'
     : count === 'roll-result' ? 'the result'
+    : count === 'roll-other-result' ? 'the other result'
     : count === 'flips-won' ? 'the number of flips you won'
+    : count === 'coins-heads' ? 'the number of coins that came up heads'
     : count === 'that-many' ? 'that many'
     : 'X';
 }
