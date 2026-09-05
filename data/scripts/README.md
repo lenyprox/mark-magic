@@ -248,3 +248,91 @@ verification block (`INFO`).
 `_example.json.txt` shows the shape and `_example-split.json.txt` the `secondFace` half of a split / adventure /
 flip card; rename such a file to `<2-hex>/<oracle_id>.json` and set `oracleHash` to `oracleHash(def.oracleText)` to
 activate it.
+
+## Verification
+
+`npm run scripts:check` says the file is *well formed*. `npm run scripts:verify` says the script *is the card*: it
+runs the script in the engine and compares what it does with what the oracle line says. Seven stages, in order; a
+failure records a problem and the run **continues**, except schema, which stops that card because nothing downstream
+can be trusted about a file that does not parse.
+
+| # | Stage | What it does | Fails on |
+|---|---|---|---|
+| 1 | **schema** | `CardScriptChecked` — the strict zod mirror, the `covers` refinement and the composition nesting limits | a typo'd field or op name |
+| 2 | **freshness** | `oracleHash` against the card's text today; `parserVersion` / `registryHash` / `scriptHash` against the last verification | a Scryfall refresh changed the text (**stale**: the script is not applied). The other three are warnings — the verification is out of date, the script is not |
+| 3 | **registry** | every `op` / `kind` / `on` / `count` exists in a core union or a family registry; no `unknown` outside a `generated` script; `applyScript(def).fullyParsed` | a script naming a family that is not installed, or one that claims nothing |
+| 4 | **lint** (`src/cards/lint.ts`) | counter names, `Filter.subtypes` against the generated subtype vocabulary, keywords / target kinds / amount counts / condition kinds against the schema's own enums, every `covers` / `ignore` line, triggers the card can never raise, `aiHints.role` | an unknown name, or a trigger that can never fire |
+| 5 | **sandbox** | `src/verify/sandbox.ts` at 2 and 4 seats, then the per-ability reachability probes in `src/verify/probes.ts` | the engine throws or breaks an invariant. An **unreached ability is a warning**, never a failure — it is the list the blind-scenario author works from |
+| 6 | **round trip** | `src/cards/render.ts` renders the ability that claims a line back into English and scores it against the line | a card score below **0.55** |
+| 7 | **write-back** | the `verification` block into the script file, and the batch report | — |
+
+### Statuses
+
+`scripts:verify` writes `verification.status`; the dashboard derives the rest from the files (plan 2.4):
+
+* **`scripted`** — a script exists and is applied, but a stage reported a problem (or it has never been verified);
+* **`verified`** — every stage passed: schema ok, fresh, registry ok, lint not `fail`, neither seat count threw or
+  broke an invariant, round trip >= 0.55;
+* **`stale`** — the oracle text changed since the script was written, so the script is **not applied** at all;
+* `tested` (a blind scenario per ability passes, slice 8d) and `judged` (an independent judge, Phase 10) are written
+  by the later stages and are never cleared by a re-verification: `scripts:verify` carries `scenarios` and `judge`
+  through untouched.
+
+### The round-trip score
+
+Per oracle line, against the rendering of the ability whose `text` claims it. A line claimed by **keywords**, by a
+`covers` entry or by an `ignore` entry is not scored — a declaration implements it, and `scripts:check` already
+compares the declared value with the printed one.
+
+1. Every **number** the line prints (`\d+`, `X`) must appear in the rendering, or the line scores **0**. This is the
+   rule that catches "the script says 2 and the card says 3", and every zero-magnitude, `times: 0` and empty-body
+   bypass with it. One exception: a **count expression** is printed either as "1 … for each …" or as "+X/+X, where X
+   is …", so when the rendering carries one the tokens `1` and `X` alone are not gated.
+2. Every **keyword, zone and counter name** the line prints must appear too, or the score is halved per miss.
+3. Otherwise the **Jaccard overlap** of the two lemmatised word sets (reminder text, punctuation and `the`/`a`/`an`
+   dropped; `enters the battlefield` and `enters` are the same event, CR 603.6a).
+
+The **card score is the minimum over its lines**; >= 0.55 is `verified`, and every line under 0.4 is listed in
+`verification.roundTrip.lowest` for the judge. `test/render.test.ts` calibrates the gate against a seeded sample of
+400 cards the parser alone finishes: the median must stay >= 0.55 and fewer than 5% may score 0 (measured on
+`main`: median 0.875, 1.8% zeros).
+
+**`npm run scripts:render -- --ids a,b,c`** prints, per card, each claimed line, the rendering it was scored against
+and the score — the tool to reach for when a card scores 0.31 and you want to know why. `--parsed` renders the
+parser's own AST instead of the script's, which is the baseline to compare against.
+
+### Running it
+
+```
+npm run scripts:verify -- --ids a,b,c              # exactly these oracle ids; never parses the whole pool
+npm run scripts:verify -- --batch data/scripts/batches/S1/01.json   # the 8k queue format (or any JSON with oracle ids)
+npm run scripts:verify -- --changed                # scripts git reports as modified / untracked
+npm run scripts:verify -- --stale                  # scripts whose verification block is missing or out of date
+npm run scripts:verify -- --ids … --report <path> --json --no-write --no-sandbox --seats 2 --dir <scripts dir>
+```
+
+Exit 1 when any card has a problem, 2 when the arguments are wrong. A 30-card batch costs about 0.5 s of work
+(2.5 s wall clock including the `tsx` start-up), well inside the 15 s target.
+
+### Reading a report
+
+`data/scripts/reports/<batch>.json` (gitignored — tool output, never a tracked artefact):
+
+```
+{
+  "batch": "S1-3", "at": "…", "parserVersion": 3, "registryHash": "…",
+  "cards": [{
+    "oracleId": "…", "name": "Lightning Bolt", "status": "verified",
+    "schema": "ok", "lint": "ok",
+    "sandbox": { "seats2": "ok", "seats4": "ok", "abilities": [{ "index": 0, "reached": true, "how": "cast" }] },
+    "roundTrip": { "score": 1, "lowest": [] },
+    "problems": [], "warnings": [], "rendererGaps": [], "ms": 115
+  }],
+  "summary": { "total": 30, "verified": 20, "scripted": 10, "stale": 0, "missing": 0, "problems": 13, "unreached": 3, "ms": 500 }
+}
+```
+
+Read it in this order: **`problems`** (what has to change), then **`roundTrip.lowest`** (the lines whose rendering
+does not look like the card — often the real defect even when nothing else failed), then **`warnings`**, whose
+`was never reached` entries are the abilities a blind scenario has to cover by hand, then **`rendererGaps`**, which
+names a family that shipped ops without a `render` entry: its cards' scores are a lower bound until it does.

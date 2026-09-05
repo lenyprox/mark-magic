@@ -45,6 +45,8 @@
     "verify:dashboard": "tsx scripts/verify-dashboard.ts",
     "scripts:draft": "tsx scripts/scripts-draft.ts",
     "scripts:check": "tsx scripts/scripts-check.ts",
+    "scripts:verify": "tsx scripts/scripts-verify.ts",
+    "scripts:render": "tsx scripts/scripts-render.ts",
     "scripts:shard": "tsx scripts/scripts-shard.ts",
     "scripts:schema": "tsx scripts/scripts-schema.ts",
     "verify:quick": "npm run typecheck && node --test --import tsx test/lint-*.test.ts test/registry.test.ts test/parser-registry.test.ts test/scripts.test.ts && npm run scripts:check",
