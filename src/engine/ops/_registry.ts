@@ -16,8 +16,11 @@ import type {
 /** One family with the file it came from (runtime registrations report `(runtime)`). */
 export interface RegistryEntry { file: string; mod: FamilyModule }
 
+import family_control from './control.js';
 
-const GENERATED: RegistryEntry[] = [];
+const GENERATED: RegistryEntry[] = [
+  { file: "control.ts", mod: family_control },
+];
 
 // ---------------------------------------------------------------- flat lookups (mutated in place by rebuild())
 export type EffectOp = (e: never, c: OpCtx) => void | Promise<void>;
