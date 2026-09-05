@@ -61,7 +61,6 @@
     "life-ge",
     "life-le",
     "metalcraft",
-    "morbid",
     "more-life-than-opponent",
     "not-your-turn",
     "opponent-hellbent",
@@ -139,11 +138,9 @@
     "buyback",
     "escape",
     "evoke",
-    "flashback",
     "impending",
     "jump-start",
     "life",
-    "pitch",
     "warp"
   ],
   "costModifiers": [
@@ -172,11 +169,9 @@
     "horsemanship",
     "intimidate",
     "landwalk",
-    "protection",
     "prowess",
     "rampage",
     "shroud",
-    "skulk",
     "unblockable",
     "ward"
   ],
