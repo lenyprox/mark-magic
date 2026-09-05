@@ -59,6 +59,20 @@ consequence in different sentences ("An opponent chooses one of those piles. Put
 other into your graveyard."), and the parser reaches each sentence on its own. The record is cleared when the source
 leaves the battlefield (CR 400.7).
 
+Two rules keep the record honest, because an `ext` bag outlives a single resolution — Unesh, Criosphinx Sovereign and
+Sphinx of Uthuun trigger again on the SAME permanent, and a card recast from the graveyard (Yawgmoth's Will,
+Underworld Breach) keeps its bag across the zone change:
+
+* **A recorder replaces the whole record, including on the empty-pool path.** `separate-piles` with nothing to
+  separate writes an empty record rather than returning early; otherwise the next `chosen-fate` would re-apply the
+  *previous* resolution's split and move objects this resolution never chose (CR 400.7).
+* **A reader with no record at all reports `unsimulated`.** A parser rule sees one sentence at a time and cannot look
+  at its neighbours (`src/cards/rules/types.ts`), so `chosen-fate` / `choose-pile` really do get claimed on cards
+  whose *producing* sentence is still `unknown` — Bringer of the Last Gift, Gifts Ungiven, Epiphany at the
+  Drownyard, Riddles in the Dark and eleven more. Rather than resolving as a no-op nobody can see, those ops emit the
+  same `unsimulated` event `game.ts` emits for an `unknown` op, so the missing clause stays visible to the fidelity
+  metric. An *empty* record (the recorder ran and found nothing) is a genuine no-op and emits nothing.
+
 ---
 
 ## 2. The ops
@@ -121,9 +135,14 @@ earliest-listed); `per-vote` runs each option's effects once per vote it receive
 ```
 
 Groups the objects `from` names into `piles` piles and records them on the source. Nothing changes zone (CR 700.3c),
-and a pile may be empty (CR 700.3d). **The engine fixes the pile SIZES to an even split and lets the separator choose
-which object goes into which pile**; a free choice of sizes would need a decision kind this family does not add (see
-§5). `reveal` logs the contents.
+and a pile may be empty (CR 700.3d).
+
+**The separator chooses the sizes as well as the contents** (CR 700.3a) — 5/0 and 4/1 are legal splits of a five-card
+pool, and that free choice is the whole strategic content of Fact or Fiction and Steam Augury. It costs no new
+decision kind: for each pile but the last, the separator is asked a `choose-option` for the size (`"0 cards"`,
+`"1 card"`, …) and then a `choose-cards` for the contents. **The even split is offered first**, so an agent that
+answers `options[0]` — which is what `src/engine/agents/defaults.ts` does — still makes the balanced split, while a
+real agent reaches every other partition. `reveal` logs the contents.
 
 ```json
 { "op": "separate-piles", "from": { "zone": "library", "who": "you", "top": 5 }, "piles": 2, "separator": "you", "reveal": true }
@@ -139,7 +158,8 @@ which object goes into which pile**; a free choice of sizes would need a decisio
 ```
 
 The chooser picks one of the piles the source holds. Binds `that` / `those` to that pile and records the chosen /
-unchosen split for a following `chosen-fate`.
+unchosen split for a following `chosen-fate`. With **no** pile record on the source (no `separate-piles` ever ran,
+because that sentence did not parse) the op reports the line as `unsimulated` — see "The chosen / unchosen record".
 
 ```json
 { "op": "choose-pile", "chooser": "an-opponent" }
@@ -192,7 +212,8 @@ every chosen permanent and records the split (the pool is the union of the per-p
 ```
 
 Reads the chosen / unchosen record the last choice op wrote. At least one of `chosen` / `other` must be present.
-Binds `those` to everything it acted on.
+Binds `those` to everything it acted on. With **no** record on the source — the antecedent sentence did not parse —
+the op reports the line as `unsimulated` instead of doing nothing; see "The chosen / unchosen record".
 
 ```json
 { "op": "chosen-fate", "chosen": { "how": "move", "to": "hand" }, "other": { "how": "move", "to": "graveyard" } }
@@ -328,10 +349,17 @@ whose *unparsed lines are unchanged* (their next sentence is still unknown) and 
 
 * **Modes with targets.** `legal.ts:nestedLists` is a hardcoded switch, so the effects inside `choose-modes` /
   `vote` are never offered a target at cast time. A modal spell whose modes target must use the core `choose-mode`.
-* **A free choice of pile sizes.** `separate-piles` fixes an even split and lets the separator choose the contents.
-  A real "split them however you like" needs a decision kind (a partition), which this family does not add so that
-  every shipped agent, the UI and the replay keep working on the core decision kinds alone (`choose-cards`,
-  `choose-option`, `choose-player`).
+* **A single-decision partition.** `separate-piles` *does* let the separator choose the sizes (CR 700.3a), but it
+  spends two decisions per pile — a `choose-option` for the size, then a `choose-cards` for the contents — instead of
+  one partition decision, so that every shipped agent, the UI and the replay keep working on the core decision kinds
+  alone (`choose-cards`, `choose-option`, `choose-player`). The cost of that is a default agent that answers
+  `options[0]`: the size list puts the even split first for exactly this reason, and a search agent that wants 5/0
+  has to walk the option list rather than being handed a set of partitions.
+* **Gating a parser rule on its antecedent.** `EffectRule.make` is handed one normalised sentence and the shared
+  sub-parsers (`src/cards/rules/types.ts`) — never the sibling effects — so a rule cannot decline "Put that pile into
+  your hand and the other into your graveyard." because the sentence before it failed to parse. The runtime
+  `unsimulated` report above is the substitute; a real fix belongs in `parse.ts`'s `bindAntecedent`, whose
+  `BINDING_OPS` list is core.
 * **Face-down piles** (CR 700.3, Atris, Curator of Destinies): the family always keeps piles public.
 * **Level-gated statics whose kind has no `condition` field** (`cost-adjust`, `counters-replacement`,
   `grant-ability`, …). `anthem`, `self-keywords` and `self-pt` carry one; the rest would need `Ability.atLevel`,

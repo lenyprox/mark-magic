@@ -22,9 +22,20 @@
 // your hand and the other into your graveyard.") and the parser reaches each sentence separately. `chosen-fate` is
 // the verb that reads that record. The record is cleared when the source leaves the battlefield (`leave`) and, for a
 // spell, is on the card that is already on its way to the graveyard.
+//
+// Two rules keep that record honest, because an `ext` bag outlives a single resolution: Unesh and Sphinx of Uthuun
+// trigger again on the SAME permanent, and a card recast from the graveyard (Yawgmoth's Will, Underworld Breach)
+// keeps its bag across the zone change.
+//
+//   * every recorder REPLACES the whole record when it runs, the empty-pool path included — a resolution that found
+//     nothing must never leave the previous resolution's chosen set for the next `chosen-fate` to act on (CR 400.7);
+//   * `choose-pile` / `chosen-fate` with NO record at all are a claimed sentence whose antecedent did not parse (a
+//     parser rule sees one sentence at a time and cannot look at its neighbours — src/cards/rules/types.ts). They
+//     emit the `unsimulated` event `game.ts` emits for an `unknown` op instead of resolving as a silent no-op, so a
+//     line this family claims but cannot act on stays visible to the fidelity metric.
 import type { Amount, Effect, Filter, FamilyModule, GameObject, GameState, OpCtx, PlayerId, StackItem } from './types.js';
 import type { MoveZone, SetZone } from '../../cards/types.js';
-import { extDel, extGetOr, extSet } from './ext.js';
+import { extDel, extGetOr, extHas, extSet } from './ext.js';
 import { chars } from './chars.js';
 
 // ------------------------------------------------------------------ 1. the AST this family adds
@@ -160,6 +171,49 @@ function recordSplit(c: OpCtx, chosen: GameObject[], pool: GameObject[]): void {
   extSet(c.src, 'pcUnchosen', idsOf(pool).filter(id => !picked.includes(id)));
 }
 
+/**
+ * Forget every pile / chosen record on `o`. Called at the START of a recorder (CR 400.7): a second resolution of the
+ * same source never inherits the first one's split, not even when it finds nothing of its own to record.
+ */
+function clearRecord(o: GameObject): void { extDel(o, 'pcPiles'); extDel(o, 'pcChosen'); extDel(o, 'pcUnchosen'); }
+
+/** Record an EMPTY split: the recorder ran and found nothing, so the sentences that read it are genuine no-ops. */
+function recordEmpty(c: OpCtx): void { extSet(c.src, 'pcChosen', []); extSet(c.src, 'pcUnchosen', []); }
+
+/**
+ * Report a sentence this family claimed but cannot simulate — the same `unsimulated` event `game.ts` emits for an
+ * `unknown` op, so a `chosen-fate` whose antecedent sentence never parsed stays visible to the fidelity metric
+ * instead of resolving as a no-op nobody can see (CR 608.2f: the effect needs the set the earlier sentence chose).
+ */
+function unsimulated(c: OpCtx, clause: string): void {
+  c.g.emit({ type: 'unsimulated', id: c.src.id, name: nameOf(c.src), clause });
+}
+
+/**
+ * CR 700.3a: how many of the `left` objects the separator puts into this pile while `remaining` piles are still to be
+ * filled. ANY size from 0 to `left` is legal — Fact or Fiction is the card it is because 5/0 and 4/1 are on the table
+ * — so the size is asked as a `choose-option`, the core decision kind every shipped agent already answers. The even
+ * split is offered FIRST so an agent that answers `options[0]` (src/engine/agents/defaults.ts) still makes the
+ * balanced split, while a smarter agent reaches every other size without this family adding a decision kind.
+ */
+async function pileSize(c: OpCtx, who: PlayerId, left: number, remaining: number, label: number): Promise<number> {
+  if (left <= 0) return 0;
+  const even = Math.floor(left / remaining);
+  const sizes = [even, ...Array.from({ length: left + 1 }, (_, i) => i).filter(i => i !== even)];
+  if (sizes.length === 1) return even;
+  const options = sizes.map(n => `${n} card${n === 1 ? '' : 's'}`);
+  const answer = await c.g.ask(who, { kind: 'choose-option', options, reason: `${c.item.name}: how many cards go into pile ${label}?` }) as string;
+  const at = options.indexOf(answer);
+  return sizes[at < 0 ? 0 : at];
+}
+
+/** The two renderings the ops reuse as the `clause` of an `unsimulated` event (the printed sentence, near enough). */
+const renderChoosePile = (e: ChoosePileEffect): string => `${whoWord(e.chooser)} chooses one of those piles.`;
+const renderChosenFate = (e: ChosenFateEffect): string => {
+  const parts = [e.chosen ? fatePhrase(e.chosen, 'the chosen cards') : '', e.other ? fatePhrase(e.other, 'the rest') : ''].filter(Boolean).join(' and ');
+  return `${parts.charAt(0).toUpperCase()}${parts.slice(1)}.`;
+};
+
 /** Ask `p` to pick `count` of `pool` (`exact` unless `upTo`); a pool no larger than the count needs no decision. */
 async function pickObjects(c: OpCtx, p: PlayerId, pool: GameObject[], count: number, reason: string, upTo = false): Promise<GameObject[]> {
   if (count <= 0 || pool.length === 0) return [];
@@ -197,6 +251,10 @@ const PILES_CHOICES: FamilyModule = {
       const who = await chooser(c, e.chooser);
       const budget = Math.max(0, c.amt(e.count));
       const weights = e.weights;
+      // CR 700.2i: a pawprint cost is at least {P}. A zero or negative weight would let `repeat` re-offer the same
+      // mode forever (`spent` never grows, and every shipped agent answers `choose-option` with `options[0]`, never
+      // the trailing "(no more modes)"), so a weight reads as at least 1 here; the zod mirror rejects one outright.
+      const weightOf = (i: number): number => Math.max(1, Math.floor(weights?.[i] ?? 1));
       // CR 700.2a: a mode already chosen (this turn, or ever) is off the list — the record lives on the source
       const bannedKey = e.notChosen === 'this-turn' ? 'pcModesTurn' : 'pcModesEver';
       const banned = e.notChosen ? extGetOr<number[]>(c.src, bannedKey, []) : [];
@@ -208,7 +266,7 @@ const PILES_CHOICES: FamilyModule = {
         for (let i = 0; i < e.modes.length; i++) {
           if (banned.includes(i)) continue;                                     // "that hasn't been chosen"
           if (!e.repeat && picked.includes(i)) continue;                        // CR 700.2d: normally not twice
-          if (weights ? spent + (weights[i] ?? 1) > budget : picked.length >= budget) continue;
+          if (weights ? spent + weightOf(i) > budget : picked.length >= budget) continue;
           legal.push(i);
         }
         if (!legal.length) break;
@@ -221,7 +279,7 @@ const PILES_CHOICES: FamilyModule = {
         const pick = at < 0 ? 0 : at;
         if (pick >= legal.length) break;
         const mode = legal[pick];
-        picked.push(mode); spent += weights ? (weights[mode] ?? 1) : 1;
+        picked.push(mode); spent += weights ? weightOf(mode) : 1;
         if (!weights && picked.length >= budget) break;
       }
       if (!picked.length) { c.g.note(`${nameOf(c.src)}: no mode is chosen.`); return; }
@@ -262,15 +320,16 @@ const PILES_CHOICES: FamilyModule = {
     // ---- CR 700.3: piles ---------------------------------------------------------------------------------------
     'separate-piles': async (e: SeparatePilesEffect, c) => {
       const pool = await gather(c, e.from);
-      if (!pool.length) { extSet(c.src, 'pcPiles', []); return; }
+      clearRecord(c.src);                                          // a new separation replaces the old record, empty pool included
+      if (!pool.length) { extSet(c.src, 'pcPiles', []); recordEmpty(c); return; }
       const who = await chooser(c, e.separator ?? 'you');
       if (e.reveal) c.g.note(`${c.g.pname(who)} reveals ${pool.map(nameOf).join(', ')}.`);
-      // CR 700.3a: every object goes into exactly one pile. The engine fixes the SIZES to an even split and lets the
-      // separator choose which object goes where; a free size choice would need a decision kind this family does not add.
+      // CR 700.3a: every object goes into exactly one pile, and the separator chooses the SIZES as well as the
+      // contents (see `pileSize` — 5/0 and 4/1 are legal splits of a five-card pool).
       const piles: number[][] = [];
       let rest = [...pool];
       for (let k = 0; k < e.piles - 1; k++) {
-        const size = Math.floor(rest.length / (e.piles - k));
+        const size = await pileSize(c, who, rest.length, e.piles - k, k + 1);
         const take = await pickObjects(c, who, rest, size, `${c.item.name}: put ${size} into pile ${k + 1}`);
         piles.push(idsOf(take));
         rest = rest.filter(o => !take.includes(o));
@@ -281,8 +340,11 @@ const PILES_CHOICES: FamilyModule = {
     },
 
     'choose-pile': async (e: ChoosePileEffect, c) => {
+      // No `separate-piles` ever ran on this source, so the sentence that made the piles did not parse: this line is
+      // text the engine did not simulate, not a no-op nobody can see.
+      if (!extHas(c.src, 'pcPiles')) { unsimulated(c, renderChoosePile(e)); return; }
       const piles = extGetOr<number[][]>(c.src, 'pcPiles', []);
-      if (!piles.length) return;
+      if (!piles.length) { recordEmpty(c); bindThose(c, []); return; }
       const who = await chooser(c, e.chooser);
       const labels = piles.map((pile, i) => `pile ${i + 1} (${pile.length ? objectsOf(c.s, pile).map(nameOf).join(', ') : 'empty'})`);
       const answer = await c.g.ask(who, { kind: 'choose-option', options: labels, reason: `${c.item.name}: choose a pile` }) as string;
@@ -298,6 +360,7 @@ const PILES_CHOICES: FamilyModule = {
     // ---- "an opponent chooses N of those cards" ------------------------------------------------------------------
     'choose-objects': async (e: ChooseObjectsEffect, c) => {
       const pool = await gather(c, e.from);
+      extDel(c.src, 'pcPiles');                                    // a fresh choice replaces any pile record too
       if (!pool.length) { recordSplit(c, [], pool); bindThose(c, []); return; }
       const who = await chooser(c, e.chooser);
       const n = Math.max(0, c.amt(e.count));
@@ -311,6 +374,7 @@ const PILES_CHOICES: FamilyModule = {
     'choose-for-each-player': async (e: ChooseForEachPlayerEffect, c) => {
       const { apnapOrder, alive } = await import('../players.js');
       const who = await chooser(c, e.chooser);
+      extDel(c.src, 'pcPiles');                                    // a fresh choice replaces any pile record too
       const live = alive(c.s);
       const chosen: GameObject[] = []; const pool: GameObject[] = [];
       for (const owner of apnapOrder(c.s).filter(p => live.includes(p))) {
@@ -329,6 +393,9 @@ const PILES_CHOICES: FamilyModule = {
 
     // ---- what happens to the chosen and the unchosen ------------------------------------------------------------
     'chosen-fate': async (e: ChosenFateEffect, c) => {
+      // Nothing on this source recorded a chosen / unchosen split, so the antecedent sentence ("An opponent chooses
+      // two of those cards", "For each player, you choose ...") did not parse. Say so instead of doing nothing.
+      if (!extHas(c.src, 'pcChosen') && !extHas(c.src, 'pcUnchosen')) { unsimulated(c, renderChosenFate(e)); return; }
       const chosenIds = extGetOr<number[]>(c.src, 'pcChosen', []);
       const chosen = objectsOf(c.s, chosenIds);
       let other = objectsOf(c.s, extGetOr<number[]>(c.src, 'pcUnchosen', []));
@@ -382,7 +449,7 @@ const PILES_CHOICES: FamilyModule = {
   /** CR 400.7: a permanent that leaves the battlefield is a new object — its level, its mode record and its piles go. */
   leave: (_g, o) => {
     extDel(o, 'pcLevel'); extDel(o, 'pcModesEver'); extDel(o, 'pcModesTurn');
-    extDel(o, 'pcPiles'); extDel(o, 'pcChosen'); extDel(o, 'pcUnchosen');
+    clearRecord(o);
   },
 
   render: {
@@ -395,13 +462,10 @@ const PILES_CHOICES: FamilyModule = {
     },
     vote: (e: VoteEffect) => `Starting with you, each player votes for ${e.options.map(o => o.label).join(' or ')}.`,
     'separate-piles': (e: SeparatePilesEffect) => `${e.reveal ? 'Reveal and separate' : 'Separate'} ${e.from === 'those' ? 'those cards' : describeSet(e.from)} into ${countWord(e.piles)} piles.`,
-    'choose-pile': (e: ChoosePileEffect) => `${whoWord(e.chooser)} chooses one of those piles.`,
+    'choose-pile': (e: ChoosePileEffect) => renderChoosePile(e),
     'choose-objects': (e: ChooseObjectsEffect) => `${whoWord(e.chooser)} chooses ${e.upTo ? 'up to ' : ''}${typeof e.count === 'number' ? countWord(e.count) : 'X'} of ${e.from === 'those' ? 'those cards' : describeSet(e.from)}.`,
     'choose-for-each-player': (e: ChooseForEachPlayerEffect) => `For each player, ${e.chooser === 'you' ? 'you choose' : `${whoWord(e.chooser).toLowerCase()} chooses`} from among the permanents that player controls ${e.picks.map(describeFilterShort).join(', ')}.`,
-    'chosen-fate': (e: ChosenFateEffect) => {
-      const parts = [e.chosen ? fatePhrase(e.chosen, 'the chosen cards') : '', e.other ? fatePhrase(e.other, 'the rest') : ''].filter(Boolean).join(' and ');
-      return `${parts.charAt(0).toUpperCase()}${parts.slice(1)}.`;
-    },
+    'chosen-fate': (e: ChosenFateEffect) => renderChosenFate(e),
     'set-level': (e: SetLevelEffect) => `Level ${e.to}`,
   },
 };

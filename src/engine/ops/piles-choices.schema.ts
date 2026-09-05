@@ -72,7 +72,9 @@ export const schema: FamilySchema = {
       repeat: B.optional(),
       notChosen: z.enum(['this-turn', 'ever']).optional(),
       chooser: ChoiceWhoSchema.optional(),
-      weights: z.array(N).optional(),
+      // CR 700.2i: a pawprint cost is {P} or more. A zero (or negative, or fractional) weight makes a `repeat` modal
+      // choice unbounded — the budget never runs down — so the mirror rejects it and the op clamps to 1 as well.
+      weights: z.array(N.int().min(1)).optional(),
     }).superRefine((e, ctx) => {
       if (e.labels && e.labels.length !== e.modes.length) ctx.addIssue({ code: 'custom', message: 'labels lists one label per mode' });
       if (e.weights && e.weights.length !== e.modes.length) ctx.addIssue({ code: 'custom', message: 'weights lists one pawprint cost per mode (CR 700.2i)' });

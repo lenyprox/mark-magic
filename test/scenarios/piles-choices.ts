@@ -81,6 +81,16 @@ export const pilesChoices: Scenario[] = [
     expect: [{ life: [0, 23] }, { unsimulated: 0 }],
   },
   {
+    // review fix 1: with `weights: [0, 2]` the loop used to spend nothing per pick, `repeat` kept the mode legal and
+    // the shipped agents never take the trailing "(no more modes)" option, so this scenario hung forever.
+    name: 'choose-modes with a zero pawprint weight terminates (a mode costs at least {P})', cr: '700.2i',
+    seats: [{ bf: ['Grizzly Bears'] }, {}],
+    scripts: bears([{ op: 'choose-modes', count: 5, repeat: true, weights: [0, 2], labels: ['gain 1 life', 'gain 2 life'], modes: [[gain(1)], [gain(2)]] }]),
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
+    // the zero weight reads as 1: five picks of the first mode spend the whole 5-{P} budget and the loop stops
+    expect: [{ life: [0, 25] }, { unsimulated: 0 }],
+  },
+  {
     name: 'choose-modes with upTo lets the chooser stop early', cr: '700.2a',
     seats: [{ bf: ['Grizzly Bears'] }, {}],
     scripts: bears([{ op: 'choose-modes', count: 3, upTo: true, labels: ['gain 3 life', 'draw a card', 'gain 5 life'], modes: [[gain(3)], [draw1], [gain(5)]] }]),
@@ -174,6 +184,75 @@ export const pilesChoices: Scenario[] = [
       { zone: ['Grizzly Bears', 'battlefield'] }, { tapped: ['Grizzly Bears', true] }, { control: ['Hill Giant', 0] },
       { zone: ['Runeclaw Bear', 'exile'] }, { zone: ['Alpine Grizzly', 'exile'] }, { unsimulated: 0 },
     ],
+  },
+
+  {
+    // review fix 2: CR 700.3a lets the separator choose the pile SIZES, not just the contents — Fact or Fiction is
+    // the card it is because 5/0 and 4/1 are legal. The even split is only the FIRST option offered.
+    name: 'separate-piles lets the separator choose the pile sizes, not just an even split', cr: '700.3a',
+    seats: [{ bf: ['Mountain'], hand: ['Lightning Bolt'], libraryTop: ['Grizzly Bears', 'Hill Giant', 'Shock', 'Divination'] }, {}],
+    scripts: bolt([
+      { op: 'separate-piles', from: { zone: 'library', who: 'you', top: 4 }, piles: 2, separator: 'you', reveal: true },
+      { op: 'choose-pile', chooser: 'you' },
+      { op: 'chosen-fate', chosen: { how: 'move', to: 'hand' }, other: { how: 'move', to: 'graveyard' } },
+    ]),
+    // a 4/0 split: unreachable while the sizes were fixed to floor(4 / 2) = 2
+    script: [{ answer: '4 cards' }, { cast: 'Lightning Bolt' }, { resolve: true }],
+    expect: [
+      { log: 'pile 2 \\(empty\\)' },
+      { zone: ['Grizzly Bears', 'hand'] }, { zone: ['Hill Giant', 'hand'] },
+      { zone: ['Shock', 'hand'] }, { zone: ['Divination', 'hand'] }, { unsimulated: 0 },
+    ],
+  },
+  {
+    // review fix 3: the empty-pool early returns used to leave the PREVIOUS resolution's record in place, so a second
+    // trigger / activation with nothing to separate re-applied the first one's split (CR 400.7 — and the Island has
+    // been played since, so the stale `chosen-fate` dragged it off the battlefield).
+    name: 'a second separate-piles with an empty pool forgets the first one, it does not re-apply it', cr: '400.7',
+    seats: [{ bf: ['Grizzly Bears', 'Mountain'], graveyard: ['Island', 'Hill Giant'] }, {}],
+    scripts: bears([
+      { op: 'separate-piles', from: { zone: 'graveyard', who: 'you' }, piles: 2, separator: 'you' },
+      { op: 'choose-pile', chooser: 'you' },
+      { op: 'chosen-fate', chosen: { how: 'move', to: 'hand' }, other: { how: 'move', to: 'exile' } },
+    ]),
+    script: [
+      { activate: 'Grizzly Bears' }, { resolve: true },   // Island -> hand, Hill Giant -> exile; the graveyard is now empty
+      { playLand: 'Island' },
+      { activate: 'Grizzly Bears' }, { resolve: true },   // nothing to separate: the record is dropped, not replayed
+    ],
+    expect: [{ zone: ['Island', 'battlefield'] }, { zone: ['Hill Giant', 'exile'] }, { unsimulated: 0 }],
+  },
+  {
+    // review fix 4: 15 real cards (Bringer of the Last Gift, Gifts Ungiven, Epiphany at the Drownyard, ...) parse a
+    // `chosen-fate` / `choose-pile` whose antecedent sentence is still `unknown`, because a parser rule sees one
+    // sentence at a time. The claimed line must stay visible to the fidelity metric, not resolve as a silent no-op.
+    name: 'chosen-fate with no earlier choice reports unsimulated text instead of doing nothing', cr: '608.2f',
+    seats: [{ bf: ['Mountain', 'Grizzly Bears', 'Hill Giant'], hand: ['Lightning Bolt'] }, {}],
+    scripts: bolt([{ op: 'chosen-fate', other: { how: 'sacrifice' }, among: { types: ['Creature'] } }]),
+    script: [{ cast: 'Lightning Bolt' }, { resolve: true }],
+    expect: [
+      { zone: ['Grizzly Bears', 'battlefield'] }, { zone: ['Hill Giant', 'battlefield'] },
+      { unsimulated: 1 }, { log: 'unsimulated text' },
+    ],
+  },
+  {
+    name: 'choose-pile with no earlier separate-piles reports unsimulated text', cr: '700.3',
+    seats: [{ bf: ['Mountain'], hand: ['Lightning Bolt'] }, {}],
+    scripts: bolt([{ op: 'choose-pile', chooser: 'an-opponent' }, { op: 'chosen-fate', chosen: { how: 'move', to: 'hand' } }]),
+    script: [{ cast: 'Lightning Bolt' }, { resolve: true }],
+    // both sentences are inert without the pile-making one, and both say so
+    expect: [{ unsimulated: 2 }, { log: 'chooses one of those piles' }],
+  },
+  {
+    name: 'a separate-piles that finds nothing makes choose-pile and chosen-fate real no-ops, not unsimulated text', cr: '700.3',
+    seats: [{ bf: ['Mountain'], hand: ['Lightning Bolt'] }, {}],
+    scripts: bolt([
+      { op: 'separate-piles', from: { zone: 'graveyard', who: 'you' }, piles: 2, separator: 'you' },
+      { op: 'choose-pile', chooser: 'you' },
+      { op: 'chosen-fate', chosen: { how: 'move', to: 'hand' }, other: { how: 'move', to: 'exile' } },
+    ]),
+    script: [{ cast: 'Lightning Bolt' }, { resolve: true }],
+    expect: [{ unsimulated: 0 }, { handCount: [0, 0] }],
   },
 
   // ------------------------------------------------------------------ choose-objects
