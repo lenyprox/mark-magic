@@ -17,10 +17,12 @@ import type {
 export interface RegistryEntry { file: string; mod: FamilyModule }
 
 import family_cost_alter from './cost-alter.js';
+import family_keyword_action from './keyword-action.js';
 import family_replacement from './replacement.js';
 
 const GENERATED: RegistryEntry[] = [
   { file: "cost-alter.ts", mod: family_cost_alter },
+  { file: "keyword-action.ts", mod: family_keyword_action },
   { file: "replacement.ts", mod: family_replacement },
 ];
 
