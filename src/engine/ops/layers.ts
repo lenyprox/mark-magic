@@ -14,7 +14,12 @@
 //   o.ext.layersBase   LayerEntry    a foreign `o.animated` (the core `animate` / `earthbend`) folded in as layer 0
 //   o.ext.layersProj   string        the JSON of the overlay this family last wrote, so a foreign write is detectable
 //   o.ext.chosenLandType string      the basic land type chosen for this permanent (`o.chosen` has no slot for one)
+//   o.ext.layersTs     number        the source's CR 613.7 timestamp: when a `type-change` static's source entered
+//   s.ext.layersClock  number        the game's timestamp counter, bumped by every layer this family creates
 //   s.ext.layersActive true          some permanent carries a one-shot layer (the cheap gate for the projection pass)
+//   s.ext.layersOn     true          some permanent currently CARRIES a projection — the gate that lets the pass take
+//                                    one back when the last source has gone (CR 611.2, 613.6); without it a static's
+//                                    overlay would be welded on forever once `layerSources` went empty
 //
 // The one-shot half is projected the instant the `become` op applies, so the effects after it in the same resolution
 // already see the new types. The static half (`type-change`) is a *continuous* effect, recomputed by the projection
@@ -33,9 +38,13 @@
 //   * REMOVAL. `types()` and `subtypes()` UNION `o.animated` with the printed values, so "loses all other card types"
 //     and CR 305.7's "the land loses its old land types" are not expressible; a `become` only ever adds. The core
 //     patch that would fix it is in this wave's `coreChangeNeeded`.
-//   * No intrinsic mana ability comes with a granted basic land type (CR 305.6): a Forest that Urborg makes a Swamp
-//     matches "Swamp" and turns on swampwalk, but still taps for {G} only.
-//   * Timestamps are approximated by application order within one pass, as everywhere else in the engine.
+//   * BASIC LAND TYPES. Neither CR 305.6 (the intrinsic mana ability that comes with the type) nor CR 305.7 (the
+//     land loses its old land types) is expressible here, so the parser rules DECLINE every printed wording that
+//     grants one (src/cards/rules/layers.ts:isBasicLandLayer). A script may still write one — the layer is real, it
+//     just does not carry the mana ability — which is why the `chosen-basic-land-type` slot below still exists.
+//   * Timestamps (CR 613.7) are a per-game counter: a static's source is stamped when the pass first sees it (which
+//     is the sba right after it entered) and a one-shot when it is applied, so a one-shot resolving now is later than
+//     a static already on the battlefield. Two statics whose sources entered in the same pass keep battlefield order.
 import type { CardType, Color, Condition, Filter, Ref, StaticEffect } from '../../cards/types.js';
 import type { Amount, FamilyModule, GameObject, GameState, Json, Keyword, OpCtx, PlayerId, TargetSpec } from './types.js';
 import { extDel, extGet, extSet, type ExtHost } from './ext.js';
@@ -94,6 +103,7 @@ export type LayerEntry = {
   types?: CardType[]; subtypes?: string[]; colors?: Color[];
   power?: number; toughness?: number; keywords?: Keyword[];
   /** Changeling. Materialised into `subtypes` only at projection time. */ every?: true;
+  /** CR 613.7 timestamp: when this layer was created (a one-shot) or when its source entered (a static). */ ts?: number;
   /** The turn an `eot` layer ends with (CR 514.2); absent for an indefinite one. */ untilTurn?: number;
 };
 type Overlay = NonNullable<GameObject['animated']>;
@@ -103,6 +113,20 @@ const getLayers = (o: ExtHost): LayerEntry[] => (extGet<Json[]>(o, 'layers') as 
 const putLayers = (o: ExtHost, list: LayerEntry[]): void => { extSet(o, 'layers', list as unknown as Json[]); };
 const getBase = (o: ExtHost): LayerEntry | undefined => extGet<Json>(o, 'layersBase') as LayerEntry | undefined;
 
+// ---- CR 613.7 timestamps. One counter per game (`s.ext.layersClock`), so a clone keeps its own monotone sequence and
+// `serialize` round-trips it. A one-shot is stamped when it is applied; a static's source is stamped the first time
+// the projection pass sees it — the sba that runs immediately after it entered the battlefield, and therefore before
+// any later `become` can be applied. That makes "the effect that happened last wins layer 5" true in both directions,
+// where the old `[...own, ...stat]` concatenation made a static win unconditionally.
+function nextTs(s: GameState): number { const n = (extGet<number>(s, 'layersClock') ?? 0) + 1; extSet(s, 'layersClock', n); return n; }
+function srcTs(s: GameState, src: GameObject): number { const t = extGet<number>(src, 'layersTs'); if (t !== undefined) return t; const n = nextTs(s); extSet(src, 'layersTs', n); return n; }
+/** Merge one permanent's own layers with the statics that reach it, oldest timestamp first (a stable sort). */
+function merge(own: LayerEntry[], stat: LayerEntry[]): LayerEntry[] {
+  if (own.length === 0) return stat;
+  if (stat.length === 0) return own;
+  return [...own, ...stat].sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
+}
+
 /** Every creature type the pool prints (CR 702.73a). Built once, on the first changeling the engine ever sees. */
 let EVERY_CREATURE_TYPE: string[] | null = null;
 function everyCreatureType(): string[] {
@@ -111,15 +135,28 @@ function everyCreatureType(): string[] {
 }
 
 const numOr0 = (v: string | null): number => { if (v == null) return 0; const n = Number(v); return Number.isFinite(n) ? n : 0; };
-/** The printed base P/T a layer that sets no P/T must preserve (what `baseP` / `baseT` in characteristics.ts return). */
-function printedPT(o: GameObject): { power: number; toughness: number } {
+/**
+ * The printed base P/T a layer that sets no P/T must preserve — exactly what `baseP` / `baseT` in characteristics.ts
+ * return when `o.animated` is absent.
+ *
+ * A star/star TOKEN is the trap: its base P/T is `token.power/toughness` PLUS `dynamicPT` evaluated now (Urza's Saga's
+ * Construct is `0/0 + artifacts you control`), and `baseP` adds that term only on the branch where `o.animated` is
+ * absent. So writing the printed 0/0 into the overlay — which a colour-only or type-only layer would otherwise do —
+ * makes the Construct a 0/0 and CR 704.5f puts it in the graveyard. The dynamic term is therefore re-evaluated on
+ * every projection; the pass runs at every sba and every battlefield generation, which is every moment the count it
+ * reads can have moved.
+ */
+function printedPT(s: GameState, o: GameObject): { power: number; toughness: number } {
   if (o.faceDown) return { power: 2, toughness: 2 };                              // CR 708.2
-  if (o.token) return { power: o.token.power, toughness: o.token.toughness };
+  if (o.token) {
+    const dyn = o.token.dynamicPT === undefined ? 0 : chars.evalAmount(s, o.token.dynamicPT, o.controller, 0, o);
+    return { power: o.token.power + dyn, toughness: o.token.toughness + dyn };
+  }
   const d = chars.defOf(o); return { power: numOr0(d.power), toughness: numOr0(d.toughness) };
 }
 
 /** Fold the layers into one overlay in timestamp order, or null when they say nothing. */
-function fold(o: GameObject, entries: LayerEntry[]): Overlay | null {
+function fold(s: GameState, o: GameObject, entries: LayerEntry[]): Overlay | null {
   if (entries.length === 0) return null;
   const types: CardType[] = []; const subs: string[] = []; const kws: Keyword[] = [];
   let colors: Color[] = []; let pt: { power: number; toughness: number } | null = null;
@@ -135,7 +172,7 @@ function fold(o: GameObject, entries: LayerEntry[]): Overlay | null {
   }
   if (!said) return null;
   if (every) for (const t of everyCreatureType()) if (!subs.includes(t)) subs.push(t);
-  const base = pt ?? printedPT(o);
+  const base = pt ?? printedPT(s, o);
   return { power: base.power, toughness: base.toughness, colors, types, subtypes: subs, keywords: kws, ...(until !== undefined ? { untilTurn: until } : {}) };
 }
 
@@ -145,12 +182,12 @@ function fold(o: GameObject, entries: LayerEntry[]): Overlay | null {
  * The slot is shared with the core's `animate` / `earthbend`, so a value this family did not write (its JSON does not
  * match the fingerprint) is captured as `layersBase` and folded in as the earliest layer instead of being clobbered.
  */
-function projectOne(o: GameObject, entries: LayerEntry[]): boolean {
+function projectOne(s: GameState, o: GameObject, entries: LayerEntry[]): boolean {
   const proj = extGet<string>(o, 'layersProj');
   const cur = o.animated;
   if (cur !== undefined && JSON.stringify(cur) !== proj) extSet(o, 'layersBase', cur as unknown as Json);
   const b = getBase(o);
-  const next = fold(o, b === undefined ? entries : [b, ...entries]);
+  const next = fold(s, o, b === undefined ? entries : [b, ...entries]);
   const nextStr = next === null ? '' : JSON.stringify(next);
   if (nextStr === (proj ?? '') && (next === null) === (o.animated === undefined)) return false;
   if (next === null) { delete o.animated; extDel(o, 'layersProj'); } else { o.animated = next; extSet(o, 'layersProj', nextStr); }
@@ -211,8 +248,8 @@ function applies(s: GameState, e: TypeChangeStatic, src: GameObject, o: GameObje
 }
 
 /** The layer one `type-change` static contributes, with its `chosen-…` slots resolved against the source. */
-function staticEntry(e: TypeChangeStatic, src: GameObject): LayerEntry | null {
-  const out: LayerEntry = {};
+function staticEntry(s: GameState, e: TypeChangeStatic, src: GameObject): LayerEntry | null {
+  const out: LayerEntry = { ts: srcTs(s, src) };
   if (e.types && e.types.length) out.types = e.types;
   if (e.subtypes === 'chosen-creature-type') { const t = src.chosen?.creatureType; if (t !== undefined) out.subtypes = [t]; }
   else if (e.subtypes === 'chosen-basic-land-type') { const t = chosenLandType(src); if (t !== undefined) out.subtypes = [t]; }
@@ -231,17 +268,15 @@ function staticEntriesFor(s: GameState, o: GameObject, srcs: GameObject[]): Laye
     if (e.kind !== 'type-change') continue;
     const tc = e as unknown as TypeChangeStatic;
     if (!applies(s, tc, src, o)) continue;
-    const entry = staticEntry(tc, src);
+    const entry = staticEntry(s, tc, src);
     if (entry !== null) { if (out === NO_ENTRIES) out = []; out.push(entry); }
   }
   return out;
 }
 
-/** All the layers on one permanent, oldest first: its own one-shots, then the statics that reach it. */
-const layersOf = (s: GameState, o: GameObject, srcs: GameObject[]): LayerEntry[] => {
-  const own = getLayers(o); const stat = srcs.length === 0 ? NO_ENTRIES : staticEntriesFor(s, o, srcs);
-  return own.length === 0 ? stat : stat.length === 0 ? own : [...own, ...stat];
-};
+/** All the layers on one permanent in CR 613.7 timestamp order: its one-shots and the statics that reach it, merged. */
+const layersOf = (s: GameState, o: GameObject, srcs: GameObject[]): LayerEntry[] =>
+  merge(getLayers(o), srcs.length === 0 ? NO_ENTRIES : staticEntriesFor(s, o, srcs));
 
 /**
  * The last state this pass ran clean on. `pass` bumps `s.version` whenever it moves anything, so the same state at
@@ -250,20 +285,31 @@ const layersOf = (s: GameState, o: GameObject, srcs: GameObject[]): LayerEntry[]
  */
 let settled: { s: unknown; gen: number; version: number } | null = null;
 
-/** The continuous-effects pass: reproject every permanent a layer touches. True when something moved. */
+/**
+ * The continuous-effects pass: reproject every permanent a layer touches. True when something moved.
+ *
+ * THE THIRD GATE. A `type-change` static's continuous effect exists only while its source is on the battlefield (CR
+ * 611.2b, 613.6): when the last source leaves, the overlay it wrote has to be TAKEN BACK, and this loop is the only
+ * code that can do it. Gating the loop on "a live source or a one-shot exists" therefore skipped exactly the pass
+ * that mattered — Sea's Claim in the graveyard left the Forest an Island for the rest of the game. So the gate also
+ * asks whether anything is currently projected (`s.ext.layersOn`, maintained by this loop): when it is, the pass runs
+ * even with no sources at all, clears what it finds and drops the flag, after which the cheap short-circuit is back.
+ */
 function pass(s: GameState): boolean {
   const gen = s.bfGen ?? 0;
   if (settled !== null && settled.s === s && settled.gen === gen && settled.version === s.version) return false;
   const srcs = layerSources(s);
-  if (srcs.length === 0 && extGet<boolean>(s, 'layersActive') === undefined) { settled = { s, gen, version: s.version }; return false; }
-  let changed = false; let anyOneShot = false;
+  if (srcs.length === 0 && extGet<boolean>(s, 'layersActive') === undefined && extGet<boolean>(s, 'layersOn') === undefined) { settled = { s, gen, version: s.version }; return false; }
+  let changed = false; let anyOneShot = false; let anyProj = false;
   for (const o of chars.allPermanents(s)) {
     const own = getLayers(o); if (own.length !== 0) anyOneShot = true;
     const stat = srcs.length === 0 ? NO_ENTRIES : staticEntriesFor(s, o, srcs);
     if (own.length === 0 && stat.length === 0 && o.animated === undefined && extGet<string>(o, 'layersProj') === undefined && getBase(o) === undefined) continue;
-    if (projectOne(o, own.length === 0 ? stat : stat.length === 0 ? own : [...own, ...stat])) changed = true;
+    if (projectOne(s, o, merge(own, stat))) changed = true;
+    if (extGet<string>(o, 'layersProj') !== undefined) anyProj = true;
   }
   if (!anyOneShot) extDel(s, 'layersActive');
+  if (anyProj) extSet(s, 'layersOn', true); else extDel(s, 'layersOn');
   if (changed) s.version++;
   settled = { s, gen: s.bfGen ?? 0, version: s.version };
   return changed;
@@ -349,9 +395,11 @@ const LAYERS: FamilyModule = {
       if (e.power !== undefined && e.toughness !== undefined) { entry.power = c.amt(e.power); entry.toughness = c.amt(e.toughness); }
       if (entry.types === undefined && entry.subtypes === undefined && entry.colors === undefined && entry.keywords === undefined && entry.every === undefined && entry.power === undefined) return;
       if (e.duration === 'eot') entry.untilTurn = c.s.turn;
+      entry.ts = nextTs(c.s);                                                       // CR 613.7: it happens now, so it is the latest timestamp
       const srcs = layerSources(c.s);
-      for (const o of list) { putLayers(o, [...getLayers(o), entry]); projectOne(o, layersOf(c.s, o, srcs)); }
+      for (const o of list) { putLayers(o, [...getLayers(o), entry]); projectOne(c.s, o, layersOf(c.s, o, srcs)); }
       extSet(c.s, 'layersActive', true);
+      extSet(c.s, 'layersOn', true);
       c.s.version++;
       const what = describe(e);
       c.g.note(`${list.map(o => chars.name(o)).join(', ')} become${list.length === 1 ? 's' : ''} ${/^[aeiou]/i.test(what) ? 'an' : 'a'} ${what}${e.duration === 'eot' ? ' until end of turn' : ''}.`);
@@ -382,7 +430,7 @@ const LAYERS: FamilyModule = {
       const o = list.find(x => x.zone === 'battlefield'); if (o === undefined) return;
       const life = c.s.players[who].life; const tough = chars.toughness(c.s, o);
       const setPT = extGet<Json>(o, 'setPT') as { power: number; toughness: number } | undefined;
-      extSet(o, 'setPT', { power: setPT?.power ?? printedPT(o).power, toughness: life, base: true } as unknown as Json);
+      extSet(o, 'setPT', { power: setPT?.power ?? printedPT(c.s, o).power, toughness: life, base: true } as unknown as Json);
       if (tough > life) c.g.gainLife(who, tough - life); else if (life > tough) c.g.loseLife(who, life - tough, 'effect');
       c.s.version++;
       c.g.note(`${c.g.pname(who)}'s life total and ${chars.name(o)}'s toughness are exchanged (${life} / ${tough}).`);
@@ -435,7 +483,7 @@ const LAYERS: FamilyModule = {
   },
 
   // CR 400.7: a permanent that leaves is a new object — every layer on it ends (`moveTo` already dropped `animated`).
-  leave: (_g, o) => { extDel(o, 'layers'); extDel(o, 'layersProj'); extDel(o, 'layersBase'); extDel(o, 'chosenLandType'); },
+  leave: (_g, o) => { extDel(o, 'layers'); extDel(o, 'layersProj'); extDel(o, 'layersBase'); extDel(o, 'chosenLandType'); extDel(o, 'layersTs'); },
 
   render: {
     become: (e: BecomeEffect) => {

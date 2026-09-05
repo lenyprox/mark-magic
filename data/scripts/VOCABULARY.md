@@ -1242,20 +1242,27 @@ its layers as data and *projects* them into that slot:
 | `o.ext.layersBase` | a foreign `o.animated` (the core `animate` / `earthbend`) folded in as layer 0 |
 | `o.ext.layersProj` | the JSON of the overlay this family last wrote, so a foreign write is detectable |
 | `o.ext.chosenLandType` | the basic land type chosen for this permanent (`o.chosen` has no slot for one) |
+| `o.ext.layersTs` | a static source's CR 613.7 timestamp: when the pass first saw it, i.e. when it entered |
+| `s.ext.layersClock` | the game's timestamp counter, bumped by every layer this family creates |
 | `s.ext.layersActive` | some permanent carries a one-shot layer — the cheap gate for the projection pass |
+| `s.ext.layersOn` | some permanent currently **carries** a projection — the gate that lets the pass take one back |
 
 The **one-shot** half is projected the instant the `become` op applies, so the effects after it in the same
 resolution already see the new types. The **static** half (`type-change`) is a continuous effect, recomputed by a
-projection pass that runs at the three points its inputs can have changed since anything last looked:
+projection pass that runs at the two points its inputs can have changed since anything last looked:
 
-* the `sba` hook — `checkSBA` runs after every resolution, every zone change and every priority round (CR 704.3);
-* the `legalActions` hook — before a player is offered anything, so a permanent that just became an artifact is a
-  legal target for the Shatter in their hand;
+* the `sba` hook — `checkSBA` runs after every resolution, every zone change and every priority round (CR 704.3),
+  which is also where a permanent that just became an artifact becomes a legal target for the Shatter in hand;
 * the `canAttack` hook — the first question combat asks, so blockers are declared against an up-to-date
   battlefield (landwalk reads the **defender's** land subtypes, and does so before any family `canBlock` hook).
 
-All three are gated on "some permanent carries a one-shot layer" or "some permanent has a `type-change` static" (a
-scan cached per battlefield generation), so a game with neither pays one property load per call.
+Both are gated on three cheap tests, and the third is not optional: "a live `type-change` source" (a scan cached per
+battlefield generation), "some permanent carries a one-shot layer" (`s.ext.layersActive`) **or** "something is
+currently projected" (`s.ext.layersOn`). A static's continuous effect exists only while its source is on the
+battlefield (CR 611.2b) and ends the moment the source stops existing (CR 613.6), and this loop is the only code that
+can take a projection back — so gating it on live sources alone welded every overlay on for the rest of the game
+the instant the last source was destroyed. With `layersOn` the pass runs once more with no sources, clears what it
+finds and drops the flag, after which the cheap short-circuit is back. A game with no layers still pays one load.
 
 ### What this model does not do
 
@@ -1263,17 +1270,34 @@ These are the honest limits; the parser rules **decline** every wording that nee
 
 1. **No removal.** `types()` and `subtypes()` UNION `o.animated` with the printed values, so
    "becomes an artifact **and loses all other card types**" and CR 305.7's "the land loses its old land types"
-   cannot be expressed: a layer only ever adds. Urborg makes a Forest a `Forest Swamp`, not a `Swamp`. In practice
-   the difference shows only where a card asks whether the permanent is *still* its old type.
-2. **No intrinsic mana ability with a granted basic land type** (CR 305.6). A land Urborg makes a Swamp matches the
-   "Swamp" filter and turns swampwalk on, but still taps for what it printed.
+   cannot be expressed: a layer only ever adds. `REMOVES` in the parser rules declines every wording that says so.
+2. **No basic land type from the parser at all** (CR 305.6 + CR 305.7). A layer that grants `Plains` / `Island` /
+   `Swamp` / `Mountain` / `Forest` carries two rules with no shape here: the intrinsic `{T}: Add {B}` that comes with
+   the type (parse.ts builds that ability once, from the **printed** subtypes) and, unless the sentence says "in
+   addition", the loss of the land's old land types and their mana abilities. Claiming the wording would mark Urborg,
+   Tomb of Yawgmoth, Blanket of Night, Evil Presence, Spreading Seas, Sea's Claim, Lingering Mirage, Tainted Well,
+   Convincing Mirage, Phantasmal Terrain, Multiversal Passage, Thran Portal, Tidal Warrior and the rest `fullyParsed`
+   while every one of them is a no-op except for switching landwalk on — so a single choke point
+   (`grantsBasicLandType`, read by `typeChange()` and `becomeRule()` in `src/cards/rules/layers.ts`) declines them,
+   and the cards keep their line in `unparsed`. The **engine** still applies such a layer for a hand-written script:
+   the layer is real, it just does not bring the mana ability, which is why `subtypes: 'chosen-basic-land-type'`
+   still exists. Scenario: *the printed basic-land-type wordings are DECLINED, so Urborg does nothing at all*.
 3. **No keyword removal from a static** (CR 613.1f layer 6 in the negative): "creatures your opponents control lose
    deathtouch and can't have or gain deathtouch" has no shape here — `Mods.kw` only grows.
-4. **Timestamps are application order** within one projection pass, as everywhere else in this engine (CR 613.7 is
-   approximated, not implemented).
+4. **Timestamps** (CR 613.7) are a per-game counter, `s.ext.layersClock`. A one-shot is stamped as it is applied; a
+   `type-change` source is stamped the first time the projection pass sees it — the sba immediately after it
+   entered the battlefield, and so before any later `become` can be applied. Layers are folded in stamp order, so a
+   `become` resolving now really does beat a static already in play (scenario: *CR 613.7 timestamps*). Still
+   approximated: two sources that entered between the same pair of passes keep battlefield order rather than their
+   true relative timestamps, and a layer's timestamp does not move when its permanent changes controller (CR 613.7c).
 5. **`everyCreatureType` is materialised** as the full creature-type list of the pool (~280 subtypes) in
    `o.animated.subtypes`. That is CR-correct for every filter, and costs a set-union per `subtypes()` read of that
    one permanent.
+6. **A dynamic base P/T is re-evaluated on every projection.** A token whose base P/T is "0/0 plus a count"
+   (`token.dynamicPT`, Urza's Saga's Construct) has that count folded into the overlay, because `baseP` / `baseT`
+   add it only on the branch where nothing is projected — writing the printed 0/0 instead would kill the token
+   under any layer at all (CR 704.5f). The folded value is a snapshot refreshed by every pass, and the pass runs
+   whenever the count it reads can have moved.
 
 ---
 
@@ -1306,6 +1330,10 @@ These are the honest limits; the parser rules **decline** every wording that nee
 ```json
 { "op": "become", "target": { "kind": "land" }, "subtypes": ["Swamp"], "duration": "eot" }
 ```
+
+That first example is a **script-only** shape: the engine applies it, but no parser rule will ever produce it, because
+a basic land type on its own is not what the printed cards mean (limit 2 below). Write it only where the card's whole
+function really is "this land also matches Swamp" — landwalk, a `Swamp` filter, domain.
 ```json
 { "op": "become", "target": "self", "types": ["Artifact", "Creature"], "subtypes": ["Golem"], "power": 4, "toughness": 4, "keywords": ["haste"], "duration": "eot" }
 ```
@@ -1363,7 +1391,10 @@ leaves the battlefield.
 
 * `self` is the source, `enchanted` / `equipped` the permanent it is attached to, `you-control` / `all` every
   permanent the `filter` matches (with `you-control` also requiring the same controller).
-* `chosen-creature-type` / `chosen-basic-land-type` / `'chosen'` read the choice recorded on the **source** (see
+* `chosen-creature-type` / `chosen-basic-land-type` / `'chosen'` read the choice recorded on the **source** — and
+  which of the two subtype slots a wording means is decided by the noun it names ("Enchanted **land** is the chosen
+  type" is a basic land type, "Equipped **creature** is the chosen type" is a creature type), because the two are
+  stored in different places (`o.chosen.creatureType` and `o.ext.chosenLandType`) (see
   `choose-type` above, and the core `{ kind: 'choose', what: 'creature-type' | 'color' }` as-enters); until a choice
   is made the static contributes nothing.
 * `condition` is re-evaluated on every projection pass, so an "as long as" layer turns itself on and off.
@@ -1417,19 +1448,29 @@ type, written to `o.ext.chosenLandType` for a `subtypes: 'chosen-basic-land-type
 | "It's still a land." | an empty `scoped` — under an additive layer model the land never stopped being one |
 | "Choose a creature type." / "Choose a color." / "Choose a basic land type." | `choose-type` |
 | "Exchange target opponent's life total with ~'s toughness." | `exchange-life-toughness` |
-| "Each land is a Swamp in addition to its other land types." | `type-change`, `scope: 'all'` |
-| "Enchanted land is a Swamp." / "Enchanted creature is a Demon in addition to its other types." | `type-change`, `scope: 'enchanted'` |
+| "Each creature is an artifact in addition to its other types." | `type-change`, `scope: 'all'` |
+| "Enchanted creature is a Demon in addition to its other types." | `type-change`, `scope: 'enchanted'` |
 | "Enchanted creature gets +2/+2, has flying, and is a Demon in addition to its other types." | an `aura` static **and** a `type-change` |
 | "Enchanted land is the chosen color." / "~ is the chosen type [in addition to its other types]." | `type-change` with `colors: 'chosen'` / `subtypes: 'chosen-…'` |
 | "~ is every creature type." | `type-change` with `everyCreatureType` |
+
+**Declined on purpose** (they reach `unknown`, and the card is not `fullyParsed`):
+
+| oracle text | why |
+|---|---|
+| "Each land is a Swamp in addition to its other land types." (Urborg, Blanket of Night) | CR 305.6: no intrinsic mana ability comes with the type, which is the whole card |
+| "Enchanted land is a Swamp / an Island." (Evil Presence, Spreading Seas, Sea's Claim, Lingering Mirage, Tainted Well) | CR 305.6 **and** CR 305.7: the land also keeps its old types and its old `{T}: Add {G}` |
+| "Target land becomes an Island until end of turn." (Tidal Warrior, Dreamwinder) | the same, for the one-shot half |
+| "Enchanted land is the chosen type." / "~ is the chosen type." on a land (Convincing Mirage, Phantasmal Terrain, Multiversal Passage, Thran Portal) | the same; the noun in the line is what says the choice is a **basic land type**, not a creature type |
+| anything matching `REMOVES` — "loses all abilities", "loses all other card types", "is no longer …" | limit 1 above (Turn to Frog, Kenrith's Transformation, Song of the Dryads) |
 
 Two things about those rules are worth knowing before editing them:
 
 * **The same wordings are registered twice.** `parseStatic`'s built-in Aura branch matches "Enchanted <type> …" and
   returns `null` from *inside* that branch, above the registry hook at the end of the function — so on an Aura card a
-  static rule is never offered "Enchanted land is a Swamp." The wordings are therefore also a **line** rule, which
-  parse.ts consults at its last stop before `unknown(def, line)`. The static entries still fire on a non-Aura source
-  such as Urborg.
+  static rule is never offered "Enchanted creature is a Demon." The wordings are therefore also a **line** rule,
+  which parse.ts consults at its last stop before `unknown(def, line)`. The static entries still fire on a non-Aura
+  source such as Mistform Ultimus.
 * **An Aura's "Enchant <type>" line is not what tells the engine what it enchants**: `legal.ts` reads the `enchant`
   spec off the card's `aura` static and defaults to "creature". The built-in template writes that static as a side
   effect of parsing "Enchanted creature gets +1/+1"; a card whose only Aura line is one of this family's would

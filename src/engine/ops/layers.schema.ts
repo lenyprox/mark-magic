@@ -16,14 +16,14 @@ import { AmountSchema, CardTypeSchema, ColorSchema, ConditionSchema, FilterSchem
  * conditions / statics / asEnters, `on` for triggers — and `amounts` / `targetKinds` are plain string literals.
  */
 export interface FamilySchema {
-  effects?: z.ZodType[];
-  conditions?: z.ZodType[];
-  triggers?: z.ZodType[];
-  statics?: z.ZodType[];
-  asEnters?: z.ZodType[];
+  effects?: readonly z.ZodType[];
+  conditions?: readonly z.ZodType[];
+  triggers?: readonly z.ZodType[];
+  statics?: readonly z.ZodType[];
+  asEnters?: readonly z.ZodType[];
   amounts?: readonly string[];
   targetKinds?: readonly string[];
-  costParts?: Record<string, z.ZodType>;
+  costParts?: Readonly<Record<string, z.ZodType>>;
 }
 
 /** Where a one-shot layer lands: a target spec, a composition-core `Ref`, or one of the group words. */
@@ -88,11 +88,18 @@ export const ChooseTypeAsEntersSchema = z.strictObject({
   what: z.literal('basic-land-type'),
 });
 
-export const schema: FamilySchema = {
+/**
+ * The family bag. `as const satisfies` rather than a `: FamilySchema` annotation, and the difference is load-bearing:
+ * an annotation WIDENS every entry to `z.ZodType`, whose `z.infer` is `unknown`, and the composer folds these into
+ * `EFFECT_VARIANTS` & co. — where test/schema-types.test.ts pins `z.infer<typeof EffectSchema>` to `Effect` with an
+ * identity relation. Widened entries would collapse that union to `unknown` and the pin would still fail. `satisfies`
+ * checks the same shape and keeps the tuple element types, so the folded union infers exactly the merged AST.
+ */
+export const schema = {
   effects: [BecomeSchema, ChooseTypeEffectSchema, ExchangeLifeToughnessSchema],
   conditions: [AttachedIsConditionSchema],
   statics: [TypeChangeStaticSchema],
   asEnters: [ChooseTypeAsEntersSchema],
-};
+} as const satisfies FamilySchema;
 
 export default schema;

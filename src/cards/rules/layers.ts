@@ -12,6 +12,14 @@
 //     card types", "loses all creature types" — is declined outright rather than parsed into something that keeps
 //     them. Every word of a type/colour phrase must be a known type word, a known colour word or a real subtype;
 //     one unknown word makes the whole rule decline.
+//   * BASIC LAND TYPES are declined wholesale, whatever the wording (`typeChange` below is the single choke point).
+//     A layer that grants one carries two rules this engine has no term for: CR 305.6, the intrinsic "{T}: Add {B}"
+//     that comes with the type (parse.ts builds that ability from the PRINTED subtypes, once, at parse time), and CR
+//     305.7, "the land loses its old land types" unless the sentence says "in addition". Claiming them would mark
+//     Evil Presence, Spreading Seas, Sea's Claim, Urborg and Blanket of Night `fullyParsed` while every one of them
+//     is a no-op except for switching landwalk on — the exact half-claim the first discipline forbids. `Words` still
+//     RECOGNISES the type words, so the line is declined rather than misparsed, and the engine's `type-change` still
+//     accepts a basic land type from a hand-written script (which is honest: the script author sees the limit).
 //   * a rule returns one effect (or one static): where a sentence is really a sequence, the composition core's
 //     `scoped` container carries the parts.
 //
@@ -82,7 +90,16 @@ const stripAddition = (l: string): [string, boolean] => { const out = l.replace(
 // Static wordings (shared by the `statics` entries and the `lines` fallback — see the header)
 // ---------------------------------------------------------------------------------------------------------------
 
-const typeChange = (fields: Record<string, unknown>): StaticEffect => ({ kind: 'type-change', ...fields } as unknown as StaticEffect);
+/** The five basic land types (CR 305.6). A layer that grants one is declined — see the second discipline above. */
+const BASIC_LAND_TYPES = new Set(['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']);
+/** Does this layer's subtype field name a basic land type (literally, or through the `chosen-…` slot)? */
+function grantsBasicLandType(subtypes: unknown): boolean {
+  if (typeof subtypes === 'string') return subtypes === 'chosen-basic-land-type';
+  return Array.isArray(subtypes) && subtypes.some(t => typeof t === 'string' && BASIC_LAND_TYPES.has(t));
+}
+/** Build a `type-change`, or decline the whole wording when it grants a basic land type (CR 305.6 / 305.7). */
+const typeChange = (fields: Record<string, unknown>): StaticEffect | null =>
+  (grantsBasicLandType(fields.subtypes) ? null : { kind: 'type-change', ...fields } as unknown as StaticEffect);
 
 /** "each land" / "each creature you control" → the scope and filter of a `type-change`. */
 function scopeOf(subject: string): { scope: 'all' | 'you-control'; filter?: { types: CardType[] } } | null {
@@ -114,12 +131,21 @@ function selfIsChosen(l0: string, card: StaticCard): StaticEffect | null {
   return typeChange({ scope: 'self', subtypes: card.types.includes('Land') ? 'chosen-basic-land-type' : 'chosen-creature-type' });
 }
 
-/** "Enchanted land is the chosen color." / "Equipped creature is the chosen type." */
+/**
+ * "Enchanted land is the chosen color." / "Equipped creature is the chosen type."
+ *
+ * The NOUN decides which choice slot "the chosen type" reads, exactly as `selfIsChosen` reads `card.types`: an
+ * "Enchanted land …" line pairs with "As ~ enters, choose a basic land type" (Convincing Mirage, Phantasmal Terrain)
+ * and must not read `chosen.creatureType`, a slot nothing on those cards ever writes. Both of those cards are then
+ * declined by `typeChange` (a basic land type, CR 305.6 / 305.7) — but silently reading an empty slot was the bug,
+ * and the branch is what keeps "Equipped creature is the chosen type" pointed at the creature-type slot.
+ */
 function attachedIsChosen(l0: string): StaticEffect | null {
-  const m = stripAddition(l0)[0].match(/^(enchanted|equipped) [a-z]+ is the chosen (type|color)$/i);
+  const m = stripAddition(l0)[0].match(/^(enchanted|equipped) ([a-z]+) is the chosen (type|color)$/i);
   if (m === null) return null;
   const scope = m[1].toLowerCase() === 'enchanted' ? 'enchanted' : 'equipped';
-  return typeChange({ scope, ...(m[2].toLowerCase() === 'color' ? { colors: 'chosen' } : { subtypes: 'chosen-creature-type' }) });
+  if (m[3].toLowerCase() === 'color') return typeChange({ scope, colors: 'chosen' });
+  return typeChange({ scope, subtypes: m[2].toLowerCase() === 'land' ? 'chosen-basic-land-type' : 'chosen-creature-type' });
 }
 
 /** "~ is every creature type." (Mistform Ultimus) / "Enchanted creature is every creature type." (CR 702.73a) */
@@ -172,9 +198,12 @@ const lines: LineRule[] = [
       const kws = m[4] === undefined ? [] : kwListOf(m[4]);
       if (kws === null) return false;
       const w = layerWords(m[5]); if (w === null) return false;
+      // The type half is built FIRST: when it is declined (a basic land type) the whole line is, so the card keeps
+      // the sentence in `unparsed` instead of quietly losing its second clause.
+      const tc = typeChange({ scope: 'enchanted', ...layerFields(w) }); if (tc === null) return false;
       const enchant = m[1].toLowerCase() === 'creature' ? 'creature' : m[1].toLowerCase() === 'land' ? 'land' : 'permanent';
       ctx.addAbility({ kind: 'static', effect: { kind: 'aura', power: Number(m[2]), toughness: Number(m[3]), keywords: kws, enchant: { kind: enchant } } as unknown as StaticEffect, text: line });
-      ctx.addAbility({ kind: 'static', effect: typeChange({ scope: 'enchanted', ...layerFields(w) }), text: line });
+      ctx.addAbility({ kind: 'static', effect: tc, text: line });
       return true;
     },
   },
@@ -259,6 +288,7 @@ function becomeRule(subject: string, body0: string, eotPrefix: boolean, ctx: Eff
   const every = /^every creature type$/i.test(rest);
   const w = every ? { types: [], subtypes: [], colors: [] } : layerWords(rest);
   if (w === null) return null;
+  if (grantsBasicLandType(w.subtypes)) return null;      // CR 305.6 / 305.7 — see the second discipline in the header
   const eot = eotPrefix || eotSuffix;
   return {
     op: 'become', target: tgt, ...layerFields(w),

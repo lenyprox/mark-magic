@@ -134,20 +134,48 @@ export const layers: Scenario[] = [
   // ---------------------------------------------------------------- `type-change`: the static layer
 
   {
-    name: "Urborg, Tomb of Yawgmoth makes every land a Swamp, so swampwalk is on (type-change scope 'all')", cr: '305.7',
-    ruling: 'Each land is a Swamp in addition to its other land types, the defending player\'s included.',
-    seats: [{ bf: ['Bog Wraith', 'Urborg, Tomb of Yawgmoth'] }, { bf: ['Forest', 'Runeclaw Bear'] }],
+    name: "type-change scope 'all' makes every land a Swamp, so swampwalk is on", cr: '613.1d',
+    ruling: 'The Urborg layer, SCRIPTED: the printed card is declined by the parser (CR 305.6 — a basic land type '
+      + 'brings an intrinsic "{T}: Add {B}" this engine cannot grant), and the scenario after this one pins that '
+      + 'decline. The layer itself is real, and a script may still write it: it is what landwalk reads.',
+    seats: [{ bf: ['Bog Wraith', 'Hill Giant'] }, { bf: ['Forest', 'Runeclaw Bear'] }],
+    scripts: staticOn('Hill Giant', tc({ scope: 'all', filter: { types: ['Land'] }, subtypes: ['Swamp'] })),
     script: [{ sba: true }, attackWith(['Bog Wraith'], [], [['Runeclaw Bear', 'Bog Wraith']])],
     expect: [{ life: [1, 17] }, { zone: ['Runeclaw Bear', 'battlefield'] }, { noLog: 'Runeclaw Bear blocks' }],
   },
   {
-    name: "Evil Presence makes the enchanted land a Swamp (type-change scope 'enchanted')", cr: '305.7',
+    name: 'the printed basic-land-type wordings are DECLINED, so Urborg does nothing at all', cr: '305.6',
+    ruling: 'A land with a basic land type intrinsically has "{T}: Add {B}" for it (CR 305.6), and an effect that '
+      + 'SETS a land type also takes the old land types away (CR 305.7). This engine expresses neither, so the parser '
+      + 'rules decline the wording outright rather than half-claiming it: Urborg, Blanket of Night, Evil Presence, '
+      + 'Spreading Seas, Sea\u2019s Claim and Tidal Warrior keep their line in `unparsed`. The Forest here is still a '
+      + 'Forest, swampwalk is OFF, and the block is really made.',
+    seats: [{ bf: ['Bog Wraith', 'Urborg, Tomb of Yawgmoth'] }, { bf: ['Forest', 'Runeclaw Bear'] }],
+    script: [{ sba: true }, attackWith(['Bog Wraith'], [['Runeclaw Bear', 'Bog Wraith']])],
+    expect: [{ life: [1, 20] }, { zone: ['Runeclaw Bear', 'graveyard'] }, { events: { type: 'block', min: 1 } }, { log: /Runeclaw Bear deals 2 damage to Bog Wraith/ }],
+  },
+  {
+    name: "type-change scope 'enchanted' reads the basic land type its Aura chose as it entered", cr: '613.1d',
+    ruling: 'The chain Convincing Mirage and Phantasmal Terrain are printed with: an as-enters "choose a basic land '
+      + 'type" writes `o.ext.chosenLandType` on the AURA, and the enchanted-scope layer reads that slot — not '
+      + '`chosen.creatureType`, which nothing on those cards ever writes. Both cards are themselves declined by CR '
+      + '305.6; this is the engine half, scripted onto Evil Presence so the Aura is cast on a real land.',
     seats: [{ bf: ['Bog Wraith', 'Swamp'], hand: ['Evil Presence'] }, { bf: ['Forest', 'Runeclaw Bear'] }],
+    scripts: {
+      'Evil Presence': {
+        mode: 'replace',
+        asEnters: [{ kind: 'choose-type', what: 'basic-land-type' } as never],
+        abilities: [
+          { kind: 'static', effect: { kind: 'aura', power: 0, toughness: 0, keywords: [], enchant: { kind: 'land' } } as unknown as StaticEffect, text: 'layers' },
+          { kind: 'static', effect: tc({ scope: 'enchanted', subtypes: 'chosen-basic-land-type' }), text: 'layers' },
+        ],
+      },
+    },
     script: [
-      { cast: 'Evil Presence', targets: [['Forest']] }, { resolve: true },
+      { answer: 'Swamp' }, { cast: 'Evil Presence', targets: [['Forest']] }, { resolve: true },
       attackWith(['Bog Wraith'], [], [['Runeclaw Bear', 'Bog Wraith']]),
     ],
-    expect: [{ attachedTo: ['Evil Presence', 'Forest'] }, { life: [1, 17] }, { noLog: 'Runeclaw Bear blocks' }, { unsimulated: 0 }],
+    expect: [{ attachedTo: ['Evil Presence', 'Forest'] }, { ext: ['Evil Presence', 'chosenLandType', 'Swamp'] }, { life: [1, 17] }, { noLog: 'Runeclaw Bear blocks' }],
   },
   {
     name: "type-change scope 'you-control' with a filter animates only your lands, and a 0/0 land dies", cr: '704.5f',
@@ -282,6 +310,70 @@ export const layers: Scenario[] = [
     },
     script: [{ activate: 'Grizzly Bears', targets: [['Hill Giant'], ['P1']] }, { resolve: true }],
     expect: [{ life: [1, 3] }, { pt: ['Hill Giant', 3, 20] }, { pt: ['Grizzly Bears', 2, 2] }],
+  },
+
+  // ---------------------------------------------------------------- the continuous-effects pass itself
+
+  {
+    name: "a type-change static's layer is TAKEN BACK when its source leaves the battlefield", cr: '611.2b',
+    ruling: 'A static ability\u2019s continuous effect exists only while its source is on the battlefield (CR 611.2b) '
+      + 'and ends the moment the source stops existing (CR 613.6). This family PROJECTS its layers into `o.animated`, '
+      + 'so the projection pass has to run once more with no sources left to take them back; the flag `s.ext.layersOn` '
+      + 'is what lets it. While the Bears live every creature is black and the anthem reaches the opponent\u2019s Bear '
+      + '(the sibling scenario above pins the 3/3); once Lightning Bolt kills them the Bear is green again, at 2/2, '
+      + 'and its overlay fingerprint `layersProj` is gone.',
+    seats: [{ bf: ['Grizzly Bears', 'Hill Giant', 'Mountain', 'Mountain', 'Mountain'], hand: ['Lightning Bolt'] }, { bf: ['Runeclaw Bear'] }],
+    scripts: {
+      'Grizzly Bears': { abilities: [{ kind: 'static', effect: tc({ scope: 'all', filter: { types: ['Creature'] }, colors: ['B'] }), text: 'layers' }] },
+      'Hill Giant': { abilities: [{ kind: 'static', effect: anthem({ colors: ['B'] }), text: 'layers' }] },
+    },
+    script: [{ sba: true }, { cast: 'Lightning Bolt', targets: [['Grizzly Bears']] }, { resolve: true }, { sba: true }],
+    expect: [
+      { zone: ['Grizzly Bears', 'graveyard'] }, { pt: ['Runeclaw Bear', 2, 2] }, { pt: ['Hill Giant', 3, 3] },
+      { ext: ['Runeclaw Bear', 'layersProj', undefined] },
+    ],
+  },
+  {
+    name: 'a layer that sets no P/T keeps a token\u2019s DYNAMIC base power and toughness', cr: '613.4b',
+    ruling: 'Layer 7b is only touched by an effect that sets a base P/T; a colour-only layer must leave it alone. '
+      + 'A token whose base P/T is "0/0 plus a count" (Urza\u2019s Saga\u2019s Construct) reads that count through '
+      + '`token.dynamicPT`, which `baseP` adds only while nothing is projected \u2014 so the overlay has to carry the '
+      + 'evaluated total, not the printed 0/0, or CR 704.5f puts the token in the graveyard the instant any layer '
+      + 'touches it. Three creatures here, so the Construct is a 3/3 and survives; the anthem is filtered to Bears so '
+      + 'that it cannot prop the token up, and Grizzly Bears at 3/3 is the proof the colour layer really is applied.',
+    seats: [{ bf: ['Grizzly Bears', 'Hill Giant'] }, {}],
+    scripts: {
+      'Grizzly Bears': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [
+        { op: 'token', count: 1, power: 0, toughness: 0, colors: [], types: ['Artifact', 'Creature'], subtypes: ['Construct'], keywords: [], name: 'Construct', dynamicPT: { count: 'permanents-you-control', filter: { types: ['Creature'] } } } as unknown as Effect,
+      ], text: 'layers' }] },
+      'Hill Giant': { abilities: [
+        { kind: 'static', effect: tc({ scope: 'all', filter: { types: ['Creature'] }, colors: ['B'] }), text: 'layers' },
+        { kind: 'static', effect: anthem({ colors: ['B'], subtypes: ['Bear'] }), text: 'layers' },
+      ] },
+    },
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }, { sba: true }],
+    expect: [
+      { zoneCount: [0, 'battlefield', 3] }, { noLog: 'is put into the graveyard' },
+      { pt: ['Grizzly Bears', 3, 3] }, { pt: ['Hill Giant', 3, 3] },
+    ],
+  },
+  {
+    name: 'CR 613.7 timestamps: a `become` colour resolving now beats a type-change static already in play', cr: '613.7',
+    ruling: 'Within layer 5 the effects apply in timestamp order, and a static\u2019s timestamp is when its source '
+      + 'entered the battlefield \u2014 which is before the one-shot that is resolving right now. So the Bear the '
+      + 'static had made black is red, and the red anthem reaches it; Grizzly Bears, a Bear the one-shot did not '
+      + 'touch, is still black and still 2/2.',
+    seats: [{ bf: ['Grizzly Bears', 'Hill Giant'] }, { bf: ['Runeclaw Bear'] }],
+    scripts: {
+      'Grizzly Bears': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'become', target: { kind: 'creature' }, colors: ['R'], duration: 'eot' } as unknown as Effect], text: 'layers' }] },
+      'Hill Giant': { abilities: [
+        { kind: 'static', effect: tc({ scope: 'all', filter: { subtypes: ['Bear'] }, colors: ['B'] }), text: 'layers' },
+        { kind: 'static', effect: anthem({ colors: ['R'] }, 3, 3), text: 'layers' },
+      ] },
+    },
+    script: [{ sba: true }, { activate: 'Grizzly Bears', targets: [['Runeclaw Bear']] }, { resolve: true }],
+    // Hill Giant is printed RED and is a Giant, so the static never reaches it and its own anthem does: 6/6.
+    expect: [{ pt: ['Runeclaw Bear', 5, 5] }, { pt: ['Grizzly Bears', 2, 2] }, { pt: ['Hill Giant', 6, 6] }],
   },
 
   // ---------------------------------------------------------------- end to end, through the parser
