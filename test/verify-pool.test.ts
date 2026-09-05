@@ -3,7 +3,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { CardDB } from '../src/cards/db.js';
-import { inTier, tierSql } from '../src/cards/tiers.js';
 import { assertInvariants } from '../src/engine/invariants.js';
 import type { GameObject, StackItem } from '../src/engine/state.js';
 import { abilityReachability, byOracleId, inlinePoolWorker, runPool, type FromPoolWorker, type PoolWorkerLike } from '../src/verify/poolWorker.js';
@@ -184,9 +183,8 @@ test('CardDB.all: rowid windows partition the scan, and the paper tier is a subs
   const paper = ids(min, min + 1999, 'paper');
   assert.ok(paper.length > 0 && paper.length < whole.length, `paper ${paper.length} of ${whole.length}`);
   assert.deepEqual(paper, whole.filter(id => paper.includes(id)), 'the tier only drops cards, it never reorders them');
-  assert.equal(tierSql('all'), '');
-  assert.equal(inTier(C('Contract from Below'), 'paper'), false, 'ante cards are their own tier');
-  assert.equal(inTier(C('Lightning Bolt'), 'paper'), true);
+  assert.equal(db.tierOf(C('Contract from Below').oracleId), 'ante', 'ante cards are their own tier');
+  assert.equal(db.tierOf(C('Lightning Bolt').oracleId), 'paper');
 });
 
 /** A worker that answers `init` and then reports `failure` instead of ever finishing a chunk. */

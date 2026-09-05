@@ -1,0 +1,51 @@
+{
+  "oracleId": "00000000-0000-0000-0000-000000000001",
+  "name": "Example Split // Example Half",
+  "oracleHash": "deadbeef",
+  "source": "hand",
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "damage",
+          "amount": 2,
+          "target": {
+            "kind": "any"
+          },
+          "divided": true
+        }
+      ],
+      "text": "~ deals 2 damage divided as you choose among one or two targets."
+    }
+  ],
+  "secondFace": {
+    "abilities": [
+      {
+        "kind": "spell",
+        "effects": [
+          {
+            "op": "tap",
+            "target": {
+              "kind": "permanent"
+            }
+          }
+        ],
+        "text": "Tap target permanent."
+      },
+      {
+        "kind": "spell",
+        "effects": [
+          {
+            "op": "draw",
+            "amount": 1,
+            "who": "you"
+          }
+        ],
+        "text": "Draw a card."
+      }
+    ]
+  },
+  "notes": "split / adventure / flip only. parse.ts parses faces[0] and builds a backFace for transform / modal_dfc alone, so faces[1] of a split, adventure or flip card is text NO CardDef holds - and a script that declares only the first half is not fullyParsed. Write the second half under 'secondFace' (same shape as a face, including its own 'covers'), with each line normalised against the SECOND face's own name: \"Ice\" becomes \"~\" in Ice's text, not \"Fire\". secondFaceLines(def) in src/cards/scripts.ts returns the exact list, and scriptableLines(def) names them so 'covers' and 'ignore' may too. Note the second face here: two oracle lines, two abilities, one substantive effect each. One ability with a single effect and both lines in its 'text' would claim NEITHER - an ability may name at most one line per substantive effect, and an effect with a zero magnitude ('draw 0') is not substantive at all."
+}

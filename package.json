@@ -44,12 +44,15 @@
     "verify:dashboard": "tsx scripts/verify-dashboard.ts",
     "scripts:draft": "tsx scripts/scripts-draft.ts",
     "scripts:check": "tsx scripts/scripts-check.ts",
+    "scripts:shard": "tsx scripts/scripts-shard.ts",
+    "scripts:schema": "tsx scripts/scripts-schema.ts",
     "verify:quick": "npm run typecheck && node --test --import tsx test/lint-*.test.ts test/registry.test.ts test/parser-registry.test.ts test/scripts.test.ts && npm run scripts:check",
     "verify:all": "npm run typecheck:all && npm test && npm run scripts:check && npm run coverage:pool && npm run parse:diff && npm run verify:pool && npm run bench:games",
     "optimize": "tsx scripts/optimize.ts",
     "optimize:daemon": "tsx scripts/optimizer-daemon.ts",
     "test:e2e": "npm run test:e2e -w apps/web",
-    "typecheck:all": "npm run typecheck && npm run typecheck:example && npm run web:typecheck",
+    "typecheck:schema": "tsc -p tsconfig.schema.json",
+    "typecheck:all": "npm run typecheck && npm run typecheck:example && npm run typecheck:schema && npm run web:typecheck",
     "demo:pack": "node demo/pack.mjs",
     "collection:import": "tsx scripts/import-collection.ts",
     "data:cr": "node scripts/build-cr.mjs"
@@ -61,7 +64,8 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.4.1",
     "tsx": "^4.23.13",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "zod": "^4.5.4"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3"

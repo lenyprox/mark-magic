@@ -3,16 +3,18 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import { MASTER_DB } from '../config/paths.js';
 import { parseCard, type OracleRow } from './parse.js';
+import { tierFilter, tierOf, type PoolRow, type PoolTier } from './pool.js';
 import { applyScript, scriptStore } from './scripts.js';
-import { inTier, tierSql, type PoolTier } from './tiers.js';
 import type { CardDef } from './types.js';
 
 const NON_PLAYABLE = "layout NOT IN ('art_series','token','double_faced_token','emblem','vanguard','planar','scheme','front_card') AND type_line NOT LIKE 'Card%' AND type_line NOT LIKE 'Stickers%' AND type_line NOT LIKE 'Dungeon%' AND type_line NOT LIKE 'Phenomenon%' AND type_line NOT LIKE 'Conspiracy%'";
 
 const PLAYABLE_LAYOUT = "layout NOT IN ('art_series','token','double_faced_token','emblem')";
 
-/** `CardDB.all()` options: a pool tier and/or a rowid window (used to shard the scan across worker threads). */
-export interface ScanOptions { from?: number; to?: number; tier?: PoolTier }
+/** `CardDB.all()` options: pool tier(s) ('all' = no filter) and/or a rowid window (used to shard the scan across worker threads). */
+export type ScanTier = PoolTier | 'all';
+export interface ScanOptions { from?: number; to?: number; tier?: ScanTier | ScanTier[] }
+function scanTierFilter(t: ScanTier | ScanTier[] | undefined): Set<PoolTier> | null { if (t === undefined) return null; const list = Array.isArray(t) ? t : [t]; if (list.includes('all')) return null; return tierFilter(list as PoolTier[]); }
 
 export class CardDB {
   readonly db: Database.Database;
@@ -30,8 +32,9 @@ export class CardDB {
     return CardDB.instance;
   }
 
-  private rowToOracle(json: string): OracleRow {
-    const o = JSON.parse(json);
+  private rowToOracle(json: string): OracleRow { return this.oracleOf(JSON.parse(json)); }
+
+  private oracleOf(o: Record<string, any>): OracleRow {
     return {
       name: o.name, oracle_id: o.oracle_id, mana_cost: o.mana_cost, mana_value: o.mana_value, colors: o.colors, color_identity: o.color_identity,
       types: o.types, supertypes: o.supertypes, subtypes: o.subtypes, type_line: o.type_line, oracle_text: o.oracle_text, power: o.power, toughness: o.toughness,
@@ -60,7 +63,7 @@ export class CardDB {
 
 
   /** Parse a row and apply its script (data/scripts/<oracle_id>.json) when one exists and is not stale. */
-  private parse(o: OracleRow): CardDef { const def = parseCard(o); return applyScript(def, scriptStore().get(o.oracle_id)); }
+  private parse(o: OracleRow): CardDef { const def = parseCard(o); const s = scriptStore().get(o.oracle_id); return s ? applyScript(def, s, this.tierOf(o.oracle_id) ?? 'paper') : def; }
 
   /** Lookup by oracle id. `oracle_id` is the primary key and the statement is reused: a sharded scan calls this often. */
   getByOracleId(oracleId: string): CardDef | null {
@@ -77,24 +80,40 @@ export class CardDB {
   }
 
   /**
-   * Iterate playable oracle cards (the coverage report and the pool sandbox). `tier` narrows the pool (see
-   * src/cards/tiers.ts); `from`/`to` restrict it to a rowid window, which is how the pool sandbox splits the scan
-   * over its worker threads — the windows partition the table, so together they yield exactly the unwindowed scan.
+   * Iterate playable oracle cards (the coverage report, the pool sandbox, the fuzzer). `tier` narrows the pool to one
+   * or more pool tiers from src/cards/pool.ts ('all' or undefined = every playable card); `from`/`to` restrict the
+   * scan to a rowid window, which is how the pool sandbox splits it over worker threads — the windows partition the
+   * table, so together they yield exactly the unwindowed scan. Tiers are decided on the parsed row's own fields.
    */
   *all(opts: ScanOptions = {}): Generator<CardDef> {
-    const tier = opts.tier ?? 'all';
+    for (const { def } of this.allWithTier(opts)) yield def;
+  }
+
+  /** Same as `all()` but also reports each card's pool tier (the coverage report groups by it). */
+  *allWithTier(opts: ScanOptions = {}): Generator<{ def: CardDef; tier: PoolTier }> {
+    const want = scanTierFilter(opts.tier);
     const windowed = opts.from !== undefined || opts.to !== undefined;
-    const extra = tierSql(tier);
-    const sql = `SELECT json FROM oracle_cards WHERE ${NON_PLAYABLE}${extra ? ` AND ${extra}` : ''}${windowed ? ' AND rowid BETWEEN ? AND ?' : ''}`;
-    const stmt = this.stmt(`all:${tier}:${windowed}`, sql);
+    const sql = `SELECT json FROM oracle_cards WHERE ${NON_PLAYABLE}${windowed ? ' AND rowid BETWEEN ? AND ?' : ''}`;
+    const stmt = this.stmt(`all:${windowed}`, sql);
     const rows = (windowed ? stmt.iterate(opts.from ?? 0, opts.to ?? Number.MAX_SAFE_INTEGER) : stmt.iterate()) as Iterable<{ json: string }>;
-    for (const r of rows) { const def = this.parse(this.rowToOracle(r.json)); if (inTier(def, tier)) yield def; }
+    for (const r of rows) {
+      const raw = JSON.parse(r.json) as PoolRow & Record<string, unknown>;
+      const tier = tierOf(raw);
+      if (want && !want.has(tier)) continue;
+      yield { def: this.parse(this.oracleOf(raw)), tier };
+    }
   }
 
   /** The rowid bounds of the playable rows, so a caller can cut `all()` into equal windows. */
   rowIdBounds(): { min: number; max: number } {
     const r = this.stmt('bounds', `SELECT MIN(rowid) AS min, MAX(rowid) AS max FROM oracle_cards WHERE ${NON_PLAYABLE}`).get() as { min: number | null; max: number | null };
     return { min: r.min ?? 1, max: r.max ?? 0 };
+  }
+
+  /** The pool tier of one oracle card, or null when master.db has no such row. */
+  tierOf(oracleId: string): PoolTier | null {
+    const row = this.stmt('tier', 'SELECT json FROM oracle_cards WHERE oracle_id = ?').get(oracleId) as { json: string } | undefined;
+    return row ? tierOf(JSON.parse(row.json) as PoolRow) : null;
   }
 
   rulings(oracleId: string): { published_at: string; comment: string }[] {
