@@ -33,7 +33,7 @@
 // sanctioned exception, and `await import('../state.js')` inside a hook body is how a value is reached), every
 // observable change through a `Game` primitive, and `ext` stays JSON-plain.
 import type { Ability, Amount, CardDef, FamilyModule, GameObject, GameState, LegalAction, Mods, OpCtx, PlayerId, TargetSpec } from './types.js';
-import type { Ref } from '../../cards/types.js';
+import type { Effect, Ref } from '../../cards/types.js';
 import { extGet, extPush, extSet } from './ext.js';
 import { chars } from './chars.js';
 
@@ -106,19 +106,50 @@ function walkersFor(c: OpCtx, scope: 'each-planeswalker-you-control' | 'each-oth
   return out;
 }
 
+/** CR 115.1: an ability that targets always says so in words — the backstop for a shape `targetsSomething` has not learned. */
+const TARGET_WORD = /\btargets?\b/i;
+/** Ops that carry a target spec under a key that is not `target` (legal.ts:ownTargetSpecs). */
+const SPEC_KEYS: Record<string, readonly string[]> = { 'move': ['what'], 'exchange': ['a', 'b'] };
+/** Ops that target without naming a spec at all (`reveal-hand-discard` always asks for a player or an opponent). */
+const ALWAYS_TARGETS: Record<string, true> = { 'reveal-hand-discard': true };
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
 /**
  * Does an ability need a target chosen for it? A `legalActions` hook is synchronous and may not import legal.ts, so
  * it cannot build the `targetOptions` an activation with targets needs — the instant-speed loyalty activations below
- * are therefore offered only for abilities that take none. Deliberately over-cautious: any nested `target` object and
- * any `target-player` / `target-opponent` word anywhere in the effects counts.
+ * are therefore offered only for abilities that take none.
+ *
+ * Getting this wrong is not a missed offer but an ILLEGAL activation. `game.ts:activateAbility` does not re-check the
+ * action against `legalActions`, and `assignTargets` accepts an empty pick when the option list is empty too, so an
+ * ability offered here that really targets either (a) pays its loyalty cost and resolves having targeted nothing —
+ * while the core refuses the identical activation at sorcery timing (legal.ts:213), CR 601.2c / 602.2b: targets are
+ * chosen as part of activating, and an ability with no legal target cannot be activated at all — or (b) is rejected
+ * by `performAction` after the AI/UI was told the action was legal.
+ *
+ * The authority on what takes a target is `legal.ts:ownTargetSpecs`; this mirrors every shape it reads and is WIDER
+ * than it wherever the extra caution is cheap (a false positive costs one instant-speed offer):
+ *   - the printed text is checked first, which catches both a shape neither function knows yet and every ability
+ *     whose target clause the parser dropped ("Sorin deals 13 damage to any target");
+ *   - a `target` key counts as an object spec (`{kind:'creature'}`) or as the BOOLEAN `return-from-graveyard` writes;
+ *   - `move`'s `what` and `exchange`'s `a`/`b` are specs under another name, and `reveal-hand-discard` targets with
+ *     no key to read.
+ * A `target` STRING is a scope word ('creatures-you-control', 'that') and targets only when it is one of the two
+ * player words, which is exactly how `ownTargetSpecs` reads it.
  */
-function needsTarget(v: unknown): boolean {
+function needsTarget(text: string | undefined, effects: Effect[]): boolean {
+  return (text !== undefined && TARGET_WORD.test(text)) || effects.some(targetsSomething);
+}
+function targetsSomething(v: unknown): boolean {
   if (typeof v === 'string') return v === 'target-player' || v === 'target-opponent';
-  if (Array.isArray(v)) return v.some(needsTarget);
-  if (v === null || typeof v !== 'object') return false;
-  const o = v as Record<string, unknown>;
-  if (o.target !== undefined && typeof o.target === 'object' && o.target !== null) return true;
-  for (const k in o) if (needsTarget(o[k])) return true;
+  if (Array.isArray(v)) return v.some(targetsSomething);
+  if (!isObj(v)) return false;
+  const op = typeof v.op === 'string' ? v.op : '';
+  if (ALWAYS_TARGETS[op]) return true;
+  if (v.target === true || (isObj(v.target) && v.target.self !== true)) return true;
+  // `exchange` pushes any object side; `move` only a `what` that is a spec (a `what` without a `kind` is a zone
+  // description whose own 'target-player' word the walk below finds)
+  for (const k of SPEC_KEYS[op] ?? []) { const side = v[k]; if (isObj(side) && side.self !== true && (op === 'exchange' || 'kind' in side)) return true; }
+  for (const k in v) if (targetsSomething(v[k])) return true;
   return false;
 }
 
@@ -217,7 +248,7 @@ const PLANESWALKER: FamilyModule = {
         if (ab.kind !== 'activated' || ab.loyalty === undefined) return;
         if ((o.counters.loyalty ?? 0) + ab.loyalty < 0) return;    // CR 118.4: the cost must be payable
         if (ab.effects.every(x => x.op === 'unknown')) return;
-        if (needsTarget(ab.effects)) return;                       // no way to enumerate targets from here (see needsTarget)
+        if (needsTarget(ab.text, ab.effects)) return;               // no way to enumerate targets from here (see needsTarget)
         if (ab.cost.mana && !g.findPayment(pl, ab.cost.mana)) return;
         out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: i }, label: `${chars.name(o)}#${o.id}: ${ab.text}`, manaValue: 0 });
       });

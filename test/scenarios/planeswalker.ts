@@ -44,6 +44,22 @@ const PLUS_ONE_GAIN_3: Record<string, ScenarioScript> = {
   },
 };
 
+/**
+ * Elspeth with a TARGETED loyalty ability first and an untargeted one second. The order is what the three timing
+ * scenarios below are built on: `{ activate: "Elspeth, Sun's Champion" }` with no `ability` takes the FIRST activation
+ * the engine offers for her, so if the instant-speed window ever offers the `-2` again the scenario activates that one
+ * instead of the `+1` and its expectations fail.
+ */
+const TARGETED_MINUS_2: Record<string, ScenarioScript> = {
+  "Elspeth, Sun's Champion": {
+    mode: 'replace',
+    abilities: [
+      { kind: 'activated', cost: {}, loyalty: -2, oncePerTurn: true, sorcerySpeed: true, effects: [{ op: 'return-from-graveyard', what: { types: ['Creature'], mvLE: 2 }, to: 'battlefield', target: true }], text: '-2: Return target creature card with mana value 2 or less from your graveyard to the battlefield.' },
+      { kind: 'activated', cost: {}, loyalty: 1, oncePerTurn: true, sorcerySpeed: true, effects: [{ op: 'gain-life', amount: 3, who: 'you' }], text: '+1: You gain 3 life.' },
+    ],
+  },
+};
+
 export const planeswalker: Scenario[] = [
   // ------------------------------------------------------------------ emblem (CR 114)
   {
@@ -161,6 +177,49 @@ export const planeswalker: Scenario[] = [
     script: [{ activate: 'Grizzly Bears' }, { resolve: true }, { passUntil: 'end' }, { activate: "Elspeth, Sun's Champion", ability: 0 }, { resolve: true }],
     expect: [{ zoneCount: [0, 'command', 1] }, { counters: ["Elspeth, Sun's Champion", { loyalty: 5 }] }, { life: [0, 23] }],
   },
+  {
+    // The window used to offer a loyalty ability that TAKES a target without ever choosing one: `activateAbility` does
+    // not re-check the action against `legalActions`, and `assignTargets` accepts an empty pick when the option list is
+    // empty too, so the `-2` was activated with no legal target in the graveyard — 2 loyalty paid, nothing returned,
+    // while the core refuses the identical activation at sorcery timing. Hill Giant costs 4, so the `-2` has no target.
+    name: 'the instant-speed window skips a loyalty ability with no legal target and offers the untargeted one', cr: '601.2c',
+    seats: [{ bf: ["Elspeth, Sun's Champion", 'Grizzly Bears'], graveyard: ['Hill Giant'] }, {}],
+    scripts: { ...TARGETED_MINUS_2, 'Grizzly Bears': { abilities: [ANY_TIME] } },
+    script: [{ passUntil: 'end' }, { activate: "Elspeth, Sun's Champion" }, { resolve: true }],
+    expect: [
+      { life: [0, 23] },                                                    // the `+1` ran: the `-2` was never offered
+      { counters: ["Elspeth, Sun's Champion", { loyalty: 5 }] },            // 4 + 1, not 4 − 2
+      { zone: ['Hill Giant', 'graveyard'] },
+      { noLog: 'Return target creature card' },
+    ],
+  },
+  {
+    // The other half of the same defect: with a legal target in the graveyard the offered activation was a lie —
+    // `performAction` returned false because no target came with it (CR 602.2b), after the AI/UI was told it was legal.
+    name: 'the same skip happens when the targeted ability does have a legal target', cr: '602.2b',
+    seats: [{ bf: ["Elspeth, Sun's Champion", 'Grizzly Bears'], graveyard: ['Llanowar Elves'] }, {}],
+    scripts: { ...TARGETED_MINUS_2, 'Grizzly Bears': { abilities: [ANY_TIME] } },
+    script: [{ passUntil: 'end' }, { activate: "Elspeth, Sun's Champion" }, { resolve: true }],
+    expect: [
+      { life: [0, 23] },
+      { counters: ["Elspeth, Sun's Champion", { loyalty: 5 }] },
+      { zone: ['Llanowar Elves', 'graveyard'] },
+    ],
+  },
+  {
+    // …and the ability is not dead, only sorcery-speed: the core offers it in the main phase WITH its target options,
+    // on the same board and with the same permission out.
+    name: 'a targeted loyalty ability is still activatable at sorcery timing while the permission is out', cr: '606.3',
+    seats: [{ bf: ["Elspeth, Sun's Champion", 'Grizzly Bears'], graveyard: ['Llanowar Elves'] }, {}],
+    scripts: { ...TARGETED_MINUS_2, 'Grizzly Bears': { abilities: [ANY_TIME] } },
+    script: [{ activate: "Elspeth, Sun's Champion", ability: 0, targets: [['Llanowar Elves']] }, { resolve: true }],
+    expect: [
+      { zone: ['Llanowar Elves', 'battlefield'] },
+      { counters: ["Elspeth, Sun's Champion", { loyalty: 2 }] },
+      { life: [0, 20] },
+    ],
+  },
+
   // ------------------------------------------------------------------ the guarded target parser (CR 115)
   {
     // The rule used to overwrite the kind with the LAST type noun in the phrase, so this card could only ever target

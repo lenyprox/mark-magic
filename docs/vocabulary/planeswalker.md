@@ -188,9 +188,22 @@ still be payable — a `-7` on a walker at 4 loyalty is not offered.
 **Limitation.** A `legalActions` hook is synchronous and may not import `legal.ts` (the core imports the registry,
 so a value import at module scope is an evaluation cycle), which means it cannot build the `targetOptions` an
 activation with targets needs. Loyalty abilities that take a target are therefore **not** offered at instant speed;
-they stay available at sorcery timing through the core. `needsTarget` in the family file is deliberately
-over-cautious: any nested `target` object and any `target-player` / `target-opponent` word anywhere in the ability's
-effects makes it skip.
+they stay available at sorcery timing through the core, where `legal.ts` chooses their targets and refuses the
+activation outright when a required one has no legal option (CR 601.2c / 602.2b).
+
+Missing a target here is not a missed offer but an **illegal activation**: `game.ts:activateAbility` does not
+re-check the action against `legalActions`, and `assignTargets` accepts an empty pick when the option list is empty
+too, so an ability wrongly offered without a target either pays its loyalty cost and resolves having targeted
+nothing, or is rejected by `performAction` after the AI/UI was told it was legal. `needsTarget` therefore mirrors
+every shape `legal.ts:ownTargetSpecs` reads — an object-valued `target`, the **boolean** one `return-from-graveyard`
+writes, `move`'s `what`, `exchange`'s `a`/`b`, `reveal-hand-discard`, and the `target-player` / `target-opponent`
+words anywhere in the effects — and is wider than it in two directions, because a false positive costs one offer
+while a false negative breaks the rules: the printed text is checked for the word "target" first (CR 115.1), which
+also catches an ability whose target clause the parser dropped, and a `target` **string** ('creatures-you-control',
+'that') is read as the scope word it is rather than as a target. Measured over all 34,513 playable cards: of the 493
+loyalty abilities the window could offer, `needsTarget` and `ownTargetSpecs` now disagree on **none** in the unsafe
+direction (13 before this pass, all of them `return-from-graveyard` / `exchange` shapes) and on 23 in the cautious
+direction.
 
 ### Example ASTs (see the banner: not yet scriptable)
 
@@ -299,7 +312,7 @@ than it says.
 
 ## 7. Scenarios
 
-`test/scenarios/planeswalker.ts`, sixteen of them: one per op, per scope word and per keyword parameter, plus one per
+`test/scenarios/planeswalker.ts`, nineteen of them: one per op, per scope word and per keyword parameter, plus one per
 review fix, each written so it fails if the op did nothing.
 
 | scenario | CR | what fails without the op |
@@ -317,6 +330,9 @@ review fix, each written so it fails if the op did nothing.
 | compleated cast for mana keeps its printed loyalty | 107.4f | the as-enters would have fired unconditionally |
 | `loyalty-any-time` from a battlefield static | 606.3 | no legal activation in the end step |
 | `loyalty-any-time` from an emblem | 606.3 | the same, through the command zone |
+| the window skips a targeted ability with no legal target | 601.2c | the `-2` is activated instead of the `+1`: 2 loyalty paid, nothing returned |
+| …and skips it when a legal target does exist | 602.2b | the offered activation is refused by `performAction` |
+| the targeted ability still works at sorcery timing | 606.3 | the fix would have made it unusable, not sorcery-only |
 | "artifact, creature, or land" offers the creature | 115.1 | the cast is refused (only a land could be chosen) |
 | the same target offers the artifact | 115.1 | the same |
 | "noncreature artifacts" is an artifact target | 115.4 | no legal target, and the trigger resolves doing nothing |
@@ -335,7 +351,9 @@ review fix, each written so it fails if the op did nothing.
 * **An emblem breaks `undo` in the web app.** `apps/web/workers/game.worker.ts:undo()` rebuilds its def table from the
   deck payloads alone, and an emblem is the first object in the engine with a `CardDef` that is not derivable from a
   deck (`"<Source> emblem"`), so `deserializeState` throws and the undo is reported as "Could not restore". The
-  analysis pool is safe because `src/analysis/pool.ts` posts `collectDefs(state)` before each request. The worker
-  patch is in `coreChangeNeeded`; nothing a family file can do reaches it (giving the emblem a deck-derivable `def`
-  would put a castable planeswalker card in the command zone — `legal.ts:castActionsFor` reads `c.def`, not
-  `defOf(c)`).
+  analysis pool is safe because `src/analysis/pool.ts` posts `collectDefs(state)` before each request — the same
+  idiom the patch gives `takeSnapshot`, so the snapshot carries the defs its own state needs and `undo()` merges them
+  over the deck table. The four-line patch is in `coreChangeNeeded` (applied locally it compiles under
+  `npm run web:typecheck` and the serialize round-trip keeps the command zone and `ext.emblems`); nothing a family
+  file can do reaches it — giving the emblem a deck-derivable `def` would put a castable planeswalker card in the
+  command zone, because `legal.ts:castActionsFor` reads `c.def`, not `defOf(c)`.
