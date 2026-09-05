@@ -13,6 +13,15 @@ import type { Scenario, ScenarioScript } from './dsl.js';
 const bears = (effects: Effect[], text = 'saga'): Record<string, ScenarioScript> =>
   ({ 'Grizzly Bears': { abilities: [{ kind: 'activated', cost: { tap: true }, effects, text }] } });
 
+/**
+ * Narci's trigger on Grizzly Bears: "Whenever the final chapter ability of a Saga you control resolves, draw two
+ * cards." Two cards rather than one so a hand count says which trigger drew them, and the same script in every
+ * scenario about `when: 'resolves'` so those scenarios differ only in what happens to the chapter ability.
+ */
+const watcher: Record<string, ScenarioScript> = {
+  'Grizzly Bears': { abilities: [{ kind: 'triggered', event: { on: 'saga-final-chapter', who: 'you', when: 'resolves' }, effects: [{ op: 'draw', amount: 2, who: 'you' }], text: 'saga' }] },
+};
+
 export const saga: Scenario[] = [
   // ---------------------------------------------------------------- saga-lore (the op) + the `saga` target kind
   {
@@ -176,13 +185,63 @@ export const saga: Scenario[] = [
     name: 'the final chapter ability resolving is what sacrifices the Saga, and what a "resolves" trigger sees', cr: '714.4',
     ruling: 'The Saga is sacrificed as a state-based action once the final chapter ability has left the stack.',
     seats: [{ bf: ['Grizzly Bears', 'Keldon Warcaller', 'History of Benalia'], counters: { 'History of Benalia': { lore: 2 } } }, {}],
-    scripts: { 'Grizzly Bears': { abilities: [{ kind: 'triggered', event: { on: 'saga-final-chapter', who: 'you', when: 'resolves' }, effects: [{ op: 'draw', amount: 2, who: 'you' }], text: 'saga' }] } },
+    scripts: watcher,
     script: [{ attack: ['Keldon Warcaller'] }],
     expect: [
       { zone: ['History of Benalia', 'graveyard'] },
       { handCount: [0, 2] },
       { libraryCount: [0, 18] },
       { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'a countered final chapter ability never resolves, so a "resolves" trigger never sees it', cr: '603.2',
+    ruling: 'Stifle counters the chapter III trigger. A countered ability is removed from the stack and does not resolve, so nothing "resolves" — and yet CR 714.4 still sacrifices the Saga the moment its full track has nothing pending, which is the sacrifice this family reads as the resolution.',
+    seats: [
+      { bf: ['Grizzly Bears', 'History of Benalia'], counters: { 'History of Benalia': { lore: 2 } } },
+      { bf: ['Island', 'Island'], hand: ['Stifle'] },
+    ],
+    scripts: watcher,
+    step: 'upkeep',                                              // the precombat-main lore counter is what triggers III
+    script: [{ passUntil: 'main1' }, { cast: 'Stifle', by: 1, targets: [['History of Benalia']] }, { resolve: true }],
+    expect: [
+      { log: 'III — Knights you control get \\+2/\\+1 until end of turn\\. is countered' },
+      { zone: ['History of Benalia', 'graveyard'] },             // sacrificed all the same (CR 714.4)
+      { noLog: 'Grizzly Bears trigger' },                        // …but the ability it names never resolved
+      { handCount: [0, 1] },                                     // the draw step's card, and nothing the watcher drew
+    ],
+  },
+  {
+    name: 'proliferating a Saga to its final chapter number is not a final chapter resolving', cr: '701.27',
+    ruling: 'Proliferate puts the lore counter on without the engine queueing a chapter ability for it (CR 714.2b says one should trigger; that dispatch is core, see docs/vocabulary/saga.md §7 — when it lands, chapter III triggers here and this scenario\'s draws come back). Until then no chapter ability triggered, none resolved, and a "whenever the final chapter ability resolves" trigger has nothing to see even though CR 714.4 sacrifices the Saga.',
+    seats: [
+      { bf: ['Grizzly Bears', 'History of Benalia', "Karn's Bastion", 'Island', 'Island', 'Island', 'Island'], counters: { 'History of Benalia': { lore: 2 } } },
+      {},
+    ],
+    scripts: watcher,
+    script: [{ activate: "Karn's Bastion" }, { resolve: true }],
+    expect: [
+      { log: 'proliferates: History of Benalia' },               // the third lore counter landed
+      { zone: ['History of Benalia', 'graveyard'] },
+      { noLog: 'Grizzly Bears trigger' },
+      { handCount: [0, 0] },
+    ],
+  },
+  {
+    name: 'a final chapter that waited under a spell still resolves, and is still seen resolving', cr: '405.5',
+    ruling: 'The same board as the countered scenario, with a Lightning Bolt on top of the chapter III trigger instead of a Stifle: the stack resolves one object at a time from the top, the Bolt goes first, and the chapter ability underneath it then resolves normally. Waiting under something is not being removed by it.',
+    seats: [
+      { bf: ['Grizzly Bears', 'History of Benalia'], counters: { 'History of Benalia': { lore: 2 } } },
+      { bf: ['Mountain'], hand: ['Lightning Bolt'] },
+    ],
+    scripts: watcher,
+    step: 'upkeep',
+    script: [{ passUntil: 'main1' }, { cast: 'Lightning Bolt', by: 1, targets: [['P0']] }, { resolve: true }],
+    expect: [
+      { life: [0, 17] },                                         // the Bolt resolved from on top of the chapter
+      { zone: ['History of Benalia', 'graveyard'] },
+      { log: 'Grizzly Bears trigger' },                          // …and the chapter under it still resolved
+      { handCount: [0, 3] },                                     // the draw step's card + the watcher's two
     ],
   },
 

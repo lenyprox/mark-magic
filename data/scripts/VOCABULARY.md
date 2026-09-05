@@ -1232,7 +1232,7 @@ triggered ability's, so the composition ops (`for-each`, `scoped`, `may`, `move`
 with no help from here.
 
 Files: `src/engine/ops/saga.ts` (behaviour), `src/engine/ops/saga.schema.ts` (zod variants for the script tooling),
-`src/cards/rules/saga.ts` (wordings), `test/scenarios/saga.ts` (16 scenarios: one per op, trigger, condition,
+`src/cards/rules/saga.ts` (wordings), `test/scenarios/saga.ts` (24 scenarios: one per op, trigger, condition,
 as-enters kind, target kind and per keyword parameter of each). Rule numbers refer to the Comprehensive Rules
 bundled in `data/rules/cr.json`.
 
@@ -1252,9 +1252,14 @@ counters on a fresh Saga triggers chapter I and chapter II, in that order. Remov
 The family owns the `chapter` dispatch to say this:
 
 ```ts
-chapter: (ev, perm, ctx, _s, event) => {
+chapter: (ev, perm, ctx, s, event) => {
   if (event !== 'chapter' || ctx.obj !== perm) return false;
-  return ctx.amount !== undefined ? ev.chapters.includes(ctx.amount) : crossedAny(ev.chapters, crossed(perm));
+  const fires = ctx.amount !== undefined ? ev.chapters.includes(ctx.amount) : crossedAny(ev.chapters, crossed(perm));
+  const final = sagaDef(perm)?.finalChapter;                      // …and remember a FINAL chapter that triggered (§3)
+  if (fires && final !== undefined && ev.chapters.includes(final) && crossedFinal(perm, final, ctx)) {
+    extSet(perm, 'sagaFinalFired', true); extSet(s, 'sagaFinalMarks', true);
+  }
+  return fires;
 },
 ```
 
@@ -1377,11 +1382,21 @@ entering, and the precombat-main counter), so each core addition counts once and
 ```
 
 `when: 'triggers'` reads the `chapter` event whose number is the Saga's `finalChapter`.
-`when: 'resolves'` is raised from the `leave` hook: CR 714.4 sacrifices the Saga as a state-based action once the
-final chapter ability has left the stack, so a Saga on its way to the graveyard with a full lore track *is* that
-moment. (The approximation: a Saga destroyed by removal while it already had a full track and its final chapter was
-still on the stack would also raise it. Nothing short of a "an ability finished resolving" core hook can tell those
-apart — see §7.)
+
+`when: 'resolves'` is raised from the `leave` hook, off the CR 714.4 sacrifice — the observable moment a family can
+reach. A full lore track on a Saga in the graveyard is **not** on its own evidence that the last chapter ran, so two
+marks gate it, and both of them are about the ability rather than the counters:
+
+| mark | says | why the sacrifice alone is not enough |
+|---|---|---|
+| `sagaFinalFired` | the final chapter ability really **triggered** (set by the `chapter` matcher, which is the family's only hook on a trigger's way to the stack) | CR 714.4 sacrifices a Saga the moment `lore >= finalChapter` with nothing pending, which a proliferated lore counter reaches with no `chapter` event at all (see §7) — and an ability that never triggered can never resolve (CR 603.2) |
+| `sagaFinalBuried` | that trigger was last seen on the stack with **another object above it** (the `sba` stack sweep) | a trigger leaves the stack by resolving or by being countered, and countering it takes a spell or ability that sits on top of it (CR 405.5: the stack resolves top down) — so a countered final chapter is always a buried one, and Stifle on chapter III no longer reads as "the chapter resolved" |
+
+The sweep runs at the top of every priority round and at the end of every resolution, the two moments the stack can
+be read between "the trigger is put on the stack" and "the Saga is sacrificed", and it *un*-buries: a chapter that
+merely waited its turn under another trigger or a Lightning Bolt resolves normally and is seen resolving. What is
+still an approximation is listed in §7 (a chapter that fizzles for want of a legal target, and a Saga removed while
+its final chapter is still on the stack, whose resolution the family then never reports at all).
 
 ```json
 { "kind": "triggered", "event": { "on": "saga-final-chapter", "who": "you", "when": "triggers" }, "effects": [{ "op": "token", "count": 1, "power": 4, "toughness": 4, "colors": ["W"], "types": ["Creature"], "subtypes": ["Angel"], "keywords": ["flying", "vigilance"] }], "text": "…" }
@@ -1429,6 +1444,9 @@ core `chapter` event crosses the chosen chapter and nothing below it.
 | `sagaReadAheadDone` | the Saga | `true` once the counter replacement has fired | `leave` |
 | `sagaLoreFrom` | the Saga | the lore total before the delta being applied | the `sba` sweep, i.e. before the next dispatch |
 | `sagaLoreMarks` | the game state | `true` while any `sagaLoreFrom` is outstanding | the same sweep |
+| `sagaFinalFired` | the Saga | `true` once its final chapter ability has triggered on this run of the track | `leave`, and a removal that takes the track back below the final chapter |
+| `sagaFinalBuried` | the Saga | `true` while that trigger sits on the stack under something else | the `sba` sweep, as soon as it is the top of the stack again; `leave` |
+| `sagaFinalMarks` | the game state | `true` once any final chapter has triggered this game (the gate on the stack sweep) | never — it only says the cheap sweep is worth running |
 
 All JSON-plain, so `clone.ts` deep-copies them and `serialize.ts` round-trips them. Nothing is redacted: CR 714.4b
 makes the read-ahead choice as the Saga enters, face up, so it is public information, and a lore total is public.
@@ -1487,7 +1505,7 @@ unparsed text of a chapter line whose body the vocabulary still cannot express m
 
 ### 6. Scenarios
 
-`test/scenarios/saga.ts`, 21 of them, each pinned to a rule:
+`test/scenarios/saga.ts`, 24 of them, each pinned to a rule:
 
 | scenario | pins |
 |---|---|
@@ -1503,6 +1521,9 @@ unparsed text of a chapter line whose body the vocabulary still cannot express m
 | Historian's Boon sees the final chapter trigger | `saga-final-chapter`, `when: 'triggers'` |
 | a non-final chapter fires no such trigger | the negative control |
 | the final chapter resolving sacrifices the Saga | `when: 'resolves'`, CR 714.4 |
+| a countered final chapter is never seen resolving | the `sagaFinalBuried` gate, CR 603.2 |
+| a proliferated track is not a final chapter resolving | the `sagaFinalFired` gate, CR 701.27 |
+| a final chapter that waited under a spell still resolves | the sweep un-burying it, CR 405.5 |
 | Tom Bombadil at four lore counters | `saga-lore-ge` true |
 | Tom Bombadil at three | `saga-lore-ge` false (he is a legal Lightning Bolt target) |
 | Summon: Anima I, II, III | the multi-chapter line rule |
@@ -1525,8 +1546,17 @@ unparsed text of a chapter line whose body the vocabulary still cannot express m
   effects on one target; `choose-mode` chooses before targets are picked, so the two modes would each ask for their
   own Saga.
 * **"Whenever the final chapter ability of a Saga you control resolves"** is raised from the state-based sacrifice
-  rather than from the ability leaving the stack (§3). A Saga removed while its final chapter was still on the stack
-  would raise it early.
+  rather than from the ability leaving the stack (§3). The two marks in §3 rule out the cases where nothing resolved
+  (the chapter never triggered; it was countered), so what is left is where the ability left the stack for a *third*
+  reason, or the Saga left before it did:
+  * a chapter ability that **fizzles** — every target it had became illegal, so it is removed from the stack and does
+    not resolve (CR 608.2b) — was the top of the stack when the sweep last looked, so the sacrifice that follows it
+    still reads as a resolution. `Summon: Shiva` III on a creature that died in response is the shape.
+  * a Saga **removed while its final chapter is still on the stack** (bounced, exiled, destroyed) now raises nothing
+    at all rather than raising it early: the ability does resolve, moments later, but the family's only vantage point
+    — the permanent leaving the battlefield — has already gone by.
+  Both need the same core hook, "an ability finished resolving", handed the `StackItem`. With it the two marks and
+  the `leave` raise all collapse into three lines.
 * **"Put a lore counter on each Saga you control" as printed (Satsuki, the Living Lore).** A built-in effect template
   claims that sentence first, as `{ op: 'counters', target: 'creatures-you-control', counter: 'lore', filter: {
   subtypes: ['Saga'] } }` — and that op's `creatures-you-control` list is filtered by `isCreature`, so on a
@@ -1555,7 +1585,10 @@ unparsed text of a chapter line whose body the vocabulary still cannot express m
   and queues nothing, so no chapter triggers and `lore-counter-put` never fires (CR 122.6, 701.27, 714.2b). The same
   `addCounters` change fixes it — and every other route a lore counter can take — at once. A family cannot: the only
   hook it is offered around a counter change runs *before* the delta is applied, and the `sba` sweep runs after the
-  core's own Saga-sacrifice state-based action, too late to save a crossing that reaches the final chapter.
+  core's own Saga-sacrifice state-based action, too late to save a crossing that reaches the final chapter. What the
+  family *can* do, and does, is refuse to pretend: with no chapter event there is no `sagaFinalFired`, so the
+  sacrifice that follows a proliferate raises no "the final chapter resolved" trigger (§3). When the core dispatch
+  lands, chapter III triggers there and the scenario that pins this flips to expecting the trigger.
 * **"Choose one or more —" is modelled as choose-exactly-one.** `parse.ts` collapses "one or both" / "one or more" /
   "any number" to `count: 1`, and `choose-mode` carries a single `count` with no room for a range, so `legalActions`
   never offers two modes (CR 700.2d). It is a core template this family did not touch and ~90 cards were already

@@ -36,7 +36,19 @@
 //                                 delta) and read by `triggers.chapter` for the two core queues, which carry no
 //                                 amount: the crossing is `(from, total]`, which is right whatever a counter
 //                                 multiplier did to the delta in between. Swept in `sba`, after every dispatch point.
-import type { CardDef, FamilyModule, GameObject, GameState, PlayerId, TargetSpec, TriggerCtx, Amount, Game, TargetRef } from './types.js';
+//   o.ext.sagaFinalFired  true    this Saga's FINAL chapter ability really triggered, on the run of the track that is
+//                                 on it now. The gate `leave` needs: a full lore track is not evidence on its own that
+//                                 the last chapter ran (proliferate fills a track with no `chapter` event at all), and
+//                                 an ability that never triggered can never resolve (CR 603.2). Cleared with the run,
+//                                 when a removal takes the track back below the final chapter.
+//   o.ext.sagaFinalBuried true    that final chapter trigger was last seen on the stack with another object ABOVE it,
+//                                 so it is not what resolves next. Written by the `sba` stack sweep, which runs at the
+//                                 top of every priority round (game.ts:493) and at the end of every resolution
+//                                 (game.ts:950) — the two moments the stack can be read between "the trigger is put on
+//                                 the stack" and "the Saga is sacrificed". It is how `leave` tells a final chapter that
+//                                 RESOLVED from one that was COUNTERED: countering it takes a spell or ability of its
+//                                 own, which sits on top of it, so a countered chapter is always a buried one.
+import type { CardDef, FamilyModule, GameObject, GameState, PlayerId, StackItem, TargetSpec, TriggerCtx, Amount, Game, TargetRef } from './types.js';
 import { extDel, extGet, extGetOr, extSet } from './ext.js';
 import { chars } from './chars.js';
 
@@ -122,6 +134,21 @@ function crossed(o: GameObject): { from: number; to: number } {
 }
 /** Does an ability listing `chapters` trigger off a crossing? (CR 714.2b) */
 const crossedAny = (chapters: number[], c: { from: number; to: number }): boolean => chapters.some(n => n > c.from && n <= c.to);
+/** Is the number this lore change is about the Saga's final chapter? (the question both halves of `saga-final-chapter` ask) */
+const crossedFinal = (o: GameObject, final: number, ctx: TriggerCtx): boolean =>
+  ctx.amount !== undefined ? ctx.amount === final : crossedAny([final], crossed(o));
+
+/**
+ * The Saga whose FINAL chapter ability this stack item is, or null. `it.ability` is the ability the trigger was made
+ * from (game.ts:putTriggersOnStack), so this is exact: a chapter ability that does not list the final chapter number
+ * — the "I, II" line of a four-chapter Saga — is not it.
+ */
+function finalChapterOnStack(it: StackItem): GameObject | null {
+  const ab = it.kind === 'trigger' ? it.ability : undefined;
+  if (!ab || ab.kind !== 'triggered' || ab.event.on !== 'chapter') return null;
+  const d = sagaDef(it.source);
+  return d && ab.event.chapters.includes(d.finalChapter!) ? it.source : null;
+}
 
 // ------------------------------------------------------------------ 4. the module
 
@@ -169,9 +196,19 @@ const SAGA: FamilyModule = {
      * triggers and CR 714.4 then sacrifices the Saga. Read ahead's skipped chapters fall out of the same range:
      * its replacement records `from = chapter - 1`, so only the chosen chapter is ever crossed (CR 714.4b).
      */
-    chapter: (ev: ChapterTrigger, perm, ctx, _s, event) => {
+    chapter: (ev: ChapterTrigger, perm, ctx, s, event) => {
       if (event !== 'chapter' || ctx.obj !== perm) return false;
-      return ctx.amount !== undefined ? ev.chapters.includes(ctx.amount) : crossedAny(ev.chapters, crossed(perm));
+      const fires = ctx.amount !== undefined ? ev.chapters.includes(ctx.amount) : crossedAny(ev.chapters, crossed(perm));
+      // Record a FINAL chapter ability that really triggered. Writing from a matcher is deliberate and safe: this hook
+      // is called from one place (game.ts:queueTriggers) and only about an event that actually happened, so a match
+      // *is* the dispatch. It is also the only hook a family gets on a trigger's way to the stack — and without it
+      // `leave` has to infer "the final chapter resolved" from "the track is full", which a proliferate that queues no
+      // `chapter` event at all (CR 701.27) makes false.
+      const final = sagaDef(perm)?.finalChapter;
+      if (fires && final !== undefined && ev.chapters.includes(final) && crossedFinal(perm, final, ctx)) {
+        extSet(perm, 'sagaFinalFired', true); extSet(s, 'sagaFinalMarks', true);
+      }
+      return fires;
     },
 
     /** "Whenever you put a lore counter on a Saga you control" — the family's own event, plus the two core queues. */
@@ -186,9 +223,9 @@ const SAGA: FamilyModule = {
 
     /**
      * "Whenever the final chapter ability of a Saga you control triggers / resolves."
-     * `triggers` reads the `chapter` event directly. `resolves` is raised by the `leave` hook: CR 714.4 sacrifices
-     * the Saga as a state-based action once the final chapter ability has left the stack, so a Saga on its way to
-     * the graveyard with a full lore track is exactly that moment.
+     * `triggers` reads the `chapter` event directly. `resolves` is raised by the `leave` hook, from the CR 714.4
+     * sacrifice — the observable moment the family can reach — but only for a Saga whose final chapter ability really
+     * triggered and was not held under something on the stack when it left it (see `leave`).
      */
     'saga-final-chapter': (ev: SagaFinalChapterTrigger, perm, ctx, _s, event) => {
       const want = ev.when === 'resolves' ? 'saga-final-chapter' : 'chapter';
@@ -197,8 +234,7 @@ const SAGA: FamilyModule = {
       if (!d) return false;
       // "triggers": the final chapter number must be one this lore change CROSSED. With a multiplier out the total
       // can already be past it, so the total on its own is not the question (CR 714.2b).
-      const final = d.finalChapter!;
-      if (ev.when === 'triggers' && !(ctx.amount !== undefined ? ctx.amount === final : crossedAny([final], crossed(ctx.obj)))) return false;
+      if (ev.when === 'triggers' && !crossedFinal(ctx.obj, d.finalChapter!, ctx)) return false;
       return ev.who === 'any' || ctx.obj.controller === perm.controller;
     },
   },
@@ -235,7 +271,13 @@ const SAGA: FamilyModule = {
      *     adds before the next dispatch still describe one range, and `sba` below sweeps it.
      */
     counters: (g, o, counter, delta) => {
-      if (counter !== 'lore' || delta <= 0 || !isSaga(o) || o.zone !== 'battlefield') return delta;
+      if (counter !== 'lore' || !isSaga(o) || o.zone !== 'battlefield') return delta;
+      if (delta <= 0) {
+        // The track is coming apart (Clash of the Eikons). A final chapter that triggered on the run being undone is
+        // no longer why a later full track ends the Saga, so the run's marks go with it.
+        if (lore(o) + delta < (chars.defOf(o).finalChapter ?? 0)) { extDel(o, 'sagaFinalFired'); extDel(o, 'sagaFinalBuried'); }
+        return delta;
+      }
       let n = delta;
       let readAhead = false;
       if (delta === 1 && lore(o) === 0 && extGet<boolean>(o, 'sagaReadAheadDone') === undefined) {
@@ -249,28 +291,52 @@ const SAGA: FamilyModule = {
   },
 
   /**
-   * Not a state-based action: the sweep that ends a lore-counter run. `checkSBA` runs before every trigger dispatch
-   * and before every priority round, so by the time this sees a `sagaLoreFrom` the `chapter` event that counter
-   * raised has already been matched against it; clearing it here is what stops the *next* add from reusing a stale
-   * range. Returns false — nothing an SBA loop has to re-check has changed. The state-level flag keeps it O(1) on
-   * every board where no lore counter moved, which is almost all of them.
+   * Not a state-based action: the two sweeps that need a fixed point in the turn, and `checkSBA` is the one the core
+   * runs at the top of every priority round (game.ts:493) and at the end of every resolution (game.ts:950). Returns
+   * false — nothing an SBA loop has to re-check has changed. Both halves are gated on a state-level flag so a board
+   * with no Saga on it pays one property read.
+   *
+   *  1. The end of a lore-counter run: by the time this sees a `sagaLoreFrom` the `chapter` event that counter raised
+   *     has already been matched against it, so clearing it here is what stops the *next* add from reusing a stale
+   *     range.
+   *  2. Where a final chapter trigger is sitting on the stack. A trigger can only leave the stack by resolving or by
+   *     being countered, and countering it takes a spell or ability that goes ON TOP of it (CR 405.5: the stack
+   *     resolves one object at a time, top down) — so "was it buried when it was last seen?" is exactly "did
+   *     something else resolve instead of it?". `leave` reads the answer. Not clearing the mark when the item is gone
+   *     is deliberate: the last look while it was still on the stack is the one that says what happened to it.
    */
   sba: (g) => {
-    if (extGet<boolean>(g.state, 'sagaLoreMarks') === undefined) return false;
-    extDel(g.state, 'sagaLoreMarks');
-    for (const o of chars.allPermanents(g.state)) if (extGet<number>(o, 'sagaLoreFrom') !== undefined) extDel(o, 'sagaLoreFrom');
+    const s = g.state;
+    if (extGet<boolean>(s, 'sagaLoreMarks') !== undefined) {
+      extDel(s, 'sagaLoreMarks');
+      for (const o of chars.allPermanents(s)) if (extGet<number>(o, 'sagaLoreFrom') !== undefined) extDel(o, 'sagaLoreFrom');
+    }
+    if (extGet<boolean>(s, 'sagaFinalMarks') !== undefined) {
+      for (let i = 0; i < s.stack.length; i++) {
+        const o = finalChapterOnStack(s.stack[i]);
+        if (!o) continue;
+        if (i === s.stack.length - 1) extDel(o, 'sagaFinalBuried'); else extSet(o, 'sagaFinalBuried', true);
+      }
+    }
     return false;
   },
 
   /**
-   * CR 714.4: once the final chapter ability has left the stack the Saga is sacrificed. That is the observable
-   * moment "the final chapter ability of a Saga resolves" names, so the `resolves` half of `saga-final-chapter` is
-   * raised from here, while the permanent still knows its controller and its counters.
+   * CR 714.4: once the final chapter ability has left the stack the Saga is sacrificed. That is the observable moment
+   * the family can reach for "the final chapter ability of a Saga resolves", so the `resolves` half of
+   * `saga-final-chapter` is raised from here, while the permanent still knows its controller and its counters — but
+   * only for a Saga whose final chapter ability actually triggered (`sagaFinalFired`) and was the next thing on the
+   * stack when it was last seen there (`sagaFinalBuried`). Those two are what keep a Saga that reached its final
+   * chapter number some *other* way from claiming a resolution that never happened: a track filled by proliferate
+   * (no `chapter` event at all) and a chapter ability countered on the stack (CR 603.2 — a countered ability never
+   * resolves) both end in this same sacrifice.
    */
   leave: (g, o, zone) => {
     const d = sagaDef(o);
+    const resolved = extGet<boolean>(o, 'sagaFinalFired') !== undefined && extGet<boolean>(o, 'sagaFinalBuried') === undefined;
     extDel(o, 'sagaReadAhead'); extDel(o, 'sagaReadAheadDone'); extDel(o, 'sagaLoreFrom');
-    if (!d || zone !== 'graveyard' || lore(o) < (d.finalChapter ?? 0)) return;
+    extDel(o, 'sagaFinalFired'); extDel(o, 'sagaFinalBuried');
+    if (!d || zone !== 'graveyard' || !resolved || lore(o) < (d.finalChapter ?? 0)) return;
     g.queueTriggers('saga-final-chapter', { obj: o, player: o.controller });
   },
 
