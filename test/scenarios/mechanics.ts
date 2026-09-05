@@ -12,6 +12,20 @@ export const mechanics: Scenario[] = [
     expect: [{ life: [1, 18] }, { zone: ['Dauthi Slayer', 'battlefield'] }, { zone: ['Grizzly Bears', 'battlefield'] }],
   },
   {
+    name: 'Menace cannot be blocked by a single creature', cr: '702.110',
+    seats: [{ bf: ['Goblin Trailblazer'] }, { bf: ['Grizzly Bears'] }],
+    // Same shape as the shadow scenario above, but it pins the *group* restriction: the lone block is legal for the
+    // blocker and refused only once the whole declaration is known, which the simulation path used to let through.
+    script: [attackWith(['Goblin Trailblazer'], [], [['Grizzly Bears', 'Goblin Trailblazer']])],
+    expect: [{ life: [1, 18] }, { zone: ['Goblin Trailblazer', 'battlefield'] }, { zone: ['Grizzly Bears', 'battlefield'] }],
+  },
+  {
+    name: 'Menace is blocked once two creatures gang up on it', cr: '702.110',
+    seats: [{ bf: ['Goblin Trailblazer'] }, { bf: ['Grizzly Bears', 'Runeclaw Bear'] }],
+    script: [attackWith(['Goblin Trailblazer'], [['Grizzly Bears', 'Goblin Trailblazer'], ['Runeclaw Bear', 'Goblin Trailblazer']])],
+    expect: [{ life: [1, 20] }, { zone: ['Goblin Trailblazer', 'graveyard'] }],
+  },
+  {
     name: 'Infect deals damage to players as poison counters', cr: '702.90',
     seats: [{ bf: ['Blight Mamba'] }, {}],
     script: [attackWith(['Blight Mamba'])],

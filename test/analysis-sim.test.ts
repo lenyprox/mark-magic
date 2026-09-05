@@ -12,7 +12,8 @@ import { analyzeQuick } from '../src/analysis/analyzer.js';
 import { AnalysisPool, inlineWorker } from '../src/analysis/pool.js';
 import { RolloutAgent } from '../src/analysis/rolloutAgent.js';
 import type { ListEntry, McRequest } from '../src/analysis/types.js';
-import { C, db, find, Script, setup } from './helpers.js';
+import { legalActions } from '../src/engine/legal.js';
+import { C, db, find, inHand, Script, setup } from './helpers.js';
 
 function list(file: string): ListEntry[] { return parseDeckList(fs.readFileSync(`decks/${file}.txt`, 'utf8')).cards.filter(c => c.board === 'main').map(c => ({ name: c.name, count: c.count })); }
 function deck(file: string) { return loadDeck(db, parseDeckList(fs.readFileSync(`decks/${file}.txt`, 'utf8'))).cards; }
@@ -66,6 +67,20 @@ test('fastMana caps payment enumeration without changing simple payments', async
   g.opts.fastMana = true;
   assert.equal(g.manaLimit, 48);
   assert.ok(await g.performAction(0, { type: 'cast', cardId: g.state.players[0].hand[0].id }));
+});
+
+test('rollout: ranks a land it may play from the graveyard (fuzz bucket 3492eb01)', async () => {
+  // Ramunap Excavator hands out a `play-land` whose card is in the graveyard, not the hand; the land ranking looked
+  // the card up in hand only and threw "Cannot read properties of undefined (reading 'def')" on the second candidate
+  const g = setup({ bf: ['Ramunap Excavator', 'Forest'], hand: ['Mountain', 'Island'] }, {});
+  g.moveTo(inHand(g, 'Island', 0), 'graveyard');
+  g.state.priority = 0;
+  const legal = legalActions(g, 0);
+  const lands = legal.filter(l => l.action.type === 'play-land');
+  assert.equal(lands.length, 2, 'the Mountain in hand and the Island in the graveyard');
+  const action = new RolloutAgent('P0').priority(g.state, 0, legal) as { type: string; cardId?: number };
+  assert.equal(action.type, 'play-land');
+  assert.ok(lands.some(l => (l.action as { cardId: number }).cardId === action.cardId));
 });
 
 test('wilson interval', () => {

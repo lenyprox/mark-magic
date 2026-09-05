@@ -166,13 +166,26 @@ function staticSources(s: GameState): GameObject[] {
 }
 
 let modCache: { state: unknown; version: number; gen: number; map: Map<number, Mods> } | null = null;
+/** Parked in the cache while an object's mods are being computed, so a re-entrant read is recognisable. */
+const IN_PROGRESS: Mods = { p: 0, t: 0, kw: [], setPT: undefined, flags: {} };
+/** The answer a re-entrant read gets: no static modification at all, i.e. the object's printed characteristics.
+ * A static whose filter consults derived characteristics of the very object it is being applied to (Windstorm Drake's
+ * "other creatures you control with flying", `powerGE`, `toughnessGtPower`, `withKeyword`, …) sends `matchesFilter`
+ * back through `power`/`toughness`/`keywords` into `staticMods` for that same object; without a guard that recurses
+ * until the stack blows. CR 613.8 settles such loops by dependency order between layers; the engine settles for the
+ * printed values on the inner read — the same answer an unmodified object gives — which keeps the filter decidable
+ * and terminates. Frozen because it is shared: nothing may fold a modification into it. */
+const BASE_MODS: Mods = Object.freeze({ p: 0, t: 0, kw: Object.freeze([] as Keyword[]) as Keyword[], setPT: undefined, flags: Object.freeze({}) as Mods['flags'] }) as Mods;
 function staticMods(s: GameState, o: GameObject): Mods {
   const gen = s.bfGen ?? 0;
   if (!modCache || modCache.state !== s || modCache.version !== s.version || modCache.gen !== gen) modCache = { state: s, version: s.version, gen, map: new Map() };
-  const hit = modCache.map.get(o.id);
-  if (hit) return hit;
-  const m = computeStaticMods(s, o);
-  modCache.map.set(o.id, m);
+  const cache = modCache.map;   // held across the compute: a nested read must land in the same table as this one
+  const hit = cache.get(o.id);
+  if (hit) return hit === IN_PROGRESS ? BASE_MODS : hit;
+  cache.set(o.id, IN_PROGRESS);
+  let m: Mods;
+  try { m = computeStaticMods(s, o); } catch (e) { cache.delete(o.id); throw e; }   // never leave a poisoned marker
+  cache.set(o.id, m);
   return m;
 }
 

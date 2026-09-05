@@ -221,3 +221,31 @@ test('AI: evaluation prefers more life and bigger board', () => {
   assert.ok(hasKeyword(g.state, find(g, 'Grizzly Bears'), 'flying') === false);
   assert.ok(findObject(g.state, find(g, 'Grizzly Bears').id));
 });
+
+// ---- Phase 8x: defects the game fuzzer and the reviewers found
+test('engine: simulateCombat refuses a lone blocker against menace', async () => {
+  // CR 702.110b. The simulation path used to accept a block the real declare-blockers step drops, so a search could
+  // "prove" a menace attacker was stopped by one creature and then watch the damage land in the real game.
+  const g = setup({ bf: ['Goblin Trailblazer'] }, { bf: ['Grizzly Bears'], life: 20 });
+  const goblin = find(g, 'Goblin Trailblazer'), bears = find(g, 'Grizzly Bears');
+  await g.simulateCombat([goblin.id], [{ blocker: bears.id, attacker: goblin.id }]);
+  assert.equal(g.state.players[1].life, 18, 'the block is dropped, so the 2/1 connects');
+  assert.equal(goblin.zone, 'battlefield'); assert.equal(bears.zone, 'battlefield');
+});
+test('engine: simulateCombat accepts two blockers against menace', async () => {
+  const g = setup({ bf: ['Goblin Trailblazer'] }, { bf: ['Grizzly Bears', 'Runeclaw Bear'], life: 20 });
+  const goblin = find(g, 'Goblin Trailblazer'), bears = find(g, 'Grizzly Bears'), claw = find(g, 'Runeclaw Bear');
+  await g.simulateCombat([goblin.id], [{ blocker: bears.id, attacker: goblin.id }, { blocker: claw.id, attacker: goblin.id }]);
+  assert.equal(g.state.players[1].life, 20); assert.equal(goblin.zone, 'graveyard');
+});
+test('engine: a static filtered by a keyword it can grant does not recurse', () => {
+  // CR 613.8. Windstorm Drake pumps "other creatures you control with flying": computing any creature's static mods
+  // asked for that creature's keywords, which asked for its static mods, until the stack blew (fuzz bucket a909b8b2).
+  const g = setup({ bf: ['Windstorm Drake', 'Wind Drake', 'Grizzly Bears'] }, {});
+  const drake = find(g, 'Windstorm Drake'), wind = find(g, 'Wind Drake'), bears = find(g, 'Grizzly Bears');
+  assert.equal(hasKeyword(g.state, drake, 'flying'), true);
+  assert.equal(power(g.state, drake), 3, 'other-you-control: the Drake does not pump itself');
+  assert.equal(power(g.state, wind), 3, 'the 2/2 flier gets +1/+0');
+  assert.equal(power(g.state, bears), 2, 'no flying, no pump');
+  assert.equal(toughness(g.state, wind), 2);
+});

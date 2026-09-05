@@ -64,7 +64,17 @@ export class RolloutAgent implements Agent {
       if (lands.length) {
         const have = new Map<string, number>(); for (const o of pl.battlefield) for (const m of o.def.producesMana) have.set(m, (have.get(m) ?? 0) + 1);
         const need = new Map<string, number>(); for (const c of pl.hand) for (const p of c.def.manaCost?.pips ?? []) need.set(p, (need.get(p) ?? 0) + 1);
-        const score = (l: LegalAction) => { const c = pl.hand.find(x => x.id === (l.action as { cardId: number }).cardId)!; let sc = c.def.entersTapped ? -0.5 : 0; for (const m of c.def.producesMana) sc += (need.get(m) ?? 0) / (1 + (have.get(m) ?? 0)); return sc; };
+        // the land need not be in hand: Ramunap Excavator, Crucible of Worlds and "play lands from exile" hand out
+        // `play-land` actions whose card sits in the graveyard, exile or on top of the library (`action.from`), so
+        // the card is looked up across every zone — a hand-only lookup answered `undefined` and threw on `.def`
+        const score = (l: LegalAction) => {
+          const c = findObject(s, (l.action as { cardId: number }).cardId);
+          if (!c) return -1;                                  // vanished between the legal-action scan and here
+          let sc = c.def.entersTapped ? -0.5 : 0;
+          if (c.zone !== 'hand') sc += 0.25;                  // a land replayed from the graveyard costs no card in hand
+          for (const m of c.def.producesMana) sc += (need.get(m) ?? 0) / (1 + (have.get(m) ?? 0));
+          return sc;
+        };
         return lands.sort((a, b) => score(b) - score(a))[0].action;
       }
       // biggest castable spell; hold counterspells and pure combat tricks; equip and loyalty abilities are fine too
