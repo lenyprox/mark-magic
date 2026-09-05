@@ -7,10 +7,11 @@
 // Every rule here is offered a line only after every built-in stage of parse.ts declined it (src/cards/rules/types.ts),
 // and each one keeps the discipline the composition family set: a rule never claims text it cannot express. Filter
 // words are checked against a closed vocabulary before the (lossy) built-in filter parser sees them, a sub-parse that
-// comes back `unknown` makes the whole rule decline, and a shape whose engine op does not exist (an emblem with a
-// triggered or activated ability — `EffectCtx` hands a rule no trigger or cost-line parser) declines rather than
-// dropping the clause.
-import type { Ability, CardType, Effect, Filter, Keyword, ManaCost, StaticEffect, TargetSpec } from '../types.js';
+// comes back `unknown` makes the whole rule decline, and a shape the ENGINE cannot carry out declines rather than
+// dropping the clause. Two of those are load-bearing here: an emblem with a triggered or activated ability (the rule
+// has no trigger or cost-line parser to read it with), and an emblem with a STATIC ability, which the core would
+// build and then never apply — see `emblemAbilities` for why only Teferi's timing permission is claimed.
+import type { Ability, CardType, Effect, Filter, ManaCost, StaticEffect, TargetSpec } from '../types.js';
 import type { EffectCtx, EffectRule, LineRule, RuleFamily } from './types.js';
 import { subtypeKind, subtypeWord } from '../subtypes.js';
 
@@ -52,12 +53,33 @@ function target(phrase: string, ctx: EffectCtx): TargetSpec | null {
   const spec = ctx.parseTarget(plain);
   if (!spec) return null;
   if (st) spec.filter = { ...(spec.filter ?? {}), subtypes: [st] };
-  // The built-in parser reads "noncreature land" as a creature target carrying a Land filter (a target kind that can
-  // never offer anything). The type noun the phrase actually ends on decides the kind.
-  const noun = [...plain.matchAll(/\b(creature|land|artifact|enchantment|planeswalker|permanent)\b/gi)].map(x => x[1].toLowerCase()).pop();
-  if (noun && noun !== spec.kind) spec.kind = noun as TargetSpec['kind'];
+  // The built-in parser reads "noncreature land" / "noncreature artifacts" as a CREATURE target carrying a Land (or
+  // Artifact) filter — a kind `targetOptionsFor` can never satisfy (CR 115.4). The type noun the phrase names decides
+  // the kind, but ONLY when it names exactly one: "target artifact, creature, or land you control" is a union the
+  // built-in already spelled as a broad kind plus an any-of `types` filter, and rewriting its kind to the LAST noun
+  // would refuse the other two (CR 115.1 — Tawnos's Tinkering). The `s?` is the second half of the fix: a plural
+  // ("noncreature artifacts") escaped the fixup entirely, while `\b` still keeps "noncreature" from counting.
+  const nouns = new Set([...plain.matchAll(/\b(creature|land|artifact|enchantment|planeswalker|permanent)s?\b/gi)].map(x => x[1].toLowerCase()));
+  if (nouns.size === 1) {
+    if (spec.kind === 'creature' && !nouns.has('creature')) spec.kind = [...nouns][0] as TargetSpec['kind'];
+  } else if (nouns.size > 1 && !nouns.has('permanent')) {
+    // "target artifact, creature, or land you control": the built-in keeps the FIRST noun as the kind and puts the
+    // union in an any-of `types` filter, so a creature target would refuse the artifact and the land (CR 115.1 —
+    // Tawnos's Tinkering). The kind widens to `permanent`, but only when the filter really is that same union, so a
+    // phrase whose filter says something else declines instead of being silently widened past what it said.
+    const want = [...nouns].map(n => KIND_TYPE[n]);
+    const have = spec.filter?.types ?? [];
+    if (spec.filter?.typesAll || have.length !== want.length || !want.every(t => have.includes(t))) return null;
+    spec.kind = 'permanent';
+  }
+  // Whatever is left must still be satisfiable: a kind whose own permanent type the filter excludes can never offer
+  // anything, so the rule declines rather than shipping a target no player could ever choose (CR 115.4).
+  const need = KIND_TYPE[spec.kind];
+  if (need && spec.filter?.notTypes?.includes(need)) return null;
   return spec;
 }
+/** The permanent type a core `TargetSpec.kind` requires — what the "can this ever be satisfied?" guard above reads. */
+const KIND_TYPE: Record<string, CardType> = { creature: 'Creature', land: 'Land', artifact: 'Artifact', enchantment: 'Enchantment', planeswalker: 'Planeswalker' };
 /** The type word a subtype's `SubtypeKind` names in the built-in target parser's vocabulary. */
 const KIND_WORD = { Creature: 'creature', Land: 'land', Artifact: 'artifact', Enchantment: 'enchantment', Planeswalker: 'planeswalker' } as const;
 
@@ -73,39 +95,28 @@ const seq = (effs: Effect[]): Effect => (effs.length === 1 ? effs[0] : { op: 'sc
 // ---------------------------------------------------------------------------------------------------------------
 // Emblems (CR 114): the abilities the quoted text gives the emblem
 // ---------------------------------------------------------------------------------------------------------------
-
-/** The plural type words an emblem's "<X> you control …" clause may name (nothing else is claimed). */
-const PLURAL_TYPE: Record<string, CardType> = { creatures: 'Creature', artifacts: 'Artifact', enchantments: 'Enchantment', lands: 'Land', planeswalkers: 'Planeswalker' };
-
 /**
- * The abilities the emblem's quoted text grants, or null when this file cannot express them. `EffectCtx` carries no
- * trigger parser and no activated-line parser, so an emblem with a triggered ability ("At the end of the first combat
- * phase on your turn, …") or an activated one ("Tap an untapped artifact you control: …") declines here — the line
- * stays unparsed, which is the honest outcome, rather than an emblem that exists and does nothing.
+ * The abilities the emblem's quoted text grants, or null when this file cannot express them.
+ *
+ * Exactly ONE emblem wording is claimed, and the reason is engine-shaped rather than parser-shaped. An emblem sits in
+ * the command zone, and `characteristics.ts:computeStaticMods` collects its sources from `staticSources(s)`, which
+ * filters `allPermanents(s)` and has no registry fold beside it — so an emblem's STATIC abilities never apply.
+ * "You get an emblem with 'Creatures you control get +2/+2 and have flying.'" would therefore resolve, log, spend the
+ * loyalty and change nothing: an invisible wrong outcome in place of a visible gap. Those nine lines (Elspeth,
+ * Gideon, Sorin, Ajani Resolute, Vivien, Garruk, Domri, Nissa Who Shakes the World) stay unparsed until the core
+ * gains the fold — the patch is in this wave's `coreChangeNeeded` and in the family doc.
+ *
+ * Teferi, Temporal Archmage's emblem is the exception because a TIMING PERMISSION is not a characteristic of any
+ * object: nothing has to fold it into `Mods`, and the family answers it from its own `legalActions` (CR 606.3),
+ * which reads the command zone directly. TRIGGERED emblems do work (`triggerSources` widens `queueTriggers`), but
+ * `EffectCtx` hands an effect rule no trigger parser, so those wordings decline here too.
  */
-function emblemAbilities(text: string, ctx: EffectCtx): Ability[] | null {
+function emblemAbilities(text: string): Ability[] | null {
   const t = text.trim().replace(/\.$/, '');
-  let m: RegExpMatchArray | null;
   // "You may activate loyalty abilities of planeswalkers you control on any player's turn any time you could cast an
   // instant." (Teferi, Temporal Archmage's emblem) — CR 606.3 read against 117.1a
   if (/^you may activate loyalty abilities of planeswalkers you control on any player's turn any time you could cast an instant$/i.test(t)) {
     return [{ kind: 'static', effect: { kind: 'loyalty-any-time' } as StaticEffect, text: t }];
-  }
-  // "Creatures you control get +2/+2 [and have flying]."
-  if ((m = t.match(/^creatures you control get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+))?$/i))) {
-    const kw = m[3] ? ctx.kwList(m[3]) : [];
-    if (!kw) return null;
-    const anthem: StaticEffect = { kind: 'anthem', power: Number(m[1]), toughness: Number(m[2]), filter: { types: ['Creature'] }, scope: 'you-control', ...(kw.length ? { keywords: kw } : {}) };
-    return [{ kind: 'static', effect: anthem, text: t }];
-  }
-  // "Lands you control have indestructible." — a keyword grant to a non-creature type (CR 613.1f layer 6)
-  if ((m = t.match(/^(\w+) you control have (.+)$/i))) {
-    const type = PLURAL_TYPE[m[1].toLowerCase()];
-    const kw = ctx.kwList(m[2]);
-    if (!type || !kw || !kw.length) return null;
-    const filter: Filter = { types: [type] };
-    const anthem: StaticEffect = { kind: 'anthem', power: 0, toughness: 0, filter, scope: 'you-control', keywords: kw as Keyword[], anyPermanent: true };
-    return [{ kind: 'static', effect: anthem, text: t }];
   }
   return null;
 }
@@ -140,7 +151,7 @@ const effects: EffectRule[] = [
   //      a capital, and neither fires after the closing quote, so the sentence can carry the rest of the ability with
   //      it (Nissa's "… emblem …" Search your library …"): the tail is sub-parsed and kept beside the emblem.
   { re: /^you get an emblem with "(.+?)\.?"(?:\s+(.+))?$/i, make: (m, ctx) => {
-    const abilities = emblemAbilities(m[1], ctx);
+    const abilities = emblemAbilities(m[1]);
     if (!abilities) return null;
     const emblem: Effect = { op: 'emblem', abilities, text: m[1].trim().replace(/\.$/, '') };
     if (!m[2]) return emblem;
@@ -241,7 +252,14 @@ const lines: LineRule[] = [
     // hybrid `{G/U/P}` Tamiyo prints is a symbol `parseManaCost` knows no case for and drops (a built-in gap recorded
     // in the family doc). Either way each printed `/P` symbol is one pip whose life route costs 2 life and two loyalty.
     const pips = mc.raw.match(/\{[^}]*\/P\}/g) ?? [];
-    if (!pips.length) return false;
+    // Each printed `/P` symbol must be one the core's cost parser actually carries. `parseManaCost` has a case for the
+    // mono-coloured `{B/P}` (it lands in `manaCost.phyrexian`, so the alt cost below really is 2 mana cheaper) and no
+    // case at all for the hybrid `{G/W/P}`, which it DROPS: for Tamiyo, Compleated Sage / Ajani, Sleeper Agent /
+    // Lukka, Bound to Ruin / Nahiri, the Unforgiving the parsed cost has nothing to remove, so the life route would be
+    // the same mana PLUS 2 life and 2 loyalty — a strictly dominated cast the AI is right never to take, and one more
+    // legal action for it to enumerate. Those four lines stay unparsed until the core parses the symbol; the gap is in
+    // this wave's `coreChangeNeeded` and in the family doc.
+    if (!pips.length || mc.phyrexian.length !== pips.length) return false;
     const life = 2 * pips.length;
     const mana: ManaCost = { ...mc, phyrexian: [], hybrid: mc.hybrid.map(h => [...h]), pips: [...mc.pips], raw: mc.raw.replace(/\{[^}]*\/P\}/g, '') };
     ctx.addAltCost({ id: 'life', label: `compleated (${life} life)`, cost: { mana, payLife: life }, from: 'hand' });

@@ -9,7 +9,9 @@
 //                     `queueTriggers`' scan beyond `allPermanents`, so an emblem's TRIGGERED abilities fire. Its
 //                     STATIC abilities do not apply yet: `characteristics.ts:staticSources` still scans the
 //                     battlefield alone and there is no registry fold beside it (see the family doc, "What an emblem
-//                     cannot do yet", and the `coreChangeNeeded` patch that adds one).
+//                     cannot do yet", and the `coreChangeNeeded` patch that adds one). Because of that the PARSER
+//                     claims only Teferi's `loyalty-any-time` emblem; a script that writes any other static gets a
+//                     log line saying it is not applied, so the gap is never silent.
 //   loyalty           CR 121 / 306.5b. Loyalty counters put on (or, with a negative amount, removed from) a
 //                     planeswalker that is not the source's own activation cost — "Put a loyalty counter on target
 //                     Gideon planeswalker", "… and a loyalty counter on each other planeswalker you control".
@@ -146,15 +148,24 @@ const PLANESWALKER: FamilyModule = {
       c.g.moveTo(o, 'command', 'top', 'effect');
       extPush(c.s.players[c.p], 'emblems', { id: o.id, source, text: e.text });
       c.g.emit({ type: 'emblem', player: c.p, id: o.id, source, text: e.text }, `${c.g.pname(c.p)} gets an emblem with "${e.text}".`);
+      // Never a SILENT no-op. An emblem's triggered abilities fire (`triggerSources` below) and `loyalty-any-time` is
+      // answered by `legalActions`; every other static is collected by `characteristics.ts:staticSources`, which
+      // filters `allPermanents` and therefore never sees the command zone. The parser refuses those wordings outright
+      // (src/cards/rules/planeswalker.ts), so only a hand-written script can reach this branch — and when it does the
+      // log says so rather than leaving an emblem that reads as an anthem and is not one.
+      for (const ab of e.abilities) {
+        if (ab.kind !== 'static' || ab.effect.kind === 'loyalty-any-time') continue;
+        c.g.note(`${source} emblem: "${ab.text ?? ab.effect.kind}" is a static ability of an emblem, which the engine does not apply yet.`);
+      }
     },
 
     // CR 121.1 / 306.5b: loyalty counters that are not an activation cost.
-    'loyalty': (e: PwLoyaltyEffect, c: OpCtx) => {
+    'loyalty': async (e: PwLoyaltyEffect, c: OpCtx) => {
       const n = c.amt(e.amount);
       if (n === 0) return;
       const list = typeof e.target !== 'string' ? c.objs()
         : e.target === 'each-planeswalker-you-control' || e.target === 'each-other-planeswalker-you-control' ? walkersFor(c, e.target)
-        : refObjects(c, e.target);
+        : await refObjects(c, e.target);
       for (const o of list) if (o.zone === 'battlefield') c.g.addCounters(o, 'loyalty', n);
     },
 
@@ -242,13 +253,18 @@ function renderWalkerTarget(t: TargetSpec): string {
   return `${t.optional ? 'up to one target ' : 'target '}${sub}${t.kind === 'planeswalker' ? 'planeswalker' : String(t.kind)}${ctl}`;
 }
 
-/** A `loyalty` op whose target is a Ref ('self', 'that', …) — resolved through the objects the item already bound. */
-function refObjects(c: OpCtx, r: Ref): GameObject[] {
-  if (r === 'self') return [c.src];
-  const bound = c.item.affected ?? [];
-  const out: GameObject[] = [];
-  for (const a of r === 'that' ? bound.slice(0, 1) : bound) { const o = chars.findObject(c.s, a.id); if (o) out.push(o); }
-  return out;
+/**
+ * A `loyalty` op whose target is a `Ref` — every one of them, through the core's own resolver.
+ *
+ * `src/engine/refs.ts` is the single place that knows what `triggering`, `target:<i>`, `enchanted`, `equipped`,
+ * `sacrificed` and `exiled-with` mean (docs/vocabulary/composition.md); reading `item.affected` by hand answers only
+ * `that` / `those` and silently returns the wrong objects — a no-op — for the other six, which the zod schema
+ * accepts. `refs.js` is a core module, so it is reached the sanctioned way: `await import` inside the hook body,
+ * never at module scope (the core imports the registry and the registry imports this file).
+ */
+async function refObjects(c: OpCtx, r: Ref): Promise<GameObject[]> {
+  const { resolveRef } = await import('../refs.js');
+  return resolveRef({ s: c.s, item: c.item, p: c.p, src: c.src }, r);
 }
 
 export default PLANESWALKER;

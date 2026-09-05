@@ -21,6 +21,11 @@ const CAST_TRIGGER: Ability = {
   kind: 'triggered', event: { on: 'cast', filter: {}, who: 'you' },
   effects: [{ op: 'gain-life', amount: 2, who: 'you' }], text: 'Whenever you cast a spell, you gain 2 life.',
 };
+/** "Creatures you control get +2/+2." — the emblem ability the engine cannot apply yet (see the family doc). */
+const ANTHEM: Ability = {
+  kind: 'static', effect: { kind: 'anthem', power: 2, toughness: 2, filter: { types: ['Creature'] }, scope: 'you-control' },
+  text: 'Creatures you control get +2/+2.',
+};
 /** Teferi, Temporal Archmage's emblem, as the parser writes it. */
 const ANY_TIME: Ability = {
   kind: 'static', effect: { kind: 'loyalty-any-time' },
@@ -155,5 +160,51 @@ export const planeswalker: Scenario[] = [
     scripts: { ...PLUS_ONE_GAIN_3, ...bears([{ op: 'emblem', abilities: [ANY_TIME], text: 'You may activate loyalty abilities of planeswalkers you control on any player\'s turn any time you could cast an instant.' }]) },
     script: [{ activate: 'Grizzly Bears' }, { resolve: true }, { passUntil: 'end' }, { activate: "Elspeth, Sun's Champion", ability: 0 }, { resolve: true }],
     expect: [{ zoneCount: [0, 'command', 1] }, { counters: ["Elspeth, Sun's Champion", { loyalty: 5 }] }, { life: [0, 23] }],
+  },
+  // ------------------------------------------------------------------ the guarded target parser (CR 115)
+  {
+    // The rule used to overwrite the kind with the LAST type noun in the phrase, so this card could only ever target
+    // a land: the artifact and the creature it names were refused at announcement.
+    name: 'a three-way "artifact, creature, or land" target really offers the creature', cr: '115.1',
+    seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Forest', 'Grizzly Bears', 'Sol Ring'], hand: ["Tawnos's Tinkering"] }, {}],
+    script: [{ cast: "Tawnos's Tinkering", targets: [['Grizzly Bears']] }, { resolve: true }],
+    expect: [{ counters: ['Grizzly Bears', { '+1/+1': 2 }] }, { pt: ['Grizzly Bears', 4, 4] }],
+  },
+  {
+    name: 'the same target offers the artifact', cr: '115.1',
+    seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Forest', 'Grizzly Bears', 'Sol Ring'], hand: ["Tawnos's Tinkering"] }, {}],
+    script: [{ cast: "Tawnos's Tinkering", targets: [['Sol Ring']] }, { resolve: true }],
+    expect: [{ counters: ['Sol Ring', { '+1/+1': 2 }] }, { counters: ['Grizzly Bears', {}] }],
+  },
+  {
+    // "up to three target noncreature artifacts" — the plural escaped the noun fixup, leaving a CREATURE target that
+    // had to be a noncreature: a kind `targetOptionsFor` could never satisfy, so the trigger resolved doing nothing.
+    name: 'a plural "noncreature artifacts" target is an artifact target, not an unsatisfiable creature one', cr: '115.4',
+    seats: [{ bf: ['Katsumasa, the Animator', 'Sol Ring', 'Grizzly Bears'] }, {}],
+    step: 'untap',
+    script: [{ passUntil: 'draw' }],
+    expect: [{ counters: ['Sol Ring', { '+1/+1': 1 }] }, { counters: ['Grizzly Bears', {}] }],
+  },
+
+  // ------------------------------------------------------------------ Refs on the loyalty op (CR 400.7)
+  {
+    // `loyalty` read `item.affected` by hand, which answers only `that` / `those`: every other Ref the zod schema
+    // accepts — `triggering` here — silently bound nothing and the op was a no-op.
+    name: 'loyalty resolves the triggering Ref through the core resolver', cr: '400.7',
+    seats: [{ bf: ['Grizzly Bears', 'Mountain', 'Mountain', 'Mountain'], hand: ['Tibalt, Rakish Instigator'] }, {}],
+    scripts: { 'Grizzly Bears': { abilities: [{ kind: 'triggered', event: { on: 'etb', self: false, filter: {}, controller: 'you' }, effects: [{ op: 'loyalty', target: 'triggering', amount: 2 }], text: 'Whenever another permanent enters under your control, put two loyalty counters on it.' }] } },
+    script: [{ cast: 'Tibalt, Rakish Instigator' }, { resolve: true }, { resolve: true }],
+    expect: [{ counters: ['Tibalt, Rakish Instigator', { loyalty: 7 }] }, { unsimulated: 0 }],   // printed 5 + 2
+  },
+
+  // ------------------------------------------------------------------ what an emblem cannot do yet (CR 114.3)
+  {
+    // The parser refuses every anthem emblem for this reason; a hand-written script can still write one, and when it
+    // does the log has to say the ability is not applied rather than leaving a silent no-op.
+    name: 'an emblem with a static ability says so in the log instead of silently doing nothing', cr: '114.3',
+    seats: [{ bf: ['Grizzly Bears'] }, {}],
+    scripts: bears([{ op: 'emblem', abilities: [ANTHEM], text: 'Creatures you control get +2/+2.' }]),
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
+    expect: [{ zoneCount: [0, 'command', 1] }, { pt: ['Grizzly Bears', 2, 2] }, { log: 'does not apply yet' }],
   },
 ];

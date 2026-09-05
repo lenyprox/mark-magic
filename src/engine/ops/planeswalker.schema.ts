@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import type { ZodObject, ZodType } from 'zod';
 import { AbilitySchema, AmountSchema, RefSchema, TargetSpecSchema } from '../../cards/schema.js';
+import type { Ability } from '../../cards/types.js';
 
 /**
  * The contract every `src/engine/ops/<family>.schema.ts` exports (docs/vocabulary/README.md, "Family schema").
@@ -37,10 +38,19 @@ export interface FamilySchema {
 /** The scope words `loyalty` takes besides a target spec or a Ref (CR 306.1: planeswalkers on the battlefield). */
 const LoyaltyScope = z.enum(['each-planeswalker-you-control', 'each-other-planeswalker-you-control']);
 
+/**
+ * The emblem's abilities. `AbilitySchema` VALIDATES what the parser really emits, which is `ParsedAbility` — the six
+ * extra field names schema.ts documents in its own header — while the AST field types.ts carries is `Ability[]`, so
+ * the inferred type is pinned back to the AST. Exactly the trick schema.ts's own `NUMX` uses for `number`: the
+ * runtime check is unchanged, and `test/schema-types.test.ts`'s `Equals<z.infer<EffectSchema>, Effect>` still holds
+ * once the composer folds this variant in.
+ */
+const EmblemAbilities = z.array(AbilitySchema).min(1) as unknown as ZodType<Ability[]>;
+
 export const schema: FamilySchema = {
   effects: [
     // CR 114.1: "You get an emblem with '<text>'." `text` is the printed quote (what the renderer prints back).
-    z.strictObject({ op: z.literal('emblem'), abilities: z.array(AbilitySchema).min(1), text: z.string().min(1) }),
+    z.strictObject({ op: z.literal('emblem'), abilities: EmblemAbilities, text: z.string().min(1) }),
     // CR 121.1 / 121.3: loyalty counters put on (negative: removed from) planeswalkers.
     z.strictObject({ op: z.literal('loyalty'), target: z.union([TargetSpecSchema, RefSchema, LoyaltyScope]), amount: AmountSchema }),
     // CR 122.1: bring target player up to `total` poison counters (the difference, taken on resolution).
