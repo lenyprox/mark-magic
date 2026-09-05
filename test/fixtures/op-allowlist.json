@@ -142,7 +142,6 @@
     "flashback",
     "impending",
     "jump-start",
-    "life",
     "pitch",
     "warp"
   ],
@@ -158,7 +157,6 @@
     "energy",
     "exileFromHand",
     "exileOtherFromGraveyard",
-    "payLife",
     "returnToHand",
     "tapCreaturesTotalPower",
     "tapUntappedCreature"
