@@ -121,6 +121,12 @@ inert clauses as before; ceilings only ratchet down from here); `coverage:pool` 
 32,081 (37.47%); `verify:pool` 11,613 sandbox-ok / 544 unreachable, no throws; goldens exact; `npm test` 699;
 `coverage:ops` 0 not allowlisted; bench 37.3 / 4.01 games/s under the second session's load.
 
+**Reduced Phase 8 gate on the merged main (a9ef523, 2026-09-05):** `npm test` 831 / 831; `scripts:check` 0 problems;
+`coverage:pool` 12,157 / 12,022 (unchanged by the 8k / 8c merges); `parse:diff` 0; `coverage:ops` clean; goldens exact;
+fidelity 0 failures; `verify:pool` 11,613 / 544; fuzz 300 × 4-player 0 buckets; fuzz 1,000 × 2-player **1 bucket
+(71eb97bd)** — reproduced and fixed under HANDOFF §3 item 29 (below) — bench 38.4 / 4.09 games/s under load. 10.0 was
+launched on this state: `data/scripts/batches/10.0` (164 owner-deck cards in 8 batches).
+
 ### Branches not yet merged
 
 None. Every Phase 8 branch produced in this session was merged into `main` after its review rounds; the worktrees
@@ -377,51 +383,20 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     reported "never reached" forever. `test/scripts-verify.test.ts`'s Ainok Survivalist fixture pins exactly that.
     Fixing item 11 in `game.ts` makes both probes start working with no change here.
 
-## 4. Remaining Phase 8 slices (8k done; the rest not started)
+## 4. Remaining Phase 8 slices
 
-- ~~**8c `scripts:verify`**~~ — **done**: `scripts/scripts-verify.ts` (`npm run scripts:verify -- --batch | --ids |
-  --changed | --stale [--dir --report --json --no-write --no-sandbox --seats]`) around `verifyCards` in
-  `src/verify/scriptVerify.ts`, the seven stages in order; `src/cards/lint.ts` (stage 4, every vocabulary derived at
-  run time — item 12), `src/verify/probes.ts` (stage 5, per-ability reachability by making the event happen; shared
-  setups, ~10 ms a card; a static is probed by rebuilding the same board from a def with THAT ability removed),
-  `src/cards/render.ts` (stage 6, a template per core op + the registry's `RENDERERS`, every face scored including
-  `secondFace`, the score calibrated by `test/render.test.ts` over a seeded sample of parser-finished cards: median
-  0.917, 1.6% zeros, 7.1% below the gate),
-  `scripts/scripts-render.ts` (`npm run scripts:render -- --ids … [--parsed]`) for the judge and for humans, the
-  `verification` block written back and the batch report at `data/scripts/reports/<batch>.json` (gitignored).
-  Documented in `data/scripts/README.md` § Verification. Measured: a 30-card batch is 0.5 s of work, 2.5 s wall
-  clock (target 15 s). Open behind it: items 24, 25 and 26.
-- **8i speed ladder** — `verify:quick` (≤ 15 s), `verify:all` (≤ 2.5 min full, incremental ≈ 70 s), `verify:deep`
-  (fuzz + goldens + fidelity + Playwright against `next build --webpack` + `next start -p 3199`); the parse cache
-  `data/master/parse-cache.sqlite` keyed by `(oracleId, oracleHash, scriptHash, PARSER_VERSION, registryHash)`;
-  `MTG_PARSE_CACHE=0` escape hatch. Touches `src/cards/db.ts` (merge after 8a-3).
-- ~~**8k fan-out tooling**~~ — **done**. `src/cards/scriptState.ts` (nine states derived from files only: master row,
-  script, blocked note, scenario shard, live registry — `SCRIPT_STATE_TABLE` says which count as simulated /
-  covered / queueable, and a blocked note auto-clears when every family it names exists); `src/cards/taxonomy.ts`
-  (the plan Part 3 families as one ordered rule table, replacing the `owner-decks-needs.md` regex heuristic and its
-  two known over-tags — "creatures you control gain …" is generic, "return … under its owner's control" is a zone
-  move — pinned on 68 real cards in `test/taxonomy.test.ts`); `scripts:queue` (selection language
-  `decks:owner | pool:<tier> | commander:legal | edhrec<=N`, family/type/EDHREC ordering, parser draft, nearest
-  judged scripts, vocabulary excerpt, DSL cheat sheet, plus the blind copy with the ASTs stripped and the rulings
-  added); `scripts:promote` (writes `verification.scenarios` / `.judge` / `.status` and the blocked notes; refuses
-  on a dirty `src test apps scripts package.json` tree, with `--allow-dirty <prefix>` for another session's known
-  files; `--human --by <person> --ids …` writes the review notes under `data/scripts/reviewed/` that are the only
-  route to `reviewed`); `scripts:quarantine` (`_quarantine/`, which `ScriptStore` ignores; `--restore`);
-  `scripts:needs` (`needs.json` ranked by cards blocked, and `--taxonomy` for the pool-wide family histogram);
-  `vocab:doc` → `data/scripts/VOCABULARY.md` (generated from the zod barrel + registry + `docs/vocabulary/` and
-  from NO wave output, idempotent, pinned by `test/lint-vocab-doc.test.ts`). `data/scripts/README.md` § "Queue,
-  promotion and needs" documents the loop. How many judges a card needs is `src/cards/waveScope.ts`'s answer (two
-  for the owner's decks and the EDHREC top-1k), asked per card rather than per invocation.
-  **Deferred from 8k:** `scripts:render` and `scripts:shard` belong to the 8c slice, so they are not here; the
-  batch `examples` list is empty until a wave is judged (the code is live, there is simply nothing judged yet);
-  `scripts:promote` cannot itself re-run `scripts:verify`, so a wave must run 8c's gate before promotion; and
-  `scripts/` is still outside every `tsconfig` (item 10), so the new CLIs are type-checked only by an explicit
-  `tsc` invocation, not by `npm run typecheck:all`.
-- **8j dashboard v2** — `verification.json` with pool tiers, slices (Commander-legal, owner's decks, EDHREC top-1k/5k,
-  by type), script statuses, fidelity, fuzz, goldens, blocked families; `apps/web/components/coverage/CoveragePage.tsx`.
-- **Phase 8 gate** — `verify:all` and `verify:deep` green on a quiet machine; goldens/fidelity/parse-snapshot
-  fixtures accepted; dashboard shows tiers; Playwright green; then the first check-in with the owner (numbers, git
-  log, cost so far, proposed 9.0).
+- ~~8c `scripts:verify`~~ — **merged** (a9ef523): `npm run scripts:verify -- --batch <file> | --ids … | --changed | --stale`,
+  `npm run scripts:render -- --ids …`, `src/cards/render.ts`, `src/cards/lint.ts`, `src/verify/probes.ts`,
+  `src/verify/scriptVerify.ts`; reports under `data/scripts/reports/` (gitignored).
+- ~~8k fan-out tooling~~ — **merged** (9a30b8b): `scripts:queue`, `scripts:promote`, `scripts:quarantine`, `scripts:needs`,
+  `vocab:doc` → `data/scripts/VOCABULARY.md` (tracked), `src/cards/scriptState.ts`, `src/cards/taxonomy.ts`.
+- **8i speed ladder** — deferred until after 10.0 (process rule 4 in docs/workflows/README.md): `verify:quick` /
+  `verify:all` / `verify:deep` timings, the parse cache `data/master/parse-cache.sqlite`, the Playwright leg.
+- **8j dashboard v2** — deferred until after 10.0: `verification.json` with tiers, slices, script statuses;
+  `apps/web/components/coverage/CoveragePage.tsx`.
+- **Phase 8 gate (reduced)** — `npm test`, `scripts:check`, `coverage:pool`, `parse:diff`, `coverage:ops`, goldens, fidelity,
+  `verify:pool`, fuzz (1000 × 2p, 300 × 4p), bench — run on the merged main before 10.0; Playwright and the dashboard
+  wait for 8i / 8j.
 
 ## 5. How to continue (checklist for the next session)
 
