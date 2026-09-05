@@ -40,17 +40,23 @@ orchestrated by a Claude Code session. The plan has three phases, continuing the
 | 8700360 | 8a-1 | `src/engine/ops/` registry (`npm run gen:registry`), hook points in every core function, `Core*` unions + registries in `types.ts`/`state.ts`/`events.ts`, `ext` bags, `docs/vocabulary/README.md`, `test/registry.test.ts` |
 | 97983df | 8d | `src/verify/scenarioDsl.ts`, JSON corpus `data/scenarios/<2-hex>/<oracle_id>.json`, `npm run verify:scenarios` (sharded), `test/scenarios/README.md` for blind authors |
 | 4e09a7c | 8a-1 fixes | extra-combat leak, step-hook placement, mode costs, counters fold, phasing scans, lints |
-| 8249a67 | 8e + 8f | `src/engine/invariants.ts`, parallel `npm run verify:pool` (`--workers/--seats 2|4|both/--ids/--changed/--limit`), `npm run fuzz` / `fuzz:deep` with ddmin shrinking and `--repro` |
+| 8249a67 | 8e + 8f | `src/engine/invariants.ts`, parallel `npm run verify:pool` (`--workers/--seats 2|4|both/--ids/--changed/--tier/--limit`), `npm run fuzz` / `fuzz:deep` with ddmin shrinking and `--repro` |
+| d1f454e | docs | this handoff, the plan copy, `docs/workflows/` |
+| 18a0939 | 8h | op-coverage ratchet: `npm run coverage:ops`, `test/lint-op-coverage.test.ts`, `test/fixtures/op-allowlist.json` (only shrinks; dead trigger events pinned) |
+| 4aa3559 | 8a-2 | parser rule registry (`src/cards/rules/`, generated barrel), `PARSER_VERSION`, `npm run parse:diff` / `parse:accept` over `data/master/parse-snapshot.json`; `verify:all` includes `parse:diff` |
+| 6e35aa7 | 8g | goldens (`test/fixtures/golden/`, `golden:check` / `golden:accept`), fidelity ratchet (`fidelity:check` / `fidelity:accept`, `test/fixtures/fidelity.json`), `test/determinism.test.ts`, inert-clause aggregation (`sim:batch --track-unsimulated`), worker pools settle on thread death |
+| 9d945ba | 8x | engine fixes: static-mods recursion (layer-6 re-entrant reads), one `landScorer` for AiAgent/RolloutAgent (land from graveyard/exile), `Game.blockLegal` shared by declare-blockers and `simulateCombat` (menace, CR 509.1a) |
+| e817a4f | 8a-3 | script format v2 (sharded, `llm` source, backFace/secondFace, typed value-matched covers, ignore whitelist, verification block, `scriptHash`), line-claim accounting for `fullyParsed`, `src/cards/pool.ts` tiers, `src/cards/schema.ts` (zod) + `typecheck:schema`, `scripts:check` v2, `scripts:shard`, `scripts:schema` |
 
-Numbers on `main` (unchanged by design through every merge): `coverage:pool` 11,541 / 34,513 fully parsed;
-`verify:pool` 11,064 sandbox-ok / 477 unreachable; the three seeded baselines replay identically; `npm test`
-380 tests; bench 45–54 games/s 60-card and ≈ 5 Commander on a quiet machine.
+Numbers on `main` at handoff (`npm run verify:all` green in 1 m 53 s on a quiet machine): `coverage:pool` 11,541 /
+34,513 fully parsed overall, paper headline 11,391 / 32,081 (35.5%); `verify:pool` 11,064 sandbox-ok / 477
+unreachable; `parse:diff` 0 changed; goldens and the three seeded baselines replay identically; `npm test` 439
+tests; bench 45.4 games/s 60-card and 4.66 Commander (quiet machine; ≥ 20 / ≥ 4 budget).
 
 ### Branches not yet merged
 
-See section 6 (filled in at the end of the session) for the exact state of every branch. Each branch is pushed to
-`origin`; each was produced by an Opus implementer plus adversarial review rounds, and its last review verdict and
-remaining issues are listed there.
+None. Every Phase 8 branch produced in this session was merged into `main` after its review rounds; the worktrees
+and the remote `worktree-*` branches were deleted. Section 6 records what each merge left open.
 
 ## 3. Known defects and backlog (found by reviewers and the fuzzer; not yet fixed unless noted)
 
@@ -71,6 +77,47 @@ remaining issues are listed there.
 8. `verify:deep` is a stub until 8g (goldens + fidelity) and 8i (Playwright leg) are merged; the fuzz legs are in
    `fuzz:deep`.
 9. `BatchPool.run()` can stall if a worker dies mid-chunk (8g fix round 2 addresses it).
+11. **Dead trigger events** (found by the 8h probe): `turned-face-up` is raised by `Game.turnFaceUp` but no
+    `queueTriggers` case dispatches it, so a morph card's "When ~ is turned face up" trigger can never fire
+    (proof: Ainok Survivalist turned face up destroys nothing); `tapped` has a case but is never raised. Both are
+    pinned under `deadEvents` in `test/fixtures/op-allowlist.json`; fixing them is a `game.ts` change (add the
+    dispatch / raise the event) after which the allowlist entry must be removed.
+12. Op-coverage strictness gaps (8h re-review): the probe's `unknown` assertion can false-positive on cards whose
+    parser output carries the `unknown` sentinel; keywords/alt-cost/cost-modifier vocabularies have no runtime source
+    (type-only registries) — derive them from the zod schema barrel once 8a-3 lands.
+13. Parser-registry purity gap (8a-2 re-review): the built-in `EFFECT_RULES` entry `~ gains "(.+)"` (parse.ts ~472)
+    calls `parseActivatedLine` with the registry enabled even during the built-ins-only pass, and four line-loop
+    condition slots consult condition rules in place (documented in parse.ts's header). With catch-all claiming
+    families the measured effect is 0 fully-parsed cards moved; a proper fix threads the pass flag into table
+    `make` callbacks. Always read `npm run parse:diff` after a rule family lands.
+14. Analysis worker pool (`src/analysis/pool.ts`, 8g re-review): `AnalysisPool.rerun()` never settles when the
+    worker it was posted to dies while another worker lives (the pool does not record which slot a rerun went to);
+    a slot that dies before `init()` leaves `init()` waiting; `killSlot` charges an in-flight rerun to the current
+    analysis. In `src/sim/batchPool.ts` a worker answering `load` with an error while another worker already loaded
+    is never retired. All edge cases of worker death, not of normal runs.
+15. Fidelity ceilings were re-baselined with `fidelity:accept --force` in 8g (Goph vs Quintorius 14.3 → 16.1, pod
+    19.8 → 20.5): the earlier ceilings came from runs where 18 of 240 games died on the land-drop crash, so they
+    undercounted inert clauses. This is a measurement correction; ceilings only ratchet down from here.
+16. Layer dependency cycles (8x): `staticMods` now parks an in-progress marker and answers a re-entrant read with
+    `layer6Mods` (keywords/flags kept, layer-7 P/T terms zeroed), so keyword-filtered anthems see granted keywords
+    and no longer overflow the stack; a filter that reads P/T (`powerGE`, `toughnessLE`, `toughnessGtPower`) still
+    sees printed values on a re-entrant read — the real fix is CR 613.8 dependency ordering (plan B3).
+17. `Game.blockLegal` (shared by the declare-blockers step and `simulateCombat`) now enforces CR 509.1a (only the
+    defending player's creatures block). The 8x re-review warns that `simulateCombat` sets every attacker's
+    `attacking` to the primary opponent, so simulated blocks by a non-primary defender in a pod are refused; the
+    3-player golden and the fidelity pod were the gates: 3 of 30 pod golden games changed (accepted, first
+    difference at a turn where a non-defending seat's block is no longer simulated), both 2-player goldens and the
+    three seeded baselines reproduced exactly, and the fidelity pod improved (20.52 → 20.38 hits/game). If pods
+    with attackers aimed at several defenders ever matter to the AI's combat evaluation, `simulateCombat`'s
+    `targets` parameter must be used instead of the primary-opponent default.
+18. Script accounting — residual mechanical bypasses (8a-3 round-5 re-review; deliberately left to 8c): the
+    structural gate in `src/cards/scripts.ts` (claims, per-line substantive-effect budget, marker ops, zero
+    magnitudes, typed covers) still accepts an `Amount` object with `times: 0`, negative magnitudes, `add-mana` with
+    `mana: []`, zero-valued statics (`cost-adjust 0`, `extra-land 0`, `equipment 0/0`, `aura 0/0` with no flags),
+    `costModifiers` covers whose printed reduction has non-numeric symbols, and all-empty `animate`/`token` bodies.
+    The structural gate is the first filter only: 8c's round-trip renderer rejects every one of these because the
+    rendered text cannot match the oracle line's numbers, and the blind scenario and judge follow. When writing 8c,
+    also extend `MAGNITUDE_RULES`/`EMPTY_LIST_RULES` for these cases so the cheap gate catches them too.
 10. `test/` is not covered by `tsconfig.json` (only `src/**`); test files are transpile-only under tsx. 8a-3 added
     `tsconfig.schema.json` for its type-equality test; a whole-of-test typecheck has ~40 pre-existing errors.
 
@@ -110,6 +157,20 @@ remaining issues are listed there.
 Commit convention: `Phase 8x: …` harness, `Phase 9.n: …` vocabulary, `Phase 10.x.g: …` scripts; end every commit
 message with the co-author trailer your session is instructed to use.
 
-## 6. Branch states at the end of the session
+## 6. State at the end of the session (2026-09-05)
 
-_Filled in below by the orchestrator before the final push._
+- `main` = `e817a4f` (pushed). No unmerged branches, no worktrees, working tree clean.
+- Every slice went through Opus implementation + two or three adversarial reviews + fix rounds: 8a-1 (1 fix
+  round + a follow-up slice), 8a-2 (2), 8a-3 (5), 8d (2), 8e (1), 8f (1), 8g (2), 8h (1), 8x (1). The findings the
+  last reviews left open are items 11–18 in section 3; none of them breaks a gate.
+- What the gates say on `main`: `npm run verify:all` green (typecheck:all incl. `typecheck:schema`, 439 tests,
+  `scripts:check`, `coverage:pool`, `parse:diff` 0, `verify:pool` 11064/477, bench 45.4 / 4.66 games/s);
+  `npm run golden:check` reproduces exactly; `npm run fidelity:check` 13.28 / 16.12 / 8.33 / 20.38 hits per game;
+  `npm run fuzz -- --games 300 --seed 1` 0 buckets; `npm run coverage:ops` 0 not allowlisted.
+- Not done in Phase 8: 8c (`scripts:verify` + renderer), 8i (speed ladder, parse cache, Playwright leg of
+  `verify:deep`), 8k (queue/promote/needs/vocab tooling), 8j (dashboard v2), the Phase 8 gate and the owner
+  check-in. `verify:deep` today = `golden:check && fidelity:check`; the fuzz legs are `npm run fuzz:deep`.
+- Cost of this session: ≈ 15 workflows, ≈ 55 Opus agents, ≈ 14 M subagent tokens, ≈ 20 h wall-clock including
+  review loops.
+- Owner's memory notes for this project live outside the repo (`~/.claude/projects/…/memory/`); everything they
+  contain that matters is in this file, `docs/plans/every-card-scripted.md` and `docs/workflows/README.md`.
