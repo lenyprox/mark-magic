@@ -15,7 +15,9 @@
 // TOOLING ONLY (like src/cards/schema.ts): nothing under src/engine, src/sim, src/ai or apps/web imports this.
 import { RENDERERS } from '../engine/ops/_registry.js';
 import { KEYWORDS } from './schema.js';
-import { abilityClaimLines, COVER_KINDS, coverProblem, keywordLineClaimed, type CoverKind, type KeywordParams } from './scripts.js';
+import {
+  abilityClaimLines, COVER_KINDS, COVER_LINE_RE, coverProblem, keywordLineClaimed, type CoverKind, type KeywordParams,
+} from './scripts.js';
 import type {
   Ability, AbilityCost, AltCost, Amount, AsEnters, CardDef, Condition, CostModifier, Effect, Filter, Keyword,
   ManaCost, ObjectSet, Ref, StaticEffect, TargetSpec, TriggerEvent,
@@ -905,17 +907,17 @@ export function vocabularyIn(text: string): string[] {
   return [...out];
 }
 
-export interface LineScore { text: string; rendered: string; score: number; why?: string }
+export interface LineScore { text: string; rendered: string; score: number; why?: string; gap?: string }
 
 /**
  * Whether a line is a printed KEYWORD-ABILITY line ("Persist", "Crew 3", "Cumulative upkeep {U}", "Enchant creature",
  * "Flashback {4}{G}") rather than a sentence: a capitalised NAME of at most three words, an optional bare-number or
  * mana-cost parameter, and no sentence punctuation at all — no full stop, comma, colon, quotation mark or `~`.
  *
- * Such a line is not prose describing an effect, and the rendering it is scored against is the keyword's REMINDER
- * TEXT ("Crew 3" -> "tap any number of creatures you control with total power 3 or greater: crew ~"). Word overlap
- * between the two is meaningless — the whole class scored 0.00-0.13 and failed the gate on every card that printed
- * one, whether or not the script was right — so `scoreKeywordLine` scores them on their MAGNITUDE alone.
+ * Such a line is not prose describing an effect: what the parser (or a script) writes for it is the keyword's
+ * REMINDER TEXT expansion, which shares almost no words with the two words the card prints. Token overlap against
+ * the LINE is therefore meaningless — the whole class scored 0.00-0.13 and failed the gate on every card that
+ * printed one, right or wrong — so `scoreKeywordLine` scores the rendering against the keyword's EXPANSION instead.
  */
 export function printedKeywordLine(line: string): boolean {
   const t = line.trim();
@@ -924,17 +926,111 @@ export function printedKeywordLine(line: string): boolean {
   return /^[A-Z][A-Za-z'!-]*(?: [a-z'!-]+){0,2}(?:[ —-]*(?:\d+|(?:\{[^}]*\})+|[a-z][a-z ]*))?$/.test(t);
 }
 
+/** A printed keyword line split into the keyword's NAME (lower-cased) and the parameter it prints, if it has one. */
+export function keywordLineParts(line: string): { name: string; n?: string; cost?: string } {
+  const t = line.trim().replace(/\.$/, '');
+  const cost = /((?:\{[^}]*\})+)\s*$/.exec(t)?.[1];
+  const n = cost ? undefined : /(?:^|[^/+-])\b(\d+)\s*$/.exec(t)?.[1];
+  const name = t.replace(/[ —-]*(?:(?:\{[^}]*\})+|\d+)\s*$/, '').trim().toLowerCase();
+  return { name, ...(n ? { n } : {}), ...(cost ? { cost } : {}) };
+}
+
 /**
- * A printed keyword line against the reminder-text rendering of the ability that implements it. Only the line's own
- * MAGNITUDE is scored — "Crew 3" rendered by an ability that crews for 2 still scores 0, which is the cross-check
- * that matters — and the numbers inside a mana cost are not magnitudes the expansion has to repeat.
+ * What each printed keyword MEANS, in the renderer's own vocabulary — the rules text the parser (and a script) has
+ * to expand the keyword into, with `{n}` / `{cost}` standing for the parameter the line prints.
+ *
+ * This table is the POSITIVE EVIDENCE a keyword line is scored against. Without it the class had no cross-check at
+ * all: a line printing no digit scored an unconditional 1.00 whatever the claiming ability did, so `Futurist
+ * Sentinel` ("Crew 3") scripted as "when ~ enters, you draw three cards" came out `verified` end to end — and a
+ * number-bearing line was barely better, since any rendering that happened to print the same digit passed.
+ *
+ * Every keyword the pool prints as an ability line ON A FACE THAT DOES NOT DECLARE IT is here. Over the 10,409
+ * parser-finished cards that class has 32 names: the 21 below (plus `evoke`, the other spelling of the synthetic
+ * `evoke sacrifice` line), 10 that a declaration covers instead (`declarationCovers` — kicker, flashback, buyback,
+ * cycling, basic landcycling, storm, convoke, improvise, delve, affinity), and `devoid`, which no field of the
+ * script format can express. A simple keyword granted by the face itself falls through to `~ has <keyword>`, which
+ * is what `self-keywords` renders; a keyword in neither place is a renderer gap, never a pass (`scoreKeywordLine`).
+ */
+export const KEYWORD_EXPANSIONS: Record<string, string> = {
+  afflict: 'whenever ~ becomes blocked, defending player loses {n} life',
+  'battle cry': 'whenever ~ attacks, other attacking creatures get +1/+0 until end of turn',
+  crew: 'tap any number of creatures you control with total power {n} or greater: crew ~',
+  'cumulative upkeep': 'at the beginning of your upkeep, put an age counter on ~. sacrifice ~ unless you pay {cost} for each age counter on it',
+  echo: 'at the beginning of your upkeep, sacrifice ~ unless you pay {cost}',
+  evolve: 'whenever a creature you control enters, evolve',
+  evoke: 'when ~ enters, if it was evoked, sacrifice ~',
+  'evoke sacrifice': 'when ~ enters, if it was evoked, sacrifice ~',
+  extort: 'whenever you cast a spell, you may pay {W/B}. if you do, each opponent loses 1 life and you gain that much life',
+  fabricate: 'when ~ enters, choose one — put {n} +1/+1 counters on ~ • create {n} 1/1 Servo artifact creature tokens',
+  fading: 'at the beginning of your upkeep, if ~ has a fade counter on it, remove a fade counter from it. otherwise, sacrifice ~',
+  'living weapon': 'when ~ enters, create a 0/0 black Phyrexian Germ creature token. attach ~ to that creature',
+  mobilize: 'whenever ~ attacks, create {n} 1/1 red Warrior creature tokens attacking. at end of combat, sacrifice them',
+  modular: 'when ~ dies, you may move a +1/+1 counter from ~ onto up to one target artifact creature',
+  myriad: 'whenever ~ attacks, create a token that is a copy of ~ attacking, one for each opponent. at end of combat, exile them',
+  persist: 'when ~ dies, if ~ has no -1/-1 counters on it, return ~ to the battlefield with a -1/-1 counter on it',
+  rebound: 'exile ~ as it resolves. at the beginning of your next upkeep, you may cast it from exile without paying its mana cost',
+  renown: 'whenever ~ deals combat damage to a player, if ~ is not renowned, renown {n}',
+  soulshift: 'when ~ dies, you may return target Spirit creature with mana value {n} or less from your graveyard to your hand',
+  undying: 'when ~ dies, if ~ has no +1/+1 counters on it, return ~ to the battlefield with a +1/+1 counter on it',
+  unearth: '{cost}: unearth. activate only as a sorcery',
+  vanishing: 'at the beginning of your upkeep, if ~ has a time counter on it, remove a time counter from it. otherwise, sacrifice ~',
+};
+
+/** The rules text of one printed keyword line, or `null` when the renderer has no rules text for that keyword. */
+export function keywordExpansion(line: string): string | null {
+  const { name, n, cost } = keywordLineParts(line);
+  // "Enchant creature" / "Enchant permanent you control" IS its own rules text, and `renderStatic` prints it verbatim
+  const tpl = KEYWORD_EXPANSIONS[name] ?? (/^enchant /.test(name) ? name : KEYWORD_SET.has(name) ? `~ has ${name}` : null);
+  if (tpl === null) return null;
+  return tpl.replace(/\{n\}/g, n ?? '').replace(/\{cost\}/g, cost ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Whether a line has the shape of a DECLARATION line — "Flashback {4}{G}", "Kicker {R}", "Dredge 3" — one that no
+ * ability ever implements. `COVER_RULES` owns those shapes; `keywords` is skipped because its shape is "any line".
+ *
+ * Such a line reaching `scoreKeywordLine` means the face declares nothing that covers it (`declarationCovers` would
+ * have taken it away), which is a fault of the SCRIPT, not a hole in this renderer.
+ */
+function declarationShapedLine(line: string): boolean {
+  return COVER_KINDS.some(by => by !== 'keywords' && COVER_LINE_RE[by].some(re => re.test(line.trim())));
+}
+
+/**
+ * A printed keyword line against the ability that claims it, scored on what the keyword MEANS rather than on the
+ * two words the card prints. Two rules, and the first is still the hard one:
+ *
+ *   * every MAGNITUDE the line prints must appear in the rendering — "Crew 3" implemented by an ability that crews
+ *     for 2 scores 0. (A number inside a mana cost is part of `{cost}`, and the containment below checks it.)
+ *   * the rendering must CONTAIN the keyword's rules text: the fraction of the expansion's own content words the
+ *     rendering carries. This is recall, not Jaccard — an ability may do more than the keyword says (Modular's dies
+ *     trigger sits on a card that also enters with counters) but it must do at least what the keyword says.
+ *
+ * A keyword the table does not know scores 0 and is reported as a renderer GAP, not as a fault of the card: an
+ * unknown keyword is a line this tool cannot check, and the one thing it must never do is call such a line verified.
  */
 export function scoreKeywordLine(line: string, rendered: string): LineScore {
+  const expansion = keywordExpansion(line);
+  if (expansion === null) {
+    const { name } = keywordLineParts(line);
+    return declarationShapedLine(line)
+      ? { text: line, rendered, score: 0,
+        why: `'${name}' is a DECLARATION, not an ability: this face declares nothing that covers ${JSON.stringify(line.trim())}` }
+      : { text: line, rendered, score: 0, gap: `keyword:${name}`,
+        why: `the renderer has no rules text for the printed keyword '${name}', so it cannot check what implements this line` };
+  }
   const have = new Set(numbersIn(rendered));
   const missing = numbersIn(line.replace(/\{[^}]*\}/g, ' ')).filter(n => !have.has(n));
-  return missing.length
-    ? { text: line, rendered, score: 0, why: `the rendering does not print ${missing.join(', ')}` }
-    : { text: line, rendered, score: 1, why: 'a printed keyword line: only its magnitude is scored' };
+  if (missing.length) return { text: line, rendered, score: 0, why: `the rendering does not print ${missing.join(', ')}` };
+  const words = new Set(lemmas(rendered));
+  const need = [...new Set(lemmas(expansion))];
+  const absent = need.filter(w => !words.has(w));
+  const score = need.length ? (need.length - absent.length) / need.length : 1;
+  return {
+    text: line, rendered, score: Math.round(score * 1000) / 1000,
+    why: `a printed keyword line, scored against ${JSON.stringify(expansion)}`
+      + (absent.length ? `, which the rendering does not carry ${absent.join(', ')} of` : ''),
+  };
 }
 
 /**
@@ -1003,19 +1099,40 @@ export interface CardScore {
 }
 
 /**
+ * Whether some NON-ABILITY declaration on this face really implements a printed keyword line — the face's `kicker`
+ * cost for "Kicker {R}", an `altCosts` entry for "Flashback {4}{G}", a `costModifiers` entry for "Improvise",
+ * `cycling` for "Basic landcycling {1}{W}", the `rebound` / `storm` flags. `COVER_RULES` (scripts.ts) already owns
+ * both halves of that question — the shape of the line and the VALUE the declaration has to carry — and
+ * `coverProblem` is what `scripts:check` enforces, so this asks it rather than repeating the table.
+ *
+ * A `covers` ENTRY is a script's explicit statement of the same fact; this is the implicit one, which is all the
+ * parser's own output ever has. Either way the line is not the renderer's business: a declaration implements it and
+ * the ability that happens to name it alongside its own text implements something else.
+ */
+export function declarationCovers(face: unknown, line: string): boolean {
+  return COVER_KINDS.some(by => coverProblem(face as never, { line, by } as never) === null);
+}
+
+/**
  * The lines of a face that are the RENDERER's business: the lines each ability really claims
  * (`abilityClaimLines` — an ability with no substantive effect, or one over its line budget, claims nothing), minus
- * the lines the face's KEYWORDS or a valid `covers` declaration account for. A keyword line ("Flying", "Cycling {2}",
- * "Flashback {4}{G}") is implemented by a declaration, not by an ability, and `scripts:check` already checks the
- * declared value against the printed one — rendering the ability that happens to sit next to it and scoring the two
- * would fail every keyworded card for no reason.
+ * the lines a DECLARATION accounts for — the face's keywords, a valid `covers` entry, or (for a printed keyword line
+ * only) any declaration `COVER_RULES` says implements it. A keyword line ("Flying", "Cycling {2}", "Flashback
+ * {4}{G}") is implemented by a declaration, not by an ability, and `scripts:check` already checks the declared value
+ * against the printed one — rendering the ability that happens to sit next to it and scoring the two would fail
+ * every keyworded card for no reason.
+ *
+ * What is left is a printed keyword line NOTHING on the face declares, and that one really is the renderer's
+ * business: an ability has to expand it, and `scoreKeywordLine` checks that the ability's rendering carries what the
+ * keyword means.
  */
 export function scorableClaims(face: KeywordParams & { covers?: { line: string; by: string }[] }, abilities: readonly Ability[] | undefined, cardName: string): Map<Ability, string[]> {
   const declared = new Set<string>();
   for (const c of face.covers ?? []) if (COVER_KINDS.includes(c.by as CoverKind) && coverProblem(face as never, c as never) === null) declared.add(c.line.trim());
   const out = new Map<Ability, string[]>();
   for (const a of abilities ?? []) {
-    const keep = abilityClaimLines(a, cardName).filter(l => !declared.has(l) && !keywordLineClaimed(l, face));
+    const keep = abilityClaimLines(a, cardName).filter(l =>
+      !declared.has(l) && !keywordLineClaimed(l, face) && !(printedKeywordLine(l) && declarationCovers(face, l)));
     if (keep.length) out.set(a, keep);
   }
   return out;
@@ -1026,13 +1143,16 @@ export function scorableClaims(face: KeywordParams & { covers?: { line: string; 
  * each of the ability's top-level effects, and the best of those wins (`scoreClaimedLine`): a one-line triggered
  * ability is judged on the whole clause ("Whenever ~ attacks, you gain 1 life."), while a multi-line `spell` ability
  * — which is how the parser writes an instant's whole face text — is judged line against effect.
+ *
+ * A line's own `gap` (a printed keyword with no rules text in `KEYWORD_EXPANSIONS`) joins the ability's op gaps:
+ * both are things this tool cannot render, and the report says so rather than blaming the card.
  */
 export function scoreAbilities(claims: Map<Ability, string[]>): CardScore {
   const lines: LineScore[] = [];
   const gaps = new Set<string>();
   for (const [a, claimed] of claims) {
     for (const g of renderGaps(a)) gaps.add(g);
-    for (const line of claimed) lines.push(scoreClaimedLine(a, line));
+    for (const line of claimed) { const s = scoreClaimedLine(a, line); lines.push(s); if (s.gap) gaps.add(s.gap); }
   }
   return { score: lines.length ? Math.min(...lines.map(l => l.score)) : 1, lines, gaps: [...gaps].sort() };
 }

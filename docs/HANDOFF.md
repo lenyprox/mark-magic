@@ -243,12 +243,29 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     (`EffectSchema = z.discriminatedUnion('op', [...core, ...families])`, one `<family>.schema.ts` per family), which
     no slice has built; it belongs with 8k's `gen:registry` extension. Until then every op a script uses must be core.
 25. ~~**8c's round trip is weak on printed keyword lines that the parser expands into abilities**~~ — **closed by
-    review fixes 1**: `printedKeywordLine` in `src/cards/render.ts` recognises such a line (a capitalised name of at
-    most three words, an optional number or mana-cost parameter, no sentence punctuation) and `scoreKeywordLine`
-    scores it on its MAGNITUDE alone, so "Crew 3" against the crew expansion is 1.00 while an ability that crews for
-    2 is still 0. What is left of the class is four cards whose magnitude lives on a different declaration than the
+    review fixes 2**. Review fixes 1 recognised the class (`printedKeywordLine` in `src/cards/render.ts`: a
+    capitalised name of at most three words, an optional number or mana-cost parameter, no sentence punctuation) but
+    scored it on its MAGNITUDE alone, which was a false-PASS machine: a number-free line scored an unconditional 1.00
+    whatever the claiming ability did, so `Futurist Sentinel` ("Crew 3") scripted as a draw-three-on-ETB trigger came
+    out `verified` at 1.00 through the shipped CLI, and a number-bearing line passed on any rendering that happened
+    to print the same digit. The class now needs POSITIVE EVIDENCE, of one of two kinds:
+      * a DECLARATION on the face implements the line — `declarationCovers` asks `COVER_RULES` (scripts.ts) the same
+        question `scripts:check` asks of a `covers` entry, so "Flashback {4}{G}" is claimed by the face's `altCosts`,
+        "Kicker {R}" by `kicker`, "Improvise" by `costModifiers`, with the declared value checked against the printed
+        one. The line is then not the renderer's business at all.
+      * otherwise the rendering is scored against what the keyword MEANS: `KEYWORD_EXPANSIONS` (22 entries — the 21
+        keyword names the pool prints this way on a face that declares nothing, plus one spelling alias), with the
+        line's parameter substituted in, scored by CONTAINMENT of the expansion's content words, the magnitude gate
+        still hard on top. A simple keyword falls back to `~ has <keyword>`. Crew 3 -> 1.00 for the crew ability and
+        0.20 for the draw-3 trigger; Persist / Undying / Extort / Living weapon / Battle cry / Echo / Soulshift /
+        Afflict / Fabricate all 1.00 from the parser's own expansion.
+      * a keyword in neither place scores 0 and is reported as a renderer GAP (`keyword:<name>`), never a pass.
+    Over the seeded 1500: 64 printed keyword lines scored, 5 below the gate, and the card-level below-gate rate moves
+    7.1% -> 7.2%. What is left of the class is the cards whose magnitude lives on a DIFFERENT declaration than the
     ability that claims the line — `Fading 2` / `Vanishing 4` / `Modular 3` put their count in `asEnters`, which the
-    renderer does not see from the ability. Adding the missing `CoverKind`s would still be the tidier fix.
+    renderer does not see from the ability — plus `devoid`, which no field of `ScriptFace` can express (the card's
+    colourlessness lives in `colors: []` on the `CardDef`). Adding the missing `CoverKind`s (`asEnters`-for-keyword,
+    `devoid`) is still the tidier fix, and it belongs with whoever owns `src/cards/schema.ts` next.
 26. **The reachability probes cannot reach `tapped` or `turned-face-up`** — not a probe defect, item 11: the engine
     raises `tapped` from nowhere and dispatches `turned-face-up` from nowhere, so a script with either trigger is
     reported "never reached" forever. `test/scripts-verify.test.ts`'s Ainok Survivalist fixture pins exactly that.

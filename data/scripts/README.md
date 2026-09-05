@@ -296,21 +296,35 @@ compares the declared value with the printed one.
    CR 603.6a, and so are "is put into a graveyard from the battlefield" and "dies", CR 700.4).
 
 A **printed keyword line** — a capitalised name of at most three words with an optional number or mana-cost
-parameter and no sentence punctuation: `Persist`, `Crew 3`, `Cumulative upkeep {U}`, `Enchant creature` — is scored
-on rule 1 alone. The rendering it faces is the keyword's reminder-text expansion ("Crew 3" -> "tap any number of
-creatures you control with total power 3 or greater: crew ~"), which shares almost no words with the line; the
-magnitude is still cross-checked, so an ability that crews for 2 still scores 0 against a line that prints 3.
+parameter and no sentence punctuation: `Persist`, `Crew 3`, `Cumulative upkeep {U}`, `Enchant creature` — is not
+prose, and rules 2-3 say nothing about it: the rendering it faces is the keyword's reminder-text expansion ("Crew 3"
+-> "tap any number of creatures you control with total power 3 or greater: crew ~"), which shares almost no words
+with the two words the card prints. Such a line needs POSITIVE EVIDENCE that the face implements the keyword, and
+there are exactly two kinds:
+
+* **a declaration**: the face's `keywords` (with their parameters), a valid `covers` entry, or — for a printed
+  keyword line only — any declaration the [cover table](#covers-kinds) says implements that line, whether or not a
+  `covers` entry names it. "Flashback {4}{G}" is an `altCosts` entry, "Kicker {R}" is `kicker`, "Improvise" is a
+  `costModifiers` entry; the parser hangs those lines off the spell ability whose text contains them, and no ability
+  ever implements them. The declared VALUE has to be the printed one, exactly as `scripts:check` requires.
+* **the keyword's rules text**: with no such declaration, an ability has to expand the keyword, and the rendering is
+  scored against what the keyword MEANS (`KEYWORD_EXPANSIONS` in `src/cards/render.ts`, with the line's parameter
+  substituted in) — the fraction of the expansion's own content words the rendering carries, rule 1 still hard on
+  top. A simple keyword falls back to `~ has <keyword>`, which is what `self-keywords` renders. So the real Persist
+  expansion scores 1.00, an ability that crews for 2 scores 0 against a line that prints `Crew 3`, and an ETB
+  trigger that draws three cards scores **0.20** for `Crew 3` rather than the 1.00 it was given before.
+
+A keyword in neither place scores 0 and is reported as a renderer **gap** (a warning naming `keyword:<name>`), not
+as a fault of the card: an unknown keyword is a line this tool cannot check, and the one thing it must never do is
+call such a line verified. `devoid` is the only one in the pool today — the format has no field for "this card has
+no color", so nothing can carry that evidence.
 
 The **card score is the minimum over its lines**, on **every** face — front, `backFace` and `secondFace`. >= 0.55 is
 `verified`, and every line under 0.4 is listed in `verification.roundTrip.lowest` for the judge.
 `test/render.test.ts` calibrates the gate against a seeded sample of cards the parser alone finishes: the median
 must stay >= 0.55, fewer than 5% may score 0, and — the number a median cannot see — fewer than **10%** may fall
 BELOW the gate, because every card that does is a script an agent is told to fix and cannot. Measured after the
-review fixes: median 0.917, 1.6% zeros, 7.1% below the gate (was 0.864 / 2.8% / 17.8%).
-
-**`npm run scripts:render -- --ids a,b,c`** prints, per card, each claimed line, the rendering it was scored against
-and the score — the tool to reach for when a card scores 0.31 and you want to know why. `--parsed` renders the
-parser's own AST instead of the script's, which is the baseline to compare against.
+review fixes: median 0.917, 1.6% zeros, 7.2% below the gate (was 0.864 / 2.8% / 17.8%).
 
 ### Running it
 

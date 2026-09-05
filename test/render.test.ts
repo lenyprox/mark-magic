@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import { parseCard } from '../src/cards/parse.js';
 import {
   CORE_OPS, lemmas, numbersIn, printedKeywordLine, renderAbility, renderAmount, renderCondition, renderCost,
-  renderEffect, renderFilter, renderStatic, renderTarget, renderTrigger, scoreCard, scoreClaimedLine, scoreRendering,
-  vocabularyIn,
+  declarationCovers, keywordExpansion, renderEffect, renderFilter, renderStatic, renderTarget, renderTrigger,
+  scoreCard, scoreClaimedLine, scoreRendering, vocabularyIn,
 } from '../src/cards/render.js';
 import { EFFECT_VARIANTS } from '../src/cards/schema.js';
 import { discriminators } from '../src/cards/lint.js';
@@ -118,7 +118,7 @@ test('"is put into a graveyard from the battlefield" is "dies" (CR 700.4), on bo
   assert.ok(old.score >= 0.55, `expected the old wording to pass the gate, got ${old.score}`);
 });
 
-test('a printed keyword line is scored on its magnitude, not on word overlap', () => {
+test('a printed keyword line is scored against what the keyword MEANS, not against the two words it prints', () => {
   assert.ok(printedKeywordLine('Persist'));
   assert.ok(printedKeywordLine('Crew 3'));
   assert.ok(printedKeywordLine('Cumulative upkeep {U}'));
@@ -129,9 +129,72 @@ test('a printed keyword line is scored on its magnitude, not on word overlap', (
   // the expansion the parser writes for "Crew 3" shares almost no words with the line, and used to score 0.13
   const crew: Ability = { kind: 'activated', cost: { tapCreaturesTotalPower: { power: 3, other: false } }, effects: [{ op: 'crew-self' }], text: 'Crew 3' } as never;
   assert.equal(scoreClaimedLine(crew, 'Crew 3').score, 1);
-  // but the MAGNITUDE is still cross-checked: an ability that crews for 2 fails the line that prints 3
+  // the MAGNITUDE is cross-checked: an ability that crews for 2 fails the line that prints 3
   const wrong = { ...crew, cost: { tapCreaturesTotalPower: { power: 2, other: false } } } as Ability;
   assert.equal(scoreClaimedLine(wrong, 'Crew 3').score, 0);
+  // the line's parameter goes into the expansion, so the whole rules text is checked against the rendering
+  assert.equal(keywordExpansion('Crew 2'), 'tap any number of creatures you control with total power 2 or greater: crew ~');
+  assert.equal(keywordExpansion('Echo {2}{R}'), 'at the beginning of your upkeep, sacrifice ~ unless you pay {2}{R}');
+  assert.equal(keywordExpansion('Flying'), '~ has flying', 'a simple keyword falls through to what `self-keywords` renders');
+  assert.equal(keywordExpansion('Enchant creature'), 'enchant creature');
+  assert.equal(keywordExpansion('Whateverwalk'), null, 'a keyword the renderer has no rules text for is a gap, not a pass');
+});
+
+/**
+ * THE regression this test exists for. `scoreKeywordLine` used to return an unconditional 1.00 for any printed
+ * keyword line carrying no digit, and to accept any rendering that merely printed the digit when it did carry one —
+ * so an ability that did something else entirely came out `verified`. End to end, through the shipped CLI:
+ * `Futurist Sentinel`, whose whole text is "Crew 3", scripted as a draw-three-on-ETB trigger, printed
+ * "1 verified … round trip 1.00" and exited 0. The line is now scored against the keyword's RULES TEXT.
+ */
+test('a printed keyword line needs positive evidence: a wrong ability cannot claim one', () => {
+  const draw3: Ability = { kind: 'triggered', event: { on: 'etb', self: true }, effects: [{ op: 'draw', amount: 3, who: 'you' }], text: 'Crew 3' };
+  // the exact repro, magnitude included: "draw 3" prints the 3 that "Crew 3" prints, and used to pass on that alone
+  const sentinel = scoreClaimedLine(draw3, 'Crew 3');
+  assert.ok(sentinel.score < 0.55, `a draw-3 trigger must not verify "Crew 3", got ${sentinel.score}`);
+  assert.match(sentinel.why ?? '', /crew/);
+  // and every number-free keyword line the same trigger used to take for free
+  for (const line of ['Persist', 'Undying', 'Extort', 'Living weapon', 'Rebound', 'Evolve', 'Myriad', 'Flying']) {
+    const s = scoreClaimedLine({ ...draw3, text: line }, line);
+    assert.ok(s.score < 0.55, `a draw-3 trigger must not verify "${line}", got ${s.score}`);
+  }
+  // the same card scored through the whole face, which is what `scripts:verify` gates on
+  const card = scoreCard({ name: 'Futurist Sentinel', keywords: [], abilities: [draw3] } as never);
+  assert.ok(card.score < 0.55, `the card must fail the 0.55 gate, got ${card.score}`);
+  // an ability that really IS the keyword's expansion still passes — this is not a blanket zero
+  const persist: Ability = {
+    kind: 'triggered', event: { on: 'dies', self: true }, text: 'Persist',
+    intervening: { kind: 'self-no-counters', counter: '-1/-1' },
+    effects: [{ op: 'return-self-to-battlefield', counters: { counter: '-1/-1', amount: 1 } }],
+  } as never;
+  assert.ok(scoreClaimedLine(persist, 'Persist').score >= 0.55, 'the real Persist expansion must pass');
+});
+
+/**
+ * The other half of the evidence rule: a line no ability implements because a DECLARATION does. "Flashback {4}{G}",
+ * "Kicker {R}", "Improvise" are `altCosts` / `kicker` / `costModifiers` fields, and the parser hangs them off the
+ * spell ability whose text happens to contain them — scoring that ability against them would fail every such card.
+ * `COVER_RULES` (scripts.ts) already knows both the line shape and the value the declaration must carry, so
+ * `declarationCovers` asks it; without the declaration the line is a fault of the script, and scores 0.
+ */
+test('a declaration on the face covers its own printed keyword line, and only when it really is declared', () => {
+  const flashback = { line: 'Flashback {4}{G}', cost: { mana: { generic: 4, x: 0, pips: ['G'], hybrid: [], phyrexian: [], raw: '{4}{G}' } } };
+  const face = { keywords: [], altCosts: [{ id: 'flashback', label: 'flashback {4}{G}', cost: flashback.cost, from: 'graveyard', exileAfter: true }] };
+  assert.equal(declarationCovers(face, flashback.line), true);
+  assert.equal(declarationCovers({ keywords: [] }, flashback.line), false, 'no altCosts entry, no cover');
+  assert.equal(declarationCovers(face, 'Flashback {1}{G}'), false, 'the declared cost has to be the printed one');
+  // two substantive effects, so the ability is inside its line budget and really claims both of its lines
+  const spell: Ability = {
+    kind: 'spell', text: 'Draw a card.\nYou gain 2 life.\nFlashback {4}{G}',
+    effects: [{ op: 'draw', amount: 1, who: 'you' }, { op: 'gain-life', amount: 2, who: 'you' }, { op: 'gain-life', amount: 3, who: 'you' }],
+  };
+  const covered = scoreCard({ name: 'Fb', ...face, abilities: [spell] } as never);
+  assert.deepEqual(covered.lines.map(l => l.text), ['Draw a card.', 'You gain 2 life.'], 'the declared line is not the renderer’s business');
+  const undeclared = scoreCard({ name: 'Fb', keywords: [], abilities: [spell] } as never);
+  const line = undeclared.lines.find(l => l.text === 'Flashback {4}{G}');
+  assert.equal(line?.score, 0, 'a face that declares no flashback fails the line it prints');
+  assert.match(line?.why ?? '', /DECLARATION/);
+  assert.deepEqual(undeclared.gaps, [], 'a missing declaration is a fault of the script, not a renderer gap');
 });
 
 test('a loyalty ability prints no activation boilerplate (CR 606.3), and a subject is printed once', () => {
