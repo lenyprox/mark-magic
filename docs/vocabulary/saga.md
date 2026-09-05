@@ -40,22 +40,38 @@ core could not express:
 So the abilities that trigger are the ones whose number the total **crossed**, not the one it landed on. Putting two
 counters on a fresh Saga triggers chapter I and chapter II, in that order. Removing counters never triggers anything.
 
-The family owns the `chapter` dispatch to say this. Its handler is deliberately identical to the core's when the
-event carries no number:
+The family owns the `chapter` dispatch to say this:
 
 ```ts
-chapter: (ev, perm, ctx, _s, event) =>
-  event === 'chapter' && ctx.obj === perm && ev.chapters.includes(ctx.amount ?? (perm.counters.lore ?? 0)),
+chapter: (ev, perm, ctx, _s, event) => {
+  if (event !== 'chapter' || ctx.obj !== perm) return false;
+  return ctx.amount !== undefined ? ev.chapters.includes(ctx.amount) : crossedAny(ev.chapters, crossed(perm));
+},
 ```
 
-`TriggerCtx.amount` is the crossed chapter number and is set only by `saga-lore`. The core's two queues (a Saga
-entering the battlefield, and the precombat-main lore counter) carry no amount, so they read the total exactly as
-`game.ts`'s own `case 'chapter'` did — a game with none of this family's wordings in it behaves identically, which is
-why `npm run golden:check` is unchanged.
+`TriggerCtx.amount` is the crossed chapter number, and `saga-lore` sets it. The core's two queues (a Saga entering
+the battlefield, and the precombat-main lore counter) carry no amount, and the crossing is then read from
+`o.ext.sagaLoreFrom` — the lore total `replacements.counters` recorded a moment before `addCounters` applied the
+delta. Reading the *total* instead (which is what the core's own `case 'chapter'` does) is only right when the delta
+was exactly one: with a counter multiplier in play (Doubling Season, CR 614.1c) the precombat-main counter takes a
+Saga from II straight to IV, no ability lists chapter 4, chapter III never triggers at all and CR 714.4 then
+sacrifices the Saga with a chapter unrun.
+
+**Resolution order.** A crossing is queued **highest first**, because `putTriggersOnStack` pushes the queue onto the
+stack in order and a stack resolves top-down: the last one pushed resolves first. Chapter I therefore resolves before
+chapter II, which is what this document promises and the only order whose board is right — the token chapter II
+makes has to exist before chapter III pumps it (CR 611.2c fixes the affected set at resolution). CR 603.3b makes the
+order the controller's choice, so this is the family's default rather than a rule.
 
 > **Cost.** A permanent carrying a registry trigger makes `queueTriggers` scan every event (`triggerKinds` adds
-> `'*'`). Every Saga carries `on: 'chapter'`, so a battlefield with a Saga on it pays the full scan. That is the
-> price of correct chapter crossing; it is paid only while a Saga is in play.
+> `'*'`). Every Saga carries `on: 'chapter'`, so a battlefield with a Saga on it pays the full permanents-by-abilities
+> scan on every event rather than only on `chapter`. That is the price of correct chapter crossing, and it is paid
+> only while a Saga is in play.
+>
+> The obvious alternative — have `saga-lore` add its counters one at a time and let the core matcher read the running
+> total — does **not** work: CR 614.1c applies a counter multiplier to each event, so under Doubling Season one-at-a-time
+> gives running totals 0, 2, 4 and chapter I is never the total at all. The crossing has to be computed from a delta,
+> and a delta is only knowable after the replacements have run.
 
 ---
 
@@ -75,9 +91,20 @@ why `npm run golden:check` is unchanged.
 
 Non-Sagas among the chosen objects are skipped, and so is anything that has left the battlefield since the targets
 were chosen (CR 400.7). For each Saga that actually gained counters the op raises one `lore-counter-put` event and
-then one `chapter` event per crossed number, lowest first.
+then one `chapter` event per crossed number, highest first so that chapter I *resolves* first (§1).
 
-Renderer: `Put a lore counter on target Saga you control` / `Remove two lore counters from target Saga you control`.
+Renderer, one line per target shape the parser rule can produce:
+
+| spec | English |
+|---|---|
+| `{ kind: 'saga', controller: 'you' }` | `Put a lore counter on target Saga you control` |
+| `{ ..., count: 1, optional: true }` | `Put a lore counter on up to one target Saga you control` |
+| `{ ..., count: 99, optional: true }` | `Put a lore counter on any number of target Sagas you control` |
+| `{ ..., count: 2 }` | `Put a lore counter on two target Sagas you control` |
+| `'each-saga-you-control'` | `Put a lore counter on each Saga you control` |
+
+(The round trip is the *meaning*, not the printed characters: Chong and Lily prints "on each of any number of target
+Sagas you control", which names the same set.)
 
 ```json
 { "op": "saga-lore", "target": { "kind": "saga", "controller": "you" }, "amount": 1 }
@@ -169,11 +196,14 @@ Two halves, because a counter replacement is synchronous and could not ask anybo
   finalChapter`, so every shipped agent and the UI already answer it — `defaultAnswer` returns `min`, which is the
   whole Saga) and stores it in `o.ext.sagaReadAhead`;
 * the **counter replacement** (`replacements.counters`) turns the core's `setCounters(o, 'lore', 1)` into that many
-  (CR 614). It only ever fires on the *first* lore counter of a Saga that chose a chapter, so no bookkeeping flag is
-  needed: after it the total is at least the chosen chapter and the guard can never match again.
+  (CR 614.1c). It replaces the counters the Saga *enters with*, which happens exactly once, and `o.ext.
+  sagaReadAheadDone` is what makes it once. "The total is already at least the chosen chapter" is **not** a one-shot
+  guard: this same family prints `saga-lore { remove: true }` (Clash of the Eikons), and a track emptied back to zero
+  would have the next single lore counter replaced by the chosen chapter all over again — the Saga would jump back
+  up its own track and re-run a chapter it had already run.
 
-Skipped chapters then fall out for free: the core's own single `chapter` queue carries no number, so it reads the
-total — the chosen chapter — and matches that ability and no other.
+Skipped chapters fall out of the crossing: the replacement records `sagaLoreFrom = chapter - 1`, so the amount-less
+core `chapter` event crosses the chosen chapter and nothing below it.
 
 ```json
 { "asEnters": [{ "kind": "read-ahead" }] }
@@ -187,9 +217,16 @@ total — the chosen chapter — and matches that ability and no other.
 | key | on | value | cleared |
 |---|---|---|---|
 | `sagaReadAhead` | the Saga | the chapter read ahead chose | when the permanent leaves the battlefield (`leave`) |
+| `sagaReadAheadDone` | the Saga | `true` once the counter replacement has fired | `leave` |
+| `sagaLoreFrom` | the Saga | the lore total before the delta being applied | the `sba` sweep, i.e. before the next dispatch |
+| `sagaLoreMarks` | the game state | `true` while any `sagaLoreFrom` is outstanding | the same sweep |
 
-JSON-plain (a number), so `clone.ts` deep-copies it and `serialize.ts` round-trips it. Nothing is redacted: CR 714.4b
-makes the choice as the Saga enters, face up, so it is public information.
+All JSON-plain, so `clone.ts` deep-copies them and `serialize.ts` round-trips them. Nothing is redacted: CR 714.4b
+makes the read-ahead choice as the Saga enters, face up, so it is public information, and a lore total is public.
+
+`sagaLoreMarks` on the state is what keeps the sweep O(1) on every board where no lore counter moved. The sweep is
+registered as an `sba` hook only because `checkSBA` is the one thing the core runs before every trigger dispatch and
+every priority round; it returns `false` and changes nothing an SBA loop re-checks.
 
 ---
 
@@ -241,7 +278,7 @@ unparsed text of a chapter line whose body the vocabulary still cannot express m
 
 ## 6. Scenarios
 
-`test/scenarios/saga.ts`, 16 of them, each pinned to a rule:
+`test/scenarios/saga.ts`, 21 of them, each pinned to a rule:
 
 | scenario | pins |
 |---|---|
@@ -261,6 +298,11 @@ unparsed text of a chapter line whose body the vocabulary still cannot express m
 | Tom Bombadil at three | `saga-lore-ge` false (he is a legal Lightning Bolt target) |
 | Summon: Anima I, II, III | the multi-chapter line rule |
 | Summon: Anima IV — Oblivion | the named final chapter, CR 714.4 |
+| read ahead is a one-shot, not "whenever the track is empty" | `sagaReadAheadDone`, CR 614.1c |
+| two crossed chapters resolve lowest first | the queue order, CR 603.3b / 611.2c |
+| a counter multiplier does not make a chapter vanish | the crossing from `sagaLoreFrom`, CR 714.2b |
+| a final chapter a multiplier overshoots still counts as triggering | `saga-final-chapter` on a crossing, CR 714.2b |
+| Summon: Shiva stuns the creature it tapped, not itself | the chapter-body pronoun re-bind, CR 122.1d |
 
 ---
 
@@ -286,3 +328,27 @@ unparsed text of a chapter line whose body the vocabulary still cannot express m
 * **"for each lore counter among Sagas you control"** (Chong and Lily) — the amount already exists
   (`{ count: 'counters-on-permanents', counter: 'lore', filter: { subtypes: ['Saga'] } }`); what is missing is the
   composition family's "for each …" phrase for it.
+
+### Known gaps that need a core change (raised as `coreChangeNeeded`, not worked around here)
+
+* **The zod mirror.** `src/cards/schema.ts` is a fixed discriminated union and nothing folds `saga.schema.ts` into
+  it, so `AsEntersSchema` rejects `{ kind: 'read-ahead' }` and the `Equals<>` pins in `test/schema-types.test.ts`
+  break on the widened `Effect` / `Condition` / `TriggerEvent` / `AsEnters` / `TargetSpec['kind']`. `npm test` and
+  `npm run typecheck:schema` stay red until the schema-composer slice (or the equivalent hand edit) lands;
+  `schema.ts` is on this wave's do-not-edit list, so the patch is reported rather than applied.
+* **A multi-number chapter crossed more than once on a core queue triggers once, not once per number.** "I, II — E"
+  is two abilities (CR 714.2c), so a Saga entering with two lore counters under Doubling Season must trigger both.
+  The family's own `saga-lore` path does exactly that (it queues one event per crossed number), but the two core
+  queues raise a single amount-less event and a trigger predicate can only answer fires / does not fire. The fix is
+  to move the Saga chapter dispatch into `Game.addCounters`, the only place that knows the post-replacement delta
+  *and* runs before `checkSBA`.
+* **Proliferate advances a lore track silently.** `game.ts`'s `case 'proliferate'` calls `addCounters(o, 'lore', 1)`
+  and queues nothing, so no chapter triggers and `lore-counter-put` never fires (CR 122.6, 701.27, 714.2b). The same
+  `addCounters` change fixes it — and every other route a lore counter can take — at once. A family cannot: the only
+  hook it is offered around a counter change runs *before* the delta is applied, and the `sba` sweep runs after the
+  core's own Saga-sacrifice state-based action, too late to save a crossing that reaches the final chapter.
+* **"Choose one or more —" is modelled as choose-exactly-one.** `parse.ts` collapses "one or both" / "one or more" /
+  "any number" to `count: 1`, and `choose-mode` carries a single `count` with no room for a range, so `legalActions`
+  never offers two modes (CR 700.2d). It is a core template this family did not touch and ~90 cards were already
+  fully parsed with it before this wave; what the family did is promote one more card into that set (Clash of the
+  Eikons), by teaching two of its three bullets to parse.

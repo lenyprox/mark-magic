@@ -211,6 +211,70 @@ export const saga: Scenario[] = [
     ],
   },
 
+  // ---------------------------------------------------------------- CR 714.2b crossing, order and the once-only start
+  {
+    name: 'read ahead replaces the counters the Saga enters with once, not again after its track is emptied', cr: '614.1c',
+    ruling: 'Read ahead replaces the lore counters the Saga ENTERS with. Emptying the track later does not put the Saga back at the chosen chapter: the next counter is the first one, and chapter I is what triggers.',
+    seats: [
+      { bf: ['Mountain', 'Mountain', 'Mountain', 'Mountain', 'Mountain', 'Grizzly Bears'], hand: ['The Elder Dragon War'] },
+      {},
+    ],
+    scripts: bears([{ op: 'saga-lore', target: { kind: 'saga', controller: 'you' }, amount: 2, remove: true }]),
+    script: [
+      { answer: 2 }, { cast: 'The Elder Dragon War' }, { resolve: true },
+      { activate: 'Grizzly Bears', targets: [['The Elder Dragon War']] }, { resolve: true },
+      { turns: 2 },                                              // back round to seat 0's precombat main (CR 714.3c)
+    ],
+    expect: [
+      { counters: ['The Elder Dragon War', { lore: 1 }] },        // 2 -> 0 -> 1, NOT 2 -> 0 -> 2
+      { ext: ['The Elder Dragon War', 'sagaReadAheadDone', true] },
+      { log: 'trigger: I ' },                                     // chapter I, the one a fresh track reaches
+      { unsimulated: 2 },                                         // chapters I and II of this card are not scripted yet
+    ],
+  },
+  {
+    name: 'two crossed chapters resolve lowest first, so chapter II\'s token is there for chapter III', cr: '603.3b',
+    ruling: 'CR 603.3b lets the controller order simultaneous triggers; the family orders a crossing low to high, which is the only order in which what an earlier chapter makes exists for a later one (CR 611.2c).',
+    seats: [{ bf: ['Grizzly Bears', 'History of Benalia'] }, {}],
+    scripts: {
+      ...bears([{ op: 'saga-lore', target: { kind: 'saga', controller: 'you' }, amount: 2 }]),
+      // chapter I makes a permanent, chapter II sweeps: the board says which of them resolved first
+      'History of Benalia': { mode: 'replace', abilities: [
+        { kind: 'triggered', event: { on: 'chapter', chapters: [1] }, effects: [{ op: 'token', count: 1, power: 1, toughness: 1, colors: ['W'], types: ['Creature'], subtypes: ['Soldier'], keywords: [], attacking: false }], text: 'I saga' },
+        { kind: 'triggered', event: { on: 'chapter', chapters: [2] }, effects: [{ op: 'destroy', target: 'all-creatures' }], text: 'II saga' },
+      ] },
+    },
+    script: [{ activate: 'Grizzly Bears', targets: [['History of Benalia']] }, { resolve: true }],
+    expect: [
+      // only the Saga is left: chapter I made the Soldier and chapter II then destroyed it with the Bears.
+      // Highest-first would have swept an empty board and left the Soldier standing (2 permanents).
+      { zoneCount: [0, 'battlefield', 1] },
+      { counters: ['History of Benalia', { lore: 2 }] },
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'a counter multiplier does not make a chapter vanish', cr: '714.2b',
+    ruling: 'Doubling Season turns the precombat-main lore counter into two (CR 614.1c), so the total goes from II to IV. Chapter III is still crossed and still triggers.',
+    seats: [{ bf: ['Doubling Season', 'History of Benalia'], counters: { 'History of Benalia': { lore: 2 } } }, {}],
+    script: [{ turns: 2 }],
+    expect: [
+      { log: 'Knights you control get' },                        // chapter III triggered, on a total of 4
+      { zone: ['History of Benalia', 'graveyard'] },             // CR 714.4: sacrificed once it resolved
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'a final chapter a multiplier overshoots still counts as the final chapter triggering', cr: '714.2b',
+    ruling: 'Historian\'s Boon asks whether the final chapter ability triggered, not what the lore total is: a jump from II to IV crosses III, so it did.',
+    seats: [{ bf: ['Doubling Season', "Historian's Boon", 'History of Benalia'], counters: { 'History of Benalia': { lore: 2 } } }, {}],
+    script: [{ turns: 2 }],
+    expect: [
+      { log: 'Angel' },
+      { zone: ['History of Benalia', 'graveyard'] },
+    ],
+  },
+
   // ---------------------------------------------------------------- the chapter lines the family's parser rules rebuilt
   {
     name: 'a multi-chapter line runs on each of its chapters (Summon: Anima I, II, III)', cr: '714.2c',
@@ -233,6 +297,18 @@ export const saga: Scenario[] = [
       { zone: ['Grizzly Bears', 'graveyard'] },                  // "Each opponent sacrifices a creature of their choice"
       { life: [1, 15] },                                         // "…and loses 3 life", on top of the Warcaller's 2 combat damage
       { zone: ['Summon: Anima', 'graveyard'] },                  // CR 714.4
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'a named chapter\'s trailing "it" means the creature it just tapped, not the Saga (Summon: Shiva)', cr: '122.1d',
+    ruling: 'A counter goes on the object the effect names. "Tap target creature an opponent controls. Put a stun counter on it." puts the stun counter on that creature.',
+    seats: [{ bf: ['Keldon Warcaller', 'Summon: Shiva'], counters: { 'Summon: Shiva': { lore: 1 } } }, { bf: ['Grizzly Bears'] }],
+    script: [{ attack: ['Keldon Warcaller'] }],
+    expect: [
+      { counters: ['Summon: Shiva', { lore: 2 }] },               // the Saga has lore counters and nothing else
+      { counters: ['Grizzly Bears', { stun: 1 }] },
+      { tapped: ['Grizzly Bears', true] },
       { unsimulated: 0 },
     ],
   },

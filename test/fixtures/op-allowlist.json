@@ -105,7 +105,6 @@
     "lifegain-multiplier",
     "opponent-creatures-etb-tapped",
     "opponents-cant-cast",
-    "tokens-replacement",
     "unspent-mana-becomes-red"
   ],
   "amounts": [

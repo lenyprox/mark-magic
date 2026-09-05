@@ -27,8 +27,17 @@
 // information, CR 714.4b: the choice is made as the Saga enters, face up):
 //   o.ext.sagaReadAhead  number   the chapter chosen by read ahead, consumed by the counter replacement and cleared
 //                                 when the permanent leaves the battlefield.
+//   o.ext.sagaReadAheadDone true   the counter replacement has already fired. Read ahead replaces the counters a Saga
+//                                 ENTERS with (CR 614.1c, once), so the flag is what stops a later lore counter -
+//                                 after `saga-lore {remove:true}` emptied the track, say - from being replaced again
+//                                 and walking the Saga back up its own chapters.
+//   o.ext.sagaLoreFrom  number    the lore total a Saga had before the counters currently being added. Written by
+//                                 `replacements.counters` (the only hook that runs before `addCounters` applies a
+//                                 delta) and read by `triggers.chapter` for the two core queues, which carry no
+//                                 amount: the crossing is `(from, total]`, which is right whatever a counter
+//                                 multiplier did to the delta in between. Swept in `sba`, after every dispatch point.
 import type { CardDef, FamilyModule, GameObject, GameState, PlayerId, TargetSpec, TriggerCtx, Amount, Game, TargetRef } from './types.js';
-import { extDel, extGet, extSet } from './ext.js';
+import { extDel, extGet, extGetOr, extSet } from './ext.js';
 import { chars } from './chars.js';
 
 // ------------------------------------------------------------------ 1. the AST this family adds
@@ -86,14 +95,33 @@ const roman = (n: number): string => ROMAN[n] ?? String(n);
 const loreOf = (s: GameState, p: PlayerId): number => chars.battlefieldOf(s, p).reduce((n, o) => n + (isSaga(o) ? lore(o) : 0), 0);
 
 /**
- * Queue the chapter abilities the lore total crossed, lowest first (CR 714.2b: a chapter ability triggers when the
- * number of lore counters *becomes* greater than or equal to its number, so a two-counter jump triggers two
- * chapters). The crossed number rides in `TriggerCtx.amount`, which is what `triggers.chapter` below matches on —
- * the total on the permanent is already the *final* one by then and would name only the last chapter.
+ * Queue the chapter abilities the lore total crossed (CR 714.2b: a chapter ability triggers when the number of lore
+ * counters *becomes* greater than or equal to its number, so a two-counter jump triggers two chapters). The crossed
+ * number rides in `TriggerCtx.amount`, which is what `triggers.chapter` below matches on — the total on the permanent
+ * is already the *final* one by then and would name only the last chapter.
+ *
+ * Queued **highest first**, because `putTriggersOnStack` pushes the queue onto the stack in order and a stack
+ * resolves top-down: the last one pushed is the first one to resolve. Chapter I therefore resolves before chapter II,
+ * which is the order the docs promise and the only one whose board is right — the token chapter II makes has to exist
+ * before chapter III pumps it (CR 611.2c locks the affected set at resolution). CR 603.3b makes the order the
+ * controller's choice; this is the family's default, not a rule.
  */
 function queueCrossedChapters(g: Game, o: GameObject, before: number, after: number): void {
-  for (let k = before + 1; k <= after; k++) g.queueTriggers('chapter', { obj: o, player: o.controller, amount: k });
+  for (let k = after; k > before; k--) g.queueTriggers('chapter', { obj: o, player: o.controller, amount: k });
 }
+
+/**
+ * What an amount-less core `chapter` event (`enterBattlefield`'s `setCounters`, the precombat-main counter) crossed:
+ * the lore numbers in `(from, to]`. `from` is what `replacements.counters` recorded before the delta was applied, so
+ * this is exact even when a counter multiplier (Doubling Season, CR 614.1c) turned one counter into two — reading the
+ * TOTAL instead, as the core matcher does, makes the chapter the jump flew past vanish.
+ */
+function crossed(o: GameObject): { from: number; to: number } {
+  const to = lore(o);
+  return { from: Math.min(extGetOr<number>(o, 'sagaLoreFrom', to - 1), to - 1), to };
+}
+/** Does an ability listing `chapters` trigger off a crossing? (CR 714.2b) */
+const crossedAny = (chapters: number[], c: { from: number; to: number }): boolean => chapters.some(n => n > c.from && n <= c.to);
 
 // ------------------------------------------------------------------ 4. the module
 
@@ -134,13 +162,17 @@ const SAGA: FamilyModule = {
     /**
      * The core's `chapter` dispatch, taken over so the family can be precise about *which* chapter a lore change
      * triggered. `ctx.amount` is the crossed chapter number when the family queued the event (`saga-lore`); the two
-     * core queues (`enterBattlefield`, the precombat-main lore counter) carry no amount, and then this reads the
-     * total exactly as `game.ts`'s own `case 'chapter'` did — so a game with no family wording in it behaves
-     * identically, and read ahead's skipped chapters fall out for free (the total is the chosen chapter, so only
-     * that chapter's ability matches).
+     * core queues (`enterBattlefield`, the precombat-main lore counter) carry no amount, and then the crossing is
+     * read from `ext.sagaLoreFrom` rather than from the TOTAL. That difference is the whole point: with a counter
+     * multiplier out (Doubling Season, CR 614.1c) the precombat-main counter takes a Saga from II straight to IV,
+     * and a matcher reading the total finds no ability whose `chapters` contains 4 — chapter III silently never
+     * triggers and CR 714.4 then sacrifices the Saga. Read ahead's skipped chapters fall out of the same range:
+     * its replacement records `from = chapter - 1`, so only the chosen chapter is ever crossed (CR 714.4b).
      */
-    chapter: (ev: ChapterTrigger, perm, ctx, _s, event) =>
-      event === 'chapter' && ctx.obj === perm && ev.chapters.includes(ctx.amount ?? lore(perm)),
+    chapter: (ev: ChapterTrigger, perm, ctx, _s, event) => {
+      if (event !== 'chapter' || ctx.obj !== perm) return false;
+      return ctx.amount !== undefined ? ev.chapters.includes(ctx.amount) : crossedAny(ev.chapters, crossed(perm));
+    },
 
     /** "Whenever you put a lore counter on a Saga you control" — the family's own event, plus the two core queues. */
     'lore-counter-put': (ev: LoreCounterPutTrigger, perm, ctx, _s, event) => {
@@ -163,7 +195,10 @@ const SAGA: FamilyModule = {
       if (event !== want || !ctx.obj) return false;
       const d = sagaDef(ctx.obj);
       if (!d) return false;
-      if (ev.when === 'triggers' && (ctx.amount ?? lore(ctx.obj)) !== d.finalChapter) return false;
+      // "triggers": the final chapter number must be one this lore change CROSSED. With a multiplier out the total
+      // can already be past it, so the total on its own is not the question (CR 714.2b).
+      const final = d.finalChapter!;
+      if (ev.when === 'triggers' && !(ctx.amount !== undefined ? ctx.amount === final : crossedAny([final], crossed(ctx.obj)))) return false;
       return ev.who === 'any' || ctx.obj.controller === perm.controller;
     },
   },
@@ -187,15 +222,44 @@ const SAGA: FamilyModule = {
 
   replacements: {
     /**
-     * Read ahead's "start with that many lore counters" (CR 614, a replacement of the counters the Saga enters
-     * with). Only the very first lore counter of a Saga that chose a chapter is replaced: after it the total is at
-     * least the chosen chapter, so the guard can never fire twice and no bookkeeping flag is needed.
+     * Two jobs, and this hook is the only place either can be done: it is the one moment a family is handed a counter
+     * change *before* `addCounters` applies it.
+     *
+     *  1. Read ahead's "start with that many lore counters" (CR 614.1c — a replacement of the counters the Saga
+     *     ENTERS with, which happens exactly once). `sagaReadAheadDone` is what makes it once: `lore(o) === 0` is not
+     *     a one-shot guard, because this same family prints `saga-lore {remove: true}` (Clash of the Eikons), and
+     *     emptying the track would otherwise make the *next* single lore counter be replaced by the chosen chapter all
+     *     over again — the Saga would jump back up its own track and re-run a chapter it had already run.
+     *  2. Record the lore total the Saga had before this delta, for `triggers.chapter`: it is how the two amount-less
+     *     core queues learn what they crossed (see `crossed()`). Only the first record of a run is kept, so several
+     *     adds before the next dispatch still describe one range, and `sba` below sweeps it.
      */
-    counters: (_g, o, counter, delta) => {
-      if (counter !== 'lore' || delta !== 1 || lore(o) !== 0) return delta;
-      const n = extGet<number>(o, 'sagaReadAhead');
-      return n === undefined || n <= 1 ? delta : n;
+    counters: (g, o, counter, delta) => {
+      if (counter !== 'lore' || delta <= 0 || !isSaga(o) || o.zone !== 'battlefield') return delta;
+      let n = delta;
+      let readAhead = false;
+      if (delta === 1 && lore(o) === 0 && extGet<boolean>(o, 'sagaReadAheadDone') === undefined) {
+        const chapter = extGet<number>(o, 'sagaReadAhead');
+        if (chapter !== undefined) { extSet(o, 'sagaReadAheadDone', true); if (chapter > 1) { n = chapter; readAhead = true; } }
+      }
+      // a read-ahead start crosses only the chapter that was chosen, never the ones below it (CR 714.4b)
+      if (extGet<number>(o, 'sagaLoreFrom') === undefined) { extSet(o, 'sagaLoreFrom', readAhead ? n - 1 : lore(o)); extSet(g.state, 'sagaLoreMarks', true); }
+      return n;
     },
+  },
+
+  /**
+   * Not a state-based action: the sweep that ends a lore-counter run. `checkSBA` runs before every trigger dispatch
+   * and before every priority round, so by the time this sees a `sagaLoreFrom` the `chapter` event that counter
+   * raised has already been matched against it; clearing it here is what stops the *next* add from reusing a stale
+   * range. Returns false — nothing an SBA loop has to re-check has changed. The state-level flag keeps it O(1) on
+   * every board where no lore counter moved, which is almost all of them.
+   */
+  sba: (g) => {
+    if (extGet<boolean>(g.state, 'sagaLoreMarks') === undefined) return false;
+    extDel(g.state, 'sagaLoreMarks');
+    for (const o of chars.allPermanents(g.state)) if (extGet<number>(o, 'sagaLoreFrom') !== undefined) extDel(o, 'sagaLoreFrom');
+    return false;
   },
 
   /**
@@ -205,7 +269,7 @@ const SAGA: FamilyModule = {
    */
   leave: (g, o, zone) => {
     const d = sagaDef(o);
-    extDel(o, 'sagaReadAhead');
+    extDel(o, 'sagaReadAhead'); extDel(o, 'sagaReadAheadDone'); extDel(o, 'sagaLoreFrom');
     if (!d || zone !== 'graveyard' || lore(o) < (d.finalChapter ?? 0)) return;
     g.queueTriggers('saga-final-chapter', { obj: o, player: o.controller });
   },
@@ -240,12 +304,23 @@ const SAGA: FamilyModule = {
   },
 };
 
-/** English for a `saga-lore` target spec, in the shape the cards print it ("target Saga you control"). */
+/** Counting words in the spelling the cards print them ("up to one target Saga", never "up to 1"). */
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven'];
+/**
+ * English for a `saga-lore` target spec, in the shape the cards print it. Every shape `sagaTarget()` in
+ * src/cards/rules/saga.ts can emit has a case here: `count: 99, optional: true` is "any number of" (Chong and Lily,
+ * Nomads) and `count: 1, optional: true` is "up to one" — neither survives treating the count and `optional` as two
+ * independent adjectives, which is what made "up to 99 target Sagas" and "up to target Sagas".
+ */
 function describeSagaTarget(t: TargetSpec): string {
-  const n = t.count === 'X' ? 'X ' : typeof t.count === 'number' && t.count > 1 ? `${t.count} ` : '';
-  const up = t.optional ? 'up to ' : '';
   const ctl = t.controller === 'you' ? ' you control' : t.controller === 'opponent' ? ' an opponent controls' : '';
-  return `${up}${n}target Saga${n || up ? 's' : ''}${ctl}`;
+  if (t.optional && t.count === 99) return `any number of target Sagas${ctl}`;
+  const c = t.count;
+  const n = c === 'X' ? 'X' : typeof c === 'number' && c > 0 ? c : 1;
+  const word = n === 'X' ? 'X' : WORDS[n] ?? String(n);
+  const plural = n === 'X' || n > 1;
+  if (t.optional) return `up to ${word} target Saga${plural ? 's' : ''}${ctl}`;
+  return n === 1 ? `target Saga${ctl}` : `${word} target Sagas${ctl}`;
 }
 
 /** Trigger contexts are the core's; re-exported so the doc's examples and the tests can name the type. */

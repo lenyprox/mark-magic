@@ -69,6 +69,39 @@ function sagaTarget(phrase: string): TargetSpec | null {
 /** A sub-parse that produced nothing unknown. */
 const known = (effs: Effect[]): boolean => effs.length > 0 && effs.every(e => e.op !== 'unknown');
 
+/** A back-reference to the thing an earlier sentence of the same chapter already named ("... on it", "... to them"). */
+const DANGLING = /\b(?:on|to) (?:it|them)\b/i;
+/** An object TargetSpec (the only antecedent `target:0` can name), as opposed to a Ref or a group word. */
+const isSpec = (t: unknown): t is TargetSpec => !!t && typeof t === 'object' && typeof (t as { kind?: unknown }).kind === 'string';
+
+/**
+ * Re-bind a chapter body's dangling pronoun, or refuse the body.
+ *
+ * "Tap target creature an opponent controls. Put a stun counter on it." (Summon: Shiva) parses to
+ * `[{tap, target: <spec>}, {counters, target: 'self'}]`: parse.ts's antecedent machinery only runs on the ladder it
+ * walked itself, and a chapter body handed back through `ctx.parseEffects` arrives without that frame, so the trailing
+ * "it" falls through to the source. On a Saga that reading is never right - a Saga naming itself prints "~", never
+ * "it" - and the counter would land on the Saga instead of on the creature the chapter just tapped (CR 122.1d: a
+ * counter is put on the object the effect names). `known()` cannot see this: every op is known, the parse is simply
+ * about the wrong permanent.
+ *
+ * So the reference is re-bound to the body's single target (`target:0`, resolved by engine/refs.ts from the item's
+ * targets), and when it cannot be re-bound *unambiguously* - no antecedent, more than one, one that comes after the
+ * reference, or one that takes several objects - the body is refused, so the family claims nothing it cannot express.
+ * Returns the effects (rewritten in place of the copies) or null to refuse.
+ */
+function bindDangling(body: string, effs: Effect[]): Effect[] | null {
+  const self = (e: Effect): boolean => (e as { target?: unknown }).target === 'self';
+  if (!effs.some(self)) return effs;                                       // nothing bound to the source: nothing to do
+  if (!DANGLING.test(body) || /~/.test(body)) return effs;                 // ... and it did not come from a pronoun
+  const specs = effs.map((e, i) => ({ e, i })).filter(({ e }) => isSpec((e as { target?: unknown }).target));
+  if (specs.length !== 1 || specs[0].i > effs.findIndex(self)) return null;
+  const spec = (specs[0].e as { target: TargetSpec }).target;
+  if (spec.count !== undefined && spec.count !== 1) return null;           // "two target creatures": which one is "it"?
+  if (effs.some(e => (e as { target?: unknown }).target === true)) return null;   // a second, un-spec'd targeting clause
+  return effs.map(e => (self(e) ? { ...e, target: 'target:0' } as Effect : e));
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Effect rules
 // ---------------------------------------------------------------------------------------------------------------
@@ -109,8 +142,8 @@ const effects: EffectRule[] = [
 /** The tail of a named chapter, or null: the name must look like a name and the body must parse completely. */
 function chapterName(name: string, body: string, ctx: EffectCtx): Effect | null {
   if (!/^[A-Z][A-Za-z'’ !,-]*$/.test(name.trim())) return null;   // "Judgment Bolt", "Hall of Sorrow", "Pain"
-  const effs = ctx.parseEffects(body);
-  if (!known(effs)) return null;
+  const effs = bindDangling(body, ctx.parseEffects(body));
+  if (!effs || !known(effs)) return null;
   return effs.length === 1 ? effs[0] : { op: 'scoped', who: 'you', do: effs };
 }
 
@@ -173,10 +206,15 @@ const lines: LineRule[] = [
     // a named chapter ("I, II, III — Pain — You draw a card …"): the name is flavour, the effects are the tail
     const named = m[2].match(/^([A-Z][A-Za-z'’ !,-]{0,38}?)!? — ([^—]+)$/);
     const body = named ? named[2] : m[2];
-    const effs = ctx.parseEffects(body);
+    const raw = ctx.parseEffects(body);
+    // a dangling "... on it" the sub-parse bound to the Saga is re-bound, or the line is claimed as UNPARSED: the
+    // ability still has to exist (chapter numbers and `finalChapter` are what CR 714.4 runs on) but the coverage
+    // number must not count a body whose target is wrong. See bindDangling().
+    const bound = bindDangling(body, raw);
+    const effs = bound ?? raw;
     ctx.addAbility({ kind: 'triggered', event: { on: 'chapter', chapters }, effects: effs, text: ctx.rawLine });
     ctx.def.finalChapter = Math.max(ctx.def.finalChapter ?? 0, ...chapters);
-    if (!known(effs)) ctx.markUnparsed(ctx.rawLine);
+    if (!bound || !known(effs)) ctx.markUnparsed(ctx.rawLine);
     return true;
   } },
 ];
