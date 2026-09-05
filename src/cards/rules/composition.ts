@@ -19,9 +19,19 @@
 //
 // The shared sub-parsers arrive on the `EffectCtx` parse.ts hands every effect rule; this file imports nothing from
 // parse.ts at runtime.
-import type { Amount, AmountExpr, Effect, Filter, Ref, ScopeWho, SetZone, TargetSpec } from '../types.js';
+import type { Amount, AmountExpr, CardType, Effect, Filter, Ref, ScopeWho, SetZone, TargetSpec } from '../types.js';
 import type { EffectCtx, EffectRule, LineRule, RuleFamily } from './types.js';
 import { subtypeKind, subtypeWord } from '../subtypes.js';
+
+/** The card types a permanent card can have (CR 110.4c): "permanent card" in a graveyard / hand / library must not be an empty filter, which would offer instants and sorceries too. */
+const PERMANENT_CARD_TYPES: CardType[] = ['Artifact', 'Battle', 'Creature', 'Enchantment', 'Land', 'Planeswalker'];
+/** `f` for the words `words` of a "… card(s) from your graveyard" phrase: "permanent" / "nonland permanent" become the any-of list of permanent types (minus the excluded ones); every other filter is unchanged. */
+function permanentCardFilter(words: string, f: Filter | null): Filter | null {
+  if (!f || f.types || !/\bpermanents?\b/i.test(words)) return f;
+  const types = PERMANENT_CARD_TYPES.filter(t => !f.notTypes?.includes(t));
+  const { notTypes, ...rest } = f; void notTypes;
+  return { ...rest, types };
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Small vocabularies
@@ -43,11 +53,10 @@ function whoWord(w: string): ScopeWho | null {
   if (t === 'each opponent' || t === 'each other player') return 'each-opponent';
   if (t === 'each player') return 'each-player';
   if (t === 'target player') return 'target-player';
-  // "target opponent": ScopeWho has no opponent-only player target and `target-player` is offered every player
-  // (src/engine/legal.ts), so a block scoped that way could be pointed at its own controller — declined until the
-  // engine has the word (docs/HANDOFF.md item 23)
+  if (t === 'target opponent') return 'target-opponent';   // 9.0c: src/engine/legal.ts offers only opponents for it
   if (t === 'that player' || t === 'they' || t === 'the player' || t === 'that opponent') return 'that-player';
-  if (/^(its|~'s|that (creature|permanent|card|spell|token|land)'s) (controller|owner)$/.test(t)) return 'controller-of-that';
+  if (/^(its|~'s|that (creature|permanent|card|spell|token|land)'s) controller$/.test(t)) return 'controller-of-that';
+  if (/^(its|that (creature|permanent|card|spell|token|land)'s|the exiled card's) owner$/.test(t)) return 'owner-of-that';   // "the exiled card's owner creates …"
   if (t === 'you') return 'you';
   return null;
 }
@@ -77,8 +86,12 @@ const FILTER_WORDS = new Set<string>([
   ...TYPE_WORDS, ...TYPE_WORDS.map(t => t + 's'), ...TYPE_WORDS.map(t => 'non' + t), ...TYPE_WORDS.map(t => 'non' + t + 's'),
   ...COLOR_WORDS, ...COLOR_WORDS.map(c => 'non' + c), 'colorless', 'tapped', 'untapped', 'token', 'tokens', 'nontoken', 'attacking', 'blocking',
   'basic', 'nonbasic', 'permanent', 'permanents', 'card', 'cards', 'spell', 'spells', 'a', 'an', 'or', 'other', 'another', 'each',
-  'with', 'power', 'toughness', 'mana', 'value', 'less', 'greater', ...KEYWORD_FILTER_WORDS,
+  'with', 'without', 'power', 'toughness', 'mana', 'value', 'less', 'greater', ...KEYWORD_FILTER_WORDS,
+  // 9.0c filter fields: supertypes, the adjective flags, "dealt damage by ~ this turn"
+  'legendary', 'nonlegendary', 'snow', 'nonsnow', 'historic', 'multicolored', 'monocolored', 'kicked', 'transformed', 'enchanted', 'equipped', 'modified', 'dealt', 'damage', 'by', '~', 'this', 'turn',
 ]);
+/** A filter word the guards accept: a known word, a subtype, a number, "1/1", or "non-<Subtype>". */
+const filterWordOk = (w: string): boolean => FILTER_WORDS.has(w.toLowerCase()) || isSubtype(w) || /^\d+$/.test(w) || /^\d+\/\d+$/.test(w) || (/^non-/i.test(w) && subtypeWord(w.slice(4)) !== null);
 
 /** A filter description whose every word the built-in filter parser understands ("nonblack creature", "Goblin", "artifact creature with flying"). */
 function safeFilter(desc: string, ctx: EffectCtx): Filter | null {
@@ -92,7 +105,7 @@ function safeFilter(desc: string, ctx: EffectCtx): Filter | null {
   const pair = body.match(/^([A-Z][a-z]+s?) and ([A-Z][a-z]+s?)$/);   // "Treefolk and Forests": two subtypes, either
   if (pair) { const a = subtypeWord(pair[1]); const b = subtypeWord(pair[2]); if (!a || !b) return null; const f: Filter = { subtypes: [a, b] }; if (mvX !== undefined) f[mvKey] = mvX; if (other) f.other = true; return f; }
   for (const w of body.split(/\s+/)) {
-    if (FILTER_WORDS.has(w.toLowerCase()) || isSubtype(w) || /^\d+$/.test(w)) continue;
+    if (filterWordOk(w)) continue;
     return null;
   }
   const f = ctx.parseFilterWords(body);
@@ -111,7 +124,7 @@ function singularWords(desc: string): string {
   return desc.split(/\s+/).map(w => (/^[A-Z]/.test(w) ? subtypeWord(w) ?? w : w)).join(' ');
 }
 
-const TGT = "((?:up to (?:one|two|three|four) |two |three |any number of )?(?:another |other )?target [^.,]+?|any target)";
+const TGT = "((?:up to (?:one|two|three|four|X) |two |three |any number of )?(?:another |other )?target [^.,]+?|any target)";
 
 /** The built-in target parser, guarded: every filter word must be known, and "any number of target …" is understood. */
 function target(phrase: string, ctx: EffectCtx): TargetSpec | null {
@@ -130,10 +143,10 @@ function target(phrase: string, ctx: EffectCtx): TargetSpec | null {
   if (mv) { p = mv[1] + (mv[2] ?? ''); mvX = 'X'; }
   const tail = p.match(/^(.+?) (with (?:mana value|power|toughness) \d+ or (?:less|greater))( you control| an opponent controls| you don't control)?$/i);
   if (tail) { p = tail[1] + (tail[3] ?? ''); tailFilter = ctx.parseFilterWords(`creature ${tail[2]}`); if (!tailFilter) return null; delete tailFilter.types; }
-  const words = p.replace(/^(up to (?:one|two|three|four) |two |three |another |other )+/i, '').replace(/^target /i, '').replace(/ (you control|an opponent controls|you don't control)$/i, '');
+  const words = p.replace(/^(up to (?:one|two|three|four|X) |two |three |another |other )+/i, '').replace(/^target /i, '').replace(/ (you control|an opponent controls|you don't control)$/i, '');
   if (words !== 'any target') {
     for (const w of words.split(/\s+/)) {
-      if (FILTER_WORDS.has(w.toLowerCase()) || isSubtype(w) || /^\d+$/.test(w)) continue;
+      if (filterWordOk(w)) continue;
       if (/^(player|opponent|planeswalker|creature-or-player|any|target|activated|triggered|ability|from|in|graveyard)$/i.test(w)) continue;
       return null;
     }
@@ -246,6 +259,15 @@ function amountOf(text: string, ctx: EffectCtx): Amount | null {
   if (t === 'the number of cards in your hand') return { prop: 'cards-in-hand', of: 'you' };
   if (t === "the number of cards in that player's hand" || t === 'the number of cards in their hand') return { prop: 'cards-in-hand', of: 'that-player' };
   if (t === 'the number of players') return { count: 'opponents', plus: 1 };
+  if (t === 'that many' || t === 'that much') return { count: 'that-many' };   // the last amount the item evaluated, or the number the trigger was about
+  // "the greatest power among creatures you control", "the total power of creatures you control", "the highest mana value among …"
+  if ((m = t.match(/^the (greatest|highest|total|lowest|least) (power|toughness|mana value) (?:among|of) (.+)$/))) {
+    const setM = m[3].match(/^(?:all )?(.+?) (your opponents control|an opponent controls|that player controls|in your hand|in exile|in all graveyards|in your graveyard|in their graveyard|in that player's graveyard|in your library|you control|on the battlefield)$/);
+    if (!setM) return null;
+    const set = objectSet(setM[1], setM[2], ctx) as AmountExpr | null; if (!set) return null;
+    const over = { ...(set.filter ?? {}), ...(set.zone ? { zone: set.zone as SetZone } : {}), ...(set.who ? { who: set.who } : {}) };
+    return { prop: m[2] === 'mana value' ? 'mv' : (m[2] as 'power' | 'toughness'), agg: m[1] === 'total' ? 'sum' : m[1] === 'greatest' || m[1] === 'highest' ? 'max' : 'min', over };
+  }
   if ((m = t.match(/^the number of (.+?) (your opponents control|an opponent controls|target player controls|target opponent controls|that player controls|in your hand|in exile|in all graveyards|in your graveyard|in their graveyard|in that player's graveyard|in target player's graveyard|in your library|you control|on the battlefield)$/))) {
     const set = objectSet(m[1], m[2], ctx);
     return set;
@@ -304,18 +326,16 @@ const AMOUNT_KEYS = new Set(['amount', 'count', 'power', 'toughness', 'look', 'm
 function withX(effs: Effect[], amount: Amount, text: string): Effect[] | null {
   const copy = JSON.parse(JSON.stringify(effs)) as Effect[];
   const neg = (): Amount => (typeof amount === 'object' ? modify(amount, { times: -1 }) : { sum: [amount], times: -1 });
-  const pt = text.match(/([+-])X\/([+-])X/);
-  const negPower = pt?.[1] === '-', negTough = pt?.[2] === '-';
-  if (/[+-]X\/[+-]X/.test(text) && !pt) return null;
+  /** The built-in `pm` reads "-X" as `{ sum: ['X'], times: -1 }` (PARSER_VERSION 4); with the X defined it is the amount negated. */
+  const isNegX = (v: unknown): boolean => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 2 && (v as { times?: unknown }).times === -1 && Array.isArray((v as { sum?: unknown }).sum) && ((v as { sum: unknown[] }).sum).length === 1 && (v as { sum: unknown[] }).sum[0] === 'X';
   let n = 0;
   const walk = (v: unknown, inAmount: boolean): void => {
     if (!v || typeof v !== 'object') return;
     if (Array.isArray(v)) { v.forEach((x, i) => { if (x === 'X' && inAmount) { (v as unknown[])[i] = amount; n++; } else walk(x, inAmount); }); return; }
     const o = v as Record<string, unknown>;
-    const isPump = o.op === 'pump';
     for (const k of Object.keys(o)) {
       const isAmount = AMOUNT_KEYS.has(k) || k === 'sum' || k === 'diff' || k === 'min' || (k === 'max' && Array.isArray(o[k]));
-      if (o[k] === 'X' && isAmount) { o[k] = isPump && ((k === 'power' && negPower) || (k === 'toughness' && negTough)) ? neg() : amount; n++; } else walk(o[k], isAmount);
+      if (o[k] === 'X' && isAmount) { o[k] = amount; n++; } else if (isAmount && isNegX(o[k])) { o[k] = neg(); n++; } else walk(o[k], isAmount);
     }
   };
   walk(copy, false);
@@ -331,7 +351,6 @@ function scaleBy(e: Effect, a: Amount): Effect | null {
     case 'add-mana': return e.perEach === undefined && e.amount === undefined && Array.isArray(e.mana) && e.mana.length === 1 ? { ...e, perEach: a } : null;
     case 'token': case 'token-copy': return numeric(o.count) ? { ...e, count: times(o.count) } as Effect : null;
     case 'draw': case 'discard': case 'mill': case 'gain-life': case 'lose-life': case 'counters': case 'damage': case 'poison': case 'energy': case 'player-counter': case 'scry': case 'surveil':
-      if (e.op === 'scry' || e.op === 'surveil') return null;   // amount: number only
       return numeric(o.amount) ? { ...e, amount: times(o.amount) } as Effect : null;
     case 'pump': {
       const sc = (v: unknown): Amount | null => (typeof v !== 'number' ? null : v === 0 ? 0 : v > 0 ? times(v) : typeof a === 'object' ? modify(a, { times: v }) : { sum: [a], times: v });
@@ -404,6 +423,15 @@ const effects: EffectRule[] = [
   { re: new RegExp(`^(.+?\\bput) a number of ${COUNTER} counters on (.+?) equal to (.+)$`, 'i'), make: (m, ctx) => equalTo(`${m[1]} X ${m[2]} counters on ${m[3]}`, m[4], ctx) },
   { re: /^(.+?\bcreate) a number of (.+?) tokens equal to (.+)$/i, make: (m, ctx) => equalTo(`${m[1]} X ${m[2]} tokens`, m[3], ctx) },
 
+  // ---- "… that many cards / counters / tokens", "… that much damage / life": the sentence with X in the slot, X the last
+  //      amount evaluated (or the number the trigger was about: the damage dealt, the life gained)
+  { re: /^(.+?)\bthat (?:many|much)\b(.*)$/i, make: (m, ctx) => {
+    if (/\bthat (?:many|much)\b/i.test(m[2])) return null;
+    const rewritten = `${m[1]}X${m[2]}`;
+    const effs = sub(ctx, rewritten); if (!effs) return null;
+    const out = withX(effs, { count: 'that-many' }, rewritten); return out ? seq(out) : null;
+  } },
+
   // ---- "<effect> for each <set>" (CR 608.2h: the set is counted as the effect applies)
   { re: /^(?!for each)(.+?) for each (.+)$/i, make: (m, ctx) => {
     if (/\bfor each\b/i.test(m[1])) return null;
@@ -443,7 +471,7 @@ const effects: EffectRule[] = [
   { re: /^(thatobj|they|those (?:creatures|permanents|tokens)) (?:each )?gains? (.+?) until end of turn$/i, make: (m, ctx) => { const k = ctx.kwList(m[2]); return k ? { op: 'grant-keyword', target: /^thatobj$/i.test(m[1]) ? 'that' : 'those', keywords: k, duration: 'eot' } : null; } },
   { re: /^(thatobj|they|those (?:creatures|permanents|tokens)) (?:each )?gets? ([+-]\d+|[+-]X)\/([+-]\d+|[+-]X)(?: and gains? (.+?))? until end of turn$/i, make: (m, ctx) => {
     const k = m[4] ? ctx.kwList(m[4]) : []; if (!k) return null;
-    const pm = (s: string): Amount => (s.toUpperCase().endsWith('X') ? 'X' : Number(s));
+    const pm = (s: string): Amount => (s.toUpperCase().endsWith('X') ? (s.startsWith('-') ? { sum: ['X'], times: -1 } : 'X') : Number(s));
     return { op: 'pump', target: /^thatobj$/i.test(m[1]) ? 'that' : 'those', power: pm(m[2]), toughness: pm(m[3]), ...(k.length ? { keywords: k } : {}), duration: 'eot' };
   } },
   { re: /^(those (?:creatures|permanents|lands)|they) don't untap during their controllers?' next untap steps?$/i, make: () => ({ op: 'no-untap-that' }) },
@@ -465,34 +493,35 @@ const effects: EffectRule[] = [
   { re: /^exile (it|them|that card|those cards|that creature|those creatures|that permanent|thatobj) until ~ leaves the battlefield$/i, make: m => { const r = /^thatobj$/i.test(m[1]) ? 'that' : refWord(m[1]); return r ? { op: 'move', what: r, to: 'exile', until: 'leaves' } : null; } },
   { re: new RegExp(`^exile ${TGT} until end of turn$`, 'i'), make: (m, ctx) => { const t = target(m[1], ctx); return t ? { op: 'move', what: t, to: 'exile', until: 'eot' } : null; } },
   { re: /^return (all|each) (.+?) cards? from your graveyard to (the battlefield|your hand)( tapped)?$/i, make: (m, ctx) => {
-    const f = safeFilter(singularWords(m[2]), ctx); if (!f) return null;
+    const f = permanentCardFilter(m[2], safeFilter(singularWords(m[2]), ctx)); if (!f) return null;
     const e: Effect = { op: 'move', what: { filter: f, zone: 'graveyard', who: 'you', count: 'all' }, to: m[3].toLowerCase() === 'your hand' ? 'hand' : 'battlefield' };
     if (e.to === 'battlefield') e.controller = 'you';
     if (m[4]) e.tapped = true;
     return e;
   } },
   { re: /^put (?:up to )?(a|an|one|two|three|four|x|any number of) (.+?) cards? from your graveyard onto the battlefield( tapped)?$/i, make: (m, ctx) => {
-    const f = safeFilter(singularWords(m[2]), ctx); if (!f) return null;
+    const f = permanentCardFilter(m[2], safeFilter(singularWords(m[2]), ctx)); if (!f) return null;
     const n = m[1].toLowerCase() === 'any number of' ? 'all' : ctx.num(m[1]);
     const e: Effect = { op: 'move', what: { filter: f, zone: 'graveyard', who: 'you', count: n }, to: 'battlefield', controller: 'you' };
     if (m[3]) e.tapped = true;
     return e;
   } },
   { re: /^return (?:up to )?(a|an|one|two|three|four|x) (.+?) cards? from your graveyard to the battlefield( tapped)?$/i, make: (m, ctx) => {
-    const f = safeFilter(singularWords(m[2]), ctx); if (!f) return null;
+    const f = permanentCardFilter(m[2], safeFilter(singularWords(m[2]), ctx)); if (!f) return null;
     const e: Effect = { op: 'move', what: { filter: f, zone: 'graveyard', who: 'you', count: ctx.num(m[1]) }, to: 'battlefield', controller: 'you' };
     if (m[3]) e.tapped = true;
     return e;
   } },
   { re: /^return (?:up to (\w+) )?(another )?target (.+?) cards?((?: with .+?)?) from your graveyard to (the battlefield|your hand)( tapped)?$/i, make: (m, ctx) => {
-    const f = safeFilter(`${m[2] ?? ''}${singularWords(m[3])}${m[4]}`, ctx); if (!f) return null;
-    if (m[1] && ctx.num(m[1]) !== 1) return null;   // return-from-graveyard targets one card
+    const f = permanentCardFilter(m[3], safeFilter(`${m[2] ?? ''}${singularWords(m[3])}${m[4]}`, ctx)); if (!f) return null;
+    const n = m[1] ? ctx.num(m[1]) : 1; if (typeof n !== 'number') return null;
     const e: Effect = { op: 'return-from-graveyard', what: f, to: m[5].toLowerCase() === 'your hand' ? 'hand' : 'battlefield', target: true };
+    if (m[1]) { e.optional = true; if (n !== 1) e.count = n; }   // "up to two target creature cards": up to `count`, fewer is fine
     if (m[6]) e.tapped = true;
     return e;
   } },
   { re: /^put target (.+?) card from a graveyard onto the battlefield under your control( tapped)?$/i, make: (m, ctx) => {
-    const f = safeFilter(m[1], ctx); if (!f) return null;
+    const f = permanentCardFilter(m[1], safeFilter(m[1], ctx)); if (!f) return null;
     const e: Effect = { op: 'move', what: { kind: 'graveyard-card', filter: f }, to: 'battlefield', controller: 'you' };
     if (m[2]) e.tapped = true;
     return e;
@@ -549,7 +578,7 @@ const effects: EffectRule[] = [
   { re: /^at the beginning of your next end step, (.+)$/i, make: (m, ctx) => { const effs = sub(ctx, m[1]); return effs ? { op: 'delayed-trigger', at: 'your-next-end-step', ...(mentionsThat(effs) ? { bind: 'that' } : {}), effects: effs } : null; } },
 
   // ---- "… unless <player> <pays a cost>" (CR 118.12)
-  { re: new RegExp(`^(.+?) unless (you|they|that player|its controller|that creature's controller|each opponent|each player|target player) ${COST_VERB} (.+)$`, 'i'), make: (m, ctx) => {
+  { re: new RegExp(`^(.+?) unless (you|they|that player|its controller|that creature's controller|each opponent|each player|target player|target opponent) ${COST_VERB} (.+)$`, 'i'), make: (m, ctx) => {
     const payer = whoWord(m[2]); if (!payer) return null;
     for (const w of m[4].split(/\s+/)) if (!(FILTER_WORDS.has(w.toLowerCase()) || COST_WORDS.has(w.toLowerCase()) || /^[A-Z][a-z]+s?$/.test(w) || /^\d+$/.test(w) || /^\{[^}]+\}$/.test(w))) return null;
     const cost = ctx.parseCostPhrase(costPhrase(m[3], m[4])); if (!cost || !Object.keys(cost).length) return null;
@@ -558,7 +587,7 @@ const effects: EffectRule[] = [
     // whose clause is it? the payer's own ("each opponent discards a card unless they pay {1}") or the controller's
     // ("sacrifice ~ unless you pay 2 life"); a clause about you that another player pays for cannot be expressed
     // (the `otherwise` block runs as the payer — composition.md §4 `unless-pays`)
-    const subj = main.match(/^(each opponent|each other player|each player|target player|that player|its controller) (.+)$/i);
+    const subj = main.match(/^(each opponent|each other player|each player|target player|target opponent|that player|its controller) (.+)$/i);
     if (subj) {
       const subjWho = whoWord(subj[1]); if (!subjWho) return null;
       const same = payer === subjWho || (payer === 'that-player' && subjWho !== 'you');   // "they" / "that player" = the subject
@@ -567,13 +596,19 @@ const effects: EffectRule[] = [
       const otherwise = playerClause(subj[2], ctx);
       return otherwise ? { op: 'unless-pays', who: subjWho, cost, otherwise } : null;
     }
-    if (payer !== 'you') return null;
     const otherwise = sub(ctx, main);
-    return otherwise ? { op: 'unless-pays', who: 'you', cost, otherwise } : null;
+    if (!otherwise) return null;
+    // "return another target creature to its owner's hand unless its controller pays {1}" (Withdraw): "its" is the
+    // clause's own target, which the frame cannot name before the clause runs (a `bind` of the targets would name the
+    // FIRST target's controller) — declined until the engine has a target-controller payer
+    if ((payer === 'controller-of-that' || payer === 'owner-of-that') && /\btarget\b/i.test(main)) return null;
+    // "you may draw a card unless that player pays {4}" (Rhystic Study): another player pays, the clause runs as you
+    if (payer !== 'you') return /\byou\b|\byour\b/i.test(main) || !/^(each|target|that|its)\b/i.test(main) ? { op: 'unless-pays', who: payer, cost, otherwise, otherwiseAs: 'controller' } : null;
+    return { op: 'unless-pays', who: 'you', cost, otherwise };
   } },
 
   // ---- "<player> <does something>" → scoped (CR 101.4 APNAP for the each-* words)
-  { re: /^(each opponent|each other player|each player|target player|that player|its controller|~'s controller|that (?:creature|permanent|card|spell|token|land)'s controller) (.+)$/i, make: (m, ctx) => {
+  { re: /^(each opponent|each other player|each player|target player|target opponent|that player|its controller|~'s controller|that (?:creature|permanent|card|spell|token|land)'s controller|its owner|that (?:creature|permanent|card|token)'s owner|the exiled card's owner) (.+)$/i, make: (m, ctx) => {
     const who = whoWord(m[1]); if (!who) return null;
     if (/\bunless\b/i.test(m[2])) return null;
     return playerBlock(who, m[2], ctx);
@@ -584,7 +619,7 @@ const effects: EffectRule[] = [
   } },
 
   // ---- a few generic wordings the owner's decks need, on the ops the engine already had
-  { re: /^put target (?:(.+?) )?cards? from your graveyard on the bottom of your library$/i, make: (m, ctx) => { const f = m[1] ? safeFilter(singularWords(m[1]), ctx) : {}; return f ? { op: 'return-from-graveyard', what: f, to: 'library-bottom', target: true } : null; } },
+  { re: /^put target (?:(.+?) )?cards? from your graveyard on the bottom of your library$/i, make: (m, ctx) => { const f = m[1] ? permanentCardFilter(m[1], safeFilter(singularWords(m[1]), ctx)) : {}; return f ? { op: 'return-from-graveyard', what: f, to: 'library-bottom', target: true } : null; } },
   { re: /^put target card from your graveyard on top of your library$/i, make: () => ({ op: 'return-from-graveyard', what: {}, to: 'library-top', target: true }) },
   { re: /^add (one|two|three|four|five|six|seven|eight|\d+) mana in any combination of colors$/i, make: (m, ctx) => { const n = ctx.num(m[1]); return typeof n === 'number' ? { op: 'add-mana', mana: 'any', amount: n } : null; } },
   { re: /^return ~ from your graveyard to the battlefield( tapped)?$/i, make: m => ({ op: 'move', what: 'self', to: 'battlefield', controller: 'you', ...(m[1] ? { tapped: true } : {}) }) },
@@ -603,6 +638,8 @@ const effects: EffectRule[] = [
     const v = m[1].toLowerCase();
     return v === 'destroy' ? { op: 'destroy', target: t } : v === 'exile' ? { op: 'exile', target: t } : v === 'tap' ? { op: 'tap', target: t } : { op: 'untap', target: t };
   } },
+  // "Counter target artifact, creature, or planeswalker spell": the built-in target slot stops at the comma
+  { re: /^counter (target .+ spell)$/i, make: (m, ctx) => { if (!/,/.test(m[1])) return null; const t = target(m[1], ctx); return t && /spell/.test(t.kind) ? { op: 'counter', target: t } : null; } },
   { re: /^(destroy|exile|tap|untap) (target .+ with mana value X or less)$/i, make: (m, ctx) => {
     const t = target(m[2], ctx); if (!t) return null;
     const v = m[1].toLowerCase();
@@ -634,7 +671,7 @@ const effects: EffectRule[] = [
   // ---- "put a counter on each <filter> <player> controls" → for-each over that player's objects
   { re: new RegExp(`^put (a|an|one|two|three|x) ${COUNTER} counters? on each (.+?) (target player|target opponent|that player|your opponents|each opponent) controls?$`, 'i'), make: (m, ctx) => {
     const f = safeFilter(singularWords(m[3]), ctx); if (!f) return null;
-    const w = m[4].toLowerCase(); const who: ScopeWho = w === 'that player' ? 'that-player' : w.startsWith('target') ? 'target-player' : 'each-opponent';
+    const w = m[4].toLowerCase(); const who: ScopeWho = w === 'that player' ? 'that-player' : w === 'target opponent' ? 'target-opponent' : w === 'target player' ? 'target-player' : 'each-opponent';
     return { op: 'for-each', over: { ...f, who }, do: [{ op: 'counters', target: 'that', counter: m[2].toLowerCase(), amount: ctx.num(m[1]) }] };
   } },
 

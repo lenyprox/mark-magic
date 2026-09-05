@@ -159,7 +159,9 @@ export interface StackItem {
   /** The player the trigger was about (the one dealt damage, the one who drew, ...) — "that player" in the body. */
   triggeringPlayer?: PlayerId;
   /** Objects this item moved/affected while resolving, with their last known values ("that creature's controller gains life equal to its power"). `zone` is where the object was when it was bound (CR 400.7: a later zone change makes it a new object). */
-  affected?: { id: number; lastKnown: { power: number; toughness: number; controller: PlayerId; manaValue: number; zone?: Zone } }[];
+  affected?: { id: number; lastKnown: { power: number; toughness: number; controller: PlayerId; manaValue: number; zone?: Zone; owner?: PlayerId } }[];
+  /** The last amount this item evaluated while resolving ("that many": `count: 'that-many'`); a `discard` of a whole hand records how many went. */
+  lastAmount?: number;
   /** Composition core: the player 'you' currently means while a `scoped` block runs (applyEffect reads `actor ?? controller`). */
   actor?: PlayerId;
   /** Ids of the objects sacrificed to pay this item's cost (the 'sacrificed' Ref). */

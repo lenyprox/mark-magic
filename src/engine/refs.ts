@@ -15,6 +15,10 @@
 //   sacrificed   the objects sacrificed to pay this item's cost (sacrifice ~ counts as the source itself)
 //   exiled-with  the cards exiled with the source (imprint, delve, "exile until ~ leaves")
 //
+// A `target:<i>` / `bind from targets` on a SPELL target (a `stack` TargetRef) resolves to the spell's card
+// (`stackObjects`), so "Counter target spell. Its controller draws a card." binds what was countered; `counter` itself
+// records the spell with the controller and mana value it had on the stack (CR 608.2h last known information).
+//
 // CR 400.7: an object that changed zones is a new object. A binding records the zone the object was bound in
 // (`affected[].lastKnown.zone`); `resolveRef` returns the object wherever it is now and hands the caller
 // `boundZoneOf(item, o)` so each op decides (documented per op) whether the binding survived the move — a `move` of
@@ -23,7 +27,9 @@
 //
 // Players: `resolveWho` answers the `ScopeWho` vocabulary. 'each-player' / 'each-opponent' are APNAP-ordered starting
 // with the active player (CR 101.4, 608.2f); 'that-player' is the player the trigger was about, else the controller
-// of 'that', else the first player target (the same fallbacks the older `draw`/`mill`/`poison` ops use).
+// of 'that', else the first player target (the same fallbacks the older `draw`/`mill`/`poison` ops use); 'target-opponent'
+// is the first player target too — src/engine/legal.ts offers only opponents for it (CR 115.1); 'owner-of-that' is
+// the owner of 'that' ("the exiled card's owner").
 //
 // This module and characteristics.ts import each other (findObject here, resolveRef there for the `prop` amount);
 // nothing is read at module scope, so the cycle is harmless under ESM.
@@ -49,9 +55,14 @@ export function itemTargets(item: StackItem): TargetRef[] {
 
 const objectsOf = (s: GameState, refs: TargetRef[]): GameObject[] => {
   const out: GameObject[] = [];
-  for (const r of refs) if (r.kind === 'object') { const o = findObject(s, r.id); if (o) out.push(o); }
+  for (const r of refs) if (r.kind === 'object') { const o = findObject(s, r.id); if (o) out.push(o); } else if (r.kind === 'stack') { const o = stackObject(s, r.id); if (o) out.push(o); }
   return out;
 };
+/** The card a spell target (a `stack` TargetRef) is about: the item's source while it is on the stack, and — once the item has left the stack (countered, resolved) — the same card wherever it went, found by the id the item carried. */
+export function stackObject(s: GameState, itemId: number): GameObject | undefined {
+  const it = s.stack.find(i => i.id === itemId);
+  return it ? it.source : undefined;
+}
 
 /** The zone `o` was in when the item bound it, or undefined when it was never bound (or bound before zones were recorded). */
 export function boundZoneOf(item: StackItem, o: GameObject): Zone | undefined {
@@ -71,7 +82,7 @@ export function resolveRef(ctx: RefCtx, ref: Ref): GameObject[] {
     case 'sacrificed': return objectsOf(s, (item.sacrificed ?? []).map(id => ({ kind: 'object' as const, id })));
     case 'exiled-with': return objectsOf(s, (src.exiledWith ?? []).map(id => ({ kind: 'object' as const, id })));
     default: {
-      if (ref.startsWith('target:')) { const i = Number(ref.slice(7)); const r = itemTargets(item)[i]; return r && r.kind === 'object' ? objectsOf(s, [r]) : []; }
+      if (ref.startsWith('target:')) { const i = Number(ref.slice(7)); const r = itemTargets(item)[i]; return r && r.kind !== 'player' ? objectsOf(s, [r]) : []; }
       return [];
     }
   }
@@ -104,9 +115,10 @@ export function thatPlayer(ctx: RefCtx, T?: TargetRef[]): PlayerId | undefined {
 export function resolveOnePlayer(ctx: RefCtx, who: ScopeWho | 'owner' | `target:${number}`, T?: TargetRef[]): PlayerId | undefined {
   switch (who) {
     case 'you': return ctx.p;
-    case 'target-player': return firstTargetPlayer(ctx.item, T);
+    case 'target-player': case 'target-opponent': return firstTargetPlayer(ctx.item, T);
     case 'that-player': return thatPlayer(ctx, T);
     case 'controller-of-that': { const a = ctx.item.affected?.[0]; if (!a) return undefined; const o = findObject(ctx.s, a.id); return o && o.zone === 'battlefield' ? o.controller : a.lastKnown.controller; }
+    case 'owner-of-that': { const a = ctx.item.affected?.[0]; if (!a) return undefined; const o = findObject(ctx.s, a.id); return o ? o.owner : a.lastKnown.owner; }
     case 'each-player': case 'each-opponent': return resolveWho(ctx, who, T)[0];
     case 'owner': return undefined;
     default: return refPlayer(ctx, who);

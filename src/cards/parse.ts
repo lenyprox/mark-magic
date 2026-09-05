@@ -42,7 +42,7 @@ import { subtypeWord } from './subtypes.js';
  * expected re-baseline rather than an accident. Adding a family under src/cards/rules/ does **not** bump it: that
  * shows up as a different `rulesHash` instead.
  */
-export const PARSER_VERSION = 3;
+export const PARSER_VERSION = 4;
 
 // ---------------------------------------------------------------------------
 // Mana
@@ -72,6 +72,10 @@ export function manaValue(c: ManaCost | null, x = 0): number {
 }
 
 const NUM_WORDS: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fifteen: 15, twenty: 20 };
+/** "remove a / two / all <counter> counters from ~": `all` removes every one (the count removed is the ability's "that much", Relic Amulet). */
+function removeCountersCost(counter: string, word: string): NonNullable<AbilityCost['removeCounters']> {
+  return word.toLowerCase() === 'all' ? { counter, amount: 1, all: true } : { counter, amount: num(word) as number };
+}
 function num(s: string | undefined): Amount {
   if (s == null) return 1;
   s = s.trim().toLowerCase();
@@ -117,7 +121,10 @@ function parseFilterWords(desc: string): Filter | null {
   // "each other creature", "all other Zombies": every leading determiner goes, and "another" / "other" is the flag
   for (let m: RegExpMatchArray | null; (m = d.match(/^(an?|another|other|each|all|every)\s+/));) { if (/another|other/.test(m[1])) f.other = true; d = d.slice(m[0].length); }
   d = d.replace(/^((?:non[a-z]+,? )+)/, m => m.replace(/,/g, ''));
+  if (/ dealt damage by ~ this turn$/.test(d)) { f.dealtDamageBySource = true; d = d.replace(/ dealt damage by ~ this turn$/, ''); }   // "creature dealt damage by ~ this turn"
   { const kwm = d.match(/^(.+?) with (deathtouch|lifelink|trample|haste|menace|reach|vigilance|first strike|double strike|hexproof|indestructible)$/); if (kwm) { f.withKeyword = kwm[2] as Keyword; d = kwm[1]; } }
+  // "creature without flying": none of the listed keywords (Filter.notKeywords)
+  { const wo = d.match(/^(.+?) without (.+)$/); if (wo) { const k = kwList(wo[2]); if (!k || !k.length) return null; f.notKeywords = k; d = wo[1]; } }
   const withM = d.match(/\s+with\s+(.+)$/);
   if (withM) {
     const w = withM[1];
@@ -125,6 +132,7 @@ function parseFilterWords(desc: string): Filter | null {
     else if (/^power (\d+) or greater$/.test(w)) f.powerGE = Number(RegExp.$1);
     else if (/^power (\d+) or less$/.test(w)) f.powerLE = Number(RegExp.$1);
     else if (/^toughness (\d+) or less$/.test(w)) f.toughnessLE = Number(RegExp.$1);
+    else if (/^toughness (\d+) or greater$/.test(w)) f.toughnessGE = Number(RegExp.$1);
     else if (/^mana value (\d+) or less$/.test(w)) f.mvLE = Number(RegExp.$1);
     else if (/^mana value (\d+) or greater$/.test(w)) f.mvGE = Number(RegExp.$1);
     else if (/^mana value (\d+)$/.test(w)) f.mvEQ = Number(RegExp.$1);
@@ -133,9 +141,17 @@ function parseFilterWords(desc: string): Filter | null {
     d = d.slice(0, withM.index);
   }
   const words = d.split(/\s+/).filter(Boolean);
+  // "artifact creature", "land creature": adjacent type words are every one of them (Filter.typesAll); "artifact or
+  // creature", "artifacts and creatures" (a list with a conjunction anywhere in it) stays any-of
+  const anyOf = words.some(w => w === 'or' || w === 'and' || w === 'and/or');
   for (let w of words) {
     if (w === 'or' || w === 'and' || w === 'and/or' || w === 'a' || w === 'an') continue;   // a type list is any-of
     if (w === 'basic') { f.basic = true; continue; }
+    if (w === 'legendary' || w === 'snow') { (f.supertypes ??= []).push(w[0].toUpperCase() + w.slice(1)); continue; }
+    if (w === 'nonlegendary' || w === 'nonsnow') { (f.notSupertypes ??= []).push(w[3].toUpperCase() + w.slice(4)); continue; }
+    if (w === 'historic' || w === 'multicolored' || w === 'monocolored' || w === 'kicked' || w === 'transformed' || w === 'enchanted' || w === 'equipped' || w === 'modified') { (f as Record<string, unknown>)[w] = true; continue; }
+    if (/^\d+\/\d+$/.test(w)) { const [pw, tg] = w.split('/'); f.powerEQ = Number(pw); f.toughnessEQ = Number(tg); continue; }   // "1/1 creature"
+    if (/^non-/.test(w)) { const sub = subtypeWord(w.slice(4)); if (!sub) return null; (f.notSubtypes ??= []).push(sub); continue; }   // "non-Angel creature"
     if (w in TYPE_WORDS) (f.types ??= []).push(TYPE_WORDS[w]);
     else if (w.startsWith('non') && w.slice(3) in TYPE_WORDS) (f.notTypes ??= []).push(TYPE_WORDS[w.slice(3)]);
     else if (w in COLOR_WORDS) (f.colors ??= []).push(COLOR_WORDS[w]);
@@ -163,6 +179,7 @@ function parseFilterWords(desc: string): Filter | null {
       }
     }
   }
+  if (f.types && f.types.length > 1 && !anyOf) f.typesAll = true;
   return f;
 }
 
@@ -171,8 +188,10 @@ function parseTarget(phrase: string): TargetSpec | null {
   let p = phrase.trim().toLowerCase().replace(/[.,]$/, '');
   const spec: TargetSpec = { kind: 'creature' };
   let m: RegExpMatchArray | null;
-  const upto = p.match(/^up to (one|two|three|four|\d+) /);
-  if (upto) { spec.optional = true; spec.count = num(upto[1]) as number; p = p.slice(upto[0].length); }
+  // "target creature and target land" (CR 115.3: two instances of "target"): one `multi` spec per instance, in printed order
+  { const both = p.match(/^(.+?) and ((?:another |other )?target .+)$/); if (both && /^(?:up to \w+ |two |three |another |other )*target /.test(both[1])) { const a = parseTarget(both[1]); const b = parseTarget(both[2]); return a && b ? { kind: 'multi', specs: [a, b] } : null; } }
+  const upto = p.match(/^up to (one|two|three|four|x|\d+) /);
+  if (upto) { spec.optional = true; spec.count = num(upto[1]) as number | 'X'; p = p.slice(upto[0].length); }
   const twoM = p.match(/^(two|three) /);
   if (twoM) { spec.count = num(twoM[1]) as number; p = p.slice(twoM[0].length); }
   if (p === 'any target') return { ...spec, kind: 'any' };
@@ -200,8 +219,10 @@ function parseTarget(phrase: string): TargetSpec | null {
     'instant or sorcery spell': 'noncreature-spell', 'instant spell': 'noncreature-spell', 'sorcery spell': 'noncreature-spell', 'player or planeswalker': 'player', 'creature, player, or planeswalker': 'any', 'creature or player or planeswalker': 'any', 'creature an opponent controls': 'creature', 'creature you control': 'creature',
   };
   if (p in map) return { ...spec, kind: map[p], ...(controller ? { controller } : {}) };
+  // "target artifact, creature, or planeswalker spell", "target legendary spell": a spell with a filter (the plain kinds are in the map above)
+  if ((m = p.match(/^(.+?) spell$/)) && !/\bspell\b/.test(m[1])) { const f = parseFilterWords(m[1]); if (f) return { ...spec, kind: 'spell', filter: { ...spec.filter, ...f } }; }
   // filtered creature / permanent: "nonblack creature", "creature with flying", "Goblin creature", "artifact creature"
-  if (/creature$|creature with|permanent$|permanent with|creature or player$|land$|artifact$|enchantment$/.test(p) || /^[a-z]+ (creature|permanent)/.test(p)) {
+  if (/creature$|creature with|creature without|creature dealt damage by ~ this turn$|permanent$|permanent with|creature or player$|land$|artifact$|enchantment$/.test(p) || /^[a-z]+ (creature|permanent)/.test(p)) {
     const base = p.includes('permanent') ? 'permanent' : p.includes('creature') ? 'creature' : p.includes('land') ? 'land' : p.includes('artifact') ? 'artifact' : 'enchantment';
     const f = parseFilterWords(p);
     if (!f) return null;
@@ -214,7 +235,7 @@ function parseTarget(phrase: string): TargetSpec | null {
 // ---------------------------------------------------------------------------
 // Effects (one sentence -> Effect)
 // ---------------------------------------------------------------------------
-const TGT = '((?:up to (?:one|two|three|four) )?(?:two |three )?(?:(?:another |other )?target [^.,]+?|any target))';
+const TGT = '((?:up to (?:one|two|three|four|X) )?(?:two |three )?(?:(?:another |other )?target [^.,]+?|any target))';
 
 interface Rule { re: RegExp; make: (m: RegExpMatchArray) => Effect | null }
 const EFFECT_RULES: Rule[] = [
@@ -279,10 +300,13 @@ const EFFECT_RULES: Rule[] = [
   { re: new RegExp(`^each opponent mills ${NUMRE} cards?$`, 'i'), make: m => ({ op: 'mill', amount: num(m[1]), who: 'each-opponent' }) },
   { re: /^scry (\d+)$/i, make: m => ({ op: 'scry', amount: Number(m[1]) }) },
   { re: /^surveil (\d+)$/i, make: m => ({ op: 'surveil', amount: Number(m[1]) }) },
+  { re: /^(?:you )?scry x$/i, make: () => ({ op: 'scry', amount: 'X' }) },
+  { re: /^(?:you )?surveil x$/i, make: () => ({ op: 'surveil', amount: 'X' }) },
   // life
   { re: new RegExp(`^you gain ${NUMRE} life$`, 'i'), make: m => ({ op: 'gain-life', amount: num(m[1]), who: 'you' }) },
   { re: new RegExp(`^target player gains ${NUMRE} life$`, 'i'), make: m => ({ op: 'gain-life', amount: num(m[1]), who: 'target-player' }) },
-  { re: new RegExp(`^you gain life equal to (?:its|that creature's) (?:power|toughness)$`, 'i'), make: () => ({ op: 'gain-life', amount: { count: 'power-of-source' }, who: 'you' }) },
+  // the frame's object (Abattoir Ghoul's dead creature, a sacrificed creature): a self trigger's "its" has become "~'s" before this (parseCard), so "its" here is never the source
+  { re: new RegExp(`^you gain life equal to (?:its|that creature's) (power|toughness)$`, 'i'), make: m => ({ op: 'gain-life', amount: { prop: m[1].toLowerCase() as 'power' | 'toughness', of: 'that' }, who: 'you' }) },
   { re: new RegExp(`^you gain life equal to the number of creatures you control$`, 'i'), make: () => ({ op: 'gain-life', amount: { count: 'creatures-you-control' }, who: 'you' }) },
   { re: new RegExp(`^you lose ${NUMRE} life$`, 'i'), make: m => ({ op: 'lose-life', amount: num(m[1]), who: 'you' }) },
   { re: new RegExp(`^target player loses ${NUMRE} life$`, 'i'), make: m => ({ op: 'lose-life', amount: num(m[1]), who: 'target-player' }) },
@@ -340,7 +364,7 @@ const EFFECT_RULES: Rule[] = [
   { re: /^tap all creatures$/i, make: () => ({ op: 'tap', target: 'all-creatures' }) },
   { re: new RegExp(`^untap ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'untap', target: t }; } },
   { re: /^untap ~$/i, make: () => ({ op: 'untap', target: 'self' }) },
-  { re: /^untap all creatures you control$/i, make: () => ({ op: 'untap', target: 'all-you-control' }) },
+  { re: /^untap all creatures you control$/i, make: () => ({ op: 'untap', target: 'creatures-you-control' }) },
   { re: /^untap all lands you control$/i, make: () => ({ op: 'untap', target: 'lands-you-control' }) },
   // sacrifice
   { re: /^sacrifice ~$/i, make: () => ({ op: 'sacrifice-self' }) },
@@ -397,7 +421,6 @@ const EFFECT_RULES: Rule[] = [
   { re: /^learn$/i, make: () => ({ op: 'loot', draw: 1, discard: 1, discardFirst: true, optional: true }) },
   { re: /^(?:it|~) explores$/i, make: () => ({ op: 'explore' }) },
   { re: /^return (?:a|an) (.+?) you control to its owner's hand$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'return-own', filter: f, count: 1, to: 'hand' }; } },
-  { re: new RegExp(`^put ${NUMRE} \\+1/\\+1 counters? on (?:it|that creature|that permanent)$`, 'i'), make: m => ({ op: 'counters', target: 'self', counter: '+1/+1', amount: num(m[1]) }) },
   { re: new RegExp(`^${TGT} can't block this turn$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'cant-block', target: t, duration: 'eot' }; } },
   { re: /^~ doesn't untap during your next untap step$/i, make: () => ({ op: 'no-untap-self' }) },
   { re: /^(?:that creature|that permanent|it) doesn't untap during its controller's next untap step$/i, make: () => ({ op: 'no-untap-that' }) },
@@ -435,7 +458,7 @@ const EFFECT_RULES: Rule[] = [
   { re: new RegExp(`^put ${NUMRE} cards? from your hand on top of your library(?: in any order)?$`, 'i'), make: m => ({ op: 'put-from-hand', amount: num(m[1]), to: 'library-top' }) },
   { re: new RegExp(`^put ${NUMRE} cards? from your hand on the bottom of your library(?: in any order)?$`, 'i'), make: m => ({ op: 'put-from-hand', amount: num(m[1]), to: 'library-bottom' }) },
   { re: /^put an? (.+?) card from your hand onto the battlefield$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'put-from-hand', amount: 1, to: 'battlefield', filter: f, optional: true }; } },
-  { re: /^each player may put an? (.+?) card from their hand onto the battlefield$/i, make: m => { const f = parseFilterWords(m[1].replace(/,/g, ' ').replace(/ or /g, ' ')); return f && { op: 'put-from-hand', amount: 1, to: 'battlefield', filter: f, optional: true, who: 'each-player' }; } },
+  { re: /^each player may put an? (.+?) card from their hand onto the battlefield$/i, make: m => { const f = parseFilterWords(m[1].replace(/,/g, ' ')); return f && { op: 'put-from-hand', amount: 1, to: 'battlefield', filter: f, optional: true, who: 'each-player' }; } },
   { re: /^look at the top card of target player's library$/i, make: () => ({ op: 'look-top', who: 'target-player', amount: 1 }) },
   { re: /^look at the top card of your library$/i, make: () => ({ op: 'look-top', who: 'you', amount: 1 }) },
   { re: /^draw a card at the beginning of the next turn's upkeep$/i, make: () => ({ op: 'delayed-trigger', at: 'next-upkeep', effects: [{ op: 'draw', amount: 1, who: 'you' }] }) },
@@ -449,7 +472,7 @@ const EFFECT_RULES: Rule[] = [
   { re: new RegExp(`^~ deals damage equal to the sacrificed creature's power to ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'damage', amount: { count: 'power-of-that' }, target: t }; } },
   { re: /^exile an? (.+?) card from your hand$/i, make: m => { const f = parseFilterWords(m[1].replace(/,/g, ' ')); return f && { op: 'exile-from-hand', filter: f, imprint: true }; } },
   { re: /^add one mana of any of the exiled card's colors$/i, make: () => ({ op: 'add-mana', mana: 'any-one', amount: 1, options: 'exiled-with-colors' }) },
-  { re: /^return an? (.+?) card from your graveyard to your hand$/i, make: m => { const f = parseFilterWords(m[1].replace(/ or an? /g, ' ').replace(/ or /g, ' ')); return f && { op: 'return-from-graveyard', what: f, to: 'hand' }; } },
+  { re: /^return an? (.+?) card from your graveyard to your hand$/i, make: m => { const f = parseFilterWords(m[1].replace(/ or an? /g, ' or ')); return f && { op: 'return-from-graveyard', what: f, to: 'hand' }; } },
   { re: /^attach ~ to it$/i, make: () => ({ op: 'attach-to-that' }) },
   { re: new RegExp(`^you gain ${NUMRE} life, draw ${NUMRE} cards?$`, 'i'), make: m => ({ op: 'choose-mode', modes: [[{ op: 'gain-life', amount: num(m[1]), who: 'you' }, { op: 'draw', amount: num(m[2]), who: 'you' }]], count: 1 }) },
   { re: /^adapt (\d+)$/i, make: m => ({ op: 'conditional', condition: { kind: 'self-no-counters', counter: '+1/+1' }, then: [{ op: 'counters', target: 'self', counter: '+1/+1', amount: Number(m[1]) }] }) },
@@ -554,7 +577,7 @@ const EFFECT_RULES: Rule[] = [
   { re: new RegExp(`^put an? ([a-z]+) counter, an? ([a-z]+) counter, and an? ([a-z]+) counter on ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[4]); return t && { op: 'multi-counters', target: t, counters: [m[1], m[2], m[3]].map(x => x.toLowerCase()) }; } },
   { re: /^defending player loses (\w+) life$/i, make: m => ({ op: 'lose-life', amount: num(m[1]), who: 'defending-player' }) },
   { re: /^search your library for a card, then shuffle and put that card on top$/i, make: () => ({ op: 'search', filter: {}, to: 'top', count: 1 }) },
-  { re: /^search your library for an? (.+?) card, (?:reveal (?:it|that card), )?then shuffle and put that card on top$/i, make: m => { const f = parseFilterWords(m[1].replace(/ or /g, ' ')); return f && { op: 'search', filter: f, to: 'top', count: 1 }; } },
+  { re: /^search your library for an? (.+?) card, (?:reveal (?:it|that card), )?then shuffle and put that card on top$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'search', filter: f, to: 'top', count: 1 }; } },
   { re: /^search your library for a card, put (?:it|that card) into your hand(?:, then shuffle)?$/i, make: () => ({ op: 'search', filter: {}, to: 'hand', count: 1 }) },
   { re: /^search your library for up to (\w+) (.+?) cards?, put them into your graveyard(?:, then shuffle)?$/i, make: m => { const f = parseFilterWords(m[2]); return f && { op: 'search', filter: f, to: 'graveyard', count: num(m[1]) as number, optional: true }; } },
   { re: /^search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand(?:, then shuffle)?$/i, make: () => ({ op: 'search', filter: { types: ['Land'], basic: true }, to: 'battlefield', tapped: true, count: 2, optional: true, split: 'one-battlefield-rest-hand' }) },
@@ -575,9 +598,9 @@ const PARAGRAPH_RULES: { re: RegExp; make: (m: RegExpMatchArray, useRegistry: bo
   { re: /^choose a nonland card name\. target player reveals their hand and discards all cards with that name\.?/i, make: () => [{ op: 'reveal-hand-discard', who: 'target-player', filter: { notTypes: ['Land'] }, count: 'all-named' }] },
   { re: /^look at the top (\w+) cards? of your library\. put (\w+) of them into your hand and the rest on the bottom of your library in (any|a random) order\.?/i, make: m => [{ op: 'dig', look: num(m[1]), take: num(m[2]) as number, rest: 'bottom', order: m[3].toLowerCase() === 'any' ? 'any' : 'random' }] },
   { re: /^look at the top (\w+) cards? of your library, then put them back in any order\.?/i, make: m => [{ op: 'dig', look: num(m[1]), take: 0, rest: 'top', order: 'any' }] },
-  { re: /^look at the top (\w+) cards? of your library\. you may reveal an? (.+?) card from among them and put it into your hand\. (?:then )?put the rest on the bottom of your library in a random order\.?/i, make: m => { const f = parseFilterWords(m[2].replace(/ or /g, ' ')); return f && [{ op: 'dig', look: num(m[1]), take: 1, rest: 'bottom', order: 'random', filter: f, optional: true, reveal: true }]; } },
-  { re: /^look at the top (\w+) cards? of your library\. you may reveal an? (.+?) card from among them and put it into your hand\. (?:then )?put the rest on the bottom of your library in any order\.?/i, make: m => { const f = parseFilterWords(m[2].replace(/ or /g, ' ')); return f && [{ op: 'dig', look: num(m[1]), take: 1, rest: 'bottom', order: 'any', filter: f, optional: true, reveal: true }]; } },
-  { re: /^reveal the top (\w+) cards? of your library\. you may put an? (.+?) card from among them into your hand\. put the rest into your graveyard\.?/i, make: m => { const f = parseFilterWords(m[2].replace(/ or /g, ' ')); return f && [{ op: 'dig', look: num(m[1]), take: 1, rest: 'graveyard', order: 'any', filter: f, optional: true, reveal: true }]; } },
+  { re: /^look at the top (\w+) cards? of your library\. you may reveal an? (.+?) card from among them and put it into your hand\. (?:then )?put the rest on the bottom of your library in a random order\.?/i, make: m => { const f = parseFilterWords(m[2]); return f && [{ op: 'dig', look: num(m[1]), take: 1, rest: 'bottom', order: 'random', filter: f, optional: true, reveal: true }]; } },
+  { re: /^look at the top (\w+) cards? of your library\. you may reveal an? (.+?) card from among them and put it into your hand\. (?:then )?put the rest on the bottom of your library in any order\.?/i, make: m => { const f = parseFilterWords(m[2]); return f && [{ op: 'dig', look: num(m[1]), take: 1, rest: 'bottom', order: 'any', filter: f, optional: true, reveal: true }]; } },
+  { re: /^reveal the top (\w+) cards? of your library\. you may put an? (.+?) card from among them into your hand\. put the rest into your graveyard\.?/i, make: m => { const f = parseFilterWords(m[2]); return f && [{ op: 'dig', look: num(m[1]), take: 1, rest: 'graveyard', order: 'any', filter: f, optional: true, reveal: true }]; } },
   { re: new RegExp(`^counter ${TGT}\\. if that spell is countered this way, exile it instead of putting it into its owner's graveyard\\.?`, 'i'), make: m => { const t = parseTarget(m[1]); return t && [{ op: 'counter', target: t, toExile: true }]; } },
   { re: /^earthbend (\w+|x), where x is (.+?)\.?$/i, make: m => { const target = parseTarget('target land you control'); const a = parseAmountPhrase(m[2]); return target && a !== null ? [{ op: 'earthbend', amount: a, target }] : null; } },
   { re: /^~ becomes an? (\d+)\/(\d+) ([a-z ]+?) creature(?: with (.+?))? until end of turn\. it's still a land\.?/i, make: m => { const desc = m[3].split(/\s+/).filter(w => w !== 'and'); const colors = desc.filter(w => w in COLOR_WORDS).map(w => COLOR_WORDS[w]); const subs = desc.filter(w => !(w in COLOR_WORDS)).map(w => w[0].toUpperCase() + w.slice(1)); const kw = m[4] ? kwList(m[4]) : []; if (!kw) return null; return [{ op: 'animate', target: 'self', power: Number(m[1]), toughness: Number(m[2]), colors, types: ['Creature'], subtypes: subs, keywords: kw, duration: 'eot' }]; } },
@@ -612,7 +635,8 @@ export function foldMarkers(list: Effect[], strict = false): Effect[] {
   return out;
 }
 
-function pm(s: string): Amount { return s.toUpperCase().endsWith('X') ? 'X' : Number(s); }
+/** A printed "+N" / "-N" / "+X" / "-X" P/T term; "-X" is X negated (the sum form: `{ sum: ['X'], times: -1 }`), which PARSER_VERSION 3 read as +X (Death Wind). */
+function pm(s: string): Amount { return s.toUpperCase().endsWith('X') ? (s.startsWith('-') ? { sum: ['X'], times: -1 } : 'X') : Number(s); }
 /** Flatten a parsed mana cost into symbols for an add-mana effect ("{G}{G}" → ['G','G']). */
 /** Sum two mana costs (buyback: the printed cost plus the buyback cost). */
 function addManaCost(a: ManaCost, b: ManaCost): ManaCost {
@@ -666,7 +690,7 @@ function parseAmountPhrase(p: string): Amount | null {
   let m: RegExpMatchArray | null; const t = p.trim().toLowerCase();
   if (/^(each|every) /.test(t)) return parseEachPhrase(t);
   if ((m = t.match(/^the number of (.+?) you control$/))) { const f = parseFilterWords(m[1]) ?? subtypeFilter(m[1]); return f && { count: 'permanents-you-control', filter: singularSubtypes(f) }; }
-  if ((m = t.match(/^the number of (.+?) cards? in your graveyard$/))) { const f = parseFilterWords(m[1].replace(/ and /g, ' ').replace(/ or /g, ' ')); return f && { count: 'cards-in-graveyard', filter: singularSubtypes(f) }; }
+  if ((m = t.match(/^the number of (.+?) cards? in your graveyard$/))) { const f = parseFilterWords(m[1].replace(/ and /g, ' or ')); return f && { count: 'cards-in-graveyard', filter: singularSubtypes(f) }; }
   if (t === 'the number of cards in your graveyard') return { count: 'cards-in-graveyard' };
   if (t === 'the number of cards in your hand') return { count: 'cards-in-hand' };
   if (t === 'the number of lands you control') return { count: 'lands-you-control' };
@@ -814,7 +838,9 @@ export function parseEffects(text: string, useRegistry = true): Effect[] {
 // trigger about another object binds it, a spell's earlier paragraphs are the same item).
 // ---------------------------------------------------------------------------
 /** Ops after which `item.affected` holds what they touched (the engine's noteAffected / opMove / opForEach sites). */
-const BINDING_OPS = new Set<string>(['destroy', 'exile', 'search', 'bounce', 'token', 'tap', 'return-from-graveyard', 'earthbend', 'animate', 'token-copy', 'bind', 'move', 'for-each']);
+const BINDING_OPS = new Set<string>(['destroy', 'exile', 'search', 'bounce', 'token', 'tap', 'return-from-graveyard', 'earthbend', 'animate', 'token-copy', 'bind', 'move', 'for-each',
+  // 9.0c: these record what they touched too (the countered spell with its stack-time controller and mana value, the sacrificed creature's values, the looked-at card, the untapped / pumped / stolen set)
+  'pump', 'grant-keyword', 'counters', 'untap', 'untap-all', 'gain-control', 'sacrifice', 'look-top', 'counter']);
 /** Values that read the frame: the Refs, the frame-bound player words and the older frame-bound counts. */
 const FRAME_WORDS = new Set<string>(['that', 'those', 'controller-of-that', 'that-controller', 'power-of-that', 'mv-of-that']);
 /** Ops that read the frame without naming it in a value. */
@@ -836,10 +862,12 @@ let effectsDepth = 0;
 /** Set by the callers through withFrame: the frame is already bound when the paragraph starts / the item's earlier effects. */
 let frameBound = false;
 let priorEffects: Effect[] = [];
+/** The `bind` that re-establishes the caller's frame after an op moved it (a trigger's `bind … from 'triggering'`); null when nothing can. */
+let frameRebind: Effect | null = null;
 /** Run `fn` with the frame the caller holds: `bound` when a cost or the trigger already bound something, `prior` the item's earlier effects (a spell's previous paragraphs, mutated in place when a `bind` is put before an antecedent there). */
-export function withFrame<T>(bound: boolean, prior: Effect[], fn: () => T): T {
-  const b = frameBound, p = priorEffects; frameBound = bound; priorEffects = prior;
-  try { return fn(); } finally { frameBound = b; priorEffects = p; }
+export function withFrame<T>(bound: boolean, prior: Effect[], fn: () => T, rebind: Effect | null = null): T {
+  const b = frameBound, p = priorEffects, r = frameRebind; frameBound = bound; priorEffects = prior; frameRebind = rebind;
+  try { return fn(); } finally { frameBound = b; priorEffects = p; frameRebind = r; }
 }
 
 const isEffectList = (v: unknown): v is Effect[] => Array.isArray(v) && v.every(x => x && typeof x === 'object' && typeof (x as { op?: unknown }).op === 'string');
@@ -879,15 +907,14 @@ function bindsFrame(list: Effect[]): boolean {
 }
 /**
  * The object target an effect chooses (its target / what / exchange sides), or null when it targets nothing, only
- * players, several independent things, or something on the stack — a `bind` of the item's targets takes `object` refs
- * only (src/engine/game.ts objs), so a countered spell cannot be bound this way ("Counter target spell. Its controller
- * draws a card." stays unknown until `counter` binds; docs/HANDOFF.md item 23).
+ * players, or several independent things. A spell target counts: a `bind` of the item's targets reads a `stack` ref as
+ * the spell's card (src/engine/game.ts objs with `spells`), so "Copy target spell. …that spell…" binds it too.
  */
 function objectTarget(e: Effect): TargetSpec | null {
   const o = e as unknown as Record<string, unknown>;
   for (const k of ['target', 'what', 'a', 'b']) {
     const v = o[k];
-    if (v && typeof v === 'object' && typeof (v as TargetSpec).kind === 'string' && !(v as TargetSpec).self && !playerOnly(v) && (v as TargetSpec).kind !== 'multi' && !/spell|ability/.test((v as TargetSpec).kind)) return v as TargetSpec;
+    if (v && typeof v === 'object' && typeof (v as TargetSpec).kind === 'string' && !(v as TargetSpec).self && !playerOnly(v) && (v as TargetSpec).kind !== 'multi') return v as TargetSpec;
   }
   return null;
 }
@@ -923,7 +950,7 @@ function iterateGroup(list: Effect[], set: ObjectSet): void {
  * repaired (a `bind` put before a targeted antecedent, `those` made a `for-each` over a group antecedent), `effs`
  * itself when the nearest antecedent already binds (or the caller's frame does), or null when nothing can bind it.
  */
-function bindAntecedent(prior: Effect[], out: Effect[], effs: Effect[], bound: boolean): Effect[] | null {
+function bindAntecedent(prior: Effect[], out: Effect[], effs: Effect[], bound: boolean, sentence = ''): Effect[] | null {
   // the effects before the first frame-reading leaf, in document order, and what each names
   type Namer = { slot: Slot; kind: 'binding' | 'target' | 'group' | 'self'; set?: ObjectSet };
   const before: Namer[] = []; const after: Namer[] = [];
@@ -934,15 +961,41 @@ function bindAntecedent(prior: Effect[], out: Effect[], effs: Effect[], bound: b
     // an effect on the source itself ("this creature gets +1/+1 until end of turn") is the antecedent of a following
     // "it" ("Untap it."), not the trigger's or the item's frame
     const onSelf = (e as unknown as { target?: unknown }).target === 'self';
-    const n: Namer | null = opBinds(e) ? { slot, kind: 'binding' } : spec ? { slot, kind: 'target' } : groupSet(e) ? { slot, kind: 'group', set: groupSet(e)! } : onSelf ? { slot, kind: 'self' } : null;
-    // "Put X +1/+1 counters on target creature, where X is that creature's power": the reading effect is its own antecedent
-    const own = list === effs && !reading && n?.kind === 'target' && leafReadsFrame(e);
+    // "Put X +1/+1 counters on target creature, where X is that creature's power": with no frame to read, the reading
+    // effect is its own antecedent (a `bind` of its target goes before it — its own binding comes too late); with a frame
+    // ("~ deals damage equal to that creature's power to any target" under a trigger) `that` is the frame's object
+    const own = !bound && list === effs && !reading && !!spec && leafReadsFrame(e);
+    const set = groupSet(e);
+    // an effect whose own target is the frame ("those creatures get +2/+1") reads the frame; it names nothing for the next one
+    const readsOnly = !spec && !set && !onSelf && leafReadsFrame(e);
+    const n: Namer | null = readsOnly ? null : own ? { slot, kind: 'target' } : onSelf ? { slot, kind: 'self' } : opBinds(e) ? { slot, kind: 'binding', ...(set ? { set } : {}) } : spec ? { slot, kind: 'target' } : set ? { slot, kind: 'group', set } : null;
     if (list === effs && !reading && leafReadsFrame(e)) reading = true;
     if (n) (reading && !own ? after : before).push(n);
   }
+  // "create a tapped 2/2 black Zombie creature token and exile that card" (Wight): a token is not a card (CR 111.1), so a
+  // `token` between the reference and its antecedent does not name it — the antecedent is bound again right before the
+  // reading effect (the caller's frame when it can be re-established, the item's single target otherwise), or the
+  // sentence is unknown
+  if (/\bthat card\b/i.test(sentence) && !/\bthat token\b/i.test(sentence)) {
+    const isToken = (n: Namer): boolean => { const op = (n.slot.list[n.slot.index] as { op: string }).op; return op === 'token' || op === 'token-copy'; };
+    let skipped = false;
+    while (before.length && before[before.length - 1].kind === 'binding' && isToken(before[before.length - 1])) { before.pop(); skipped = true; }
+    if (skipped) {
+      let first: Slot | undefined; for (const slot of walkEffects(effs)) if (leafReadsFrame(slot.list[slot.index])) { first = slot; break; }
+      if (!first) return null;
+      const last = before[before.length - 1];
+      const rebind: Effect | null = last === undefined ? (bound ? frameRebind : null)
+        : last.kind === 'binding' && (last.slot.list[last.slot.index] as { op: string }).op === 'bind' ? { ...(last.slot.list[last.slot.index] as Effect) }
+        : last.kind === 'target' && objectTargets === 1 ? { op: 'bind', as: 'that', from: 'targets' } : null;
+      if (!rebind) return null;
+      first.list.splice(first.index, 0, rebind);
+      return effs;
+    }
+  }
   // "Creatures you control get +1/+1 until end of turn. If ~ was kicked, those creatures get +2/+1 instead." folds the
   // first sentence into the else branch, after the reference in document order: the only namer there still names the set
-  const nearest = before[before.length - 1] ?? (after.length === 1 && after[0].kind === 'group' ? after[0] : undefined);
+  // (a group-word op that binds what it touched binds too late for a reference that runs before it: iterate the set)
+  const nearest = before[before.length - 1] ?? (after.length === 1 && after[0].set ? { ...after[0], kind: 'group' as const } : undefined);
   if (!nearest) return bound ? effs : null;
   if (nearest.kind === 'binding') return effs;
   if (nearest.kind === 'self') {
@@ -976,7 +1029,7 @@ function parseParagraph(text: string, useRegistry: boolean): Effect[] {
   const admit = (effs: Effect[], sentence: string): Effect[] => {
     if (!outer) return effs;
     let kept: Effect[] | null = effs;
-    if (readsFrame(effs)) kept = bindAntecedent(priorEffects, out, effs, bound);
+    if (readsFrame(effs)) kept = bindAntecedent(priorEffects, out, effs, bound, sentence);
     if (!kept) return [{ op: 'unknown', text: sentence.trim() }];
     if (bindsFrame(kept) || bindsFrame(out)) bound = true;
     return kept;
@@ -1166,7 +1219,7 @@ function parseTrigger(head: string, useRegistry = true): TriggerEvent {
   if ((m = t.match(/^whenever an? (.+?) you control(?: with ([a-z ]+))? deals combat damage to a player(?: or battle| or planeswalker)?$/))) { const f = parseFilterWords(m[1]); if (f) { if (m[2]) { const k = keywordFromText(m[2].trim()); if (!k) return { on: 'unknown', text: t }; f.withKeyword = k; } return { on: 'combat-damage-player', self: false, filter: f }; } }
   if ((m = t.match(/^whenever an? (.+?) you control becomes the target of a spell$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'targeted', self: false, filter: f }; }
   if (/^whenever a creature you control of the chosen type enters or attacks$/.test(t)) return { on: 'or', events: [{ on: 'etb', self: false, filter: { types: ['Creature'], chosenType: true }, controller: 'you' }, { on: 'attacks', self: false, filter: { types: ['Creature'], chosenType: true } }] };
-  if ((m = t.match(/^whenever an? (.+?) card leaves your graveyard$/))) { const f = parseFilterWords(m[1].replace(/ or /g, ' ')); if (f) return { on: 'leaves-graveyard', filter: f }; }
+  if ((m = t.match(/^whenever an? (.+?) card leaves your graveyard$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'leaves-graveyard', filter: f }; }
   if (/^whenever you draw a card$/.test(t)) return { on: 'draw', who: 'you' };
   if ((m = t.match(/^when(?:ever)? you draw your (second|third|fourth|fifth) card (?:in a turn|each turn)$/))) return { on: 'draw', who: 'you', nth: ({ second: 2, third: 3, fourth: 4, fifth: 5 })[m[1]] };
   if ((m = t.match(/^whenever you cast your (second|third|fourth) spell each turn$/))) return { on: 'cast', filter: {}, who: 'you', nth: ({ second: 2, third: 3, fourth: 4 })[m[1]] };
@@ -1179,11 +1232,16 @@ function parseTrigger(head: string, useRegistry = true): TriggerEvent {
   if ((m = t.match(/^whenever (?:another |an? )?(.+?) you control (with .+?) enters(?: the battlefield)?$/))) {
     const f = parseFilterWords(`${m[1]} ${m[2]}`); if (f) return { on: 'etb', self: false, filter: f, controller: 'you' };
   }
-  if ((m = t.match(/^whenever (?:another |an? )?(.+?) enters(?: the battlefield)?(?: under your control)?$/))) {
-    const f = parseFilterWords(m[1]); if (f) return { on: 'etb', self: false, filter: f, controller: /under your control|you control/.test(t) ? 'you' : 'any' };
-  }
+  // the "you control" template before the generic one (PARSER_VERSION 4): the generic template used to read "creature you
+  // control" as the filter words You / Control (docs/HANDOFF.md item 22; the subtype vocabulary then declined them)
   if ((m = t.match(/^whenever (?:another |an? )?(.+?) you control enters(?: the battlefield)?$/))) {
     const f = parseFilterWords(m[1]); if (f) return { on: 'etb', self: false, filter: f, controller: 'you' };
+  }
+  if ((m = t.match(/^whenever (?:another |an? )?(.+?) enters(?: the battlefield)? under an opponent's control$/))) {
+    const f = parseFilterWords(m[1]); if (f) return { on: 'etb', self: false, filter: f, controller: 'opponent' };
+  }
+  if ((m = t.match(/^whenever (?:another |an? )?(.+?) enters(?: the battlefield)?(?: under your control)?$/))) {
+    const f = parseFilterWords(m[1]); if (f) return { on: 'etb', self: false, filter: f, controller: /under your control|you control/.test(t) ? 'you' : 'any' };
   }
   if (/^(when|whenever) ~ dies$/.test(t)) return { on: 'dies', self: true };
   if (/^(when|whenever) ~ is put into a graveyard from the battlefield$/.test(t)) return { on: 'dies', self: true };
@@ -1191,7 +1249,10 @@ function parseTrigger(head: string, useRegistry = true): TriggerEvent {
   if ((m = t.match(/^whenever ~ or another (.+?)( you control)? dies$/))) {
     const f = parseFilterWords(m[1]); if (f) return { on: 'or', events: [{ on: 'dies', self: true }, { on: 'dies', self: false, filter: { ...f, other: true }, controller: m[2] ? 'you' : 'any' }] };
   }
+  // no article: the permanent this Equipment / Aura is attached to (CR 702.6a, 303.4) — "an equipped creature" (any creature carrying Equipment) is the filter flag below
+  if ((m = t.match(/^whenever (equipped|enchanted) (?:creature|permanent) dies$/))) return { on: 'dies', self: false, filter: { attachedToSource: true }, controller: 'any' };
   if ((m = t.match(/^whenever (?:another |an? )?(.+?) you control dies$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'dies', self: false, filter: f, controller: 'you' }; }
+  if ((m = t.match(/^whenever (?:another |an? )?(.+?) (?:an opponent controls|you don't control) dies$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'dies', self: false, filter: f, controller: 'opponent' }; }
   if ((m = t.match(/^whenever (?:another |an? )?(.+?) dies$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'dies', self: false, filter: f, controller: 'any' }; }
   if (/^whenever ~ attacks$/.test(t)) return { on: 'attacks', self: true };
   if (/^whenever ~ attacks or blocks$/.test(t)) return { on: 'attacks', self: true };
@@ -1223,6 +1284,8 @@ function parseTrigger(head: string, useRegistry = true): TriggerEvent {
   if (/^whenever you cast a spell$/.test(t)) return { on: 'cast', filter: {}, who: 'you' };
   if ((m = t.match(/^whenever you cast an? (.+?) spell$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'cast', filter: f, who: 'you' }; }
   if (/^whenever an opponent casts a spell$/.test(t)) return { on: 'cast', filter: {}, who: 'opponent' };
+  if (/^whenever an opponent casts a noncreature spell$/.test(t)) return { on: 'cast', filter: { notTypes: ['Creature'] }, who: 'opponent' };   // Mystic Remora
+  if ((m = t.match(/^whenever an opponent casts an? (.+?) spell$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'cast', filter: f, who: 'opponent' }; }
   if (/^whenever a land enters(?: the battlefield)? under your control$/.test(t) || t === 'landfall — whenever a land enters under your control') return { on: 'landfall' };
   if (/^whenever you gain life$/.test(t)) return { on: 'life-gain' };
   if (/^whenever an opponent loses life$/.test(t)) return { on: 'life-loss-opponent' };
@@ -1258,9 +1321,9 @@ function parseCostPhrase(p: string, useRegistry = true): AbilityCost | null {
   else if (pl === 'discard your hand') cost.discardHand = true;
   else if ((m = pl.match(/^pay (\d+) life$/))) cost.payLife = Number(m[1]);
   else if ((m = pl.match(/^pay ((?:\{e\}\s*)+)$/))) cost.energy = (m[1].match(/\{e\}/g) ?? []).length;
-  else if ((m = pl.match(/^remove (a|\w+) \+1\/\+1 counters? from ~$/))) cost.removeCounters = { counter: '+1/+1', amount: num(m[1]) as number };
-  else if ((m = pl.match(/^remove (a|\w+) (\w+) counters? from ~$/))) cost.removeCounters = { counter: m[2], amount: num(m[1]) as number };
-  else if ((m = pl.match(/^remove (a|\w+) counters? from ~$/))) cost.removeCounters = { counter: 'any', amount: num(m[1]) as number };
+  else if ((m = pl.match(/^remove (a|\w+) \+1\/\+1 counters? from ~$/))) cost.removeCounters = removeCountersCost('+1/+1', m[1]);
+  else if ((m = pl.match(/^remove (a|\w+) (\w+) counters? from ~$/))) cost.removeCounters = removeCountersCost(m[2], m[1]);
+  else if ((m = pl.match(/^remove (a|\w+) counters? from ~$/))) cost.removeCounters = removeCountersCost('any', m[1]);
   else if ((m = pl.match(/^exile (a|\w+) cards? from your graveyard$/))) cost.exileFromGraveyard = num(m[1]) as number;
   else if ((m = pl.match(/^exile (\w+|any number of) other cards? from your graveyard(?: with (\w+) or more card types among them)?$/))) cost.exileOtherFromGraveyard = { count: m[1] === 'any number of' ? 'any' : num(m[1]) as number, minCardTypes: m[2] ? num(m[2]) as number : undefined };
   else if ((m = pl.match(/^exile (?:a|an) (.+?) card from your hand$/))) { const f = parseFilterWords(m[1]); if (!f) return null; cost.exileFromHand = { filter: f, count: 1 }; }
@@ -1334,7 +1397,7 @@ function grantedShape(text: string, useRegistry: boolean): Ability | null {
     if (optional) inner = inner.replace(/^you may /i, '');
     inner = inner.replace(/\bthis creature\b|\bthis permanent\b/gi, '~');
     const selfEv = 'self' in ev && ev.self === true;
-    let effs = withFrame(!selfEv, [], () => parseEffects(inner, useRegistry));
+    let effs = withFrame(!selfEv, [], () => parseEffects(inner, useRegistry), selfEv ? null : { op: 'bind', as: 'that', from: 'triggering' });
     if (effs.some(e => e.op === 'unknown')) return null;
     if (!selfEv && mentionsThat(effs)) effs = [{ op: 'bind', as: 'that', from: 'triggering' }, ...effs];   // same reason as triggerBody
     return { kind: 'triggered', event: ev, effects: effs, text, ...(optional ? { optional: true } : {}) };
@@ -1400,14 +1463,18 @@ function parseStaticRaw(line: string, card: { types: CardType[]; subtypes: strin
   if (/^~ assigns combat damage equal to its toughness rather than its power$/i.test(t)) return { kind: 'damage-by-toughness', scope: 'self' };
   if (/^each creature you control with toughness greater than its power assigns combat damage equal to its toughness rather than its power$/i.test(t)) return { kind: 'damage-by-toughness', scope: 'you-control', onlyWhenGreater: true };
   if ((m = line.match(/^(?:Each |All )?(.+?) you control (?:has|have) "\{T\}: (Add [^"]+?)\.(?: Spend this mana only to cast (instant and sorcery|creature|noncreature) spells\.)?"$/i))) {
-    const f = parseFilterWords(m[1].replace(/ and /g, ' ')) ?? subtypeFilter(m[1]);
+    const f = parseFilterWords(m[1].replace(/ and /g, ' or ')) ?? subtypeFilter(m[1]);
     const eff = parseEffects(m[2], useRegistry);
     if (f && eff.length === 1 && eff[0].op === 'add-mana') { const e0 = { ...eff[0] }; if (m[3]) e0.restriction = m[3].toLowerCase() === 'instant and sorcery' ? 'instant-sorcery' : m[3].toLowerCase() === 'creature' ? 'creature-spell' : undefined; return { kind: 'grant-mana-ability', filter: singularSubtypes(f), effect: e0 }; }
   }
   if ((m = line.match(/^(?:Each |All )?(.+?) you control (?:has|have) "(.+)"$/i)) && !/^\{T\}: Add /i.test(m[2])) {
-    const f = parseFilterWords(m[1].replace(/ and /g, ' ')) ?? subtypeFilter(m[1]);
+    const f = parseFilterWords(m[1].replace(/ and /g, ' or ')) ?? subtypeFilter(m[1]);
     const inner = f ? parseGrantedAbility(m[2], useRegistry) : null;
     if (f && inner) return { kind: 'grant-ability', filter: singularSubtypes(f), scope: 'you-control', ability: inner };
+  }
+  if ((m = line.match(/^All (creatures|permanents) have "(.+)"$/)) && !/^\{T\}: Add /i.test(m[2])) {   // "All creatures have …": every creature, not a subtype named All
+    const inner = parseGrantedAbility(m[2], useRegistry);
+    if (inner) return { kind: 'grant-ability', filter: m[1] === 'creatures' ? { types: ['Creature'] } : {}, scope: 'all', ability: inner };
   }
   if ((m = line.match(/^(?:Each |All )?(Other )?([A-Z][a-z]+)s?(?: creatures| permanents)? have "(.+)"$/)) && !/^\{T\}: Add /i.test(m[3])) {
     const inner = parseGrantedAbility(m[3], useRegistry);
@@ -1439,6 +1506,8 @@ function parseStaticRaw(line: string, card: { types: CardType[]; subtypes: strin
   if ((m = t.match(/^whenever you tap a creature for mana, add an additional (\{[^}]+\})$/i))) { const mana = parseManaCost(m[1]); if (!mana) return null; return { kind: 'extra-mana-on-tap', filter: { types: ['Creature'] }, mana: manaSymbolsOf(mana) }; }
   if (/^whenever enchanted (?:land|forest) is tapped for mana, its controller adds an additional one mana of the chosen color$/i.test(t)) return { kind: 'extra-mana-on-tap', enchanted: true, mana: 'chosen-color' };
   if (/^during your turn, your opponents can't cast spells or activate abilities of artifacts, creatures, or enchantments$/i.test(t) || /^your opponents can't cast spells during your turn$/i.test(t)) return { kind: 'opponents-cant-cast', during: 'your-turn' };
+  // "Enchanted creature has base power and toughness 9/9 [and has flying, …]" (Super State): layer 7b as a static (CR 613.4b)
+  if ((m = t.match(/^(enchanted|equipped) (?:creature|permanent) has base power and toughness (\d+)\/(\d+)(?: and (?:has|gains) (.+))?$/i))) { const kw = m[4] ? kwList(m[4]) : []; if (!kw) return null; return { kind: 'set-pt', power: Number(m[2]), toughness: Number(m[3]), scope: m[1].toLowerCase() as 'enchanted' | 'equipped', ...(kw.length ? { keywords: kw } : {}) }; }
   if ((m = t.match(/^(other )?creatures you control have (.+)$/i))) { const kw = kwList(m[2]); if (!kw) return null; return { kind: 'anthem', power: 0, toughness: 0, filter: { types: ['Creature'] }, scope: m[1] ? 'other-you-control' : 'you-control', keywords: kw }; }
   if ((m = t.match(/^(other )?([A-Z][a-z]+)s? (?:creatures )?you control get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?$/)) && subtypeWord(m[2])) {
     const kw = m[5] ? kwList(m[5]) : []; if (kw === null) return null;
@@ -1465,8 +1534,9 @@ function parseStaticRaw(line: string, card: { types: CardType[]; subtypes: strin
   if ((m = t.match(/^(other )?(\w+) creatures you control get ([+-]\d+)\/([+-]\d+)$/i))) { const f = parseFilterWords(m[2] + ' creature'); if (!f) return null; return { kind: 'anthem', power: Number(m[3]), toughness: Number(m[4]), filter: f, scope: m[1] ? 'other-you-control' : 'you-control' }; }
   if ((m = t.match(/^creatures your opponents control get ([+-]\d+)\/([+-]\d+)$/i))) return { kind: 'anthem', power: Number(m[1]), toughness: Number(m[2]), filter: { types: ['Creature'] }, scope: 'all', keywords: [] , ...({ opponentsOnly: true } as object) };
   // self P/T
-  if ((m = t.match(/^~ gets \+1\/\+1 for each (?:other )?(.+?) you control$/i))) { const f = parseFilterWords(m[1]); if (!f) return null; return { kind: 'self-pt', power: { count: 'creatures-you-control', filter: f, plus: 0 }, toughness: { count: 'creatures-you-control', filter: f, plus: 0 } }; }
-  if ((m = t.match(/^~ gets \+1\/\+0 for each (?:other )?(.+?) you control$/i))) { const f = parseFilterWords(m[1]); if (!f) return null; return { kind: 'self-pt', power: { count: 'creatures-you-control', filter: f }, toughness: 0 }; }
+  // "for each other snow permanent you control": the count is over PERMANENTS when the words say so, and "other" excludes the source (9.0c re-review 2)
+  if ((m = t.match(/^~ gets \+1\/\+1 for each (other )?(.+?) you control$/i))) { const f = parseFilterWords(m[2]); if (!f) return null; const c = eachYouControl(m[2], m[1], f); return { kind: 'self-pt', power: { ...c, plus: 0 }, toughness: { ...c, plus: 0 } }; }
+  if ((m = t.match(/^~ gets \+1\/\+0 for each (other )?(.+?) you control$/i))) { const f = parseFilterWords(m[2]); if (!f) return null; return { kind: 'self-pt', power: eachYouControl(m[2], m[1], f), toughness: 0 }; }
   if (/^~'s power and toughness are each equal to the number of creatures you control$/i.test(t)) return { kind: 'self-pt', power: { count: 'creatures-you-control' }, toughness: { count: 'creatures-you-control' } };
   if (/^~'s power and toughness are each equal to the number of cards in your hand$/i.test(t)) return { kind: 'self-pt', power: { count: 'cards-in-hand' }, toughness: { count: 'cards-in-hand' } };
   if (/^~'s power and toughness are each equal to the number of lands you control$/i.test(t)) return { kind: 'self-pt', power: { count: 'lands-you-control' }, toughness: { count: 'lands-you-control' } };
@@ -1516,7 +1586,7 @@ function parseStaticRaw(line: string, card: { types: CardType[]; subtypes: strin
   if ((m = t.match(/^~'s toughness is equal to (.+)$/i))) { const a = parseAmountPhrase(m[1]); if (a !== null) return { kind: 'self-pt', power: 0, toughness: a }; }
   if ((m = t.match(/^~'s power is equal to the number of creatures you control$/i))) return { kind: 'self-pt', power: { count: 'creatures-you-control' }, toughness: 0 };
   if ((m = t.match(/^~'s power is equal to the number of (.+?) you control$/i))) { const f = parseFilterWords(m[1]); if (!f) return null; return { kind: 'self-pt', power: { count: 'permanents-you-control', filter: f }, toughness: 0 }; }
-  if ((m = t.match(/^~'s power is equal to the number of (.+?) cards? in your graveyard$/i))) { const f = parseFilterWords(m[1].replace(/ and /g, ' ')); if (!f) return null; return { kind: 'self-pt', power: { count: 'cards-in-graveyard', filter: f }, toughness: 0 }; }
+  if ((m = t.match(/^~'s power is equal to the number of (.+?) cards? in your graveyard$/i))) { const f = parseFilterWords(m[1].replace(/ and /g, ' or ')); if (!f) return null; return { kind: 'self-pt', power: { count: 'cards-in-graveyard', filter: f }, toughness: 0 }; }
   if ((m = t.match(/^~'s power is equal to the number of \+1\/\+1 counters on (.+?) you control$/i))) { const f = parseFilterWords(m[1]); if (!f) return null; return { kind: 'self-pt', power: { count: 'counters-on-permanents', filter: f, counter: '+1/+1' }, toughness: 0 }; }
   if ((m = t.match(/^~ gets \+1\/\+1 for each (.+?) card in your graveyard$/i))) { const f = parseFilterWords(m[1]); if (!f) return null; return { kind: 'self-pt', power: { count: 'cards-in-graveyard', filter: f }, toughness: { count: 'cards-in-graveyard', filter: f } }; }
   if ((m = t.match(/^~'s power and toughness are each equal to the number of (.+?) you control$/i))) { const f = parseFilterWords(m[1]); if (!f) return null; return { kind: 'self-pt', power: { count: 'permanents-you-control', filter: f }, toughness: { count: 'permanents-you-control', filter: f } }; }
@@ -1611,7 +1681,7 @@ function addStatic(def: CardDef, line: string, st: StaticEffect | StaticEffect[]
 function triggerBody(body: string, selfEv: boolean): Effect[] {
   const before = registryClaims;
   // a trigger about another object holds it as the frame from the start (the `bind` below, or the engine's trigger context)
-  const effs = foldMarkers(withFrame(!selfEv, [], () => parseEffects(body)), true);
+  const effs = foldMarkers(withFrame(!selfEv, [], () => parseEffects(body), selfEv ? null : { op: 'bind', as: 'that', from: 'triggering' }), true);
   // the engine records only `triggeringId` for a plain trigger (game.ts, the trigger → stack site), never
   // `item.affected`, so EVERY complete non-self body that reads the frame — a built-in parse's `that` as much as a
   // registry claim's — gets the bind that makes `that` the triggering object (9.0b re-review 2)
@@ -1625,6 +1695,51 @@ function mentionsThat(v: unknown): boolean {
   if (Array.isArray(v)) return v.some(mentionsThat);
   if (v && typeof v === 'object') return FRAME_OPS.has(String((v as { op?: unknown }).op)) || Object.values(v as Record<string, unknown>).some(mentionsThat);
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// "that many" / "that much" (`{ count: 'that-many' }`) reads `item.lastAmount`: the last amount the resolving item
+// evaluated, or the number a trigger's event was about. A reading nothing fed evaluates 0 while the card counted as
+// parsed (the 9.0c review), so every ability is checked in document order once it is assembled.
+// ---------------------------------------------------------------------------
+/** Ops after which `item.lastAmount` holds a number: they evaluate an amount through the engine's `amt` (src/engine/game.ts applyEffect), or count what they did (a whole-hand `discard`, the cards a `return-from-graveyard` returned). */
+const AMOUNT_OPS = new Set<string>(['draw', 'discard', 'mill', 'damage', 'damage-you', 'gain-life', 'lose-life', 'counters', 'pump', 'scry', 'surveil', 'token', 'token-copy', 'poison', 'energy', 'player-counter', 'amass', 'dig', 'earthbend', 'prevent-damage', 'put-from-hand', 'set-pt', 'return-from-graveyard']);
+/** The trigger events whose context carries the number the event was about (`TriggerCtx.amount` → `item.lastAmount`: the damage dealt, the life gained or lost). */
+const AMOUNT_EVENTS = new Set<string>(['deals-damage', 'combat-damage-player', 'life-gain', 'life-loss-opponent']);
+/** Does the effect's own slots (not its child lists, not a granted ability) hold a `that-many` amount? */
+function readsThatMany(v: unknown): boolean {
+  if (Array.isArray(v)) return v.some(readsThatMany);
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  if (o.count === 'that-many') return true;
+  return Object.keys(o).some(k => !(CHILD_KEYS as readonly string[]).includes(k) && k !== 'ability' && readsThatMany(o[k]));
+}
+/**
+ * Walk `list` in document order with `fed` = whether `item.lastAmount` holds a number when the effect runs; a delayed
+ * trigger's / reflexive's body is another item (unfed, and it feeds nothing here). The first unfed reading effect is
+ * replaced by `unknown` (its text is `line`) and null comes back; otherwise the fed state after the list.
+ */
+function feedThatMany(list: Effect[], fed: boolean, line: string): boolean | null {
+  for (let i = 0; i < list.length; i++) {
+    const e = list[i]; const o = e as unknown as Record<string, unknown>;
+    if (!fed && readsThatMany(o)) { list[i] = { op: 'unknown', text: line }; return null; }
+    if (AMOUNT_OPS.has(e.op)) fed = true;
+    const other = o.op === 'delayed-trigger' || o.op === 'reflexive';
+    for (const k of CHILD_KEYS) {
+      const c = o[k];
+      const lists = k === 'modes' ? (Array.isArray(c) ? (c as Effect[][]) : []) : isEffectList(c) ? [c] : [];
+      for (const l of lists) { const r = feedThatMany(l, other ? false : fed, line); if (r === null) return null; if (!other && r) fed = true; }
+    }
+    if (o.op === 'gain-ability' && o.ability && unfedThatMany(o.ability as Ability, line)) return null;
+  }
+  return fed;
+}
+/** Is a "that many" of the ability unfed? A trigger about an amount and an ability that removed counters as a cost start fed; a granted ability is checked as its own kind. */
+function unfedThatMany(ab: Ability, line: string): boolean {
+  if (ab.kind === 'triggered') return feedThatMany(ab.effects, ab.event.on === 'or' ? ab.event.events.every(ev => AMOUNT_EVENTS.has(ev.on)) : AMOUNT_EVENTS.has(ab.event.on), line) === null;
+  if (ab.kind === 'activated') return feedThatMany(ab.effects, !!ab.cost.removeCounters, line) === null;
+  if (ab.kind === 'spell') return feedThatMany(ab.effects, false, line) === null;
+  return ab.effect.kind === 'grant-ability' ? unfedThatMany(ab.effect.ability, line) : false;
 }
 
 export function parseCard(row: OracleRow): CardDef {
@@ -1825,6 +1940,10 @@ export function parseCard(row: OracleRow): CardDef {
       // "When ~ dies, draw cards equal to its power": "its" is the source too (the frame-bound `power-of-that` would read
       // nothing on a self trigger); "cards" / "tokens" are not referents for "its", another object or a target is
       if (selfEv && !/\btarget (?!(?:player|opponent)\b)|\bthat (creature|card|permanent|land|spell|token)\b|\banother\b|\bcopy\b|\benchanted\b|\bequipped\b/i.test(body)) body = body.replace(/\bits (power|toughness|mana value)\b/gi, "~'s $1");
+      // "Whenever a creature you control deals combat damage to a player, put that many +1/+1 counters on it": "it" in a
+      // trigger about another permanent is that permanent — the frame word, which triggerBody binds (parseEffectSentence
+      // would otherwise read a bare "on it" as the source)
+      if (!selfEv && 'filter' in ev && ev.on !== 'cast') body = body.replace(/\bon it\b/gi, 'on that permanent');
       const once = /\. this ability triggers only once each turn\.?$/i.test(body); if (once) body = body.replace(/\.? this ability triggers only once each turn\.?$/i, '');
       const effs = /^choose (one|two)( —|\.)?$/i.test(body.trim()) ? [{ op: 'choose-mode', modes: [], count: /two/i.test(body) ? 2 : 1 } as Effect] : triggerBody(body, selfEv);
       const ab: TriggeredAbility = { kind: 'triggered', event: ev, effects: effs, text: line, optional, intervening, ...(once ? { oncePerTurn: true } : {}) };
@@ -1845,8 +1964,9 @@ export function parseCard(row: OracleRow): CardDef {
     if (isSpell) {
       // one item: an earlier paragraph's binding (or an additional sacrifice cost) is this paragraph's frame too
       const effs = withFrame(!!def.additionalCosts?.some(c => c.sacrifice), spellEffects, () => parseEffects(line));
+      const unfed = feedThatMany(effs, spellEffects.some(e => AMOUNT_OPS.has(e.op)), line) === null;   // an unfed "that many" (the reading is `unknown` now, wherever it sits)
       spellEffects.push(...effs);
-      if (effs.some(e => e.op === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
+      if (unfed || effs.some(e => e.op === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
       continue;
     }
     // ---- registry pass. Every built-in stage above has declined this line (and an instant or sorcery never reaches
@@ -1865,6 +1985,8 @@ export function parseCard(row: OracleRow): CardDef {
     for (const e of folded) if (e.op === 'unknown' && !def.unparsed.includes(e.text)) { def.fullyParsed = false; def.unparsed.push(e.text); }
     def.abilities.push({ kind: 'spell', effects: folded, text: text });
   }
+  // an unfed "that many" (no amount before it, no trigger about one) is honestly unparsed rather than a silent 0
+  for (const ab of def.abilities) if (ab.kind !== 'spell' && unfedThatMany(ab, ab.text)) { def.fullyParsed = false; if (!def.unparsed.includes(ab.text)) def.unparsed.push(ab.text); }
   def.keywords = [...new Set(def.keywords)];
   // --- second face of a split / adventure / flip card: the engine cannot cast that half, so its lines are recorded as
   //     unparsed — the same list scripts.ts's `secondFaceLines` / `secondFaceUnclaimed` accounts for (src/cards/oracle-lines.ts)
@@ -1884,6 +2006,11 @@ export function parseCard(row: OracleRow): CardDef {
 
 const ROMAN: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4, V: 5 };
 
+/** The count for "for each [other] <words> you control": permanents when the words name permanents, creatures otherwise; "other" excludes the source. */
+function eachYouControl(words: string, other: string | undefined, f: Filter): Extract<Amount, object> {
+  const filter: Filter = other ? { ...f, other: true } : f;
+  return { count: /\bpermanents?\b/i.test(words) ? 'permanents-you-control' : 'creatures-you-control', filter };
+}
 function parseTypeLine(tl: string): { types: string[]; supertypes: string[]; subtypes: string[] } {
   const [left, right] = tl.split(' — ');
   const SUPER = new Set(['Basic', 'Legendary', 'Snow', 'World', 'Ongoing', 'Host']);
@@ -1913,6 +2040,9 @@ function parseActivatedLine(line: string, useRegistry = true, bodyRegistry = tru
   if (/ activate only once each turn\.?$/i.test(body)) { oncePerTurn = true; body = body.replace(/ activate only once each turn\.?$/i, ''); }
   const only = body.match(/ activate only if (.+?)\.?$/i);
   if (only) { const c = parseCondition(only[1], useRegistry); if (c.kind === 'unknown') return null; activateOnlyIf = c; body = body.slice(0, only.index); }
+  // "{T}, Sacrifice ~: You gain life equal to its power" (Syr Ginger): with the source itself sacrificed and no other
+  // referent introduced, "its" is the source — read as "~'s" (last known information once it has left, CR 608.2h)
+  if (cost.sacrificeSelf && !cost.sacrifice && !/\btarget (?!(?:player|opponent)\b)|\bthat (creature|card|permanent|land|spell|token)\b|\banother\b|\bcopy\b/i.test(body)) body = body.replace(/\bits (power|toughness|mana value)\b/gi, "~'s $1");
   // a sacrifice cost binds what was sacrificed before the effects run (src/engine/game.ts payCost)
   const effs = foldMarkers(withFrame(!!cost.sacrifice, [], () => parseEffects(body, bodyRegistry)), true);
   const manaAbility = effs.some(e => e.op === 'add-mana') && effs.every(e => e.op === 'add-mana' || e.op === 'damage-you' || ((e.op === 'lose-life' || e.op === 'gain-life') && e.who === 'you'));

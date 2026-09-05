@@ -89,7 +89,7 @@ export function nonManaCostPayable(s: GameState, pl: Player, cost: AbilityCost, 
   if (cost.sacrifice && !pl.battlefield.some(o => o.id !== self.id && matchesFilter(s, o, cost.sacrifice, self))) return false;
   if (cost.discard && others(pl.hand).length < cost.discard) return false;
   if (cost.payLife && pl.life <= cost.payLife) return false;
-  if (cost.removeCounters && (self.counters[cost.removeCounters.counter] ?? 0) < cost.removeCounters.amount) return false;
+  if (cost.removeCounters && (self.counters[cost.removeCounters.counter] ?? 0) < (cost.removeCounters.all ? 1 : cost.removeCounters.amount)) return false;
   if (cost.exileFromGraveyard && others(pl.graveyard).length < cost.exileFromGraveyard) return false;
   if (cost.exileOtherFromGraveyard) {
     const gy = others(pl.graveyard);

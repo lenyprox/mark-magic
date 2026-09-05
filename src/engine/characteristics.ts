@@ -1,6 +1,6 @@
 // Derived characteristics: power/toughness/keywords after counters, until-end-of-turn effects,
 // auras, equipment and static anthems (a simplified version of the CR 613 layer system).
-import type { Ability, Amount, AmountExpr, CardDef, CardType, Color, Filter, Keyword, StaticEffect } from '../cards/types.js';
+import type { Ability, Amount, AmountExpr, CardDef, CardType, Color, Filter, Keyword, ObjectSet, StaticEffect } from '../cards/types.js';
 import type { GameObject, GameState, PlayerId, TargetRef } from './state.js';
 import { alive, opponentsOf } from './players.js';
 import { AMOUNTS, CAN_ATTACK, CAN_BLOCK, CONDITIONS, HAS, STATICS } from './ops/_registry.js';
@@ -112,12 +112,21 @@ function evalAmountForm(s: GameState, f: AmountExpr, ctrl: PlayerId, x: number, 
         if (w === undefined) return 0;
         return prop === 'life' ? s.players[w].life : s.players[w].hand.length;
       }
+      // "the greatest power among creatures you control", "the total power of …": the prop over every object of `over`
+      if (f.over !== undefined && f.agg !== undefined) {
+        const list = ctx?.refs ? objectsIn(ctx.refs, f.over, ctx.T) : framelessSet(s, f.over, ctrl, source);
+        const vals = list.map(o => (prop === 'mv' ? manaValueOf(o) : prop === 'power' ? power(s, o) : toughness(s, o)));
+        return f.agg === 'sum' ? vals.reduce((t, v) => t + v, 0) : vals.length === 0 ? 0 : f.agg === 'max' ? Math.max(...vals) : Math.min(...vals);
+      }
       // an object property: the Ref's object, its last known values once it has left the battlefield (CR 608.2h)
       const o = of === 'self' ? source : of === 'you' || of === 'that-player' || of === 'target-player' ? undefined : ctx?.refs ? resolveRef(ctx.refs, of as 'that')[0] : of === 'that' && ctx?.that ? null : undefined;
       if (o === null) return prop === 'power' ? ctx!.that!.power : prop === 'mv' ? ctx!.that!.manaValue : 0;   // legacy `that` snapshot (no binding frame)
       if (!o) return 0;
-      if (prop === 'mv') return manaValueOf(o);
-      const lk = o.zone !== 'battlefield' ? o.lastKnown : undefined;
+      // last known information (CR 608.2h): the values it had when it left the battlefield (`moveTo`'s snapshot), else the
+      // values the binding frame recorded when it was bound — a countered spell's mana value with its X, taken on the stack
+      const bound = o.zone !== 'battlefield' ? ctx?.refs?.item.affected?.find(a => a.id === o.id)?.lastKnown : undefined;
+      if (prop === 'mv') return bound ? bound.manaValue : stackManaValue(s, o);
+      const lk = o.zone !== 'battlefield' ? (o.lastKnown ?? bound) : undefined;
       return prop === 'power' ? (lk ? lk.power : power(s, o)) : (lk ? lk.toughness : toughness(s, o));
     }
     default: return 0;
@@ -136,7 +145,7 @@ export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, sourc
     case 'permanents-you-control': n = myBf.filter(o => !a.filter || matchesFilter(s, o, a.filter, source)).length; break;
     case 'cards-in-hand': n = me.hand.length; break;
     case 'lands-you-control': n = myBf.filter(isLand).length; break;
-    case 'power-of-source': n = source ? power(s, source) : 0; break;
+    case 'power-of-source': n = source ? (source.zone !== 'battlefield' && source.lastKnown ? source.lastKnown.power : power(s, source)) : 0; break;   // LKI once it has left (Mortis Dogs, CR 608.2h)
     case 'creatures-attacking': n = myBf.filter(o => o.attacking !== null).length; break;
     case 'opponent-creatures': n = opponentsOf(s, ctrl).reduce((a, q) => a + battlefieldOf(s, q).filter(isCreature).length, 0); break;
     case 'life-lost-this-turn': n = opponentsOf(s, ctrl).reduce((a, q) => a + s.players[q].lifeLostThisTurn, 0); break;
@@ -144,7 +153,7 @@ export function evalAmount(s: GameState, a: Amount, ctrl: PlayerId, x = 0, sourc
     case 'exiled-with': n = (source?.exiledWith ?? []).map(id => findObject(s, id)).filter(o => o && (!a.filter || matchesFilter(s, o, a.filter, source))).length; break;
     case 'cards-in-graveyard': n = me.graveyard.filter(o => !a.filter || matchesFilter(s, o, a.filter, source)).length; break;
     case 'counters-on-permanents': n = myBf.filter(o => !a.filter || matchesFilter(s, o, a.filter, source)).reduce((t, o) => t + (a.counter ? (o.counters[a.counter] ?? 0) : Object.values(o.counters).reduce((x, y) => x + y, 0)), 0); break;
-    case 'that-many': n = ctx?.thatMany ?? 0; break;
+    case 'that-many': n = ctx?.thatMany ?? ctx?.refs?.item.lastAmount ?? 0; break;   // the last amount the resolving item evaluated ("… then draw that many cards")
     case 'commander-casts': n = Object.values(me.commanderCasts ?? {}).reduce((x, y) => x + y, 0); break;
     case 'opponents': n = opponentsOf(s, ctrl).length; break;
     case 'player-counters': n = me.counters?.[a.counter ?? ''] ?? 0; break;
@@ -180,10 +189,25 @@ function finishAmount(n: number, a: AmountExpr): number {
  * silently every player's objects. Zone lists and the filter are read exactly as `objectsIn` reads them.
  */
 function framelessObjects(s: GameState, a: AmountExpr, ctrl: PlayerId, source: GameObject | undefined): GameObject[] {
-  const zone = a.zone ?? 'battlefield';
-  const players = a.who === undefined || a.who === 'each-player' ? alive(s) : a.who === 'you' ? [ctrl] : a.who === 'each-opponent' ? opponentsOf(s, ctrl) : [];
-  return players.flatMap(q => zone === 'battlefield' ? battlefieldOf(s, q) : s.players[q][zone]).filter(o => matchesFilter(s, o, a.filter, source));
+  return framelessSet(s, { ...a.filter, zone: a.zone, who: a.who }, ctrl, source);
 }
+function framelessSet(s: GameState, set: ObjectSet, ctrl: PlayerId, source: GameObject | undefined): GameObject[] {
+  const zone = set.zone ?? 'battlefield';
+  const players = set.who === undefined || set.who === 'each-player' ? alive(s) : set.who === 'you' ? [ctrl] : set.who === 'each-opponent' ? opponentsOf(s, ctrl) : [];
+  return players.flatMap(q => zone === 'battlefield' ? battlefieldOf(s, q) : s.players[q][zone]).filter(o => matchesFilter(s, o, set, source));
+}
+/** The mana value of an object; a spell on the stack counts its X (CR 202.3b: X is 0 everywhere but on the stack). */
+export function stackManaValue(s: GameState, o: GameObject): number {
+  const mv = manaValueOf(o);
+  if (o.zone !== 'stack') return mv;
+  const it = s.stack.find(i => i.source.id === o.id);
+  return mv + (it && o.def.manaCost ? o.def.manaCost.x * it.x : 0);
+}
+/** Printed supertypes (a token or a face-down permanent has none). */
+export function supertypesOf(o: GameObject): string[] { return o.faceDown || o.token ? EMPTY_STRINGS : defOf(o).supertypes; }
+const EMPTY_STRINGS: string[] = [];
+/** The Auras / Equipment attached to `o` (a battlefield scan; only run for the filter flags that ask). */
+function attachedAuras(s: GameState, o: GameObject, kind: 'Aura' | 'Equipment'): GameObject[] { return allPermanents(s).filter(x => x.attachedTo === o.id && subtypes(x).includes(kind)); }
 const BASIC_TYPES = new Set(['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']);
 
 export function matchesFilter(s: GameState, o: GameObject, f: Filter | undefined, source?: GameObject): boolean {
@@ -192,11 +216,28 @@ export function matchesFilter(s: GameState, o: GameObject, f: Filter | undefined
   if (f?.toughnessGtPower && !(toughness(s, o) > power(s, o))) return false;
   if (f?.chosenType && !(source?.chosen?.creatureType && subtypes(o).includes(source.chosen.creatureType))) return false;
   if (f?.withKeyword && !hasKeyword(s, o, f.withKeyword)) return false;
+  if (f?.notKeywords && f.notKeywords.some(k => hasKeyword(s, o, k))) return false;
   if (!f) return true;
   const ts = types(o), sts = subtypes(o), cs = colors(o);
-  if (f.types && !f.types.some(t => ts.includes(t))) return false;
+  if (f.types && (f.typesAll ? !f.types.every(t => ts.includes(t)) : !f.types.some(t => ts.includes(t)))) return false;   // any-of, or every listed type ("artifact creature")
   if (f.notTypes && f.notTypes.some(t => ts.includes(t))) return false;
   if (f.subtypes && !f.subtypes.some(t => sts.includes(t) || (t === 'Creature' && ts.includes('Creature')))) return false;
+  if (f.notSubtypes && f.notSubtypes.some(t => sts.includes(t))) return false;
+  if (f.supertypes || f.notSupertypes || f.historic) {
+    const sup = supertypesOf(o);
+    if (f.supertypes && !f.supertypes.every(t => sup.includes(t))) return false;
+    if (f.notSupertypes && f.notSupertypes.some(t => sup.includes(t))) return false;
+    if (f.historic && !(sup.includes('Legendary') || ts.includes('Artifact') || sts.includes('Saga'))) return false;
+  }
+  if (f.multicolored && cs.length < 2) return false;
+  if (f.monocolored && cs.length !== 1) return false;
+  if (f.kicked && !(o.castWith?.kicked || (o as GameObject & { kicked?: boolean }).kicked)) return false;
+  if (f.transformed && !(o.transformed || o.activeFace === 1)) return false;
+  if (f.enchanted && attachedAuras(s, o, 'Aura').length === 0) return false;
+  if (f.equipped && attachedAuras(s, o, 'Equipment').length === 0) return false;
+  if (f.modified && !(Object.values(o.counters).some(n => n > 0) || attachedAuras(s, o, 'Equipment').length > 0 || attachedAuras(s, o, 'Aura').some(a => a.controller === o.controller))) return false;
+  if (f.dealtDamageBySource) { const d = o.ext?.damagedBy as { turn: number; by: number[] } | undefined; if (!source || !d || d.turn !== s.turn || !d.by.includes(source.id)) return false; }
+  if (f.attachedToSource && (!source || source.attachedTo !== o.id)) return false;   // "equipped creature" / "enchanted creature" in the attaching permanent's own text (CR 702.6a, 303.4)
   if (f.colors && !f.colors.some(c => cs.includes(c))) return false;
   if (f.notColors && f.notColors.some(c => cs.includes(c))) return false;
   if (f.colorless && cs.length) return false;
@@ -213,6 +254,9 @@ export function matchesFilter(s: GameState, o: GameObject, f: Filter | undefined
   if (f.powerGE != null && power(s, o) < f.powerGE) return false;
   if (f.powerLE != null && power(s, o) > f.powerLE) return false;
   if (f.toughnessLE != null && toughness(s, o) > f.toughnessLE) return false;
+  if (f.toughnessGE != null && toughness(s, o) < f.toughnessGE) return false;
+  if (f.powerEQ != null && power(s, o) !== f.powerEQ) return false;
+  if (f.toughnessEQ != null && toughness(s, o) !== f.toughnessEQ) return false;
   if (f.mvLE != null && manaValueOf(o) > (typeof f.mvLE === 'number' ? f.mvLE : evalAmount(s, f.mvLE, source?.controller ?? o.controller, 0, source))) return false;
   if (f.mvGE != null && manaValueOf(o) < f.mvGE) return false;
   if (f.mvEQ != null && manaValueOf(o) !== (typeof f.mvEQ === 'number' ? f.mvEQ : evalAmount(s, f.mvEQ, source?.controller ?? o.controller, 0, source))) return false;
@@ -311,6 +355,13 @@ function computeStaticMods(s: GameState, o: GameObject): Mods {
         if (e.opponentsOnly && sameCtl) continue;
         if (!matchesFilter(s, o, e.filter, src)) continue;
         m.p += e.power; m.t += e.toughness; if (e.keywords) m.kw.push(...e.keywords); if (e.landwalk) (m.landwalk ??= []).push(...e.landwalk);
+      }
+      // "Enchanted creature has base power and toughness 9/9 [and has flying, …]" (layer 7b, CR 613.4b): a base value set by a
+      // static, after the `set-pt` op's ext entry so it reads as the later timestamp (CR 613.7); keywords ride along (layer 6)
+      if (e.kind === 'set-pt') {
+        const applies = e.scope === 'self' ? src.id === o.id : e.scope === 'enchanted' || e.scope === 'equipped' ? src.attachedTo === o.id
+          : (e.scope === 'all' || src.controller === o.controller) && matchesFilter(s, o, e.filter, src);
+        if (applies) { m.setPT = { power: e.power, toughness: e.toughness }; if (e.keywords) m.kw.push(...e.keywords); }
       }
       if (src.id === o.id) {
         if (e.kind === 'self-pt' && conditionHolds(s, src, (e as { condition?: unknown }).condition)) { m.p += evalAmount(s, e.power, src.controller, 0, src); m.t += evalAmount(s, e.toughness, src.controller, 0, src); }

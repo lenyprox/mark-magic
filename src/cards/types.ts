@@ -35,8 +35,11 @@ export interface TargetSpec {
   controller?: 'you' | 'opponent';         // "target creature you control" / "an opponent controls"
   filter?: Filter;
   optional?: boolean;                      // "up to one"
-  count?: number;                          // "up to two target creatures"
+  /** "up to two target creatures"; `'X'` = the item's X ("up to X target creatures": X is chosen before targets, CR 601.2b-c). */
+  count?: number | 'X';
   self?: boolean;                          // targets not needed; refers to this object
+  /** `graveyard-card` only: whose graveyard the card must be in ("from your graveyard", "from an opponent's graveyard"); absent = any graveyard. */
+  who?: 'you' | 'opponent';
   /** Only with `kind: 'multi'`: the sub-specs, in printed order; their picks land in this effect's target list in that order. */
   specs?: TargetSpec[];
 }
@@ -52,7 +55,7 @@ export interface TargetSpec {
  */
 export type Ref = 'self' | 'that' | 'those' | 'triggering' | `target:${number}` | 'enchanted' | 'equipped' | 'sacrificed' | 'exiled-with';
 /** A player the composition ops act on or for; `each-*` runs in APNAP order starting with the active player (CR 101.4). */
-export type ScopeWho = 'you' | 'each-player' | 'each-opponent' | 'target-player' | 'that-player' | 'controller-of-that';
+export type ScopeWho = 'you' | 'each-player' | 'each-opponent' | 'target-player' | 'target-opponent' | 'that-player' | 'controller-of-that' | 'owner-of-that';
 /** The zone an object set is drawn from ('battlefield' = the controller's, every other zone = the owner's). */
 export type SetZone = 'battlefield' | 'graveyard' | 'hand' | 'exile' | 'library';
 /** A zone an object can be moved to (never the stack). */
@@ -65,17 +68,37 @@ export type CoreDelayedAtId = 'next-upkeep' | 'next-end-step' | 'your-next-end-s
 export interface Filter {
   types?: CardType[];
   notTypes?: CardType[];
+  /** `types` is any-of; with `typesAll` every listed type is required ("artifact creature", "land creature"). */
+  typesAll?: true;
   subtypes?: string[];
+  /** "non-Angel creature", "non-Aura enchantment": none of these subtypes. */
+  notSubtypes?: string[];
+  /** "legendary creature", "snow permanent" (CR 205.4). */
+  supertypes?: string[];
+  /** "nonlegendary creature", "nonsnow land". */
+  notSupertypes?: string[];
   colors?: Color[];
   notColors?: Color[];
   colorless?: boolean;
   powerLE?: number; powerGE?: number; toughnessLE?: number; mvLE?: number | Amount; mvGE?: number; mvEQ?: number | Amount;
+  /** "1/1 creature" (exact power and toughness), "creature with toughness 4 or greater". */
+  powerEQ?: number; toughnessEQ?: number; toughnessGE?: number;
   tapped?: boolean; untapped?: boolean; token?: boolean; nontoken?: boolean; attacking?: boolean; blocking?: boolean; flying?: boolean; nonbasic?: boolean; basic?: boolean;
+  /** Adjectives the engine answers from the object's state: kicked (cast with kicker), transformed (back face up), historic
+   *  (legendary, artifact or Saga, CR 700.?), multicolored / monocolored (CR 105.2b-c), enchanted (an Aura is attached),
+   *  equipped (an Equipment is attached), modified (equipped, enchanted by its controller's Aura, or carrying a counter). */
+  kicked?: boolean; transformed?: boolean; historic?: boolean; multicolored?: boolean; monocolored?: boolean; enchanted?: boolean; equipped?: boolean; modified?: boolean;
+  /** "creature dealt damage by ~ this turn": the source dealt it damage this turn (the engine's per-turn `ext.damagedBy` record). */
+  dealtDamageBySource?: boolean;
+  /** "equipped creature" / "enchanted creature" in the attaching permanent's own text (no article, CR 702.6a / 303.4): the object the source is attached to — not "an equipped creature" (`equipped`, any creature carrying Equipment). */
+  attachedToSource?: boolean;
   other?: boolean;                          // "another" / "other"
   withCounters?: boolean; withCounter?: string;  // "with a counter on it" / "with a +1/+1 counter on it"
   toughnessGtPower?: boolean;                    // Doran: "with toughness greater than its power"
   chosenType?: boolean;                          // "of the chosen type" (the source's chosen creature type)
   withKeyword?: Keyword;                         // "creature with deathtouch"
+  /** "creature without flying": none of these keywords. */
+  notKeywords?: Keyword[];
 }
 
 export type CoreAmountCount = 'creatures-you-control' | 'cards-in-hand' | 'lands-you-control' | 'power-of-source' | 'creatures-attacking' | 'opponent-creatures' | 'life-lost-this-turn'
@@ -105,6 +128,8 @@ export interface AmountExpr {
   max?: number | Amount[];
   diff?: [Amount, Amount]; sum?: Amount[]; min?: Amount[];
   prop?: 'power' | 'toughness' | 'mv' | 'life' | 'cards-in-hand'; of?: Ref | 'you' | 'that-player' | 'target-player';
+  /** With `prop` (power / toughness / mv): aggregate it over every object of `over` instead of one Ref — "the greatest power among creatures you control" (`agg: 'max'`), "the total power of …" (`'sum'`), the least (`'min'`). */
+  agg?: 'max' | 'sum' | 'min'; over?: ObjectSet;
 }
 
 /** A non-mana (or mixed) cost: shared by activated abilities, alternative costs, additional costs and Crew/Saddle. */
@@ -121,7 +146,8 @@ export interface AbilityCost extends AbilityCostExt {
   energy?: number;                                                       // "Pay {E}{E}"
   discardHand?: boolean;                                                 // Lion's Eye Diamond
   payLife?: number;
-  removeCounters?: { counter: string; amount: number };
+  /** `all`: "Remove all charge counters from ~" — every one (at least one to pay), and the count removed is the ability's "that much" (`item.lastAmount`). */
+  removeCounters?: { counter: string; amount: number; all?: boolean };
   exileFromGraveyard?: number;
   exileOtherFromGraveyard?: { count: number | 'any'; minCardTypes?: number }; // Escape
   exileFromHand?: { filter: Filter; count: number };                     // Force of Will, evoke, Force of Negation
@@ -199,7 +225,7 @@ export type CoreEffect =
   | { op: 'poison'; amount: Amount; who: 'target-player' | 'each-opponent' | 'that-player' }
   | { op: 'shuffle-self-into-library' }
   | { op: 'reveal-hand-discard'; who: 'target-player' | 'target-opponent'; filter: Filter; count: 1 | 'all-named' }
-  | { op: 'look-top'; who: 'target-player' | 'you'; amount: number }
+  | { op: 'look-top'; who: 'target-player' | 'you'; amount: number }   // binds the looked-at cards as 'that' / 'those'
   | { op: 'search'; filter: Filter; to: 'hand' | 'battlefield' | 'graveyard' | 'top'; tapped?: boolean; count: number; optional?: boolean; who?: 'you' | 'that-controller'; reveal?: boolean; mvLE?: Amount; split?: 'one-battlefield-rest-hand' }
   /** CR 603.7: a delayed trigger; `bind` carries the current 'that'/'those' binding into it (both bind the whole set). */
   | { op: 'delayed-trigger'; at: CoreDelayedAtId; effects: Effect[]; bind?: 'that' | 'those' }
@@ -225,15 +251,16 @@ export type CoreEffect =
   | { op: 'token'; count: Amount; power: number; toughness: number; colors: Color[]; types: CardType[]; subtypes: string[]; keywords: Keyword[]; tapped?: boolean; attacking?: boolean; name?: string; text?: string; treasure?: boolean; clue?: boolean; spawn?: boolean; food?: boolean; dynamicPT?: Amount }
   | { op: 'counters'; target: TargetSpec | Ref | 'creatures-you-control' | 'each-other-creature-you-control'; counter: string; amount: Amount; optional?: boolean; filter?: Filter }
   | { op: 'tap'; target: TargetSpec | Ref | 'all-opponent-creatures' | 'all-creatures'; noUntap?: boolean }
-  | { op: 'untap'; target: TargetSpec | Ref | 'all-you-control' | 'lands-you-control' }
+  | { op: 'untap'; target: TargetSpec | Ref | 'all-you-control' | 'lands-you-control' | 'creatures-you-control' }
   | { op: 'sacrifice'; who: 'you' | 'target-player' | 'each-opponent' | 'each-player'; what: Filter; amount: number }
   | { op: 'sacrifice-self' }
   | { op: 'mill'; amount: Amount; who: 'you' | 'target-player' | 'each-opponent' | 'that-player' }
   | { op: 'search-land'; toBattlefield: boolean; tapped: boolean; basic: boolean; count: number; subtypes?: string[] }
   | { op: 'add-mana'; mana: ManaSymbol[] | 'any' | 'any-one' | 'commander-identity' | 'opponent-lands'; choices?: ManaSymbol[][]; amount?: number; perEach?: Amount; /** Firebending: the mana stays in the pool until end of turn. */ sticky?: boolean; options?: ManaSymbol[] | 'exiled-with-colors' | 'chosen-color' | 'permanent-colors'; restriction?: 'creature-spell' | 'instant-sorcery' | 'chosen-type-creature' | 'colorless-eldrazi'; altIf?: { condition: Condition; mana: ManaSymbol[] } }
-  | { op: 'scry'; amount: number }
-  | { op: 'surveil'; amount: number }
-  | { op: 'return-from-graveyard'; what: Filter; to: 'hand' | 'battlefield' | 'library-top' | 'library-bottom'; target?: boolean; anyGraveyard?: boolean; tapped?: boolean }
+  | { op: 'scry'; amount: Amount }
+  | { op: 'surveil'; amount: Amount }
+  /** `count` cards (default 1) chosen from the graveyard; `optional` = "up to" (fewer, or none, may be chosen). */
+  | { op: 'return-from-graveyard'; what: Filter; to: 'hand' | 'battlefield' | 'library-top' | 'library-bottom'; target?: boolean; anyGraveyard?: boolean; tapped?: boolean; count?: number; optional?: boolean }
   | { op: 'fight'; target: TargetSpec; self: boolean }
   | { op: 'bite'; target: TargetSpec }
   | { op: 'set-life'; amount: number; who: 'you' | 'each-player' }
@@ -278,7 +305,7 @@ export type CoreEffect =
   /** "You may …": the acting player chooses; declining does nothing (and counts as "didn't" for a reflexive). */
   | { op: 'may'; effects: Effect[]; prompt?: string }
   /** "… unless [player] pays [cost]" (CR 118.12): each named player may pay; `otherwise` runs, as that player, if they don't. */
-  | { op: 'unless-pays'; who: ScopeWho; cost: AbilityCost; otherwise: Effect[] }
+  | { op: 'unless-pays'; who: ScopeWho; cost: AbilityCost; otherwise: Effect[]; /** `'controller'`: `otherwise` runs as the item's controller, not the payer ("you may draw a card unless that player pays {4}", Rhystic Study). */ otherwiseAs?: 'controller' }
   /** A general zone move on top of moveTo / enterBattlefield; `until` returns the moved objects (CR 610.3). */
   | { op: 'move'; what: TargetSpec | Ref | { filter: Filter; zone: SetZone; who: ScopeWho; count: Amount | 'all'; choose?: 'you' | 'owner' | 'random' }; to: MoveZone; pos?: 'top' | 'bottom'; controller?: 'you' | 'owner' | 'that-player' | 'target-player'; tapped?: boolean; faceDown?: boolean; withCounters?: { counter: string; amount: Amount }; until?: 'leaves' | 'eot' | 'your-next-end-step' }
   /** Layer 7b (CR 613.4b): set power and toughness; counters and +N/+N still apply on top. */
@@ -342,8 +369,8 @@ export interface ConditionRegistry {}
 export type Condition = CoreCondition | ConditionRegistry[keyof ConditionRegistry];
 
 export type CoreTriggerEvent =
-  | { on: 'etb'; self: boolean; filter?: Filter; controller?: 'you' | 'any' }          // "When ~ enters" / "Whenever a creature enters under your control"
-  | { on: 'dies'; self: boolean; filter?: Filter; controller?: 'you' | 'any' }
+  | { on: 'etb'; self: boolean; filter?: Filter; controller?: 'you' | 'any' | 'opponent' }          // "When ~ enters" / "Whenever a creature enters under your control" / "... under an opponent's control"
+  | { on: 'dies'; self: boolean; filter?: Filter; controller?: 'you' | 'any' | 'opponent' }        // "Whenever a creature an opponent controls dies\"
   | { on: 'ltb'; self: boolean }
   | { on: 'attacks'; self: boolean; filter?: Filter }
   | { on: 'you-attack' }                                                      // "Whenever you attack" (once per combat)
@@ -394,6 +421,8 @@ export type CoreStaticEffect =
   | { kind: 'play-lands-from'; zone: 'graveyard' | 'library-top' }                              // Ancient Greenwarden / Oracle of Mul Daya
   | { kind: 'unspent-mana-becomes-red' }                                                         // Ozai, the Phoenix King
   | { kind: 'self-pt'; power: Amount; toughness: Amount }                                 // "~ gets +1/+1 for each ..."
+  /** Layer 7b (CR 613.4b) as a static: "Enchanted creature has base power and toughness 9/9 [and has flying, ...]" (`scope: 'enchanted'`), "~ has base power and toughness N/N" (`'self'`), "<filter> you control have base ..." (`'you-control'` / `'all'` with `filter`). Folded into `Mods.setPT` after the `set-pt` op's entry, so it wins as the later timestamp (CR 613.7). */
+  | { kind: 'set-pt'; power: number; toughness: number; scope: 'enchanted' | 'equipped' | 'self' | 'you-control' | 'all'; filter?: Filter; keywords?: Keyword[] }
   | { kind: 'self-keywords'; keywords: Keyword[]; condition?: Condition; cantBlock?: boolean }
   | { kind: 'can-be-commander' } | { kind: 'look-top-anytime' } | { kind: 'may-not-untap' } | { kind: 'no-max-hand-size' }
   | { kind: 'cant-attack-unless-defender-controls'; filter: Filter }

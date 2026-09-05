@@ -49,6 +49,7 @@ orchestrated by a Claude Code session. The plan has three phases, continuing the
 | e817a4f | 8a-3 | script format v2 (sharded, `llm` source, backFace/secondFace, typed value-matched covers, ignore whitelist, verification block, `scriptHash`), line-claim accounting for `fullyParsed`, `src/cards/pool.ts` tiers, `src/cards/schema.ts` (zod) + `typecheck:schema`, `scripts:check` v2, `scripts:shard`, `scripts:schema` |
 | edceb29 | 9.0a | composition core, engine side: `Ref`, ten composition ops, amount forms, `multi` targets, four delayed-at points, `src/engine/refs.ts`, zod schema + structural gate + op-coverage probes extended, `docs/vocabulary/composition.md`; soft cast-time target requirements for older-container branches; `docs/workflows/phase-9-0a-composition-core.js` |
 | (9.0b) | 9.0b | composition parser rules (`src/cards/rules/composition.ts`, 74 effect rules + 1 line rule; `EffectCtx` sub-parsers handed to registry rules; built-in "you may" wrapped in `may`), parser debts 4 and 5 (second faces unparsed, 0x08 bytes), subtype vocabulary (`npm run gen:subtypes` → `src/cards/subtype-vocab.ts`; unknown words no longer become subtypes), antecedent-aware frame binding (`bindAntecedent`, `withFrame`), `PARSER_VERSION` 3, parse snapshot + fidelity ceilings accepted; `docs/workflows/phase-9-0b-composition-parser.js` |
+| (9.0c) | 9.0c | engine bindings (`noteAffected` in pump / grant-keyword / counters / untap / untap-all / gain-control / sacrifice / look-top / counter — the countered spell with its stack-time controller and mana value; `bind` reads spell targets), scopes `target-opponent` (legal.ts offers opponents only) and `owner-of-that`, `unless-pays.otherwiseAs`, `Filter` fields (`notSubtypes`, `supertypes` / `notSupertypes`, `notKeywords`, `powerEQ` / `toughnessEQ` / `toughnessGE`, `typesAll`, the adjective flags, `dealtDamageBySource` with the per-turn `ext.damagedBy` record), `dies` / `etb` `controller: 'opponent'`, `return-from-graveyard` `count` / `optional`, `graveyard-card` `who`, `TargetSpec.count: 'X'`, aggregate amounts (`agg` + `over`), `count: 'that-many'` from `item.lastAmount` (and the trigger's amount), `scry` / `surveil` amounts, the `set-pt` static, LKI for `power-of-source`; parser: `PARSER_VERSION` 4 (the "-X" sign, "target A and target B" as a `multi` spec, 'All creatures have "…"', the "you control enters" template first, adjacent type words all-of), the `bind` / `for-each` repairs dropped where the engine now binds, the 9.0b declines claimed; op-allowlist shrunk by 8 |
 
 Numbers on `main` after 9.0b (2026-09-05, machine shared with a second session): `coverage:pool` 11,713 / 34,513 fully
 parsed overall, paper headline 11,583 / 32,081 (36.1%; 9.0a: 11,391 — +848 gained by the composition rules, −170
@@ -59,6 +60,66 @@ the built-in "you may …" wrapped in `may`); goldens replay identically; fideli
 6.85 / 17.17 hits per game (was 13.28 / 16.12 / 8.33 / 20.38); `npm test` 607 tests; `coverage:ops` 0 not
 allowlisted; bench 38–39 games/s 60-card and 3.6–3.9 Commander UNDER LOAD (the second session renders; the 9.0b fix
 agent's interleaved A/B against a HEAD worktree was within noise — re-measure on a quiet machine, item 7).
+
+Numbers after 9.0c (2026-09-05, same shared machine, measured before the orchestrator's `parse:accept`): `coverage:pool`
+12,143 / 34,513 fully parsed overall, paper headline 12,008 / 32,081 (37.43%; 9.0b: 11,583 — +430 gained: the
+counterspells, "up to N target … cards from your graveyard", "an opponent controls dies", "dealt damage by ~ this
+turn", non-<Subtype> / legendary / snow / without-flying / N/N filters, "target opponent …", Rhystic Study's shape,
+aggregate amounts, "that many"); owner's six decks 279 / 444 fully parsed (was 274); `verify:pool` 11,670 sandbox-ok
+/ 473 unreachable (was 11,290 / 423; no sandbox throws, no hang, 20 s); `parse:diff` 1,225 cards changed, 0 lost,
+0 removed (parserVersion 3 → 4; 595 "same unparsed lines, shape changed": 201 `bind` / `for-each` repairs dropped, 126
+"that many" / "that much" (a constant 1 before, `count: 'that-many'` now — 0 under a trigger the engine gives no
+amount), 81 new filter fields, 60 `typesAll`, 28 `return-from-graveyard` `count` / `optional`, 20 `controller:
+'opponent'`, 18 "untap all creatures you control" (creatures only), 16 "-X" signs, 14 `target-opponent`, 9
+`otherwiseAs`, 2 `count: 'X'`, 2 aggregates, 1 scry amount, 1 `owner-of-that`, 27 other; the "you control enters"
+reorder moved 0 cards); goldens reproduce exactly; fidelity 10.68 / 11.22 / 6.80 / 17.13 hits per game against
+ceilings 10.93 / 10.72 / 6.85 / 17.17 (the Goph vs Quintorius pairing is above its ceiling and reported "ok" by the
+script's tolerance — not accepted); `npm test` 676 tests; `coverage:ops` 0 not allowlisted, the allowlist shrunk by 8
+(look-top, put-from-hand, grant-ability, power-of-source, power-of-that, that-many, costParts untap, keywords flash);
+bench under load 42.7 / 18.7 / 40.2 games/s 60-card and 2.93 / 2.40 / 3.80 Commander over three runs (the second
+session renders; the 9.0b numbers were 38–39 / 3.6–3.9 under the same load — re-measure on a quiet machine, item 7).
+
+**9.0c review fixes (2026-09-05, same machine, still before `parse:accept`).** The two reviews found that several
+"now parses" lines could never act: `deals-damage` was queued only for damage to creatures (Exalted Angel's "you gain
+that much life" gained nothing on the common line), `life-loss-opponent` carried no amount (Exquisite Blood,
+Mindcrank read 0), "whenever equipped creature dies" was matched AFTER `moveTo` detached the Equipment and meant "any
+equipped creature" (Skullclamp never drew, and would have drawn off an opponent's creature), Abattoir Ghoul read its
+own power for "that creature's toughness", Wight's "exile that card" exiled its own Zombie token (a `token` re-points
+the frame), Necropolis Regent's "put that many counters on it" put them on the Regent, `return-from-graveyard` picked
+afresh on resolution instead of using its targets (Morbid Plunder), an activated "that much" read 0 (Relic Amulet),
+the `that many` rule minted readings nothing fed (43 fully-parsed cards), Withdraw's "unless its controller pays"
+charged the first target's controller, and `ext.damagedBy` left empty bags behind. Fixed: `dealDamageToPlayer` queues
+`deals-damage` (with the amount) and `loseLife` / `dealDamageToPlayer` pass `amount` to `life-loss-opponent`;
+`moveTo` matches `dies` / `ltb` before detaching (CR 603.10a) and drops the damage record afterwards; `Filter.
+attachedToSource` ("equipped / enchanted creature" with no article = the creature this is attached to, CR 702.6a);
+"you gain life equal to its / that creature's power / toughness" is `{ prop, of: 'that' }` (a sacrifice-self cost's
+"its" stays the source); `bindAntecedent` re-binds the trigger's object after a `token` when the sentence says "that
+card" (CR 111.1); "on it" in a trigger about another permanent is that permanent (the built-in "put N counters on
+that creature → self" template is gone: `that`); a targeted `return-from-graveyard` is a real `graveyard-card`
+requirement (`ownTargetSpecs`; chosen on cast, only those return, and the count feeds "that many"); `removeCounters.
+all` ("Remove all charge counters from ~", the count removed feeds "that much"); the parser keeps `that-many` only
+where something feeds it (`feedThatMany`: an earlier amount, a trigger about an amount — now `life-loss-opponent`
+too — or a removed-counters cost) and makes the line unparsed otherwise; the unless-pays rule declines a payer named
+by the clause's own target; "whenever an opponent casts a noncreature / <filter> spell" (Mystic Remora and 17 more
+lines); `wipeExtEot` deletes an emptied bag. Numbers: `coverage:pool` 12,157 / 34,513, paper 12,022 / 32,081
+(37.47%; +14 cards over the 9.0c figure, the opponent-cast head; Withdraw and the unfed "that many" cards are
+honestly unparsed now), owner's decks 280 / 444; `parse:diff` 1,342 changed, 0 lost, 4 "no longer parses" lines, every
+one on a card whose earlier sentence was already unknown (Pip-Boy 3000's mode, Infernal Reckoning, Exile, Grave
+Strength — their old parse was a wrong `self` / `power-of-source`); `verify:pool` 11,613 sandbox-ok / 544
+unreachable (was 11,670 / 473: the targeted graveyard returns need a graveyard card to be cast, which the sandbox
+(8c's file) does not seed — see item 25); goldens reproduce exactly; fidelity 10.68 / 12.62 / 6.75 / 16.62 — the Goph
+vs Quintorius pairing is above its 1.1× tolerance with the SAME five unparsed clauses as before (Nissa 72 → 80 hits,
+Augusta 41 → 58 over the same 12 games: the engine changes shift the seeded games, no new clause) — not accepted;
+`npm test` 696 (20 new: 17 card scenarios, 2 parser tests, 1 engine test); `coverage:ops` 0 not allowlisted, the
+allowlist shrunk by 4 more (`deals-damage`, `life-loss-opponent`, `removeCounters`, `defender`); bench 38.5 / 35.1
+games/s 60-card and 3.82 / 3.92 Commander UNDER THE SAME LOAD (budget 4.0; the review's pre-fix runs were 4.04 /
+3.91 and this report's 2.93 / 2.40 / 3.80 — nothing added touches a per-effect path; re-measure quiet, item 7).
+
+**9.0c as committed (orchestrator gate, 2026-09-05):** `parse:accept` (parserVersion 4, 1,342 cards changed) and
+`fidelity:accept --force` (ceilings 10.68 / 12.55 / 6.75 / 16.57 — the Goph vs Quintorius rise carries the same five
+inert clauses as before; ceilings only ratchet down from here); `coverage:pool` 12,157 / 34,513, paper 12,022 /
+32,081 (37.47%); `verify:pool` 11,613 sandbox-ok / 544 unreachable, no throws; goldens exact; `npm test` 699;
+`coverage:ops` 0 not allowlisted; bench 37.3 / 4.01 games/s under the second session's load.
 
 ### Branches not yet merged
 
@@ -168,8 +229,9 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
       'Control']`) and the trigger can never fire: 740 pool cards carry such a filter, 358 of them fully parsed
       (Jaws of Defeat, Scourge of Valkas, Impact Tremors-likes). One-line fix: try the "you control" template first
       (or strip the controller phrase before `parseFilterWords`); goldens and fidelity will move.
-    * `pm()` (parse.ts ~597) reads "-X" as a bare `'X'`, so every built-in "gets -X/-X until end of turn" pump
-      (Death Wind and friends) is a +X/+X pump. The composition rules restore the sign on the sentences they own.
+    * ~~`pm()` (parse.ts ~597) reads "-X" as a bare `'X'`~~ — **done in 9.0c** (`PARSER_VERSION` 4): "-X" is
+      `{ sum: ['X'], times: -1 }` (Death Wind's scenario in test/scenarios/composition-cards.ts); 16 fully-parsed
+      cards changed shape.
     * `parseTarget`'s TGT slot swallows "target A and target B" ("Destroy target artifact and target enchantment"
       → one target with subtypes `And` / `Target`); the "All creatures have "…"" grant static (parse.ts ~1099)
       captures `All` as a subtype; `parseFilterWords` turns every unknown word into a subtype ("of their choice",
@@ -179,13 +241,16 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
       515 subtypes of the playable pool with their card type); an unknown word makes the filter null and the line
       unparsed. 474 cards that were "fully parsed" with a filter no object could match (You / Control, Up / To /
       Three / Target, Zomby, Slivers, Legendary, Snow, Without / Flying, non-Aura …) are honestly unparsed now; the
-      "you control enters" ordering defect is moot (the first template declines the controller words), and "~ or
-      another X you control enters / dies", "… you control with power N or greater enters", "creature of the chosen
-      type", "creature other than ~" and comma lists ("basic Forest, Plains, or Island card") parse correctly. What
-      still needs a field: `non-<Subtype>` (`Filter.notSubtypes`, 1 line class ≈ 40 cards), `legendary` / `snow`
-      (supertypes, 60), "without flying" (28), "N/N creature" (2), "dealt damage by ~ this turn" (14), "an opponent
-      controls dies" (`dies` trigger `controller: 'opponent'`, ≈ 20), "up to N target … cards from your graveyard"
-      (`return-from-graveyard` has no `count`; 14 cards incl. Life from the Loam, unpinned in test/staples.test.ts).
+      "you control enters" ordering defect is moot (the first template declines the controller words; 9.0c put
+      the "you control" template first anyway — 0 cards moved), and "~ or another X you control enters / dies", "…
+      you control with power N or greater enters", "creature of the chosen type", "creature other than ~" and comma
+      lists ("basic Forest, Plains, or Island card") parse correctly. **Done in 9.0c**: `Filter.notSubtypes`
+      (`non-<Subtype>`), `supertypes` / `notSupertypes` (`legendary` / `snow`), `notKeywords` ("without flying"),
+      `powerEQ` / `toughnessEQ` ("N/N creature"), `dealtDamageBySource` ("dealt damage by ~ this turn"), the `dies` /
+      `etb` `controller: 'opponent'`, `return-from-graveyard` `count` / `optional` (Life from the Loam is pinned again
+      in test/staples.test.ts), "target A and target B" as a `multi` spec (9 cards), 'All creatures have "…"' (5),
+      `typesAll` for adjacent type words ("artifact creature" was an any-of list: 60 fully-parsed cards changed
+      shape, the anthem fallthrough "<type> creatures you control get +N/+N" among them).
       The built-in "you may *sentence*" also wraps its op in a `may` now (ops with no `optional` form of their own;
       permissions such as `play-exiled` excepted), so a declined "may" no longer acts.
     * `~ gains "(.+)"` and the four line-loop condition slots still consult the registry in the built-ins-only
@@ -205,17 +270,21 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     either (only a sacrifice cost does), so "sacrifice another creature. You gain X life …, where X is that
     creature's power" (Disciple of Bolas, Heart-Piercer Manticore) is unparsed; "Untap all creatures you control.
     Those creatures get +1/+1" (Gideon, Martial Paragon: `untap all-you-control` names no set) and "Look at the top
-    card of your library. You may exile that card" (Puresight Merrow: `look-top` binds nothing) likewise. Six
-    one-line `noteAffected` calls in game.ts (`counter`, `sacrifice`, `look-top`, `pump`, `grant-keyword`,
-    `counters`, `untap`, `gain-control`) would let the parser drop the `bind` / `for-each` repairs again (9.1, with a
-    scenario each). Also: `scoped target-player` asks for a `player`, so "target opponent
-    …" may target yourself (the older `who: 'target-player'` ops have the same latitude) — since the 9.0b review the
-    composition family declines "target opponent" as a scope until `ScopeWho` has `target-opponent` and `legal.ts`
-    offers only opponents for it (Sphinx of Enlightenment, Chimney Imp, Archive Trap, Questing Phelddagrif …); an `optional-pay` of
-    `{X}` (Relentless Dead) has no way to choose X; "Boast — {1}{B}: …" parses as a plain activated ability once the
-    reminder text is stripped (Varragoth, Bloodsky Sire) — the boast restriction is a 9.2 keyword family; a
-    `unless-pays` for "you may draw a card unless that player pays {4}" needs a `ScopeWho` for the item's controller
-    (Rhystic Study, Mystic Remora — declined today).
+    card of your library. You may exile that card" (Puresight Merrow: `look-top` binds nothing) likewise.
+    **Done in 9.0c**: `noteAffected` in `pump`, `grant-keyword`, `counters`, `untap` (with the new
+    `'creatures-you-control'` target word — "untap all creatures you control" untapped every permanent before),
+    `untap-all`, `gain-control`, `sacrifice` (values taken before they leave), `look-top` and `counter` (the targeted
+    spell with the controller and mana value it had on the stack, X included; `objs(refs, true)` / `bind from
+    targets` read a `stack` ref as the spell's card); the parser's `BINDING_OPS` grew accordingly and the `bind` /
+    `for-each` repairs are gone from 201 fully-parsed cards (Slave of Bolas, Snakeskin Veil, Spidery Grasp, Gleam of
+    Resistance, Savage Offensive …); the counterspells, Disciple of Bolas, Heart-Piercer Manticore, Puresight
+    Merrow and Gideon each have a scenario in test/scenarios/composition-cards.ts. `ScopeWho` has `target-opponent`
+    (`ownTargetSpecs` emits `{ kind: 'opponent' }`; Sphinx of Enlightenment, Chimney Imp, Questing Phelddagrif,
+    Soldevi Heretic … parse; Archive Trap still has its alternative-cost line) and `owner-of-that`; `unless-pays`
+    has `otherwiseAs: 'controller'` (Rhystic Study; Mystic Remora too since the review fixes gave `parseTrigger`
+    the "whenever an opponent casts a noncreature / <filter> spell" head). Still open: an `optional-pay` of `{X}`
+    (Relentless Dead) has no way to choose X; "Boast — {1}{B}: …" parses as a plain activated ability once the
+    reminder text is stripped (Varragoth, Bloodsky Sire) — the boast restriction is a 9.2 keyword family.
     **Closed by the orchestrator after the second fix round (9.0b re-review 2):** a plain trigger puts only
     `triggeringId` on its stack item, never `item.affected`, so `triggerBody` and `parseGrantedAbility` now put a
     `bind … from 'triggering'` before EVERY complete non-self body that reads the frame (built-in parses included),
@@ -223,6 +292,43 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     ("this creature gets +1/+1 until end of turn. Untap it." → `untap self`, Blistercoil Weird; pinned in
     test/parser-composition.test.ts and test/scenarios/composition-cards.ts). `those` / player / count words after
     a source-only sentence still fall back to the frame rules.
+24. **Left open by 9.0c** (each is a small, separate change): (a) an amount never introduces a target — "draw a card
+    for each tapped creature target opponent controls" (Theft of Dreams) stays declined; `ownTargetSpecs` would have
+    to scan amount `of` / `who` fields and the parser's `objectSet` would have to emit `who: 'target-opponent'` (11
+    cards). (b) `Filter.equipped` / `kicked` / `transformed` are answered by `matchesFilter` and unit-tested, but
+    only `enchanted` / `modified` / `monocolored` / `historic` have a scenario; "equipped creature" lines (467
+    cards) are Equipment statics / triggers about the equipped creature, not filters, and belong to an Equipment
+    family — the review fixes took the "whenever equipped / enchanted creature dies" head (`Filter.attachedToSource`,
+    Skullclamp's scenario); "whenever equipped creature attacks / deals combat damage" and the rest stay declined. (c) "the number of <counter> counters on it / that creature" (a counter count on a bound object) has no
+    amount form. (d) "It deals that much damage to each other opponent" (Super State's trigger) needs an "each
+    other opponent" damage word; the trigger amount (`TriggerCtx.amount` → `item.lastAmount`) is set for
+    `deals-damage` (damage to a creature or a player), `combat-damage-player`, `life-gain` and `life-loss-opponent`
+    (the review fixes), and the parser declines a "that many" under any other trigger (`feedThatMany`). (e) "Exile all multicolored permanents" and
+    "Destroy each creature dealt damage by ~ this turn" have the filter field but no "<verb> all / each <filter>
+    permanents" template. (f) `STATIC_MAGNITUDE_RULES` in src/cards/scripts.ts (8c's file) has no entry for the
+    `set-pt` static — a `set-pt` 0/0 is not dead (the creature dies), so none is needed, but 8c's renderer should
+    print it. (g) `target-opponent` on `exchange` sides and `move.controller` is accepted by the types and asked for
+    on cast but has no parser wording yet. (h) The Dauntless Unity fold ("… those creatures get +2/+1 instead")
+    still iterates the set with a `for-each` because the pump it refers to runs after it in document order; every
+    other group reference is a plain `those` now. (i) `TargetSpec.count: 'X'` on an ACTIVATED ability reads 0 (an
+    activation carries no X today), so "destroy up to X target artifacts" on an ability targets nothing.
+25. **Left open by the 9.0c review fixes**: (a) `src/verify/sandbox.ts` (8c's file) seeds no graveyard, so a spell
+    whose only effect is a targeted `return-from-graveyard` (Raise Dead, Morbid Plunder, Life from the Loam …) is
+    "unreachable" for `verify:pool` now that it is a real target requirement (544 unreachable, was 473): the sandbox
+    should put a card matching the `graveyard-card` filter into the caster's graveyard. (b) "Sacrifice a creature:
+    … that many" (a sacrifice cost feeds no number), "the number of counters removed this way", and a `sacrifice`
+    op whose `amount` is "that many" (a number in the type) stay declined by `feedThatMany`. (c) A `dies` trigger
+    with `attachedToSource` on an Aura fires while the Aura is still on the battlefield (state-based actions move it
+    afterwards) — correct, but no Aura card has a scenario yet. (d) ~~The infect path of `dealDamageToPlayer` still
+    queues `life-loss-opponent`~~ — **done in the 9.0c fix round 2** (CR 120.3c: the infect branch queues only
+    `deals-damage`; two scenarios in test/scenarios/composition-cards.ts pin Exquisite Blood and Mindcrank against
+    Glistener Elf — poison counter, no life gain, no mill).
+    **Closed by the orchestrator after the second fix round (9.0c re-review 2):** "… permanent card(s) from your
+    graveyard" is a permanent-type filter (CR 110.4c; `permanentCardFilter` in composition.ts — Regenesis, Rite of
+    Renewal, Rydia's Return no longer offer an instant or sorcery card), and "~ gets +1/+0 for each other snow
+    permanent you control" counts PERMANENTS with `other: true` (`eachYouControl` in parse.ts; Spirit of the
+    Aldergard is 2/4 with two Snow-Covered Forests — the old template counted creatures and the source itself).
+    Both pinned in test/parser-composition.test.ts and test/scenarios/composition-cards.ts.
 
 ## 4. Remaining Phase 8 slices (not started)
 

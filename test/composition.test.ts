@@ -3,16 +3,16 @@
 // behavioural side (one scenario per op / Ref / amount form / delayed-trigger point / who scope).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { evalAmount, findObject, keywords, abilitiesOf, power, toughness, hasKeyword } from '../src/engine/characteristics.js';
+import { evalAmount, findObject, keywords, abilitiesOf, power, toughness, hasKeyword, matchesFilter, stackManaValue } from '../src/engine/characteristics.js';
 import { cloneState } from '../src/engine/clone.js';
 import { collectDefs, deserializeState, serializeState } from '../src/engine/serialize.js';
 import { redact } from '../src/engine/view.js';
 import { boundZoneOf, isRef, itemTargets, objectsIn, resolveOnePlayer, resolveRef, resolveWho, type RefCtx } from '../src/engine/refs.js';
-import { childIndex, LIST_LIMIT, NESTING_LIMIT, ownTargetSpecs, targetingEffects } from '../src/engine/legal.js';
+import { childIndex, LIST_LIMIT, NESTING_LIMIT, ownTargetSpecs, specCount, targetOptionsFor, targetingEffects } from '../src/engine/legal.js';
 import { defaultAnswer } from '../src/engine/agents/defaults.js';
 import type { StackItem } from '../src/engine/state.js';
-import type { Amount, Effect } from '../src/cards/types.js';
-import { AmountSchema, EffectSchema, TargetSpecSchema } from '../src/cards/schema.js';
+import type { Amount, CardType, Effect, Filter, TargetSpec } from '../src/cards/types.js';
+import { AmountSchema, EffectSchema, FilterSchema, StaticEffectSchema, TargetSpecSchema, TriggerEventSchema } from '../src/cards/schema.js';
 import { runScenario, type Scenario } from './scenarios/dsl.js';
 import { find, setup } from './helpers.js';
 
@@ -45,6 +45,29 @@ test('resolveRef: self, that, those, triggering, target:<i>, sacrificed and exil
   assert.equal(boundZoneOf(item, bears), undefined);
   assert.deepEqual(itemTargets(item).length, 2);
   assert.ok(isRef('that') && isRef('target:3') && !isRef('all-creatures') && !isRef('creatures-you-control'));
+});
+
+test('9.0c review fixes: Filter.attachedToSource, a targeted return-from-graveyard is a real target requirement, ext hygiene', async () => {
+  // "Whenever equipped creature dies" (Skullclamp): the creature the source is attached to (CR 702.6a), nothing else
+  const g = setup({ bf: ['Grizzly Bears', 'Hill Giant', 'Short Sword'] }, {});
+  const bears = find(g, 'Grizzly Bears', 0), giant = find(g, 'Hill Giant', 0), sword = find(g, 'Short Sword', 0);
+  g.attach(sword, bears);
+  assert.equal(matchesFilter(g.state, bears, { attachedToSource: true }, sword), true);
+  assert.equal(matchesFilter(g.state, giant, { attachedToSource: true }, sword), false);
+  assert.equal(matchesFilter(g.state, bears, { attachedToSource: true }), false, 'no source, no host');
+  assert.equal(matchesFilter(g.state, bears, { equipped: true }), true, '"an equipped creature" is the older flag: any creature carrying Equipment');
+  // "Return up to two target creature cards from your graveyard to your hand" targets on cast (CR 115.1); the untargeted form still chooses on resolution
+  assert.deepEqual(ownTargetSpecs({ op: 'return-from-graveyard', what: { types: ['Creature'] }, to: 'hand', target: true, count: 2, optional: true }),
+    [{ kind: 'graveyard-card', filter: { types: ['Creature'] }, who: 'you', count: 2, optional: true }]);
+  assert.deepEqual(ownTargetSpecs({ op: 'return-from-graveyard', what: { types: ['Creature'] }, to: 'battlefield', target: true, anyGraveyard: true }), [{ kind: 'graveyard-card', filter: { types: ['Creature'] } }]);
+  assert.deepEqual(ownTargetSpecs({ op: 'return-from-graveyard', what: { types: ['Creature'] }, to: 'hand' }), []);
+  // the per-turn damage record leaves no empty bag behind at cleanup, and none on a card in the graveyard
+  const run = await runScenario({ name: 'damagedBy hygiene', cr: '400.7', seats: [{ bf: ['Grizzly Bears'] }, { bf: ['Hill Giant'] }],
+    script: [{ attack: ['Grizzly Bears'], blocks: [['Hill Giant', 'Grizzly Bears']] }, { resolve: true }, { sba: true }, { turns: 1 }], expect: [{ zone: ['Grizzly Bears', 'graveyard'] }] });
+  assert.deepEqual(run.failures, []);
+  const s = run.game.state;
+  assert.equal(s.players.flatMap(p => p.battlefield).find(o => o.def.name === 'Hill Giant')!.ext, undefined, 'the survivor has no bag once the record is wiped');
+  assert.equal(s.players.flatMap(p => p.graveyard).find(o => o.def.name === 'Grizzly Bears')!.ext?.damagedBy, undefined, 'the dead creature carries no record');
 });
 
 test('resolveRef: enchanted / equipped follow the attachment, and a binding survives the object moving to a public zone', () => {
@@ -235,7 +258,7 @@ test('the lost / setPT entries end when the object leaves the battlefield or whe
   const s = g.state; const bears = find(g, 'Grizzly Bears', 0);
   (bears.ext ??= {}).setPT = { power: 7, toughness: 7 }; bears.ext.lost = { keywords: ['flying'] };
   g.moveTo(bears, 'hand');
-  assert.equal(bears.ext.setPT, undefined); assert.equal(bears.ext.lost, undefined);
+  assert.equal(bears.ext, undefined, 'the entries end with the bag itself (ops/ext.ts extDel: an empty bag is deleted)');
   const sc: Scenario = {
     name: 'eot wipe', cr: '514.2',
     seats: [{ bf: ['Grizzly Bears', 'Wind Drake'] }, {}],
@@ -282,4 +305,149 @@ test('the default answers for the new decisions take the optional action and pay
   const g = setup({}, {});
   assert.equal(defaultAnswer(g.state, 0, { kind: 'may', prompt: 'x', source: 'y' }), true);
   assert.equal(defaultAnswer(g.state, 0, { kind: 'unless-pays', prompt: 'x', cost: '{2}', source: 'y' }), true);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// 9.0c: filter fields, scopes, aggregate amounts, last known information, target counts, and the round-trips of the
+// new frame / ext state (item.lastAmount, ext.damagedBy, affected[].lastKnown.owner)
+// ---------------------------------------------------------------------------------------------------------------
+test('matchesFilter: the 9.0c fields — notSubtypes, supertypes, notKeywords, exact P/T, typesAll, adjectives, dealtDamageBySource', () => {
+  const g = setup({ bf: ['Grizzly Bears', 'Serra Angel', 'Isamaru, Hound of Konda', 'Ornithopter', 'Hill Giant'] }, { bf: ['Wind Drake'] });
+  const s = g.state;
+  const bears = find(g, 'Grizzly Bears', 0), angel = find(g, 'Serra Angel', 0), isamaru = find(g, 'Isamaru, Hound of Konda', 0), thopter = find(g, 'Ornithopter', 0), giant = find(g, 'Hill Giant', 0), drake = find(g, 'Wind Drake', 1);
+  const m = (o: ReturnType<typeof find>, f: Filter, src?: ReturnType<typeof find>) => matchesFilter(s, o, f, src);
+  assert.equal(m(bears, { notSubtypes: ['Angel'] }), true); assert.equal(m(angel, { notSubtypes: ['Angel'] }), false);
+  assert.equal(m(isamaru, { supertypes: ['Legendary'] }), true); assert.equal(m(bears, { supertypes: ['Legendary'] }), false);
+  assert.equal(m(bears, { notSupertypes: ['Legendary'] }), true); assert.equal(m(isamaru, { notSupertypes: ['Legendary'] }), false);
+  assert.equal(m(bears, { notKeywords: ['flying'] }), true); assert.equal(m(drake, { notKeywords: ['flying'] }), false); assert.equal(m(angel, { notKeywords: ['flying', 'trample'] }), false);
+  assert.equal(m(giant, { powerEQ: 3, toughnessEQ: 3 }), true); assert.equal(m(bears, { powerEQ: 3 }), false); assert.equal(m(giant, { toughnessGE: 3 }), true); assert.equal(m(bears, { toughnessGE: 3 }), false);
+  assert.equal(m(thopter, { types: ['Artifact', 'Creature'], typesAll: true }), true); assert.equal(m(bears, { types: ['Artifact', 'Creature'], typesAll: true }), false);
+  assert.equal(m(bears, { types: ['Artifact', 'Creature'] }), true, 'without typesAll a type list is any-of, as before');
+  assert.equal(m(isamaru, { historic: true }), true); assert.equal(m(thopter, { historic: true }), true); assert.equal(m(bears, { historic: true }), false);
+  assert.equal(m(bears, { monocolored: true }), true); assert.equal(m(thopter, { monocolored: true }), false); assert.equal(m(bears, { multicolored: true }), false);
+  // kicked / transformed read the object's cast record and face
+  assert.equal(m(giant, { kicked: true }), false); giant.castWith = { kicked: true }; assert.equal(m(giant, { kicked: true }), true);
+  assert.equal(m(giant, { transformed: true }), false); giant.transformed = true; assert.equal(m(giant, { transformed: true }), true); giant.transformed = false;
+  // enchanted / equipped / modified: an attached Aura or Equipment, or a counter
+  assert.equal(m(bears, { enchanted: true }), false); assert.equal(m(bears, { equipped: true }), false); assert.equal(m(bears, { modified: true }), false);
+  bears.counters['+1/+1'] = 1; assert.equal(m(bears, { modified: true }), true); delete bears.counters['+1/+1'];
+  // dealtDamageBySource: the per-turn record the engine keeps when damage is dealt
+  assert.equal(m(giant, { dealtDamageBySource: true }, bears), false);
+  g.dealDamage(bears, giant, 1);
+  assert.equal(m(giant, { dealtDamageBySource: true }, bears), true, 'the source that dealt the damage');
+  assert.equal(m(giant, { dealtDamageBySource: true }, angel), false, 'not another source');
+  assert.equal(m(giant, { dealtDamageBySource: true }), false, 'no source, no match');
+  assert.deepEqual(giant.ext?.damagedBy, { turn: s.turn, by: [bears.id] });
+  g.dealDamage(bears, giant, 1);
+  assert.deepEqual(giant.ext?.damagedBy, { turn: s.turn, by: [bears.id] }, 'one entry per source');
+});
+
+test("resolveOnePlayer: 'target-opponent' is the first player target; 'owner-of-that' is the owner of that", () => {
+  const g = setup({ bf: ['Grizzly Bears'] }, { bf: ['Hill Giant'] });
+  const bears = find(g, 'Grizzly Bears', 0), giant = find(g, 'Hill Giant', 1);
+  g.changeControl(giant, 0);
+  const item = itemFor(g, bears);
+  item.targetsByEffect.set(0, [{ kind: 'player', id: 1 }]);
+  item.affected = [{ id: giant.id, lastKnown: { power: 3, toughness: 3, controller: 0, manaValue: 4, zone: 'battlefield', owner: 1 } }];
+  const rc = ctxOf(g, item);
+  assert.equal(resolveOnePlayer(rc, 'target-opponent'), 1);
+  assert.equal(resolveOnePlayer(rc, 'controller-of-that'), 0, 'the stolen creature is controlled by you');
+  assert.equal(resolveOnePlayer(rc, 'owner-of-that'), 1, 'but owned by the opponent');
+  assert.deepEqual(resolveWho(rc, 'target-opponent'), [1]); assert.deepEqual(resolveWho(rc, 'owner-of-that'), [1]);
+  g.moveTo(giant, 'graveyard');
+  assert.equal(resolveOnePlayer(rc, 'owner-of-that'), 1, 'wherever it is now');
+  item.affected = [{ id: 999999, lastKnown: { power: 0, toughness: 0, controller: 0, manaValue: 0, owner: 1 } }];
+  assert.equal(resolveOnePlayer(rc, 'owner-of-that'), 1, 'an object that has ceased to exist answers with the owner it was bound with');
+  // ownTargetSpecs asks for an opponent, never any player, for the opponent-only scope
+  assert.deepEqual(ownTargetSpecs({ op: 'scoped', who: 'target-opponent', do: [] }), [{ kind: 'opponent' }]);
+  assert.deepEqual(ownTargetSpecs({ op: 'unless-pays', who: 'target-opponent', cost: {}, otherwise: [] }), [{ kind: 'opponent' }]);
+  assert.deepEqual(ownTargetSpecs({ op: 'for-each', over: { who: 'target-opponent' }, do: [] }), [{ kind: 'opponent' }]);
+  assert.deepEqual(ownTargetSpecs({ op: 'move', what: 'that', to: 'battlefield', controller: 'target-opponent' } as Effect), [{ kind: 'opponent' }]);
+  assert.deepEqual(ownTargetSpecs({ op: 'scoped', who: 'owner-of-that', do: [] }), [], 'owner-of-that reads the frame, it targets nothing');
+});
+
+test('evalAmount: aggregates over an object set, "that many" from the frame, and last known information', () => {
+  const g = setup({ bf: ['Grizzly Bears', 'Hill Giant', 'Mountain'] }, { bf: ['Runeclaw Bear'] });
+  const s = g.state; const bears = find(g, 'Grizzly Bears', 0), giant = find(g, 'Hill Giant', 0);
+  const item = itemFor(g, bears); const rc = ctxOf(g, item);
+  const ev = (a: Amount) => evalAmount(s, a, 0, 2, bears, { refs: rc });
+  const mine = { types: ['Creature'] as CardType[], who: 'you' as const };
+  assert.equal(ev({ prop: 'power', agg: 'max', over: mine }), 3);
+  assert.equal(ev({ prop: 'power', agg: 'min', over: mine }), 2);
+  assert.equal(ev({ prop: 'toughness', agg: 'sum', over: mine }), 5);
+  assert.equal(ev({ prop: 'mv', agg: 'max', over: { who: 'you' } }), 4, 'every permanent you control: the Giant');
+  assert.equal(ev({ prop: 'power', agg: 'sum', over: { types: ['Creature'] } }), 7, 'no who: every player');
+  assert.equal(ev({ prop: 'power', agg: 'max', over: { types: ['Planeswalker'] } }), 0, 'an empty set is 0');
+  assert.equal(ev({ prop: 'power', agg: 'max', over: mine, times: 2, plus: 1 }), 7, 'the modifiers apply as on every form');
+  assert.equal(evalAmount(s, { prop: 'power', agg: 'max', over: mine }, 0, 0, bears), 3, 'with no frame the set is read from the controller');
+  // "that many": the last amount the item evaluated
+  assert.equal(ev({ count: 'that-many' }), 0);
+  item.lastAmount = 4; assert.equal(ev({ count: 'that-many' }), 4); assert.equal(ev({ count: 'that-many', plus: 1 }), 5);
+  assert.equal(evalAmount(s, { count: 'that-many' }, 0, 0, bears, { thatMany: 9, refs: rc }), 9, 'a trigger-supplied amount still wins');
+  // last known information: power-of-source once the source has left; a prop of a bound object that has left
+  giant.eotPower = 2;
+  item.affected = [{ id: giant.id, lastKnown: { power: 5, toughness: 3, controller: 0, manaValue: 4, zone: 'battlefield' } }];
+  assert.equal(evalAmount(s, { count: 'power-of-source' }, 0, 0, giant), 5);
+  g.moveTo(giant, 'graveyard');
+  assert.equal(evalAmount(s, { count: 'power-of-source' }, 0, 0, giant), 5, 'the pumped power it had when it left (moveTo snapshot)');
+  assert.equal(ev({ prop: 'power', of: 'that' }), 5);
+  assert.equal(ev({ prop: 'mv', of: 'that' }), 4);
+  // a spell on the stack: its mana value counts X, and the frame keeps it once it has left the stack
+  const bolt = s.players[0].library[0]; g.moveTo(bolt, 'hand');
+  const spell = g.makeStackItem('spell', bolt, 0, [], 'spell', 3, undefined, 'spell'); bolt.zone = 'stack'; s.stack.push(spell);
+  assert.equal(stackManaValue(s, bolt), bolt.def.manaValue + (bolt.def.manaCost?.x ?? 0) * 3);
+  item.affected = [{ id: bolt.id, lastKnown: { power: 0, toughness: 0, controller: 0, manaValue: 9, zone: 'stack' } }];
+  s.stack.pop(); g.moveTo(bolt, 'graveyard');
+  assert.equal(ev({ prop: 'mv', of: 'that' }), 9, 'the mana value recorded when the spell was bound on the stack');
+});
+
+test("specCount: a target count of 'X' is the item's X; targetOptionsFor honours a graveyard-card spec's who", () => {
+  assert.equal(specCount({ kind: 'creature' }, 3), 1); assert.equal(specCount({ kind: 'creature', count: 2 }, 3), 2); assert.equal(specCount({ kind: 'creature', count: 'X' }, 3), 3); assert.equal(specCount({ kind: 'creature', count: 'X' }, 0), 0);
+  const g = setup({ bf: ['Grizzly Bears'] }, {});
+  const s = g.state; const bears = find(g, 'Grizzly Bears', 0);
+  const mine = s.players[0].library[0], theirs = s.players[1].library[0]; g.moveTo(mine, 'graveyard'); g.moveTo(theirs, 'graveyard');
+  const ids = (spec: TargetSpec) => targetOptionsFor(g, 0, spec, bears).map(r => r.id).sort((a, b) => a - b);
+  assert.deepEqual(ids({ kind: 'graveyard-card' }), [mine.id, theirs.id].sort((a, b) => a - b));
+  assert.deepEqual(ids({ kind: 'graveyard-card', who: 'you' }), [mine.id]);
+  assert.deepEqual(ids({ kind: 'graveyard-card', who: 'opponent' }), [theirs.id]);
+  assert.deepEqual(targetOptionsFor(g, 0, { kind: 'opponent' }, bears), [{ kind: 'player', id: 1 }], 'the opponent-only kind the target-opponent scope asks for');
+});
+
+test('9.0c frame state round-trips: item.lastAmount, affected owner, ext.damagedBy through clone and serialize; the damage record ends with the turn', async () => {
+  const g = setup({ bf: ['Grizzly Bears', 'Hill Giant'] }, {});
+  const s = g.state; const bears = find(g, 'Grizzly Bears', 0), giant = find(g, 'Hill Giant', 0);
+  g.dealDamage(bears, giant, 1);
+  const item = g.makeStackItem('ability', bears, 0, [], 'x', 0, undefined, 'x');
+  item.lastAmount = 7; item.affected = [{ id: giant.id, lastKnown: { power: 3, toughness: 3, controller: 0, manaValue: 4, zone: 'battlefield', owner: 0 } }];
+  s.stack.push(item);
+  const check = (c: typeof s, label: string) => {
+    assert.equal(c.stack[0].lastAmount, 7, `${label}: lastAmount`);
+    assert.equal(c.stack[0].affected?.[0].lastKnown.owner, 0, `${label}: owner`);
+    assert.deepEqual(findObject(c, giant.id)!.ext?.damagedBy, { turn: s.turn, by: [bears.id] }, `${label}: damagedBy`);
+  };
+  const c = cloneState(s); check(c, 'clone');
+  (c.stack[0].affected![0].lastKnown as { owner?: number }).owner = 1; assert.equal(item.affected![0].lastKnown.owner, 0, 'clone copies the entry');
+  check(deserializeState(JSON.parse(JSON.stringify(serializeState(s))), collectDefs(s)), 'serialize');
+  s.stack.pop();
+  await g.resumeTurn();                                                           // through this turn's cleanup
+  assert.equal(giant.ext?.damagedBy, undefined, 'the per-turn record is wiped at cleanup');
+});
+
+test('the schema accepts the 9.0c shapes and rejects the malformed ones', () => {
+  const ok = (v: unknown, schema: { safeParse(v: unknown): { success: boolean } } = EffectSchema) => assert.ok(schema.safeParse(v).success, JSON.stringify(v));
+  const bad = (v: unknown, schema: { safeParse(v: unknown): { success: boolean } } = EffectSchema) => assert.ok(!schema.safeParse(v).success, `accepted: ${JSON.stringify(v)}`);
+  ok({ op: 'scoped', who: 'target-opponent', do: [] }); ok({ op: 'scoped', who: 'owner-of-that', do: [] });
+  ok({ op: 'unless-pays', who: 'that-player', cost: {}, otherwise: [], otherwiseAs: 'controller' }); bad({ op: 'unless-pays', who: 'that-player', cost: {}, otherwise: [], otherwiseAs: 'payer' });
+  ok({ op: 'return-from-graveyard', what: {}, to: 'hand', target: true, count: 3, optional: true });
+  ok({ op: 'scry', amount: { count: 'creatures-you-control' } }); ok({ op: 'surveil', amount: 'X' });
+  ok({ op: 'untap', target: 'creatures-you-control' });
+  ok({ prop: 'power', agg: 'max', over: { types: ['Creature'], who: 'you' } }, AmountSchema);
+  bad({ prop: 'power', agg: 'max' }, AmountSchema); bad({ prop: 'power', over: {} }, AmountSchema); bad({ prop: 'life', agg: 'sum', over: {} }, AmountSchema); bad({ prop: 'power', of: 'that', agg: 'max', over: {} }, AmountSchema);
+  ok({ count: 'that-many' }, AmountSchema);
+  ok({ kind: 'creature', count: 'X', optional: true }, TargetSpecSchema); bad({ kind: 'creature', count: 'Y' }, TargetSpecSchema);
+  ok({ kind: 'graveyard-card', who: 'opponent' }, TargetSpecSchema); bad({ kind: 'creature', who: 'opponent' }, TargetSpecSchema);
+  ok({ kind: 'set-pt', power: 9, toughness: 9, scope: 'enchanted', keywords: ['flying'] }, StaticEffectSchema); bad({ kind: 'set-pt', power: 9, scope: 'enchanted' }, StaticEffectSchema);
+  ok({ on: 'dies', self: false, filter: { types: ['Creature'] }, controller: 'opponent' }, TriggerEventSchema);
+  for (const f of [{ notSubtypes: ['Angel'] }, { supertypes: ['Legendary'] }, { notSupertypes: ['Snow'] }, { notKeywords: ['flying'] }, { powerEQ: 1, toughnessEQ: 1 }, { toughnessGE: 4 }, { typesAll: true, types: ['Artifact', 'Creature'] }, { historic: true }, { multicolored: true }, { monocolored: true }, { kicked: true }, { transformed: true }, { enchanted: true }, { equipped: true }, { modified: true }, { dealtDamageBySource: true }]) ok(f, FilterSchema);
+  bad({ typesAll: false }, FilterSchema);
 });

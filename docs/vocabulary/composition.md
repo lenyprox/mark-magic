@@ -21,7 +21,8 @@ A resolving spell or ability carries one **binding frame** on its stack item:
 
 | field | set by | read as |
 |---|---|---|
-| `item.affected` | every op that touches objects (`noteAffected`), a `for-each` iteration, a `bind`, a delayed trigger's `bind` | `that` (the first entry), `those` (all of them) |
+| `item.affected` | every op that touches objects (`noteAffected`: destroy, exile, damage, tap, bounce, token, search, move, return-from-graveyard — and since 9.0c pump, grant-keyword, counters, untap / untap-all, gain-control, sacrifice, look-top, counter), a `for-each` iteration, a `bind`, a delayed trigger's `bind` | `that` (the first entry), `those` (all of them) |
+| `item.lastAmount` | every amount the item evaluates (`amt`), a `discard` of a whole hand, the cards a `return-from-graveyard` returned, the counters a `removeCounters` cost took (`all` takes every one), and the number a trigger's event was about (`TriggerCtx.amount`: damage dealt — to a creature or a player — life gained, life an opponent lost) | `{ count: 'that-many' }` ("draw that many cards") |
 | `item.targetsByEffect` | the targets chosen on cast / activation / trigger | `target:<i>`, `target-player` |
 | `item.triggeringId` / `item.triggeringPlayer` | the trigger that created the item | `triggering`, `that-player` |
 | `item.sacrificed` | `payCost` (a `sacrifice` or `sacrificeSelf` cost part) | `sacrificed` |
@@ -42,11 +43,16 @@ type Ref = 'self' | 'that' | 'those' | 'triggering' | `target:${number}` | 'ench
 | `triggering` | the object the trigger was about (the spell cast, the creature that died, the card drawn …) | empty for a spell |
 | `target:<i>` | the i-th target of the whole item in printed order — every target group, `multi` parts included, nested containers between their neighbours | `target:0` is the first thing the card says "target" about |
 | `enchanted` / `equipped` | the permanent the source is attached to | the same lookup; use the word the card uses |
-| `sacrificed` | the objects sacrificed to pay this item's cost | "sacrifice ~" counts as the source itself |
+| `sacrificed` | the objects sacrificed to pay this item's cost | "sacrifice ~" counts as the source itself; the sacrifice **op** binds what it sacrificed as `that` / `those` instead (values taken before they leave) |
 | `exiled-with` | the cards exiled with the source | imprint, delve, "exile … until ~ leaves" |
 
 An effect whose `target` is a Ref (see §4, "existing ops that take a Ref") acts on the objects the Ref resolves to and
 needs no target chosen on cast.
+
+**A spell target is an object too (9.0c).** `target:<i>` and `bind from targets` read a `stack` TargetRef as the spell's
+card, so "Counter target spell. Its controller draws a card." works: `counter` binds the targeted spell (countered or
+not) with the **controller and mana value it had on the stack** — X included (CR 202.3b) — and `controller-of-that`,
+`prop: 'mv', of: 'that'` and the older `mv-of-that` read those last known values once the card has left the stack.
 
 **Objects that changed zones (CR 400.7).** A binding records the zone the object was bound in
 (`affected[].lastKnown.zone`). `resolveRef` returns the object wherever it now is; each op decides whether the
@@ -64,7 +70,7 @@ binding survived:
 ### `ScopeWho`
 
 ```ts
-type ScopeWho = 'you' | 'each-player' | 'each-opponent' | 'target-player' | 'that-player' | 'controller-of-that';
+type ScopeWho = 'you' | 'each-player' | 'each-opponent' | 'target-player' | 'target-opponent' | 'that-player' | 'controller-of-that' | 'owner-of-that';
 ```
 
 | word | player(s) |
@@ -73,8 +79,10 @@ type ScopeWho = 'you' | 'each-player' | 'each-opponent' | 'target-player' | 'tha
 | `each-player` | every player still in the game, **APNAP order** — the active player first, then turn order (CR 101.4, 608.2f) |
 | `each-opponent` | the acting player's opponents, in the same order |
 | `target-player` | the first player among the effect's own targets, else the first player target of the item |
+| `target-opponent` | the same player, but the requirement `ownTargetSpecs` emits for it is `{ kind: 'opponent' }`: src/engine/legal.ts offers only opponents, so "target opponent draws a card" can never be aimed at its own controller (9.0c) |
 | `that-player` | the player the trigger was about (`item.triggeringPlayer`), else the controller of `that`, else the first player target — the fallbacks the older `draw` / `mill` / `poison` ops use |
 | `controller-of-that` | the controller of `that` (its current controller while it is on the battlefield, else the controller it had when bound) |
+| `owner-of-that` | the owner of `that` ("the exiled card's owner creates …"), wherever it is now; the owner it was bound with once it has ceased to exist (9.0c) |
 
 Eliminated players are never in the list.
 
@@ -89,6 +97,7 @@ interface AmountExpr {
   max?: number | Amount[];                  // with `count`: a cap; on its own (a list): the largest of the listed amounts
   diff?: [Amount, Amount]; sum?: Amount[]; min?: Amount[];
   prop?: 'power' | 'toughness' | 'mv' | 'life' | 'cards-in-hand'; of?: Ref | 'you' | 'that-player' | 'target-player';
+  agg?: 'max' | 'sum' | 'min'; over?: ObjectSet;   // 9.0c: the prop aggregated over a set instead of one Ref
 }
 ```
 
@@ -104,6 +113,12 @@ the schema and the structural gate require **exactly one** of `count`, `diff`, `
 | `sum: [...]` / `max: [...]` / `min: [...]` | over the listed amounts (an empty list is 0) | |
 | `prop: 'power' \| 'toughness' \| 'mv'`, `of: <Ref>` | the characteristic of the Ref's first object; last known values once it has left the battlefield | 608.2h |
 | `prop: 'life' \| 'cards-in-hand'`, `of: 'you' \| 'that-player' \| 'target-player' \| 'self'` | the player's life total / hand size (`self` = the source's controller) | |
+| `prop: 'power' \| 'toughness' \| 'mv'`, `agg: 'max' \| 'sum' \| 'min'`, `over: ObjectSet` (no `of`) | "the greatest power among creatures you control", "the total power of …", the least; an empty set is 0; `over` is read like a `for-each` set (default battlefield, every player) | 9.0c |
+| `count: 'that-many'` | the last amount this item evaluated (`item.lastAmount`; a `discard` of a whole hand records how many went): "discard your hand, then draw that many cards"; a trigger-supplied `thatMany` still wins. **The parser only keeps it where something feeds it** (parse.ts `feedThatMany`): an amount-evaluating op earlier in the same item, a trigger about a damage / life amount (`deals-damage`, `combat-damage-player`, `life-gain`, `life-loss-opponent`) or a cost that removed counters; any other reading makes its line unparsed rather than a silent 0 | 9.0c |
+
+**Last known information (9.0c).** `power-of-source` and a `prop` of an object that has left the battlefield read the
+values it had when it left (`moveTo`'s snapshot: Mortis Dogs' death trigger sees the +2/+0 it gave itself when it
+attacked), else the values the binding frame recorded when it was bound (a countered spell's mana value with its X).
 
 Every sub-amount may itself be any form: `{ sum: [{ diff: [{ prop: 'life', of: 'you' }, 'X'] }, { min: [1, 2] }] }`.
 `X` is the item's X. Existing amounts (`number`, `'X'`, `{ count, filter, plus, times, counter }`) are unchanged.
@@ -127,8 +142,12 @@ same reason. Use the frame-bound words only in an effect list.
 ## 3. Targets: `multi`
 
 ```ts
-interface TargetSpec { kind: CoreTargetKind | 'multi' | …; specs?: TargetSpec[]; /* … */ }
+interface TargetSpec { kind: CoreTargetKind | 'multi' | …; specs?: TargetSpec[]; count?: number | 'X'; who?: 'you' | 'opponent'; /* … */ }
 ```
+
+`count: 'X'` is "up to X target creatures": the item's X (chosen before targets, CR 601.2b) is the number of picks
+(`specCount`, src/engine/legal.ts). `who` on a `graveyard-card` spec is whose graveyard ("from your graveyard", "from an
+opponent's graveyard"); absent, any graveyard. Both since 9.0c.
 
 `{ kind: 'multi', specs: [A, B, …] }` is several independent instances of the word "target" on one effect ("target
 creature and target player", "target creature you control and target creature you don't control"). Each `spec` is
@@ -277,7 +296,7 @@ rollout agent; the UI shows a yes/no sheet). Yes runs `effects`; no does nothing
 ### `unless-pays` — "… unless [player] pays [cost]" (CR 118.12)
 
 ```ts
-{ op: 'unless-pays'; who: ScopeWho; cost: AbilityCost; otherwise: Effect[] }
+{ op: 'unless-pays'; who: ScopeWho; cost: AbilityCost; otherwise: Effect[]; otherwiseAs?: 'controller' }
 ```
 
 For each named player (APNAP for the `each-*` words): if the cost is payable — mana through the payment planner,
@@ -286,7 +305,11 @@ pay); paying charges the mana and pays the cost parts (`payCost`, with the **sou
 about: `sacrificeSelf` sacrifices the source, `sacrifice` asks that player for one of theirs). A player who does not
 or cannot pay gets `otherwise` applied **as `you`** (the same rebinding `scoped` does), so "each opponent discards a
 card unless they pay {1}" is `otherwise: [{ op: 'discard', who: 'you', … }]`. `{ mana: <ManaCost> }` is the usual
-cost; it is an `AbilityCost` like any other.
+cost; it is an `AbilityCost` like any other. With `otherwiseAs: 'controller'` (9.0c) the clause runs as the **item's
+controller** instead of the payer: "you may draw a card unless that player pays {4}" (Rhystic Study, Mystic Remora) is
+`may [unless-pays who: 'that-player', otherwise: [draw …], otherwiseAs: 'controller']`. A payer named by the clause's
+**own** target ("return another target creature to its owner's hand unless its controller pays {1}", Withdraw) is
+declined: `controller-of-that` would read the frame, which holds the item's first target, not that clause's.
 
 ```json
 { "op": "unless-pays", "who": "target-player", "cost": { "mana": { "generic": 2, "x": 0, "pips": [], "hybrid": [], "phyrexian": [], "raw": "{2}" } }, "otherwise": [{ "op": "discard", "amount": 1, "who": "you" }] }
@@ -431,6 +454,18 @@ is on the stack). A token source that has ceased to exist cannot fire it.
 { "op": "delayed-trigger", "at": "next-turn:upkeep", "effects": [{ "op": "draw", "amount": 1, "who": "you" }] }
 ```
 
+### The `set-pt` static (9.0c)
+
+```ts
+{ kind: 'set-pt'; power: number; toughness: number; scope: 'enchanted' | 'equipped' | 'self' | 'you-control' | 'all'; filter?: Filter; keywords?: Keyword[] }
+```
+
+"Enchanted creature has base power and toughness 9/9 and has flying, first strike, trample, and haste" (Super State) as
+a static ability: `computeStaticMods` sets `Mods.setPT` for the permanent the source is attached to (`enchanted` /
+`equipped`), the source itself (`self`), or every permanent the filter matches (`you-control` / `all`), **after** the
+`set-pt` op's ext entry, so the static reads as the later timestamp (CR 613.7); counters, +N/+N and anthems still
+apply on top (CR 613.4b), and `keywords` ride along at layer 6.
+
 ### Existing ops that take a Ref
 
 So that a bound object can be acted on with the verbs the engine already has, the `target` of these ops accepts a
@@ -439,6 +474,35 @@ So that a bound object can be acted on with the verbs the engine already has, th
 `remove-from-combat`, `double-power`, `shuffle-into-library`, `multi-counters`, `animate`. The words those ops already
 had (`'self'`, `'enchanted'`, `'that'`) mean exactly what the Ref of the same name means. `{ op: 'counters', target:
 'that', … }` inside a `for-each` is the idiom for "put a +1/+1 counter on each creature you control".
+
+Since 9.0c the older ops bind what they touched too, so a following Ref reads them: `pump` / `grant-keyword` (the
+pumped set: "Those creatures get +1/+1", "It gains haste"), `counters`, `untap` (with the new `'creatures-you-control'`
+group word) and `untap-all` (the untapped set), `gain-control` (the stolen permanent), `sacrifice` (the sacrificed
+objects, values taken before they leave — "you gain life equal to that creature's power"), `look-top` (the looked-at
+cards: "You may exile that card"; a bound card in a library is still "it" for a `move`, CR 400.7 aside, because the
+binding recorded the zone it was found in), `counter` (the targeted spell, see §1), `scry` / `surveil` take an `Amount`
+("scry X"), and `return-from-graveyard` takes `count` / `optional` ("return up to two target creature cards"). A
+`return-from-graveyard` with `target: true` is a real target requirement (legal.ts `ownTargetSpecs` emits a
+`graveyard-card` spec with its filter, `who: 'you'` unless `anyGraveyard`, `count` and `optional`): the cards are
+chosen on cast, re-checked on resolution and only those come back (CR 115.1, 608.2b) — the op never picks afresh;
+the untargeted form ("return a creature card from your graveyard") still chooses when it resolves.
+
+### Filter fields (9.0c)
+
+`Filter` (src/cards/types.ts) gained, all answered by `matchesFilter`: `notSubtypes` ("non-Angel creature"),
+`supertypes` / `notSupertypes` ("legendary", "snow", "nonlegendary"), `notKeywords` ("without flying"), `powerEQ` /
+`toughnessEQ` ("1/1 creature") and `toughnessGE`, `typesAll` (with `types`: every listed type — "artifact creature",
+"land creature"; a list with a conjunction, "artifact or creature", stays any-of), the adjective flags `kicked`
+(cast with kicker), `transformed`, `historic` (legendary, artifact or Saga), `multicolored` / `monocolored`, `enchanted`
+(an Aura is attached), `equipped`, `modified` (equipped, enchanted by its controller's Aura, or carrying a counter),
+and `dealtDamageBySource` ("creature dealt damage by ~ this turn": `dealDamage` keeps a per-turn `ext.damagedBy =
+{ turn, by: [sourceIds] }` on the damaged object, wiped at cleanup — through `extDel`, so no empty bag stays behind,
+and dropped when the object leaves the battlefield right after its leaves-the-battlefield triggers were matched). The
+review fixes added `attachedToSource`: "equipped creature" / "enchanted creature" **with no article** in the
+attaching permanent's own text is the object the source is attached to (CR 702.6a, 303.4 — Skullclamp's "whenever
+equipped creature dies"), where `equipped` / `enchanted` ("an equipped creature") mean any creature carrying an
+attachment; `moveTo` matches `dies` / `ltb` triggers before it detaches anything, so the look-back works (CR 603.10a).
+The `etb` / `dies` trigger events take `controller: 'opponent'` ("whenever a creature an opponent controls dies").
 
 ---
 
@@ -473,6 +537,9 @@ core".
 * `for-each` over players — `scoped` is the player loop.
 * Parser rules for the wordings the parser cannot read safely — see §8 "Declines"; scripts and the scenario DSL's
   `scripts` field emit those directly.
+* An amount that would introduce a target ("draw a card for each tapped creature target opponent controls"): a
+  `prop` / `objects` amount never asks for a player on cast, so `of: 'target-player'` reads a player some effect of the
+  same item already targeted.
 
 ---
 
@@ -511,8 +578,24 @@ name is `~`.
 | "Return ~ from your graveyard to the battlefield [tapped]" | `move` of `self` (parse.ts marks the activated ability `fromGraveyard`) |
 | "Destroy / exile / tap / untap / sacrifice that creature / those cards / them / each of them" (after a zone change in the same list; a bare "it" is declined) | `destroy` / `move` / `tap` / `untap` on the Ref; `remove-those` for a sacrifice |
 | "Put N *counter* counters on that creature / them / each of them"; "they / those creatures gain *keywords* / get +N/+N until end of turn"; "those creatures don't untap during their controllers' next untap steps" | `counters` / `grant-keyword` / `pump` on `that` / `those`; `no-untap-that` |
-| "*sentence with X*, where X is *amount*"; "… deals damage equal to *amount* to …", "… loses / gains life equal to …", "… draws / discards / mills cards equal to …", "put a number of counters on … equal to …", "create a number of … tokens equal to …" | the sentence's X replaced by the amount (a `-X` slot of a pump is negated: the built-in template drops the sign) |
-| amounts: "the number of *filter* you control / your opponents control / on the battlefield / in your hand / in your graveyard / in all graveyards / in exile"; "its / that creature's / the sacrificed creature's / the exiled card's / ~'s power / toughness / mana value"; "your life total", "that player's life total"; "the number of cards in your / that player's hand"; "the difference between A and B", "A plus B", "A minus N", "half A, rounded up / down", "twice A", "A plus N" | `count: 'objects'` sets, `prop`, `diff`, `sum`, `half`, `times`, `plus` (built-in named counts are kept where they answer first). "its power" is the source when the sentence is about `~`, the first target when it is about a target, declined when both are in play |
+| "*sentence with X*, where X is *amount*"; "… deals damage equal to *amount* to …", "… loses / gains life equal to …", "… draws / discards / mills cards equal to …", "put a number of counters on … equal to …", "create a number of … tokens equal to …"; "… that many cards / counters / tokens" | the sentence's X replaced by the amount (a `-X` slot is `{ sum: ['X'], times: -1 }` since PARSER_VERSION 4, so the sign survives with or without a definition); "that many" is `{ count: 'that-many' }` |
+| amounts: "the number of *filter* you control / your opponents control / on the battlefield / in your hand / in your graveyard / in all graveyards / in exile"; "its / that creature's / the sacrificed creature's / the exiled card's / ~'s power / toughness / mana value"; "your life total", "that player's life total"; "the number of cards in your / that player's hand"; "the difference between A and B", "A plus B", "A minus N", "half A, rounded up / down", "twice A", "A plus N"; "the greatest / highest / total / lowest power / toughness / mana value among / of *set*" | `count: 'objects'` sets, `prop`, `diff`, `sum`, `half`, `times`, `plus`, `agg` + `over` (built-in named counts are kept where they answer first). "its power" is the source when the sentence is about `~`, the first target when it is about a target, declined when both are in play |
+| "Target opponent *does*", "… unless target opponent pays …", "put a counter on each *filter* target opponent controls" | `scoped` / `unless-pays` / `for-each` with `who: 'target-opponent'` (9.0c) |
+| "The exiled card's owner / its owner / that card's owner *does*" | `scoped` with `who: 'owner-of-that'` |
+| "You may draw a card unless that player pays {4}" | `may` around `unless-pays` with `otherwiseAs: 'controller'` |
+| "Counter target spell. Its controller draws a card / mills three cards / creates two Treasures", "…, where X is that spell's mana value", "That spell's controller may draw a card"; "Counter target artifact, creature, or planeswalker spell" | `counter` then a `scoped controller-of-that` block / the X from `mv-of-that` (the engine binds the countered spell); a `spell` target spec with a `filter` for the comma list |
+| "Sacrifice another creature. You gain X life …, where X is that creature's power"; "Untap all creatures you control. Those creatures get +1/+1"; "Look at the top card of your library. You may exile that card"; "Gain control of target creature. Untap that creature. It gains haste" | the plain ops: `sacrifice`, `untap 'creatures-you-control'`, `look-top`, `gain-control` bind what they touched, so `that` / `those` follow without a `bind` or `for-each` repair |
+| "Return up to N target *filter* cards from your graveyard to your hand / the battlefield" | `return-from-graveyard` with `count` and `optional` |
+| "Destroy / exile / tap / untap up to X target …" | the spec's `count: 'X'` |
+| "Destroy target A and target B" (the built-in target slot) | a `multi` spec, one part per "target" (PARSER_VERSION 4) |
+| "Scry X", "you scry X", "… and you scry X, where X is …" | `scry` / `surveil` with an `Amount` |
+| "Enchanted creature has base power and toughness N/N [and has *keywords*]" (a static line) | the `set-pt` static |
+| 'All creatures have "…"' | `grant-ability` over every creature, `scope: 'all'` (PARSER_VERSION 4; the word All was minted as a subtype before) |
+| filters: "non-Angel creature", "legendary / snow / nonlegendary …", "creature without flying", "1/1 creature", "historic / multicolored / monocolored / kicked / transformed / enchanted / equipped / modified …", "creature dealt damage by ~ this turn", "artifact creature" (all of its types) | the 9.0c `Filter` fields (§4 "Filter fields"); "whenever a creature an opponent controls dies" is `controller: 'opponent'` on the `dies` event |
+| "Whenever equipped / enchanted creature dies" (no article) | a `dies` trigger whose filter is `{ attachedToSource: true }` — the creature this is attached to (CR 702.6a); "Whenever an opponent casts a noncreature / green / artifact spell" is the `cast` event with `who: 'opponent'` and the filter |
+| "on it" in a trigger about another permanent ("whenever a creature you control deals combat damage to a player, put that many +1/+1 counters on it"; "whenever another creature you control enters, put a +1/+1 counter on it") | that permanent: `counters` with `target: 'that'` after the trigger's `bind`; a built-in "put N counters on that creature / permanent" is `that` too (the source only through "on ~") |
+| "You gain life equal to its / that creature's power / toughness" | `{ prop, of: 'that' }` — the frame's object with its last known values (Abattoir Ghoul's dead creature, a sacrificed creature); "Sacrifice ~: … its power" is the source (`power-of-source`) |
+| "Remove all <counter> counters from ~:" as a cost | `removeCounters: { counter, amount: 1, all: true }` — every counter goes, at least one to pay, and the number removed feeds "that much" |
 | "Target creature has base power and toughness N/N [until end of turn]", "~ has base power and toughness N/N", "[Until end of turn,] target creature loses all abilities and has base power and toughness N/N" | `set-pt` (`base: true`); the two-effect form is a `scoped` `you` block whose second effect names `target:0` |
 | "Target creature loses all abilities [until end of turn]", "~ loses all abilities", "target creature loses *keywords* until end of turn", "all creatures lose all abilities until end of turn" | `lose-abilities` |
 | "Exchange life totals with target player / opponent"; "exchange control of target A and target B", "… of two target *X*", "… of ~ and target …" | `exchange` |
@@ -534,29 +617,25 @@ never does either, so parse.ts adds it (`triggerBody`).
 
 The family declines (leaves `unknown`) what the engine has no form for or what it cannot read safely:
 
-* "You may draw a card unless that player pays {4}" (Rhystic Study, Mystic Remora): `unless-pays` runs its
-  `otherwise` as the payer, and there is no `ScopeWho` for "the controller of the item" to switch back to.
 * an amount that would introduce a target ("draw a card for each tapped creature target opponent controls"), a
   per-player amount under an each-player op ("deals damage to each player equal to half that player's life total"),
-  "the greatest power among …", "the total power of …", "that many", a cost or filter with a word the built-in parser
-  would drop ("non-Lair land", "nonlegendary"), an "or" list that mixes a type with a subtype or an adjective
-  ("creature, Vehicle, or nonbasic land"), a compound subject ("it and Zombies you control gain …").
+  a cost or filter with a word the subtype vocabulary does not know, an "or" list that mixes a type with a subtype or
+  an adjective ("creature, Vehicle, or nonbasic land"), a compound subject ("it and Zombies you control gain …").
+  ("You may draw a card unless that player pays {4}", "the greatest power among …", "the total power of …", "that
+  many" are claimed since 9.0c — see the table above.)
 * a bare "it" under destroy / tap / untap / sacrifice / exile ("… gains indestructible until end of turn. Tap it."):
   too often the source itself, which the frame does not bind.
 * "It deals damage equal to its power to each other creature": a leading "it" is rewritten to the source by the
   built-ins, and a damage sourced from a bound creature is not the same effect.
-* `scry` / `surveil` with a computed amount (number-only ops), "up to X target …", type changes ("becomes a 0/0
-  Elemental creature …" is not a P/T change), "the exiled card's owner", "Exchange target opponent's life total with
-  ~'s toughness".
-* "destroy / exile / tap / untap target A and target B" never reach the family: the built-in target slot takes the
-  whole phrase as one target (a pre-existing lossy parse, docs/HANDOFF.md §3).
+* type changes ("becomes a 0/0 Elemental creature …" is not a P/T change), "Exchange target opponent's life total with
+  ~'s toughness". (`scry X`, "up to X target …", "the exiled card's owner" and "target A and target B" are claimed
+  since 9.0c.)
 
 ### After the 9.0b review (what moved, and why)
 
-* **"target opponent" as a scope is declined.** `ScopeWho` has no opponent-only word and `legal.ts` offers every
-  player for `target-player`, so a block scoped that way could be pointed at its own controller (Sphinx of
-  Enlightenment drew all four cards itself). "Target opponent draws a card …", "… unless target opponent pays …"
-  stay unparsed until the engine has `target-opponent` (docs/HANDOFF.md item 23).
+* **"target opponent" as a scope** was declined in 9.0b (`legal.ts` offered every player for `target-player`, so
+  Sphinx of Enlightenment drew all four cards itself); since 9.0c it is `target-opponent`, for which `ownTargetSpecs`
+  emits `{ kind: 'opponent' }`.
 * **"*player* may …" is a `may`.** The clause's leading "may" wraps the block's effects; the built-in sentence path
   does the same for "you may *sentence*" on ops with no `optional` form of their own (`You may mill three cards` →
   `may [mill 3]`; permissions such as "you may play that card this turn" are not actions and are not wrapped).
@@ -568,21 +647,23 @@ The family declines (leaves `unknown`) what the engine has no form for or what i
   source (`~`). Only the shapes the family reads (`gains` / `gets` / `has base power` / `loses`) are rewritten; any
   other is honestly unknown.
 * **A frame-reading sentence is bound to its antecedent, or unknown — never a silent no-op (9.0b review).** The
-  engine fills `item.affected` only after `destroy` / `exile` / `damage` (to an object) / `tap` / `bounce` /
-  `token` / `token-copy` / `search` / `return-from-graveyard` / `move` / `for-each` / `bind`, a sacrifice cost or a
-  trigger about another object; `pump`, `grant-keyword`, `counters`, `untap`, `gain-control`, `sacrifice` and
-  `counter` bind nothing. `parseEffects` therefore checks every paragraph as it assembles it (parse.ts
-  `bindAntecedent`): a sentence that reads `that` / `those` / `controller-of-that` / `that-controller` /
-  `power-of-that` / `mv-of-that` (or `remove-those` / `no-untap-that` / `attach-to-that`) after a *targeted*
-  antecedent that binds nothing gets `{ op: 'bind', as: 'that', from: 'targets' }` put before that antecedent
-  (Slave of Bolas, Snakeskin Veil, Spidery Grasp, "Put X +1/+1 counters on target creature, where X is that
-  creature's power"; one bind per antecedent, and only when it is the item's only object target so far); after a
-  *group* antecedent (`creatures-you-control`, `all-creatures`, `attacking-creatures`, …) every `that` / `those`
-  of the sentence becomes a `for-each` over the same set (Gleam of Resistance "Untap those creatures", Dauntless
-  Unity's "those creatures get +2/+1 instead" inside the kicked conditional); anything else — an unparsed
-  antecedent, a group antecedent with "its controller", a spell target (a stack ref `bind` cannot take: Dream
-  Fracture, Access Denied, Undermine) — makes the sentence unknown. A self trigger's "its power / toughness /
-  mana value" is the source (`~'s`, `power-of-source`), not the empty frame.
+  engine fills `item.affected` after `destroy` / `exile` / `damage` (to an object) / `tap` / `bounce` / `token` /
+  `token-copy` / `search` / `return-from-graveyard` / `move` / `for-each` / `bind` — and, since 9.0c, after `pump`,
+  `grant-keyword`, `counters`, `untap` / `untap-all`, `gain-control`, `sacrifice`, `look-top` and `counter` (parse.ts
+  `BINDING_OPS`) — a sacrifice cost or a trigger about another object. `parseEffects` checks every paragraph as it
+  assembles it (parse.ts `bindAntecedent`): a sentence that reads `that` / `those` / `controller-of-that` /
+  `that-controller` / `power-of-that` / `mv-of-that` (or `remove-those` / `no-untap-that` / `attach-to-that`) after
+  an antecedent that binds is left as it is (Slave of Bolas, Snakeskin Veil, Spidery Grasp, Dream Fracture, Gideon
+  "Those creatures get +1/+1", Gleam of Resistance "Untap those creatures" — all plain Refs now); after a *targeted*
+  antecedent that binds nothing (`regenerate`, `prevent-damage`, …) it gets `{ op: 'bind', as: 'that', from:
+  'targets' }` put before that antecedent (one bind per antecedent, only when it is the item's only object target so
+  far), and a sentence with no frame to read that is its own antecedent ("Put X +1/+1 counters on target creature,
+  where X is that creature's power") binds its own target the same way; after a *group* antecedent that binds
+  nothing — or a group-word op that binds too late for a reference that runs before it (Dauntless Unity's "those
+  creatures get +2/+1 instead", folded ahead of the pump) — every `that` / `those` of the sentence becomes a
+  `for-each` over the same set; anything else (an unparsed antecedent, two object targets under a non-binding op)
+  makes the sentence unknown. A self trigger's "its power / toughness / mana value" is the source (`~'s`,
+  `power-of-source`), not the empty frame.
 * **Targets by subtype.** "Target Elf you control gets +2/+2 until end of turn", "target Aura", "target Forest": the
   subtype names its permanent type (`subtypeKind`), so the target is a real target spec with a `subtypes` filter —
   never a `for-each` over the words "Target" and "Elf".
@@ -591,7 +672,8 @@ The family declines (leaves `unknown`) what the engine has no form for or what i
   `other: true`); "Whenever a creature you control with power 3 or greater enters" keeps the controller out of the
   filter; "you control no Thopters other than ~" is `other: true`; statics' plurals ("All Slivers have …") are the
   vocabulary singular.
-* **Restrictions no field carries decline.** "non-Angel creature" (Restoration Angel — an Angel that could target
-  itself blinked itself forever, the `verify:pool` hang), "non-Aura enchantment", "legendary / snow creature",
-  "creature without flying", "1/1 creature", "creature dealt damage by ~ this turn": the line is unparsed (Phase 10
-  script material, or `Filter.notSubtypes` / supertype / `notFlying` fields in 9.1) rather than a wider filter.
+* **Restrictions no field carries decline.** In 9.0b "non-Angel creature" (Restoration Angel — an Angel that could
+  target itself blinked itself forever, the `verify:pool` hang), "non-Aura enchantment", "legendary / snow creature",
+  "creature without flying", "1/1 creature" and "creature dealt damage by ~ this turn" were unparsed rather than a
+  wider filter; 9.0c gave each a `Filter` field (§4 "Filter fields"). A word the subtype vocabulary does not know
+  ("non-Blorp land", "creature of the chosen color") still declines.

@@ -173,7 +173,7 @@ export const compositionCards: Scenario[] = [
   //      antecedent that binds nothing is bound to the item's targets or iterates the same set — never a silent no-op
   {
     // "Gain control of target creature. Untap that creature. It gains haste until end of turn. Sacrifice it at the beginning of the next end step."
-    name: 'Slave of Bolas steals, untaps and hastes the creature (gain-control binds nothing: the target is bound before it)', cr: '608.2h',
+    name: 'Slave of Bolas steals, untaps and hastes the creature (gain-control binds what it stole)', cr: '608.2h',
     seats: [{ bf: ['Island', 'Island', 'Island', 'Swamp', 'Swamp'], hand: ['Slave of Bolas'] }, { bf: ['Hill Giant'], tapped: ['Hill Giant'] }],
     script: [{ cast: 'Slave of Bolas', targets: [['Hill Giant']] }, { resolve: true }],
     expect: [{ control: ['Hill Giant', 0] }, { tapped: ['Hill Giant', false] }, { keywords: ['Hill Giant', ['haste']] }, { zone: ['Hill Giant', 'battlefield'] }, { unsimulated: 0 }],
@@ -249,5 +249,334 @@ export const compositionCards: Scenario[] = [
     seats: [{ bf: ['Blistercoil Weird', 'Mountain'], tapped: ['Blistercoil Weird'], hand: ['Lightning Bolt'] }, { life: 20 }],
     script: [{ cast: 'Lightning Bolt', targets: [['P1']] }, { resolve: true }, { resolve: true }],
     expect: [{ tapped: ['Blistercoil Weird', false] }, { pt: ['Blistercoil Weird', 2, 2] }, { life: [1, 17] }, { unsimulated: 0 }],
+  },
+  // ================================================================== 9.0c: cards the engine bindings, scopes, filter fields, amounts and LKI made fully parsed
+  {
+    // "Counter target spell. Its controller draws a card. / Draw a card."
+    name: 'Dream Fracture counters the spell and its controller draws (the countered spell is bound with its stack-time controller)', cr: '608.2h',
+    seats: [{ bf: ['Island', 'Island', 'Island'], hand: ['Dream Fracture'] }, { bf: ['Plains', 'Plains', 'Plains', 'Plains'], hand: ['Restoration Angel'] }],
+    script: [{ cast: 'Restoration Angel', by: 1 }, { cast: 'Dream Fracture', targets: [['Restoration Angel']] }, { resolve: true }],
+    expect: [{ zone: ['Restoration Angel', 'graveyard'] }, { handCount: [1, 1] }, { handCount: [0, 1] }, { unsimulated: 0 }],
+  },
+  {
+    // "Counter target spell. Create X 1/1 colorless Thopter artifact creature tokens with flying, where X is that spell's mana value."
+    name: "Access Denied makes as many Thopters as the countered spell's mana value", cr: '202.3',
+    seats: [{ bf: ['Island', 'Island', 'Island', 'Island', 'Island'], hand: ['Access Denied'] }, { bf: ['Plains', 'Plains', 'Plains', 'Plains'], hand: ['Restoration Angel'] }],
+    script: [{ cast: 'Restoration Angel', by: 1 }, { cast: 'Access Denied', targets: [['Restoration Angel']] }, { resolve: true }],
+    expect: [{ zone: ['Restoration Angel', 'graveyard'] }, { zoneCount: [0, 'battlefield', 9] }, { events: { type: 'create-token', min: 1 } }, { unsimulated: 0 }],
+  },
+  {
+    // "Counter target spell. Its controller loses 3 life and you gain 3 life."
+    name: "Punish Ignorance: the countered spell's controller loses 3 and you gain 3", cr: '608.2h',
+    seats: [{ bf: ['Plains', 'Island', 'Island', 'Swamp'], hand: ['Punish Ignorance'] }, { bf: ['Plains', 'Plains', 'Plains', 'Plains'], hand: ['Restoration Angel'] }],
+    script: [{ cast: 'Restoration Angel', by: 1 }, { cast: 'Punish Ignorance', targets: [['Restoration Angel']] }, { resolve: true }],
+    expect: [{ zone: ['Restoration Angel', 'graveyard'] }, { life: [1, 17] }, { life: [0, 23] }, { unsimulated: 0 }],
+  },
+  {
+    // "Counter target noncreature spell. Its controller creates two Treasure tokens."
+    name: "An Offer You Can't Refuse gives the countered spell's controller two Treasures", cr: '608.2h',
+    seats: [{ bf: ['Island'], hand: ["An Offer You Can't Refuse"] }, { bf: ['Mountain'], hand: ['Shock'] }],
+    script: [{ cast: 'Shock', by: 1, targets: [['P0']] }, { cast: "An Offer You Can't Refuse", targets: [['Shock']] }, { resolve: true }],
+    expect: [{ zone: ['Shock', 'graveyard'] }, { life: [0, 20] }, { zoneCount: [1, 'battlefield', 3] }, { unsimulated: 0 }],
+  },
+  {
+    // "Counter target spell. Its controller loses 3 life."
+    name: 'Undermine: the countered spell\'s controller loses 3 life', cr: '608.2h',
+    seats: [{ bf: ['Island', 'Island', 'Swamp'], hand: ['Undermine'] }, { bf: ['Plains', 'Plains', 'Plains', 'Plains'], hand: ['Restoration Angel'] }],
+    script: [{ cast: 'Restoration Angel', by: 1 }, { cast: 'Undermine', targets: [['Restoration Angel']] }, { resolve: true }],
+    expect: [{ zone: ['Restoration Angel', 'graveyard'] }, { life: [1, 17] }, { unsimulated: 0 }],
+  },
+  {
+    // "Counter target spell. That spell's controller may draw a card."
+    name: "Vex: that spell's controller may draw a card (the default agent does)", cr: '608.2h',
+    seats: [{ bf: ['Island', 'Island', 'Island'], hand: ['Vex'] }, { bf: ['Plains', 'Plains', 'Plains', 'Plains'], hand: ['Restoration Angel'] }],
+    script: [{ cast: 'Restoration Angel', by: 1 }, { cast: 'Vex', targets: [['Restoration Angel']] }, { resolve: true }],
+    expect: [{ zone: ['Restoration Angel', 'graveyard'] }, { handCount: [1, 1] }, { unsimulated: 0 }],
+  },
+  {
+    // "Counter target artifact, creature, or planeswalker spell. Its controller creates a 2/2 blue Bird creature token with flying."
+    name: 'Strix Serenade counters a creature spell through the comma-list filter and gives its controller a Bird', cr: '115.1',
+    seats: [{ bf: ['Island'], hand: ['Strix Serenade'] }, { bf: ['Plains', 'Plains', 'Plains', 'Plains'], hand: ['Restoration Angel'] }],
+    script: [{ cast: 'Restoration Angel', by: 1 }, { cast: 'Strix Serenade', targets: [['Restoration Angel']] }, { resolve: true }],
+    expect: [{ zone: ['Restoration Angel', 'graveyard'] }, { zoneCount: [1, 'battlefield', 5] }, { unsimulated: 0 }],
+  },
+  {
+    // "When this creature enters, sacrifice another creature. You gain X life and draw X cards, where X is that creature's power."
+    name: "Disciple of Bolas: the sacrifice op binds the sacrificed creature, whose power is the X (last known information)", cr: '608.2h',
+    seats: [{ bf: ['Swamp', 'Swamp', 'Swamp', 'Swamp', 'Hill Giant'], hand: ['Disciple of Bolas'] }, {}],
+    script: [{ cast: 'Disciple of Bolas' }, { resolve: true }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'graveyard'] }, { life: [0, 23] }, { handCount: [0, 3] }, { unsimulated: 0 }],
+  },
+  {
+    // "When this creature enters, you may sacrifice another creature. When you do, this creature deals damage equal to that creature's power to any target."
+    name: "Heart-Piercer Manticore: the reflexive trigger reads the sacrificed creature's power", cr: '603.12',
+    seats: [{ bf: ['Mountain', 'Mountain', 'Mountain', 'Mountain', 'Hill Giant'], hand: ['Heart-Piercer Manticore'] }, {}],
+    script: [{ answer: true }, { cast: 'Heart-Piercer Manticore' }, { resolve: true }, { resolve: true }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'graveyard'] }, { life: [1, 17] }],
+  },
+  {
+    // "{W/U}, {Q}: Look at the top card of your library. You may exile that card."
+    name: 'Puresight Merrow: look-top binds the looked-at card, which is then exiled', cr: '400.7',
+    seats: [{ bf: ['Puresight Merrow', 'Plains'], tapped: ['Puresight Merrow'], libraryTop: ['Wind Drake'] }, {}],
+    script: [{ answer: true }, { activate: 'Puresight Merrow' }, { resolve: true }],
+    expect: [{ zone: ['Wind Drake', 'exile'] }, { tapped: ['Puresight Merrow', false] }, { unsimulated: 0 }],
+  },
+  {
+    // "+2: Untap all creatures you control. Those creatures get +1/+1 until end of turn."
+    name: 'Gideon, Martial Paragon +2 untaps the creatures and pumps that set (the untapped objects are "those")', cr: '608.2h',
+    seats: [{ bf: ['Gideon, Martial Paragon', 'Hill Giant', 'Mountain'], tapped: ['Hill Giant', 'Mountain'] }, {}],
+    script: [{ activate: 'Gideon, Martial Paragon', ability: 0 }, { resolve: true }],
+    expect: [{ tapped: ['Hill Giant', false] }, { pt: ['Hill Giant', 4, 4] }, { tapped: ['Mountain', true] }],
+  },
+  {
+    // "When this creature enters, target opponent draws a card and you draw three cards."
+    name: 'Sphinx of Enlightenment: target opponent draws one, you draw three (the opponent-only scope)', cr: '115.1',
+    seats: [{ bf: ['Island', 'Island', 'Island', 'Island', 'Island', 'Island'], hand: ['Sphinx of Enlightenment'] }, {}],
+    script: [{ cast: 'Sphinx of Enlightenment' }, { resolve: true }, { resolve: true }],
+    expect: [{ handCount: [1, 1] }, { handCount: [0, 3] }, { unsimulated: 0 }],
+  },
+  {
+    // "Whenever an opponent casts a spell, you may draw a card unless that player pays {1}."
+    name: "Rhystic Study: the opponent cannot pay, so its controller draws (otherwiseAs 'controller')", cr: '118.12',
+    seats: [{ bf: ['Rhystic Study'] }, { bf: ['Mountain'], hand: ['Shock'] }],
+    script: [{ cast: 'Shock', by: 1, targets: [['P0']] }, { resolve: true }],
+    expect: [{ handCount: [0, 1] }, { handCount: [1, 0] }, { life: [0, 18] }, { unsimulated: 0 }],
+  },
+  {
+    // "When this creature enters, you may exile target non-Angel creature you control, then return that card to the battlefield under your control."
+    name: 'Restoration Angel blinks a non-Angel creature (its counters are gone) and never offers itself', cr: '400.7',
+    seats: [{ bf: ['Plains', 'Plains', 'Plains', 'Plains', 'Grizzly Bears'], hand: ['Restoration Angel'], counters: { 'Grizzly Bears': { '+1/+1': 1 } } }, {}],
+    script: [{ answer: true }, { cast: 'Restoration Angel' }, { resolve: true }, { resolve: true }],
+    expect: [{ zone: ['Grizzly Bears', 'battlefield'] }, { counters: ['Grizzly Bears', { '+1/+1': 0 }] }, { zone: ['Restoration Angel', 'battlefield'] }, { unsimulated: 0 }],
+  },
+  {
+    // "Target creature gets -X/-X until end of turn."
+    name: 'Death Wind with X = 3 kills a 3/3 (the "-X" sign is kept)', cr: '107.3',
+    seats: [{ bf: ['Swamp', 'Swamp', 'Swamp', 'Swamp'], hand: ['Death Wind'] }, { bf: ['Hill Giant'] }],
+    script: [{ cast: 'Death Wind', x: 3, targets: [['Hill Giant']] }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'graveyard'] }, { unsimulated: 0 }],
+  },
+  {
+    // "Return up to three target land cards from your graveyard to your hand."
+    name: 'Life from the Loam returns up to three land cards from the graveyard', cr: '601.2c',
+    seats: [{ bf: ['Forest', 'Forest'], hand: ['Life from the Loam'], graveyard: ['Mountain', 'Mountain', 'Plains', 'Island'] }, {}],
+    script: [{ cast: 'Life from the Loam', targets: [['Mountain', 'Plains', 'Island']] }, { resolve: true }],
+    expect: [{ handCount: [0, 3] }, { graveyardCount: [0, 2] }, { zone: ['Plains', 'hand'] }, { zone: ['Island', 'hand'] }, { unsimulated: 0 }],
+  },
+  {
+    // "Enchanted creature has base power and toughness 9/9 and has flying, first strike, trample, and haste."
+    name: 'Super State sets the enchanted creature\'s base P/T to 9/9 and grants its keywords (layer 7b static)', cr: '613.4b',
+    seats: [{ bf: ['Plains', 'Plains', 'Plains', 'Plains', 'Plains', 'Plains', 'Plains', 'Grizzly Bears'], hand: ['Super State'], counters: { 'Grizzly Bears': { '+1/+1': 1 } } }, {}],
+    script: [{ cast: 'Super State', targets: [['Grizzly Bears']] }, { resolve: true }],
+    expect: [{ attachedTo: ['Super State', 'Grizzly Bears'] }, { pt: ['Grizzly Bears', 10, 10] }, { keywords: ['Grizzly Bears', ['flying', 'first strike', 'trample', 'haste']] }],
+  },
+  {
+    // "Torrent of Fire deals damage to any target equal to the greatest mana value among permanents you control."
+    name: 'Torrent of Fire deals damage equal to the greatest mana value among your permanents (an aggregate amount)', cr: '107.1',
+    seats: [{ bf: ['Mountain', 'Mountain', 'Mountain', 'Mountain', 'Mountain', 'Hill Giant'], hand: ['Torrent of Fire'] }, {}],
+    script: [{ cast: 'Torrent of Fire', targets: [['P1']] }, { resolve: true }],
+    expect: [{ life: [1, 16] }, { unsimulated: 0 }],
+  },
+  {
+    // "Whenever this creature attacks, it gets +2/+0 until end of turn. / When this creature dies, target player loses life equal to its power."
+    name: 'Mortis Dogs: the death trigger reads last known information — the pumped 4 power, not the printed 2', cr: '608.2h',
+    seats: [{ bf: ['Mortis Dogs'] }, { bf: ['Hill Giant'] }],
+    script: [{ attack: ['Mortis Dogs'], blocks: [['Hill Giant', 'Mortis Dogs']] }, { resolve: true }],
+    expect: [{ zone: ['Mortis Dogs', 'graveyard'] }, { zone: ['Hill Giant', 'graveyard'] }, { life: [1, 16] }, { unsimulated: 0 }],
+  },
+  {
+    // "Whenever a creature you control enters, target opponent loses life equal to the difference between that creature's power and its toughness."
+    name: 'Jaws of Defeat fires on your own creature entering (the "you control" trigger template) for the power/toughness difference', cr: '603.2',
+    seats: [{ bf: ['Jaws of Defeat', 'Mountain', 'Mountain'], hand: ['Goblin Piker'] }, {}],
+    script: [{ cast: 'Goblin Piker' }, { resolve: true }, { resolve: true }],
+    expect: [{ zone: ['Goblin Piker', 'battlefield'] }, { life: [1, 19] }, { unsimulated: 0 }],
+  },
+  {
+    // "Destroy target creature and target land."
+    name: 'Spiteful Blow destroys a creature and a land: two instances of "target", two parts', cr: '115.3',
+    seats: [{ bf: ['Swamp', 'Swamp', 'Swamp', 'Swamp', 'Swamp', 'Swamp'], hand: ['Spiteful Blow'] }, { bf: ['Hill Giant', 'Reliquary Tower'] }],
+    script: [{ cast: 'Spiteful Blow', targets: [['Hill Giant'], ['Reliquary Tower']] }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'graveyard'] }, { zone: ['Reliquary Tower', 'graveyard'] }, { unsimulated: 0 }],
+  },
+  {
+    // "Whenever a creature an opponent controls dies, you gain 1 life." (and the rest of the card)
+    name: "The Meathook Massacre gains life when an opponent's creature dies", cr: '603.2',
+    seats: [{ bf: ['The Meathook Massacre', 'Mountain'], hand: ['Lightning Bolt'] }, { bf: ['Hill Giant'] }],
+    script: [{ cast: 'Lightning Bolt', targets: [['Hill Giant']] }, { resolve: true }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'graveyard'] }, { life: [0, 21] }, { unsimulated: 0 }],
+  },
+  {
+    // "Chainsword — Whenever a creature an opponent controls dies, that player loses 2 life."
+    name: 'Assault Intercessor: that player (the dead creature\'s controller) loses 2 life', cr: '603.2',
+    seats: [{ bf: ['Assault Intercessor', 'Mountain'], hand: ['Lightning Bolt'] }, { bf: ['Hill Giant'] }],
+    script: [{ cast: 'Lightning Bolt', targets: [['Hill Giant']] }, { resolve: true }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'graveyard'] }, { life: [1, 18] }, { unsimulated: 0 }],
+  },
+  {
+    // "{1}, {T}: Target 1/1 creature gets +1/+2 until end of turn."
+    name: 'Aegis of the Meek targets a 1/1 (the exact P/T filter)', cr: '115.1',
+    seats: [{ bf: ['Aegis of the Meek', 'Mountain', "Mons's Goblin Raiders"] }, {}],
+    script: [{ activate: 'Aegis of the Meek', targets: [["Mons's Goblin Raiders"]] }, { resolve: true }],
+    expect: [{ pt: ["Mons's Goblin Raiders", 2, 3] }, { unsimulated: 0 }],
+  },
+  {
+    // "{T}: This creature deals 1 damage to target creature. / Whenever a creature dealt damage by this creature this turn dies, put a +1/+1 counter on this creature."
+    name: 'Blood Cultist grows when a creature it damaged this turn dies (the per-turn damage record)', cr: '120.3',
+    seats: [{ bf: ['Blood Cultist', 'Mountain'], hand: ['Shock'] }, { bf: ['Hill Giant'] }],
+    script: [{ activate: 'Blood Cultist', targets: [['Hill Giant']] }, { resolve: true }, { cast: 'Shock', targets: [['Hill Giant']] }, { resolve: true }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'graveyard'] }, { counters: ['Blood Cultist', { '+1/+1': 1 }] }, { unsimulated: 0 }],
+  },
+  {
+    // 'All creatures have "At the beginning of your upkeep, sacrifice this creature unless you pay {1}."'
+    name: "Pendrell Mists: every creature carries the upkeep tax — the opponent's creature with no mana is sacrificed at their upkeep", cr: '613.1f',
+    seats: [{ bf: ['Pendrell Mists'] }, { bf: ['Hill Giant'] }],
+    script: [{ turns: 1 }],
+    expect: [{ zone: ['Hill Giant', 'graveyard'] }, { zone: ['Pendrell Mists', 'battlefield'] }],
+  },
+  {
+    // "When this creature dies, target opponent puts a card from their hand on top of their library."
+    name: 'Chimney Imp: target opponent puts a card from their hand on top of their library', cr: '115.1',
+    seats: [{ bf: ['Chimney Imp', 'Mountain'], hand: ['Lightning Bolt'] }, { hand: ['Shock'] }],
+    script: [{ cast: 'Lightning Bolt', targets: [['Chimney Imp']] }, { resolve: true }, { resolve: true }],
+    expect: [{ zone: ['Chimney Imp', 'graveyard'] }, { handCount: [1, 0] }, { libraryCount: [1, 21] }, { unsimulated: 0 }],
+  },
+  {
+    // "{G}: This creature gets +1/+1 until end of turn. Target opponent creates a 1/1 green Hippo creature token."
+    name: 'Questing Phelddagrif: the Hippo goes to the targeted opponent', cr: '115.1',
+    seats: [{ bf: ['Questing Phelddagrif', 'Forest'] }, {}],
+    script: [{ activate: 'Questing Phelddagrif', ability: 0, targets: [['P1']] }, { resolve: true }],
+    expect: [{ pt: ['Questing Phelddagrif', 5, 5] }, { zoneCount: [1, 'battlefield', 1] }, { zoneCount: [0, 'battlefield', 2] }],
+  },
+  // ------------------------------------------------------------------ 9.0c review fixes: each pins a finding of the review
+  {
+    // "Whenever an opponent casts a noncreature spell, you may draw a card unless that player pays {4}."
+    name: 'Mystic Remora: an opponent\'s noncreature spell draws its controller a card when the opponent cannot pay', cr: '603.2',
+    seats: [{ bf: ['Mystic Remora'] }, { bf: ['Mountain'], hand: ['Shock'] }],
+    script: [{ cast: 'Shock', by: 1, targets: [['P0']] }, { resolve: true }],
+    expect: [{ handCount: [0, 1] }, { handCount: [1, 0] }, { life: [0, 18] }, { unsimulated: 0 }],
+  },
+  {
+    name: 'Mystic Remora: a creature spell is not a noncreature spell (no trigger)', cr: '603.2',
+    seats: [{ bf: ['Mystic Remora'] }, { bf: ['Forest', 'Forest'], hand: ['Grizzly Bears'] }],
+    active: 1,
+    script: [{ cast: 'Grizzly Bears', by: 1 }, { resolve: true }],
+    expect: [{ handCount: [0, 0] }, { zone: ['Grizzly Bears', 'battlefield'] }, { unsimulated: 0 }],
+  },
+  {
+    // "Whenever equipped creature dies, draw two cards." — the creature it is attached to (CR 702.6a), matched before the Equipment comes off (CR 603.10a)
+    name: 'Skullclamp draws two when the creature it equips dies', cr: '702.6a',
+    seats: [{ bf: ['Skullclamp', 'Grizzly Bears', 'Mountain', 'Mountain'], hand: ['Lightning Bolt'] }, {}],
+    script: [{ activate: 'Skullclamp', targets: [['Grizzly Bears']] }, { resolve: true }, { cast: 'Lightning Bolt', targets: [['Grizzly Bears']] }, { resolve: true }, { sba: true }, { resolve: true }],
+    expect: [{ zone: ['Grizzly Bears', 'graveyard'] }, { handCount: [0, 2] }, { unsimulated: 0 }],
+  },
+  {
+    name: 'Skullclamp does not draw for an opponent\'s equipped creature dying', cr: '702.6a',
+    seats: [{ bf: ['Skullclamp', 'Mountain', 'Mountain'], hand: ['Lightning Bolt'] }, { bf: ['Short Sword', 'Raging Goblin', 'Forest'] }],
+    active: 1,
+    script: [{ activate: 'Short Sword', by: 1, targets: [['Raging Goblin']] }, { resolve: true }, { passUntil: 'end' }, { cast: 'Lightning Bolt', by: 0, targets: [['Raging Goblin']] }, { resolve: true }, { sba: true }, { resolve: true }],
+    expect: [{ zone: ['Raging Goblin', 'graveyard'] }, { attachedTo: ['Short Sword', null] }, { handCount: [0, 0] }],
+  },
+  {
+    name: 'Skullclamp does not draw for an unequipped creature of its controller dying', cr: '702.6a',
+    seats: [{ bf: ['Skullclamp', 'Grizzly Bears', 'Mountain'], hand: ['Lightning Bolt'] }, {}],
+    script: [{ cast: 'Lightning Bolt', targets: [['Grizzly Bears']] }, { resolve: true }, { sba: true }, { resolve: true }],
+    expect: [{ zone: ['Grizzly Bears', 'graveyard'] }, { handCount: [0, 0] }],
+  },
+  {
+    // "Whenever this creature deals damage, you gain that much life." — damage to a player is damage (CR 120.3)
+    name: 'Exalted Angel: combat damage to a player gains that much life', cr: '120.3',
+    seats: [{ bf: ['Exalted Angel'] }, {}],
+    script: [{ attack: ['Exalted Angel'] }, { resolve: true }],
+    expect: [{ life: [1, 16] }, { life: [0, 24] }, { unsimulated: 0 }],
+  },
+  {
+    // "Whenever an opponent loses life, you gain that much life."
+    name: 'Exquisite Blood gains the life the opponent lost', cr: '119.3',
+    seats: [{ bf: ['Exquisite Blood', 'Mountain'], hand: ['Lightning Bolt'] }, {}],
+    script: [{ cast: 'Lightning Bolt', targets: [['P1']] }, { resolve: true }],
+    expect: [{ life: [1, 17] }, { life: [0, 23] }, { unsimulated: 0 }],
+  },
+  {
+    // "Whenever an opponent loses life, that player mills that many cards."
+    name: 'Mindcrank mills the opponent for the life they lost', cr: '119.3',
+    seats: [{ bf: ['Mindcrank', 'Mountain'], hand: ['Lightning Bolt'] }, {}],
+    script: [{ cast: 'Lightning Bolt', targets: [['P1']] }, { resolve: true }],
+    expect: [{ life: [1, 17] }, { libraryCount: [1, 17] }, { unsimulated: 0 }],
+  },
+  {
+    // Infect damage to a player is poison counters instead of life loss (CR 120.3c), so "whenever an opponent loses life" never fires.
+    name: 'Exquisite Blood does not trigger on infect damage: the opponent got poison counters, not life loss', cr: '120.3c',
+    seats: [{ bf: ['Exquisite Blood', 'Glistener Elf'] }, {}],
+    script: [{ attack: ['Glistener Elf'] }, { resolve: true }],
+    expect: [{ playerCounters: [1, { poison: 1 }] }, { life: [1, 20] }, { life: [0, 20] }, { unsimulated: 0 }],
+  },
+  {
+    name: 'Mindcrank does not mill for infect damage: no life was lost', cr: '120.3c',
+    seats: [{ bf: ['Mindcrank', 'Glistener Elf'] }, {}],
+    script: [{ attack: ['Glistener Elf'] }, { resolve: true }],
+    expect: [{ playerCounters: [1, { poison: 1 }] }, { life: [1, 20] }, { libraryCount: [1, 20] }, { unsimulated: 0 }],
+  },
+  {
+    // "Whenever a creature dealt damage by this creature this turn dies, you gain life equal to that creature's toughness."
+    name: 'Abattoir Ghoul gains the dead creature\'s toughness (Wall of Wood: 3), not its own power', cr: '608.2h',
+    seats: [{ bf: ['Abattoir Ghoul'] }, { bf: ['Wall of Wood'] }],
+    script: [{ attack: ['Abattoir Ghoul'], blocks: [['Wall of Wood', 'Abattoir Ghoul']] }, { resolve: true }, { sba: true }, { resolve: true }],
+    expect: [{ zone: ['Wall of Wood', 'graveyard'] }, { life: [0, 23] }, { unsimulated: 0 }],
+  },
+  {
+    // "Target player sacrifices a creature of their choice, then gains life equal to that creature's toughness."
+    name: 'Devour Flesh: the sacrificing player gains the sacrificed creature\'s toughness', cr: '608.2h',
+    seats: [{ bf: ['Swamp', 'Swamp'], hand: ['Devour Flesh'] }, { bf: ['Wall of Wood'] }],
+    script: [{ cast: 'Devour Flesh', targets: [['P1']] }, { resolve: true }],
+    expect: [{ zone: ['Wall of Wood', 'graveyard'] }, { life: [1, 23] }, { life: [0, 20] }, { unsimulated: 0 }],
+  },
+  {
+    // "Whenever a creature dealt damage by this creature this turn dies, create a tapped 2/2 black Zombie creature token and exile that card."
+    name: 'Wight: the Zombie token stays and the dead creature card is exiled (a token is not "that card")', cr: '111.1',
+    seats: [{ bf: ['Wight'] }, { bf: ['Raging Goblin'] }],
+    script: [{ attack: ['Wight'], blocks: [['Raging Goblin', 'Wight']] }, { resolve: true }, { sba: true }, { resolve: true }],
+    expect: [{ zone: ['Raging Goblin', 'exile'] }, { zoneCount: [0, 'battlefield', 2] }, { unsimulated: 0 }],
+  },
+  {
+    // "Whenever a creature you control deals combat damage to a player, put that many +1/+1 counters on it."
+    name: 'Necropolis Regent: the counters go on the creature that dealt the damage, not on the Regent', cr: '603.2',
+    seats: [{ bf: ['Necropolis Regent', 'Grizzly Bears'] }, {}],
+    script: [{ attack: ['Grizzly Bears'] }, { resolve: true }],
+    expect: [{ counters: ['Grizzly Bears', { '+1/+1': 2 }] }, { counters: ['Necropolis Regent', { '+1/+1': 0 }] }, { unsimulated: 0 }],
+  },
+  {
+    // "Return up to two target creature cards from your graveyard to your hand."
+    name: 'Morbid Plunder returns exactly the two cards it targeted, never a fresh pick', cr: '115.1',
+    seats: [{ bf: ['Swamp', 'Swamp', 'Swamp'], hand: ['Morbid Plunder'], graveyard: ['Grizzly Bears', 'Hill Giant', 'Raging Goblin'] }, {}],
+    script: [{ cast: 'Morbid Plunder', targets: [['Hill Giant', 'Raging Goblin']] }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'hand'] }, { zone: ['Raging Goblin', 'hand'] }, { zone: ['Grizzly Bears', 'graveyard'] }, { unsimulated: 0 }],
+  },
+  {
+    // "{2}, {T}, Remove all charge counters from this artifact: It deals that much damage to target creature."
+    name: 'Relic Amulet removes all its charge counters and deals that much damage', cr: '608.2',
+    seats: [{ bf: ['Relic Amulet', 'Mountain', 'Mountain'], counters: { 'Relic Amulet': { charge: 3 } } }, { bf: ['Hill Giant'] }],
+    script: [{ activate: 'Relic Amulet', ability: 1, targets: [['Hill Giant']] }, { resolve: true }, { sba: true }],
+    expect: [{ zone: ['Hill Giant', 'graveyard'] }, { counters: ['Relic Amulet', { charge: 0 }] }, { unsimulated: 0 }],
+  },
+  {
+    // "Return up to three target land cards from your graveyard to the battlefield tapped. Create that many 4/2 green Plant Warrior creature tokens with reach."
+    name: 'Vengeful Regrowth: that many tokens is the number of lands returned', cr: '608.2',
+    seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Forest', 'Forest', 'Forest'], hand: ['Vengeful Regrowth'], graveyard: ['Mountain', 'Plains', 'Grizzly Bears'] }, {}],
+    script: [{ cast: 'Vengeful Regrowth', targets: [['Mountain', 'Plains']] }, { resolve: true }],
+    expect: [{ zone: ['Mountain', 'battlefield'] }, { tapped: ['Mountain', true] }, { zoneCount: [0, 'battlefield', 10] }, { unsimulated: 0 }],
+  },
+  {
+    // "~ gets +1/+0 for each other snow permanent you control." — 0/4 printed; two Snow-Covered Forests, itself not counted
+    name: 'Spirit of the Aldergard counts other snow permanents of any type, not itself', cr: '205.4',
+    seats: [{ bf: ['Spirit of the Aldergard', 'Snow-Covered Forest', 'Snow-Covered Forest', 'Forest'] }, {}],
+    script: [{ sba: true }],
+    expect: [{ pt: ['Spirit of the Aldergard', 2, 4] }, { unsimulated: 0 }],
+  },
+  {
+    // "Return up to two target permanent cards from your graveyard to your hand." — an instant in the graveyard is not a legal target
+    name: 'Regenesis returns a permanent card and cannot target an instant card in the graveyard', cr: '110.4c',
+    seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Forest', 'Forest'], hand: ['Regenesis'], graveyard: ['Grizzly Bears', 'Lightning Bolt'] }, {}],
+    script: [{ cast: 'Regenesis', targets: [['Grizzly Bears']] }, { resolve: true }],
+    expect: [{ zone: ['Grizzly Bears', 'hand'] }, { zone: ['Lightning Bolt', 'graveyard'] }],
   },
 ];

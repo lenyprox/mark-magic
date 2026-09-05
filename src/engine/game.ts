@@ -2,12 +2,12 @@
 // combat (CR 506-510), state-based actions (CR 704), triggered abilities (CR 603) and a broad set of effects.
 import type { Ability, AbilityCost, ActivatedAbility, CardDef, Color, Effect, Keyword, ManaCost, ManaSymbol, TargetSpec, TriggeredAbility } from '../cards/types.js';
 import { manaValue } from '../cards/parse.js';
-import { abilitiesOf, allPermanents, battlefieldOf, canAttack, canBlock, colors, conditionHolds, defOf, evalAmount, findObject, hasKeyword, isCreature, isLand, isType, manaValueOf, matchesFilter, name, power, protectedFrom, subtypes, toughness, types, flags, type AmountCtx, damageByToughness, printedAbilities, lostOf, type LostExt, type SetPtExt } from './characteristics.js';
+import { abilitiesOf, allPermanents, battlefieldOf, canAttack, canBlock, colors, conditionHolds, defOf, evalAmount, findObject, hasKeyword, isCreature, isLand, isType, manaValueOf, matchesFilter, name, power, protectedFrom, subtypes, toughness, types, flags, type AmountCtx, damageByToughness, printedAbilities, lostOf, type LostExt, type SetPtExt, stackManaValue } from './characteristics.js';
 import { boundZoneOf, isRef, itemTargets, objectsIn, refPlayer, resolveOnePlayer, resolveRef, resolveWho, type RefCtx } from './refs.js';
 import { FAST_MANA_LIMIT, MANA_COMBO_LIMIT, findPayment as findPaymentFull, manaSources, type ManaSourceOptions, type Payment } from './mana.js';
 import { costAdjust, exileWindowOpen, extraManaSources, hasModifier, nonManaCostPayable, pickCrew, pickDelve, pickEscapeExile, spellManaCost, ZERO_COST } from './cost.js';
 import { makeKnowledge, makeObject, makePlayer, opponentOf, STEPS, type Agent, type AttackDeclaration, type AttackTarget, type BlockDeclaration, type CastZone, type Decision, type DelayedTrigger, type GameObject, type GameState, type LegalAction, type Player, type PlayerAction, type PlayerId, type StackItem, type Step, type TargetRef, type Zone } from './state.js';
-import { childIndex, flattenEffects, illegalReasons, legalActions, targetOptionsFor, targetingEffects } from './legal.js';
+import { childIndex, flattenEffects, illegalReasons, legalActions, specCount, targetOptionsFor, targetingEffects } from './legal.js';
 import { redact } from './view.js';
 import { citation, LOGGED, renderEvent, type EventMode, type GameEvent, type GameEventBody, type ZoneChangeReason } from './events.js';
 import { alive, apnapOrder, nextInTurnOrder, opponentsOf, primaryOpponent } from './players.js';
@@ -16,7 +16,7 @@ import {
   EFFECT_OPS, EOT_CLEANUP, FREE_CAST_HOOKS, HAS, LEAVE_HOOKS, REPLACEMENTS, SBA_HOOKS, STEP_HOOKS, TRIGGERS,
   TRIGGER_SOURCES, tokenAbilityOf,
 } from './ops/_registry.js';
-import { extBump, extDel } from './ops/ext.js';
+import { extBump, extDel, extSet } from './ops/ext.js';
 import type { EnterCtx, OpCtx } from './ops/types.js';
 
 /** Extra combat phases queued for this turn (CR 506.1); families set `s.ext.extraCombats`. The cleanup step, the start
@@ -37,7 +37,7 @@ export class Rng {
   shuffle<T>(a: T[]): T[] { for (let i = a.length - 1; i > 0; i--) { const j = this.int(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 }
 
-export interface TriggerCtx { obj?: GameObject; player?: PlayerId; played?: boolean; stepDraw?: boolean; /** The spell or permanent whose targeting caused a 'targeted' event. */ by?: GameObject }
+export interface TriggerCtx { obj?: GameObject; player?: PlayerId; played?: boolean; stepDraw?: boolean; /** The spell or permanent whose targeting caused a 'targeted' event. */ by?: GameObject; /** The number the event was about (damage dealt, life gained): the trigger's "that many" / "that much" (`item.lastAmount`). */ amount?: number }
 
 export interface GameOptions {
   seed?: number; startingLife?: number; maxTurns?: number; quiet?: boolean; mulligans?: boolean;
@@ -663,7 +663,7 @@ export class Game {
       const [id] = await this.ask(p, { kind: 'choose-cards', from: opts.map(o => o.id), count: 1, reason: `Return to hand for ${label}`, exact: true }) as number[];
       const o = findObject(s, id) ?? opts[0]; this.moveTo(o, 'hand', 'top', 'cost'); this.note(`${this.pname(p)} returns ${name(o)} to hand.`);
     }
-    if (cost.removeCounters) this.addCounters(self, cost.removeCounters.counter, -cost.removeCounters.amount);
+    if (cost.removeCounters) { const rc = cost.removeCounters; const n = rc.all ? (self.counters[rc.counter] ?? 0) : rc.amount; this.addCounters(self, rc.counter, -n); if (item) item.lastAmount = n; }   // "Remove all charge counters from ~: it deals that much damage" (Relic Amulet)
     if (cost.exileFromGraveyard) { const gy = others(pl.graveyard); for (let i = 0; i < cost.exileFromGraveyard && i < gy.length; i++) this.moveTo(gy[i], 'exile', 'top', 'cost'); }
     if (cost.exileOtherFromGraveyard) {
       const ids = pickEscapeExile(others(pl.graveyard), cost.exileOtherFromGraveyard.count, cost.exileOtherFromGraveyard.minCardTypes); if (!ids) return false;
@@ -842,7 +842,7 @@ export class Game {
     for (const { index, spec, part, soft } of reqs) {
       const opts = targetOptionsFor(this, item.controller, spec, item.source);
       const pick = chosen?.[ci++] ?? [];
-      const needed = spec.count ?? 1;
+      const needed = specCount(spec, item.x);
       if (!spec.optional && !soft && pick.length < Math.min(needed, opts.length)) { if (opts.length === 0) return false; if (pick.length === 0) return false; }
       for (const t of pick) if (!opts.some(o => o.kind === t.kind && o.id === t.id)) return false;
       // a part beyond the first (a `multi` sub-spec, exchange's second permanent) appends to the effect's list; within
@@ -976,12 +976,17 @@ export class Game {
     if (def.kicker && item.kicked) (card as GameObject & { kicked?: boolean }).kicked = true;
   }
 
-  /** Remember the objects an effect touched ("that creature's controller", "that card's mana value"). */
+  /**
+   * Remember the objects an effect touched ("that creature's controller", "that card's mana value"). Every op that acts on
+   * objects records them — destroy / exile / damage / tap / bounce / token / search / move, and since 9.0c pump,
+   * grant-keyword, counters, untap, gain-control, sacrifice, look-top and counter (the countered spell, with the controller
+   * and mana value it had on the stack) — so a following "it" / "those" / "its controller" reads the frame (CR 608.2h).
+   */
   private noteAffected(item: StackItem, list: GameObject[]) { item.affected = list.map(o => this.affectedEntry(o)); }
-  /** One binding-frame entry: the object's id and the values it has right now, including the zone it is bound in (CR 400.7). */
+  /** One binding-frame entry: the object's id and the values it has right now, including the zone it is bound in (CR 400.7); a spell on the stack counts its X in its mana value (CR 202.3b). */
   private affectedEntry(o: GameObject): NonNullable<StackItem['affected']>[number] {
     const s = this.state;
-    return { id: o.id, lastKnown: { power: power(s, o), toughness: toughness(s, o), controller: o.controller, manaValue: manaValueOf(o), zone: o.zone } };
+    return { id: o.id, lastKnown: { power: power(s, o), toughness: toughness(s, o), controller: o.zone === 'stack' ? (s.stack.find(i => i.source.id === o.id)?.controller ?? o.controller) : o.controller, manaValue: stackManaValue(s, o), zone: o.zone, owner: o.owner } };
   }
 
   targetStillLegal(r: TargetRef, spec: TargetSpec, item: StackItem): boolean {
@@ -990,7 +995,15 @@ export class Game {
 
   // ------------------------------------------------------------------ effects
   private targetsOf(item: StackItem, idx: number): TargetRef[] { return item.targetsByEffect.get(idx) ?? []; }
-  private objs(refs: TargetRef[]): GameObject[] { return refs.filter(r => r.kind === 'object').map(r => findObject(this.state, r.id)!).filter(Boolean); }
+  /** The objects among `refs`; with `spells`, a `stack` ref (a targeted spell) is its card too — what `bind` / `for-each over targets` read, never the removal ops (they treat a spell separately). */
+  private objs(refs: TargetRef[], spells = false): GameObject[] {
+    const out: GameObject[] = [];
+    for (const r of refs) {
+      if (r.kind === 'object') { const o = findObject(this.state, r.id); if (o) out.push(o); }
+      else if (spells && r.kind === 'stack') { const it = this.state.stack.find(i => i.id === r.id); if (it) out.push(it.source); }
+    }
+    return out;
+  }
   private players(refs: TargetRef[]): PlayerId[] { return refs.filter(r => r.kind === 'player').map(r => r.id as PlayerId); }
 
   /** Apply one effect of a resolving item. Records whether it changed anything observable, which is what a following `reflexive` ("when you do", CR 603.12) asks. */
@@ -1008,7 +1021,7 @@ export class Game {
     /** The objects an op's `target` denotes when it is a Ref (composition core), else this effect's chosen targets. */
     const objsOf = (t: unknown): GameObject[] => typeof t === 'string' ? resolveRef(rc, t as import('../cards/types.js').Ref) : this.objs(T);
     const actx: AmountCtx = { that: item.affected?.[0]?.lastKnown, colorsSpent: src.castWith?.colorsSpent, refs: rc, T };
-    const amt = (a: import('../cards/types.js').Amount) => evalAmount(s, a, p, item.x, src, actx);
+    const amt = (a: import('../cards/types.js').Amount) => { const n = evalAmount(s, a, p, item.x, src, actx); item.lastAmount = n; return n; };   // "that many" = the last amount evaluated
     const ifTargetFilter = (x: { ifTarget?: import('../cards/types.js').Filter; ifTargetAlt?: { condition: import('../cards/types.js').Condition; filter: import('../cards/types.js').Filter } }) => x.ifTargetAlt && conditionHolds(s, src, x.ifTargetAlt.condition) ? x.ifTargetAlt.filter : x.ifTarget;
     switch (e.op) {
       case 'damage': {
@@ -1042,6 +1055,9 @@ export class Game {
         break;
       }
       case 'counter': {
+        // the targeted spell is "that spell" for the rest of the text ("Its controller draws a card", "where X is that spell's
+        // mana value") whether or not it is countered: bound now, with the controller and mana value it has on the stack
+        this.noteAffected(item, this.objs(T, true));
         for (const r of T) if (r.kind === 'stack') {
           const target = s.stack.find(i => i.id === r.id); if (!target) continue;
           if (target.kind === 'spell' && target.source.def.abilities.some(a => a.kind === 'static' && a.effect.kind === 'cant-be-countered')) { this.note(`${target.name} can't be countered.`); continue; }
@@ -1204,7 +1220,7 @@ export class Game {
         if (e.count === 'all-named') { for (const c of [...pl.hand]) if (c.def.name === chosen.def.name) this.discard(w, c.id); } else this.discard(w, chosen.id);
         break;
       }
-      case 'look-top': { const w = e.who === 'you' ? p : (this.players(T)[0] ?? opp); const c = s.players[w].library[0]; this.emit({ type: 'library', player: w, action: 'look', cards: c ? [c.def.name] : [] }, `${this.pname(p)} looks at the top card of ${this.pname(w)}'s library${c ? ` (${c.def.name})` : ''}.`); break; }
+      case 'look-top': { const w = e.who === 'you' ? p : (this.players(T)[0] ?? opp); const top = s.players[w].library.slice(0, Math.max(1, e.amount)); const c = top[0]; this.noteAffected(item, top); this.emit({ type: 'library', player: w, action: 'look', cards: top.map(x => x.def.name) }, `${this.pname(p)} looks at the top card of ${this.pname(w)}'s library${c ? ` (${c.def.name})` : ''}.`); break; }
       case 'search': {
         const who = e.who === 'that-controller' ? (item.affected?.[0]?.lastKnown.controller ?? p) : p; const pl = s.players[who];
         if (e.optional && who !== p && !(await this.ask(who, { kind: 'yes-no', prompt: `${item.name}: search your library?`, tag: 'optional' }))) break;
@@ -1269,7 +1285,7 @@ export class Game {
         const who = e.who === 'you' ? [p] : e.who === 'each-opponent' ? opps : e.who === 'each-player' ? everyone : this.players(T);
         for (const w of who) {
           const pl = s.players[w];
-          if (e.amount === 'hand') { for (const c of [...pl.hand]) this.discard(w, c.id); continue; }
+          if (e.amount === 'hand') { const cards = [...pl.hand]; item.lastAmount = cards.length; for (const c of cards) this.discard(w, c.id); continue; }
           const n = Math.min(amt(e.amount), pl.hand.length); if (!n) continue;
           if (e.random) { for (let i = 0; i < n; i++) { const c = pl.hand[this.rng.int(pl.hand.length)]; this.discard(w, c.id); } }
           else { const ids = await this.ask(w, { kind: 'choose-cards', from: pl.hand.map(c => c.id), count: n, reason: `Discard ${n}`, exact: true }) as number[]; for (const id of ids) this.discard(w, id); }
@@ -1288,6 +1304,7 @@ export class Game {
       case 'set-life': { const who = e.who === 'you' ? [p] : everyone; for (const w of who) { const delta = e.amount - s.players[w].life; s.players[w].life = e.amount; this.emit({ type: 'life', player: w, delta, total: e.amount, reason: item.name }, `${this.pname(w)}'s life becomes ${e.amount}.`); } break; }
       case 'pump': case 'grant-keyword': {
         const list = this.pumpTargets(e.target, p, src, T);
+        this.noteAffected(item, list);                                            // "Those creatures …", "It gains haste"
         for (const o of list) {
           if (e.op === 'pump') { o.eotPower += amt(e.power); o.eotToughness += amt(e.toughness); if (e.keywords) o.eotKeywords.push(...e.keywords); }
           else o.eotKeywords.push(...e.keywords);
@@ -1319,8 +1336,9 @@ export class Game {
       }
       case 'counters': {
         if (e.optional && !(await this.ask(p, { kind: 'yes-no', prompt: `${item.name}: put the counter(s)?`, tag: 'optional' }))) break;
-        const list = e.target === 'self' ? [src] : e.target === 'creatures-you-control' ? s.players[p].battlefield.filter(o => isCreature(o) && (!e.filter || matchesFilter(s, o, e.filter, src))) : e.target === 'each-other-creature-you-control' ? s.players[p].battlefield.filter(o => isCreature(o) && o !== src) : objsOf(e.target);
-        for (const o of list) { if (o.zone !== 'battlefield') continue; this.addCounters(o, e.counter, amt(e.amount)); }
+        const list = (e.target === 'self' ? [src] : e.target === 'creatures-you-control' ? s.players[p].battlefield.filter(o => isCreature(o) && (!e.filter || matchesFilter(s, o, e.filter, src))) : e.target === 'each-other-creature-you-control' ? s.players[p].battlefield.filter(o => isCreature(o) && o !== src) : objsOf(e.target)).filter(o => o.zone === 'battlefield');
+        this.noteAffected(item, list);
+        for (const o of list) this.addCounters(o, e.counter, amt(e.amount));
         break;
       }
       case 'tap': { const list = e.target === 'self' ? (src.zone === 'battlefield' ? [src] : []) : typeof e.target === 'string' ? this.groupTargets(e.target, p).objects : this.objs(T); this.noteAffected(item, list); for (const o of list) { this.setTapped(o, true, 'effect'); if (e.noUntap) o.noUntapNext = true; } break; }
@@ -1344,21 +1362,25 @@ export class Game {
         }
         break;
       }
-      case 'untap': { const list = e.target === 'self' ? [src] : e.target === 'all-you-control' ? s.players[p].battlefield : e.target === 'lands-you-control' ? s.players[p].battlefield.filter(isLand) : e.target === 'that' ? (item.affected ?? []).map(a => findObject(s, a.id)).filter((o): o is GameObject => !!o) : e.target === 'enchanted' ? this.groupTargets('enchanted', p).objects : objsOf(e.target); for (const o of list) this.setTapped(o, false, 'effect'); break; }
+      case 'untap': { const list = e.target === 'self' ? [src] : e.target === 'all-you-control' ? [...s.players[p].battlefield] : e.target === 'lands-you-control' ? s.players[p].battlefield.filter(isLand) : e.target === 'creatures-you-control' ? s.players[p].battlefield.filter(isCreature) : e.target === 'that' ? (item.affected ?? []).map(a => findObject(s, a.id)).filter((o): o is GameObject => !!o) : e.target === 'enchanted' ? this.groupTargets('enchanted', p).objects : objsOf(e.target); this.noteAffected(item, list); for (const o of list) this.setTapped(o, false, 'effect'); break; }
       case 'sacrifice': {
         const who = e.who === 'you' ? [p] : e.who === 'each-opponent' ? opps : e.who === 'each-player' ? everyone : this.players(T);
+        const gone: NonNullable<StackItem['affected']> = [];
         for (const w of who) {
           const opts = s.players[w].battlefield.filter(o => matchesFilter(s, o, e.what, src));
           const n = Math.min(e.amount, opts.length); if (!n) continue;
           const ids = await this.ask(w, { kind: 'choose-cards', from: opts.map(o => o.id), count: n, reason: `Sacrifice ${n}`, exact: true }) as number[];
-          for (const id of ids) { const o = findObject(s, id); if (o) this.sacrifice(o); }
+          const chosen = ids.map(id => findObject(s, id)).filter((o): o is GameObject => !!o);
+          gone.push(...chosen.map(o => this.affectedEntry(o)));                  // "that creature's power": the values it had (CR 608.2h)
+          for (const o of chosen) this.sacrifice(o);
         }
+        item.affected = gone;
         break;
       }
       case 'sacrifice-self': if (src.zone === 'battlefield') this.sacrifice(src); break;
       case 'mill': { const who = e.who === 'that-player' && item.triggeringPlayer !== undefined ? [item.triggeringPlayer] : e.who === 'you' ? [p] : e.who === 'each-opponent' ? opps : this.players(T); for (const w of who) this.mill(w, amt(e.amount)); break; }
-      case 'scry': { const pl = s.players[p]; const top = pl.library.slice(0, e.amount); if (!top.length) break; const keep = await this.ask(p, { kind: 'choose-cards', from: top.map(c => c.id), count: top.length, reason: `Scry ${e.amount}: choose cards to keep on top`, exact: false }) as number[]; const bottom = top.filter(c => !keep.includes(c.id)); const kept = top.filter(c => keep.includes(c.id)); pl.library.splice(0, top.length); pl.library.unshift(...kept); pl.library.push(...bottom); this.noteTop(p, kept.map(c => c.id), top.length); for (const c of bottom) this.forgetTop(c.id); this.emit({ type: 'library', player: p, action: 'scry', count: top.length }, ''); break; }
-      case 'surveil': { const pl = s.players[p]; const top = pl.library.slice(0, e.amount); if (!top.length) break; const keep = await this.ask(p, { kind: 'choose-cards', from: top.map(c => c.id), count: top.length, reason: `Surveil ${e.amount}: choose cards to keep on top`, exact: false }) as number[]; const gy = top.filter(c => !keep.includes(c.id)); const kept = top.filter(c => keep.includes(c.id)); pl.library.splice(0, top.length); pl.library.unshift(...kept); this.noteTop(p, kept.map(c => c.id), top.length); for (const c of gy) { this.forgetTop(c.id); c.zone = 'graveyard'; pl.graveyard.push(c); this.emit({ type: 'zone-change', id: c.id, name: c.def.name, owner: c.owner, controller: c.controller, from: 'library', to: 'graveyard', reason: 'mill', token: false, public: true }, ''); } this.emit({ type: 'library', player: p, action: 'surveil', count: top.length }, ''); break; }
+      case 'scry': { const pl = s.players[p]; const k = amt(e.amount); const top = pl.library.slice(0, k); if (!top.length) break; const keep = await this.ask(p, { kind: 'choose-cards', from: top.map(c => c.id), count: top.length, reason: `Scry ${k}: choose cards to keep on top`, exact: false }) as number[]; const bottom = top.filter(c => !keep.includes(c.id)); const kept = top.filter(c => keep.includes(c.id)); pl.library.splice(0, top.length); pl.library.unshift(...kept); pl.library.push(...bottom); this.noteTop(p, kept.map(c => c.id), top.length); for (const c of bottom) this.forgetTop(c.id); this.emit({ type: 'library', player: p, action: 'scry', count: top.length }, ''); break; }
+      case 'surveil': { const pl = s.players[p]; const k = amt(e.amount); const top = pl.library.slice(0, k); if (!top.length) break; const keep = await this.ask(p, { kind: 'choose-cards', from: top.map(c => c.id), count: top.length, reason: `Surveil ${k}: choose cards to keep on top`, exact: false }) as number[]; const gy = top.filter(c => !keep.includes(c.id)); const kept = top.filter(c => keep.includes(c.id)); pl.library.splice(0, top.length); pl.library.unshift(...kept); this.noteTop(p, kept.map(c => c.id), top.length); for (const c of gy) { this.forgetTop(c.id); c.zone = 'graveyard'; pl.graveyard.push(c); this.emit({ type: 'zone-change', id: c.id, name: c.def.name, owner: c.owner, controller: c.controller, from: 'library', to: 'graveyard', reason: 'mill', token: false, public: true }, ''); } this.emit({ type: 'library', player: p, action: 'surveil', count: top.length }, ''); break; }
       case 'search-land': {
         const pl = s.players[p];
         const opts = pl.library.filter(c => isLand(c) && (!e.basic || c.def.supertypes.includes('Basic')) && (!e.subtypes || e.subtypes.some(st => c.def.subtypes.includes(st))));
@@ -1372,15 +1394,22 @@ export class Game {
       case 'return-from-graveyard': {
         const pool = e.anyGraveyard ? s.players.flatMap(q => q.graveyard) : s.players[p].graveyard;
         const opts = pool.filter(o => matchesFilter(s, o, e.what, src));
-        if (!opts.length) break;
-        const [id] = await this.ask(p, { kind: 'choose-cards', from: opts.map(o => o.id), count: 1, reason: 'Return from graveyard', exact: false }) as number[];
-        const o = opts.find(x => x.id === id);
-        if (o) { this.noteAffected(item, [o]); if (e.to === 'battlefield') { await this.enterBattlefield(o, { controller: p, via: 'effect', tapped: e.tapped }); this.note(`${name(o)} returns to the battlefield.`); } else if (e.to === 'library-top' || e.to === 'library-bottom') { this.moveTo(o, 'library', e.to === 'library-top' ? 'top' : 'bottom', 'effect'); this.note(`${name(o)} is put on ${e.to === 'library-top' ? 'top' : 'the bottom'} of its owner's library.`); } else this.moveTo(o, 'hand', 'top', 'return'); }
+        let list: GameObject[];
+        if (e.target) list = this.objs(T).filter(o => opts.includes(o));          // the cards targeted on cast (legal.ts ownTargetSpecs), those still legal (CR 608.2b) — never a fresh pick
+        else {
+          if (!opts.length) break;
+          const n = Math.min(e.count ?? 1, opts.length);                          // "up to two creature cards": `count`, `optional` = fewer is fine
+          const ids = await this.ask(p, { kind: 'choose-cards', from: opts.map(o => o.id), count: n, reason: 'Return from graveyard', exact: !e.optional }) as number[];
+          list = ids.slice(0, n).map(id => opts.find(x => x.id === id)).filter((o): o is GameObject => !!o);
+        }
+        item.lastAmount = list.length;                                            // "create that many … tokens" after "return up to two target land cards" (Vengeful Regrowth)
+        this.noteAffected(item, list);
+        for (const o of list) { if (e.to === 'battlefield') { await this.enterBattlefield(o, { controller: p, via: 'effect', tapped: e.tapped }); this.note(`${name(o)} returns to the battlefield.`); } else if (e.to === 'library-top' || e.to === 'library-bottom') { this.moveTo(o, 'library', e.to === 'library-top' ? 'top' : 'bottom', 'effect'); this.note(`${name(o)} is put on ${e.to === 'library-top' ? 'top' : 'the bottom'} of its owner's library.`); } else this.moveTo(o, 'hand', 'top', 'return'); }
         break;
       }
       case 'fight': { const [a] = e.self ? [src] : this.objs(T.slice(0, 1)); const b = this.objs(T)[e.self ? 0 : 1]; if (a && b && a.zone === 'battlefield' && b.zone === 'battlefield') { const pa = power(s, a), pb = power(s, b); this.dealDamage(a, b, pa); this.dealDamage(b, a, pb); } break; }
       case 'bite': { const b = this.objs(T)[0]; const a = src.zone === 'battlefield' ? src : this.objs(T)[1]; if (a && b) this.dealDamage(a, b, power(s, a)); break; }
-      case 'gain-control': { for (const o of objsOf(e.target)) { if (e.duration === 'eot') { (o as GameObject & { controlUntilEot?: PlayerId }).controlUntilEot = o.controller; } this.changeControl(o, p); if (e.untapHaste) { this.setTapped(o, false, 'effect'); o.eotKeywords.push('haste'); } } break; }
+      case 'gain-control': { const list = objsOf(e.target).filter(o => o.zone === 'battlefield'); this.noteAffected(item, list); for (const o of list) { if (e.duration === 'eot') { (o as GameObject & { controlUntilEot?: PlayerId }).controlUntilEot = o.controller; } this.changeControl(o, p); if (e.untapHaste) { this.setTapped(o, false, 'effect'); o.eotKeywords.push('haste'); } } break; }
       case 'regenerate': { const list = e.target === 'self' ? [src] : objsOf(e.target); for (const o of list) o.eotFlags.regenerationShield = (o.eotFlags.regenerationShield ?? 0) + 1; break; }
       case 'prevent-damage': { const list = e.target === 'you' ? [] : e.target === 'self' ? [src] : objsOf(e.target); for (const o of list) o.eotFlags.preventDamage = e.amount === 'all' ? 'all' : amt(e.amount); if (e.target === 'you') (s as GameState & { fog?: number }).fog = s.turn; break; }
       case 'cant-attack-or-block': for (const o of objsOf(e.target)) o.eotFlags.cantAttackOrBlock = true; break;
@@ -1521,14 +1550,14 @@ export class Game {
         break;
       }
       case 'each-self-damage': { for (const o of allPermanents(s).filter(isCreature)) { const pw = power(s, o); if (pw > 0) this.dealDamage(o, o, pw); } break; }
-      case 'untap-all': { for (const o of s.players[p].battlefield) if (o.tapped && matchesFilter(s, o, e.filter, src)) this.setTapped(o, false, 'effect'); break; }
+      case 'untap-all': { const list = s.players[p].battlefield.filter(o => matchesFilter(s, o, e.filter, src)); this.noteAffected(item, list); for (const o of list) if (o.tapped) this.setTapped(o, false, 'effect'); break; }
       case 'attach-self': { const o = this.objs(T)[0]; if (o && src.zone === 'battlefield') this.attach(src, o); break; }
       case 'choose-mode': break; // expanded earlier
       case 'conditional': { if (conditionHolds(s, src, e.condition)) for (let i = 0; i < e.then.length; i++) await this.applyEffect(item, e.then[i], idx, all); else if (e.else) for (let i = 0; i < e.else.length; i++) await this.applyEffect(item, e.else[i], idx, all); break; }
       // ---- composition core (Phase 9.0): see docs/vocabulary/composition.md for the exact semantics and CR citations
       case 'for-each': await this.opForEach(item, e, idx, all, rc, T); break;
       case 'bind': {
-        if (e.from === 'targets') { const refs = itemTargets(item); this.noteAffected(item, this.objs(refs)); const pl = refs.find(r => r.kind === 'player'); if (pl) item.triggeringPlayer = pl.id; }
+        if (e.from === 'targets') { const refs = itemTargets(item); this.noteAffected(item, this.objs(refs, true)); const pl = refs.find(r => r.kind === 'player'); if (pl) item.triggeringPlayer = pl.id; }
         else if (e.from === 'triggering') { const o = item.triggeringId !== undefined ? findObject(s, item.triggeringId) : undefined; this.noteAffected(item, o ? [o] : []); }
         break;                                                                    // 'affected': the frame already holds it
       }
@@ -1607,7 +1636,7 @@ export class Game {
 
   /** "For each X, …" (CR 608.2f): iterate a snapshot taken before the first iteration, binding 'that' to each object; afterwards 'those' is the iterated set. */
   private async opForEach(item: StackItem, e: Extract<Effect, { op: 'for-each' }>, idx: number, all: Effect[], rc: RefCtx, T: TargetRef[]) {
-    const list = e.over === 'those' ? resolveRef(rc, 'those') : e.over === 'targets' ? this.objs(itemTargets(item)) : objectsIn(rc, e.over, T);
+    const list = e.over === 'those' ? resolveRef(rc, 'those') : e.over === 'targets' ? this.objs(itemTargets(item), true) : objectsIn(rc, e.over, T);
     const snap = list.map(o => ({ o, zone: o.zone, entry: this.affectedEntry(o) }));
     const saved = item.affected;
     for (const { o, zone, entry } of snap) {
@@ -1626,7 +1655,7 @@ export class Game {
     if (cost.payLife) parts.push(`${cost.payLife} life`); if (cost.energy) parts.push(`${cost.energy} energy`);
     if (cost.sacrificeSelf) parts.push('sacrifice it'); if (cost.sacrifice) parts.push(`sacrifice ${describeFilter(cost.sacrifice)}`);
     if (cost.discard) parts.push(`discard ${cost.discard}`); if (cost.discardHand) parts.push('discard your hand');
-    if (cost.removeCounters) parts.push(`remove ${cost.removeCounters.amount} ${cost.removeCounters.counter} counter(s)`);
+    if (cost.removeCounters) parts.push(`remove ${cost.removeCounters.all ? 'all' : cost.removeCounters.amount} ${cost.removeCounters.counter} counter(s)`);
     if (cost.exileFromGraveyard) parts.push(`exile ${cost.exileFromGraveyard} from graveyard`); if (cost.exileFromHand) parts.push(`exile ${cost.exileFromHand.count} from hand`);
     if (cost.returnToHand) parts.push('return a permanent to hand'); if (cost.tapUntappedCreature) parts.push('tap an untapped creature');
     return parts.join(', ') || '{0}';
@@ -1645,7 +1674,8 @@ export class Game {
         if (await this.payCost(w, { ...e.cost, mana: undefined }, src, item.name)) { this.note(`${this.pname(w)} pays ${label} for ${item.name}.`); continue; }
       }
       this.note(`${this.pname(w)} ${can ? 'does not pay' : 'cannot pay'} ${label} for ${item.name}.`);
-      const saved = item.actor; item.actor = w; await this.applyList(item, e.otherwise, idx, all); item.actor = saved;
+      // `otherwise` runs as the payer — or, with `otherwiseAs: 'controller'`, as the item's controller ("you may draw a card unless that player pays {4}")
+      const saved = item.actor; item.actor = e.otherwiseAs === 'controller' ? item.controller : w; await this.applyList(item, e.otherwise, idx, all); item.actor = saved;
     }
   }
 
@@ -1766,14 +1796,17 @@ export class Game {
     const ext = o.ext!; let changed = false;
     const sp = ext.setPT as SetPtExt | undefined; if (sp !== undefined && sp.untilTurn !== undefined) { delete ext.setPT; changed = true; }
     const lost = ext.lost as LostExt | undefined; if (lost !== undefined && lost.untilTurn !== undefined) { delete ext.lost; changed = true; this.bfGen++; }
+    if (ext.damagedBy !== undefined) { delete ext.damagedBy; changed = true; }   // "dealt damage by ~ this turn" ends with the turn
     if (changed) this.state.version++;
+    for (const _k in ext) { void _k; return; }
+    delete o.ext;                                                                // an empty bag would take every clone / serialize of it off the fast path (ops/ext.ts extDel)
   }
 
   private groupTargets(g: string, p: PlayerId, filter?: import('../cards/types.js').Filter): { objects: GameObject[]; players: PlayerId[] } {
     if (g === 'you') return { objects: [], players: [p] };
     const s = this.state; const opps = opponentsOf(s, p);
     const all = allPermanents(s), mine = s.players[p].battlefield, theirs = opps.flatMap(q => s.players[q].battlefield);
-    const f = (l: GameObject[]) => filter ? l.filter(o => matchesFilter(s, o, filter)) : l;
+    const f = (l: GameObject[]) => filter ? l.filter(o => matchesFilter(s, o, filter, this.curSource ?? undefined)) : l;   // the source: "dealt damage by ~", "other"
     switch (g) {
       case 'enchanted': { const host = this.curSource?.attachedTo != null ? findObject(s, this.curSource.attachedTo) : undefined; return { objects: host && host.zone === 'battlefield' ? [host] : [], players: [] }; }
       case 'each-opponent': return { objects: [], players: opps };
@@ -1835,8 +1868,8 @@ export class Game {
   gainLife(p: PlayerId, n: number) { if (n <= 0) return; const pl = this.state.players[p]; let gained = n;
     for (const o of pl.battlefield) for (const a of abilitiesOf(o)) if (a.kind === 'static' && a.effect.kind === 'lifegain-multiplier') gained = a.effect.plus ? gained + a.effect.plus : gained * 2;
     if (REPLACEMENTS.lifeGain.length) { for (const h of REPLACEMENTS.lifeGain) gained = h(this, p, gained); if (gained <= 0) return; }
-    const mult = gained / n; pl.life += gained; pl.lifeGainedThisTurn = (pl.lifeGainedThisTurn ?? 0) + gained; this.emit({ type: 'life', player: p, delta: n * mult, total: pl.life, reason: 'gain' }); this.queueTriggers('life-gain', { player: p }); }
-  loseLife(p: PlayerId, n: number, why: string) { if (n <= 0) return; const pl = this.state.players[p]; pl.life -= n; pl.lifeLostThisTurn += n; this.emit({ type: 'life', player: p, delta: -n, total: pl.life, reason: why }); this.queueTriggers('life-loss-opponent', { player: p }); }
+    const mult = gained / n; pl.life += gained; pl.lifeGainedThisTurn = (pl.lifeGainedThisTurn ?? 0) + gained; this.emit({ type: 'life', player: p, delta: n * mult, total: pl.life, reason: 'gain' }); this.queueTriggers('life-gain', { player: p, amount: gained }); }
+  loseLife(p: PlayerId, n: number, why: string) { if (n <= 0) return; const pl = this.state.players[p]; pl.life -= n; pl.lifeLostThisTurn += n; this.emit({ type: 'life', player: p, delta: -n, total: pl.life, reason: why }); this.queueTriggers('life-loss-opponent', { player: p, amount: n }); }   // "you gain that much life" (Exquisite Blood): the amount
 
   dealDamageToPlayer(src: GameObject, p: PlayerId, n: number) {
     if (n <= 0) return;
@@ -1844,14 +1877,17 @@ export class Game {
     if (REPLACEMENTS.damage.length) { const cb = this.state.step === 'combat-damage' || this.state.step === 'first-strike-damage'; for (const h of REPLACEMENTS.damage) n = h(this, src, p, n, cb); if (n <= 0) return; }
     const pl = this.state.players[p];
     const combat = this.state.step === 'combat-damage' || this.state.step === 'first-strike-damage';
-    if (hasKeyword(this.state, src, 'infect')) { this.addPoison(p, n, name(src)); if (hasKeyword(this.state, src, 'lifelink')) this.gainLife(src.controller, n); this.queueTriggers('life-loss-opponent', { player: p }); return; }
+    // infect damage to a player is poison counters instead of life loss (CR 120.3c): it is still damage dealt, but no "loses life" event happens (Exquisite Blood / Mindcrank stay silent)
+    if (hasKeyword(this.state, src, 'infect')) { this.addPoison(p, n, name(src)); if (hasKeyword(this.state, src, 'lifelink')) this.gainLife(src.controller, n); this.queueTriggers('deals-damage', { obj: src, player: p, amount: n }); return; }
     pl.life -= n; pl.lifeLostThisTurn += n;
     if (combat && src.commander) pl.commanderDamage[src.id] = (pl.commanderDamage[src.id] ?? 0) + n;
     this.emit({ type: 'damage', sourceId: src.id, source: name(src), player: p, amount: n, combat, total: pl.life });
     if (combat && src.def.toxic && hasKeyword(this.state, src, 'toxic')) this.addPoison(p, src.def.toxic, `${name(src)} (toxic)`);
     if (combat && this.state.monarch === p && src.controller !== p) this.setMonarch(src.controller);
     if (hasKeyword(this.state, src, 'lifelink')) this.gainLife(src.controller, n);
-    this.queueTriggers('life-loss-opponent', { player: p });
+    // "whenever ~ deals damage" is about damage to a player as much as to a creature (CR 120.3); both triggers carry the amount ("you gain that much life")
+    this.queueTriggers('deals-damage', { obj: src, player: p, amount: n });
+    this.queueTriggers('life-loss-opponent', { player: p, amount: n });
   }
   dealDamage(src: GameObject, o: GameObject, n: number) {
     if (n <= 0 || o.zone !== 'battlefield') return;
@@ -1864,7 +1900,9 @@ export class Game {
     else if (hasKeyword(this.state, src, 'infect') || hasKeyword(this.state, src, 'wither')) { this.emit({ type: 'damage', sourceId: src.id, source: name(src), targetId: o.id, target: name(o), amount: n, combat, total: o.damage }, `${name(src)} deals ${n} damage to ${name(o)}#${o.id} as -1/-1 counters.`); this.addCounters(o, '-1/-1', n); if (hasKeyword(this.state, src, 'deathtouch')) (o as GameObject & { deathtouched?: boolean }).deathtouched = true; }
     else { o.damage += n; if (hasKeyword(this.state, src, 'deathtouch')) (o as GameObject & { deathtouched?: boolean }).deathtouched = true; this.emit({ type: 'damage', sourceId: src.id, source: name(src), targetId: o.id, target: name(o), amount: n, combat, total: o.damage }); }
     if (hasKeyword(this.state, src, 'lifelink')) this.gainLife(src.controller, n);
-    this.queueTriggers('deals-damage', { obj: src });
+    // "creature dealt damage by ~ this turn" (Filter.dealtDamageBySource): a per-turn record of the sources, JSON-plain in `ext`
+    { const rec = o.ext?.damagedBy as { turn: number; by: number[] } | undefined; if (rec && rec.turn === this.state.turn) { if (!rec.by.includes(src.id)) rec.by.push(src.id); } else extSet(o, 'damagedBy', { turn: this.state.turn, by: [src.id] }); }
+    this.queueTriggers('deals-damage', { obj: src, amount: n });
   }
 
   addPoison(p: PlayerId, n: number, why: string) { if (n <= 0) return; const pl = this.state.players[p]; pl.poison += n; this.note(`${pl.name} gets ${n} poison counter${n > 1 ? 's' : ''} (${pl.poison}) — ${why}.`); }
@@ -1923,15 +1961,18 @@ export class Game {
     const fromZone: import('./events.js').ZoneRef = o.zone; const wasController = o.controller;
     if (wasOnBattlefield) {
       o.lastKnown = { power: power(s, o), toughness: toughness(s, o), controller: o.controller, counters: { ...o.counters } };   // the values it had while it existed: base P/T from set-pt, a face-down 2/2, an animated land (CR 608.2h)
-      if (zone !== 'battlefield') { delete o.animated; delete o.earthbent; delete o.faceDown; if (o.ext !== undefined) { delete o.ext.setPT; delete o.ext.lost; } }   // a new object (CR 400.7): set-pt / lose-abilities end — after the last-known snapshot
+      if (zone !== 'battlefield') { delete o.animated; delete o.earthbent; delete o.faceDown; if (o.ext !== undefined) { extDel(o, 'setPT'); extDel(o, 'lost'); } }   // a new object (CR 400.7): set-pt / lose-abilities end — after the last-known snapshot
       if (o.exileIfLeaves && zone !== 'exile') { zone = 'exile'; delete o.exileIfLeaves; }
       if (o.exileIfDiesTurn === s.turn && zone === 'graveyard' && o.zone === 'battlefield') { zone = 'exile'; this.note(`${name(o)} is exiled instead of dying.`); }
       const creature = isCreature(o);
       const ctl = o.controller;
-      // detach attachments; auras go to graveyard (SBA), equipment stays
-      for (const other of allPermanents(s)) if (other.attachedTo === o.id) this.attach(other, null);
+      // leaves-the-battlefield triggers look back in time (CR 603.10a): matched now, with its attachments still on it
+      // ("whenever equipped creature dies") and its per-turn damage record ("a creature dealt damage by ~ this turn dies")
       if (zone === 'graveyard' && creature) { s.players[ctl].creaturesDiedThisTurn++; this.queueTriggers('dies', { obj: o, player: ctl }); }
       this.queueTriggers('ltb', { obj: o, player: ctl });
+      if (o.ext !== undefined && o.ext.damagedBy !== undefined) extDel(o, 'damagedBy');   // the record was about the permanent it was (CR 400.7)
+      // detach attachments; auras go to graveyard (SBA), equipment stays
+      for (const other of allPermanents(s)) if (other.attachedTo === o.id) this.attach(other, null);
       if (s.delayed !== undefined && s.delayed.length) this.fireLeaveDelayed(o, zone);
       const ex = (o as GameObject & { exiledUntilLeaves?: number[] }).exiledUntilLeaves;
       if (ex) { for (const id of ex) { const back = findObject(s, id); if (back && back.zone === 'exile') { void this.enterBattlefield(back, { controller: back.owner, via: 'effect', sync: true }); this.note(`${name(back)} returns to the battlefield.`); } } delete (o as GameObject & { exiledUntilLeaves?: number[] }).exiledUntilLeaves; }
@@ -2111,8 +2152,8 @@ export class Game {
           if (HAS.triggers) { const h = TRIGGERS[(ev as { on: string }).on]; if (h) { if (h(ev as never, perm, ctx, s, event)) fires = true; if (fires) break; continue; } }
           if (ev.on !== event) continue;
           switch (ev.on) {
-            case 'etb': fires = ev.self ? ctx.obj === perm : !!ctx.obj && ctx.obj !== perm && matchesFilter(s, ctx.obj, ev.filter, perm) && (ev.controller !== 'you' || ctx.obj.controller === perm.controller); break;
-            case 'dies': fires = ev.self ? ctx.obj === perm : !!ctx.obj && matchesFilter(s, ctx.obj, ev.filter, perm) && (ev.controller !== 'you' || ctx.player === perm.controller); break;
+            case 'etb': fires = ev.self ? ctx.obj === perm : !!ctx.obj && ctx.obj !== perm && matchesFilter(s, ctx.obj, ev.filter, perm) && (ev.controller === 'you' ? ctx.obj.controller === perm.controller : ev.controller === 'opponent' ? ctx.obj.controller !== perm.controller : true); break;
+            case 'dies': fires = ev.self ? ctx.obj === perm : !!ctx.obj && matchesFilter(s, ctx.obj, ev.filter, perm) && (ev.controller === 'you' ? ctx.player === perm.controller : ev.controller === 'opponent' ? ctx.player !== perm.controller : true); break;   // "a creature an opponent controls dies": ctx.player is the controller it had
             case 'ltb': fires = ctx.obj === perm; break;
             case 'attacks': fires = ev.self ? ctx.obj === perm : (!ev.filter || (!!ctx.obj && matchesFilter(s, ctx.obj, ev.filter, perm))) && ctx.player === perm.controller; break;
             case 'combat-damage-player': fires = ev.self || !ev.filter ? ctx.obj === perm : (!!ctx.obj && ctx.obj.controller === perm.controller && matchesFilter(s, ctx.obj, ev.filter, perm)); break;
@@ -2155,6 +2196,7 @@ export class Game {
       const item = this.makeStackItem('trigger', t.source, t.controller, t.ability.effects, `${name(t.source)} trigger: ${t.ability.text}`, 0, undefined, t.ability.text);
       item.ability = t.ability; if (t.affected) item.affected = t.affected; if (t.triggerCtx?.obj) item.triggeringId = t.triggerCtx.obj.id;
       if (t.triggerCtx?.player !== undefined) item.triggeringPlayer = t.triggerCtx.player;
+      if (t.triggerCtx?.amount !== undefined) item.lastAmount = t.triggerCtx.amount;   // "put that many +1/+1 counters on it": the damage / life the event was about
       // auto-choose targets for triggers: ask the controller
       const reqs = targetingEffects(this.effectiveEffects(item));
       const chosen: TargetRef[][] = [];
@@ -2201,7 +2243,7 @@ export class Game {
       return opps.includes(o.controller) === hostile ? val : -val;
     };
     const sorted = [...opts].sort((a, b) => score(b) - score(a));
-    const n = spec.count ?? 1;
+    const n = specCount(spec, item.x);
     const pick = sorted.slice(0, n).filter(r => !spec.optional || score(r) > 0);
     return pick.length || spec.optional ? pick : sorted.slice(0, 1);
   }
@@ -2323,7 +2365,7 @@ export class Game {
       const a = findObject(s, o.blocking[0]); if (a && a.zone === 'battlefield') damage.push({ src: o, to: a, n: p });
     }
     if (COMBAT_DAMAGE_HOOKS.length) for (const h of COMBAT_DAMAGE_HOOKS) h(this, damage);
-    for (const d of damage) { if (typeof d.to === 'number') { this.dealDamageToPlayer(d.src, d.to, d.n); if (d.n > 0) this.queueTriggers('combat-damage-player', { obj: d.src, player: d.to }); } else this.dealDamage(d.src, d.to, d.n); }
+    for (const d of damage) { if (typeof d.to === 'number') { this.dealDamageToPlayer(d.src, d.to, d.n); if (d.n > 0) this.queueTriggers('combat-damage-player', { obj: d.src, player: d.to, amount: d.n }); } else this.dealDamage(d.src, d.to, d.n); }
     for (const id of s.attackers) { const a = findObject(s, id); if (a && a.blockedBy.length) (a as GameObject & { wasBlocked?: boolean }).wasBlocked = true; }
   }
 

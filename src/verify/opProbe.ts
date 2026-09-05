@@ -97,7 +97,7 @@ export function installProbe(vocab: Sets): Probe {
   function observe(key: string, val: unknown, hint: Hint, childHint: Hint): void {
     if (typeof val === 'string') {
       if (key === 'op') rec('effects', val);                                      // switch (e.op) in applyEffect
-      else if (key === 'count') { if (val !== 'all') rec('amounts', val); }        // switch (a.count) in evalAmount ('all' is a `move` count, not an amount)
+      else if (key === 'count') { if (val !== 'all' && val !== 'X') rec('amounts', val); }   // switch (a.count) in evalAmount ('all' is a `move` count, 'X' a TargetSpec count — neither is an amount)
       else if (key === 'prop') rec('amounts', 'prop');                            // evalAmountForm's `prop` form
       else if (key === 'id' && hint === 'altCosts') rec('altCosts', val);          // the alt cost the caster chose
       else if (childHint === 'keywords') { if (val !== 'all') rec('keywords', val); }   // withKeyword: 'flying' ('all' is lose-abilities' "every ability")

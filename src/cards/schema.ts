@@ -101,7 +101,7 @@ export const AMOUNT_COUNTS = [
 // ---- composition core (Phase 9.0, docs/vocabulary/composition.md): the enums its ops share ----------------------
 /** `Ref` minus the `target:<i>` template form (which `RefSchema` adds). */
 export const REFS = ['self', 'that', 'those', 'triggering', 'enchanted', 'equipped', 'sacrificed', 'exiled-with'] as const;
-export const SCOPE_WHO = ['you', 'each-player', 'each-opponent', 'target-player', 'that-player', 'controller-of-that'] as const;
+export const SCOPE_WHO = ['you', 'each-player', 'each-opponent', 'target-player', 'target-opponent', 'that-player', 'controller-of-that', 'owner-of-that'] as const;
 export const SET_ZONES = ['battlefield', 'graveyard', 'hand', 'exile', 'library'] as const;
 export const MOVE_ZONES = ['battlefield', 'graveyard', 'exile', 'hand', 'library', 'command'] as const;
 export const DELAYED_AT = ['next-upkeep', 'next-end-step', 'your-next-end-step', 'end-of-combat', 'this-turn:dies', 'this-turn:ltb', 'next-turn:upkeep', 'until-eot:end'] as const;
@@ -149,20 +149,30 @@ export const ManaCostSchema = z.strictObject({
 export const FilterSchema = z.strictObject({
   types: z.array(CardTypeSchema).optional(),
   notTypes: z.array(CardTypeSchema).optional(),
+  typesAll: z.literal(true).optional(),
   subtypes: z.array(S).optional(),
+  notSubtypes: z.array(S).optional(),
+  supertypes: z.array(S).optional(),
+  notSupertypes: z.array(S).optional(),
   colors: z.array(ColorSchema).optional(),
   notColors: z.array(ColorSchema).optional(),
   colorless: B.optional(),
   powerLE: N.optional(), powerGE: N.optional(), toughnessLE: N.optional(),
   // `number | Amount` collapses to `Amount` (Amount already includes number)
   mvLE: AmountRef.optional(), mvGE: N.optional(), mvEQ: AmountRef.optional(),
+  powerEQ: N.optional(), toughnessEQ: N.optional(), toughnessGE: N.optional(),
   tapped: B.optional(), untapped: B.optional(), token: B.optional(), nontoken: B.optional(), attacking: B.optional(),
   blocking: B.optional(), flying: B.optional(), nonbasic: B.optional(), basic: B.optional(),
+  kicked: B.optional(), transformed: B.optional(), historic: B.optional(), multicolored: B.optional(), monocolored: B.optional(),
+  enchanted: B.optional(), equipped: B.optional(), modified: B.optional(),
+  dealtDamageBySource: B.optional(),
+  attachedToSource: B.optional(),
   other: B.optional(),
   withCounters: B.optional(), withCounter: S.optional(),
   toughnessGtPower: B.optional(),
   chosenType: B.optional(),
   withKeyword: KeywordSchema.optional(),
+  notKeywords: z.array(KeywordSchema).optional(),
 });
 
 /** A `Ref`: one of the named references, or `target:<i>` (the i-th target of the item). */
@@ -183,6 +193,7 @@ export const AmountExprSchema = z.strictObject({
   max: z.union([N, z.array(AmountRef)]).optional(),
   diff: z.tuple([AmountRef, AmountRef]).optional(), sum: z.array(AmountRef).optional(), min: z.array(AmountRef).optional(),
   prop: z.enum(AMOUNT_PROPS).optional(), of: z.union([RefSchema, z.enum(['you', 'that-player', 'target-player'])]).optional(),
+  agg: z.enum(['max', 'sum', 'min']).optional(), over: ObjectSetSchema.optional(),
 });
 const ONE_FORM = 'an amount carries exactly one of count, diff, sum, max (as a list), min or prop';
 export const AmountSchema = z.union([
@@ -191,7 +202,9 @@ export const AmountSchema = z.union([
   AmountExprSchema.superRefine((a, ctx) => {
     const forms = [a.count !== undefined, a.diff !== undefined, a.sum !== undefined, Array.isArray(a.max), a.min !== undefined, a.prop !== undefined].filter(Boolean).length;
     if (forms !== 1) ctx.addIssue({ code: 'custom', message: ONE_FORM });
-    if (a.prop !== undefined && a.of === undefined) ctx.addIssue({ code: 'custom', message: 'a prop amount names what it is a property of (`of`)' });
+    if (a.prop !== undefined && a.of === undefined && a.over === undefined) ctx.addIssue({ code: 'custom', message: 'a prop amount names what it is a property of (`of`, or `agg` + `over`)' });
+    if ((a.agg !== undefined) !== (a.over !== undefined)) ctx.addIssue({ code: 'custom', message: 'an aggregate amount carries both `agg` and `over`' });
+    if (a.over !== undefined && (a.prop === undefined || a.prop === 'life' || a.prop === 'cards-in-hand' || a.of !== undefined)) ctx.addIssue({ code: 'custom', message: 'an aggregate amount is a power / toughness / mv prop over an object set, with no `of`' });
     if (a.count === undefined && (a.filter !== undefined || a.zone !== undefined || a.who !== undefined || a.counter !== undefined)) ctx.addIssue({ code: 'custom', message: 'filter / zone / who / counter belong to a count amount' });
   }),
 ]);
@@ -201,10 +214,12 @@ export const TargetSpecSchema = z.strictObject({
   controller: z.enum(['you', 'opponent']).optional(),
   filter: FilterRef.optional(),
   optional: B.optional(),
-  count: N.optional(),
+  count: z.union([N, z.literal('X')]).optional(),
   self: B.optional(),
+  who: z.enum(['you', 'opponent']).optional(),
   specs: z.array(TargetSpecRef).optional(),
 }).superRefine((t, ctx) => {
+  if (t.who !== undefined && t.kind !== 'graveyard-card') ctx.addIssue({ code: 'custom', message: "only a 'graveyard-card' target spec carries `who` (whose graveyard)" });
   if (t.kind === 'multi' && !(t.specs && t.specs.length >= 2)) ctx.addIssue({ code: 'custom', message: "a 'multi' target spec lists at least two specs" });
   if (t.kind !== 'multi' && t.specs !== undefined) ctx.addIssue({ code: 'custom', message: "only a 'multi' target spec carries specs" });
 });
@@ -225,7 +240,7 @@ export const AbilityCostSchema = z.strictObject({
   energy: N.optional(),
   discardHand: B.optional(),
   payLife: N.optional(),
-  removeCounters: z.strictObject({ counter: S, amount: NUMX }).optional(),
+  removeCounters: z.strictObject({ counter: S, amount: NUMX, all: B.optional() }).optional(),
   exileFromGraveyard: NUMX.optional(),
   exileOtherFromGraveyard: z.strictObject({ count: z.union([N, z.literal('any')]), minCardTypes: N.optional() }).optional(),
   exileFromHand: z.strictObject({ filter: FilterRef, count: N }).optional(),
@@ -442,7 +457,7 @@ export const EFFECT_VARIANTS = [
   }),
   z.strictObject({ op: z.literal('counters'), target: targetOr(['creatures-you-control', 'each-other-creature-you-control']), counter: S, amount: AmountRef, optional: B.optional(), filter: FilterRef.optional() }),
   z.strictObject({ op: z.literal('tap'), target: targetOr(['all-opponent-creatures', 'all-creatures']), noUntap: B.optional() }),
-  z.strictObject({ op: z.literal('untap'), target: targetOr(['all-you-control', 'lands-you-control']) }),
+  z.strictObject({ op: z.literal('untap'), target: targetOr(['all-you-control', 'lands-you-control', 'creatures-you-control']) }),
   z.strictObject({ op: z.literal('sacrifice'), who: z.enum(['you', 'target-player', 'each-opponent', 'each-player']), what: FilterRef, amount: NUMX }),
   z.strictObject({ op: z.literal('sacrifice-self') }),
   z.strictObject({ op: z.literal('mill'), amount: AmountRef, who: z.enum(['you', 'target-player', 'each-opponent', 'that-player']) }),
@@ -455,9 +470,9 @@ export const EFFECT_VARIANTS = [
     restriction: z.enum(['creature-spell', 'instant-sorcery', 'chosen-type-creature', 'colorless-eldrazi']).optional(),
     altIf: z.strictObject({ condition: ConditionRef, mana: z.array(ManaSymbolSchema) }).optional(),
   }),
-  z.strictObject({ op: z.literal('scry'), amount: N }),
-  z.strictObject({ op: z.literal('surveil'), amount: N }),
-  z.strictObject({ op: z.literal('return-from-graveyard'), what: FilterRef, to: z.enum(['hand', 'battlefield', 'library-top', 'library-bottom']), target: B.optional(), anyGraveyard: B.optional(), tapped: B.optional() }),
+  z.strictObject({ op: z.literal('scry'), amount: AmountRef }),
+  z.strictObject({ op: z.literal('surveil'), amount: AmountRef }),
+  z.strictObject({ op: z.literal('return-from-graveyard'), what: FilterRef, to: z.enum(['hand', 'battlefield', 'library-top', 'library-bottom']), target: B.optional(), anyGraveyard: B.optional(), tapped: B.optional(), count: N.optional(), optional: B.optional() }),
   z.strictObject({ op: z.literal('fight'), target: TargetSpecSchema, self: B }),
   z.strictObject({ op: z.literal('bite'), target: TargetSpecSchema }),
   z.strictObject({ op: z.literal('set-life'), amount: N, who: z.enum(['you', 'each-player']) }),
@@ -503,7 +518,7 @@ export const EFFECT_VARIANTS = [
   z.strictObject({ op: z.literal('reflexive'), when: z.literal('you-do'), effects: z.array(EffectRef) }),
   z.strictObject({ op: z.literal('scoped'), who: ScopeWhoSchema, do: z.array(EffectRef) }),
   z.strictObject({ op: z.literal('may'), effects: z.array(EffectRef), prompt: S.optional() }),
-  z.strictObject({ op: z.literal('unless-pays'), who: ScopeWhoSchema, cost: AbilityCostSchema, otherwise: z.array(EffectRef) }),
+  z.strictObject({ op: z.literal('unless-pays'), who: ScopeWhoSchema, cost: AbilityCostSchema, otherwise: z.array(EffectRef), otherwiseAs: z.literal('controller').optional() }),
   z.strictObject({
     op: z.literal('move'),
     what: z.union([TargetSpecSchema, RefSchema, z.strictObject({ filter: FilterRef, zone: SetZoneSchema, who: ScopeWhoSchema, count: z.union([AmountRef, z.literal('all')]), choose: z.enum(['you', 'owner', 'random']).optional() })]),
@@ -522,8 +537,8 @@ export const EffectSchema = z.discriminatedUnion('op', EFFECT_VARIANTS);
 // ---------------------------------------------------------------------------
 
 export const TRIGGER_VARIANTS = [
-  z.strictObject({ on: z.literal('etb'), self: B, filter: FilterRef.optional(), controller: z.enum(['you', 'any']).optional() }),
-  z.strictObject({ on: z.literal('dies'), self: B, filter: FilterRef.optional(), controller: z.enum(['you', 'any']).optional() }),
+  z.strictObject({ on: z.literal('etb'), self: B, filter: FilterRef.optional(), controller: z.enum(['you', 'any', 'opponent']).optional() }),
+  z.strictObject({ on: z.literal('dies'), self: B, filter: FilterRef.optional(), controller: z.enum(['you', 'any', 'opponent']).optional() }),
   z.strictObject({ on: z.literal('ltb'), self: B }),
   z.strictObject({ on: z.literal('attacks'), self: B, filter: FilterRef.optional() }),
   z.strictObject({ on: z.literal('you-attack') }),
@@ -577,6 +592,7 @@ export const STATIC_VARIANTS = [
   z.strictObject({ kind: z.literal('play-lands-from'), zone: z.enum(['graveyard', 'library-top']) }),
   z.strictObject({ kind: z.literal('unspent-mana-becomes-red') }),
   z.strictObject({ kind: z.literal('self-pt'), power: AmountRef, toughness: AmountRef, condition: ConditionRef.optional() }),
+  z.strictObject({ kind: z.literal('set-pt'), power: N, toughness: N, scope: z.enum(['enchanted', 'equipped', 'self', 'you-control', 'all']), filter: FilterRef.optional(), keywords: z.array(KeywordSchema).optional() }),
   z.strictObject({
     kind: z.literal('self-keywords'), keywords: z.array(KeywordSchema), condition: ConditionRef.optional(), cantBlock: B.optional(),
     // parser extensions (characteristics.ts:184/344-346, game.ts:1754)

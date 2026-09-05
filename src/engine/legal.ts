@@ -54,6 +54,9 @@ export function sharedLists(e: Effect): Effect[][] {
   }
 }
 
+/** How many picks a spec asks for: its `count`, with `'X'` the item's X ("up to X target creatures"; 1 when absent). */
+export function specCount(spec: TargetSpec, x: number): number { return spec.count === undefined ? 1 : spec.count === 'X' ? x : spec.count; }
+
 /** One target requirement. `part` numbers the requirements an effect carries beyond its first (a `multi` spec's parts, `exchange`'s second permanent): their picks are appended to the effect's target list instead of replacing it. */
 export interface TargetReq { index: number; spec: TargetSpec; part?: number; soft?: true }
 
@@ -73,15 +76,19 @@ export function ownTargetSpecs(e: Effect): TargetSpec[] {
   if (e.op === 'draw' && e.who === 'target-player') out.push({ kind: 'player' });
   if ((e.op === 'discard' || e.op === 'lose-life' || e.op === 'gain-life' || e.op === 'mill' || e.op === 'sacrifice' || e.op === 'look-top' || e.op === 'exile-graveyard') && e.who === 'target-player') out.push({ kind: 'player' });
   if (e.op === 'reveal-hand-discard') out.push({ kind: e.who === 'target-opponent' ? 'opponent' : 'player' });
+  // "return target creature card from your graveyard …": a real target, chosen on cast and re-checked on resolution (CR 115.1, 608.2b) — the op used to pick afresh when it resolved
+  if (e.op === 'return-from-graveyard' && e.target) out.push({ kind: 'graveyard-card', filter: e.what, ...(e.anyGraveyard ? {} : { who: 'you' }), ...(e.count !== undefined ? { count: e.count } : {}), ...(e.optional ? { optional: true } : {}) });
   if (e.op === 'fight' && !e.self) out.unshift({ kind: 'creature', controller: 'you' });   // two targets: first is own creature
   // composition core: `move` targets through `what`, `exchange` through `a` / `b`, and every op whose `who` / `controller` says 'target-player' asks for a player
+  // 'target-opponent' (9.0c) asks for an opponent only, so a block scoped that way can never be pointed at its own controller
+  const playerWord = (w: unknown) => { if (w === 'target-player') out.push({ kind: 'player' }); else if (w === 'target-opponent') out.push({ kind: 'opponent' }); };
   if (e.op === 'move') {
     if (typeof e.what === 'object' && 'kind' in e.what && !e.what.self) out.push(e.what);
-    if (e.controller === 'target-player' || (typeof e.what === 'object' && !('kind' in e.what) && e.what.who === 'target-player')) out.push({ kind: 'player' });
+    playerWord(e.controller); if (typeof e.what === 'object' && !('kind' in e.what)) playerWord(e.what.who);
   }
-  if (e.op === 'exchange') for (const side of [e.a, e.b]) { if (typeof side === 'object') out.push(side); else if (side === 'target-player') out.push({ kind: 'player' }); }
-  if ((e.op === 'scoped' || e.op === 'unless-pays') && e.who === 'target-player') out.push({ kind: 'player' });
-  if (e.op === 'for-each' && typeof e.over === 'object' && e.over.who === 'target-player') out.push({ kind: 'player' });
+  if (e.op === 'exchange') for (const side of [e.a, e.b]) { if (typeof side === 'object') out.push(side); else playerWord(side); }
+  if (e.op === 'scoped' || e.op === 'unless-pays') playerWord(e.who);
+  if (e.op === 'for-each' && typeof e.over === 'object') playerWord(e.over.who);
   return out;
 }
 
@@ -143,7 +150,7 @@ export function targetOptionsFor(g: Game, controller: PlayerId, spec: TargetSpec
     case 'artifact-or-enchantment': addObjs(o => isType(o, 'Artifact') || isType(o, 'Enchantment')); break;
     case 'artifact-enchantment-or-nonbasic-land': addObjs(o => isType(o, 'Artifact') || isType(o, 'Enchantment') || (isLand(o) && !defOf(o).supertypes.includes('Basic'))); break;
     case 'spell-or-nonland-permanent': addObjs(o => !isLand(o)); for (const it of s.stack) if (it.kind === 'spell' && (!spec.controller || (spec.controller === 'you') === (it.controller === controller))) out.push({ kind: 'stack', id: it.id }); break;
-    case 'graveyard-card': for (const pl of s.players) for (const o of pl.graveyard) if (!spec.filter || matchesFilter(s, o, spec.filter, source)) out.push({ kind: 'object', id: o.id }); break;
+    case 'graveyard-card': for (const pl of s.players) { if (spec.who === 'you' ? pl.id !== controller : spec.who === 'opponent' ? !opps.includes(pl.id) : false) continue; for (const o of pl.graveyard) if (!spec.filter || matchesFilter(s, o, spec.filter, source)) out.push({ kind: 'object', id: o.id }); } break;
     case 'player': addPlayers(everyone); break;
     case 'opponent': addPlayers(opps); break;
     case 'any': addObjs(o => isCreature(o) || isType(o, 'Planeswalker')); addPlayers(everyone); break;
@@ -170,7 +177,7 @@ export function describeSpec(spec: TargetSpec): string {
   if (spec.kind === 'multi') return (spec.specs ?? []).map(describeSpec).join(' and ');
   const base = spec.kind.replace(/-/g, ' ');
   const ctl = spec.controller === 'you' ? ' you control' : spec.controller === 'opponent' ? ' an opponent controls' : '';
-  return `${spec.optional ? 'up to ' : ''}${spec.count && spec.count > 1 ? spec.count + ' ' : ''}target ${base}${ctl}`;
+  return `${spec.optional ? 'up to ' : ''}${spec.count === 'X' ? 'X ' : spec.count && spec.count > 1 ? spec.count + ' ' : ''}target ${base}${ctl}`;
 }
 
 /** All legal actions for player p right now (CR 117 timing, CR 302.6 summoning sickness, CR 305 land drops). */
@@ -202,7 +209,7 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
       if (!nonManaCostPayable(s, pl, ab.cost, c)) return;
       if (ab.effects.every(e => e.op === 'unknown')) return;
       const reqs = targetingEffects(ab.effects);
-      const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, c), optional: !!r.spec.optional || !!r.soft, count: r.spec.count ?? 1 }));
+      const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, c), optional: !!r.spec.optional || !!r.soft, count: specCount(r.spec, 0) }));
       if (targetOptions.some(t => !t.optional && t.options.length === 0)) return;
       out.push({ action: { type: 'activate', objectId: c.id, abilityIndex: i }, label: `${d.name}: ${ab.text}`, targetOptions, manaValue: ab.cost.mana ? manaValue(ab.cost.mana) : 0 });
     });
@@ -245,7 +252,7 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
       for (const modes of modeSets) {
         const eff = expandModes(ab.effects, modes);
         const reqs = targetingEffects(eff);
-        const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, o), optional: !!r.spec.optional || !!r.soft, count: r.spec.count ?? 1 }));
+        const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, o), optional: !!r.spec.optional || !!r.soft, count: specCount(r.spec, 0) }));
         if (targetOptions.some(t => !t.optional && t.options.length === 0)) continue;
         out.push({ action: { type: 'activate', objectId: o.id, abilityIndex: i, modes }, label: `${name(o)}#${o.id}: ${ab.text}`, targetOptions, manaValue: ab.cost.mana ? manaValue(ab.cost.mana) : 0 });
       }
@@ -345,7 +352,7 @@ export function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZo
     const modes = v.modes;
     const eff = expandModes(effects, modes);
     const reqs = targetingEffects(eff);
-    const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, c), optional: !!r.spec.optional || !!r.soft, count: r.spec.count ?? 1 }));
+    const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, c), optional: !!r.spec.optional || !!r.soft, count: specCount(r.spec, v.x ?? 0) }));
     if (auraSpec) targetOptions.unshift({ spec: describeSpec(auraSpec), options: targetOptionsFor(g, p, auraSpec, c), optional: false, count: 1 });
     if (targetOptions.some(t => !t.optional && t.options.length === 0)) continue;
     const modeLabel = modes ? ` [mode ${modes.map(m => m + 1).join('+')}]` : '';

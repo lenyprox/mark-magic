@@ -256,10 +256,7 @@ test('"you may <sentence the family claims>" is wrapped in a may; "you may A and
 // ---------------------------------------------------------------------------------------------------------------
 test('the family declines what the engine cannot express or what it cannot read safely', () => {
   const unknown = (text: string, why: string) => assert.ok(parseEffects(text).some(e => e.op === 'unknown'), `${why}: ${text}`);
-  unknown('You may draw a card unless that player pays {4}.', 'Mystic Remora: the otherwise would run as the payer, not you');
   unknown("Sacrifice ~ unless you return a non-Lair land you control to its owner's hand.", 'a filter word the built-in cost parser would drop');
-  unknown('Target creature gets +X/+X until end of turn, where X is the greatest power among creatures you control.', 'no amount form for a maximum over objects');
-  unknown('Each opponent loses X life and you scry X, where X is the number of Zombies you control.', 'scry takes a number only');
   unknown('Draw a card for each tapped creature target opponent controls.', 'an amount cannot introduce a player target');
   unknown('~ deals damage to each player equal to half that player\'s life total, rounded down.', 'a per-player amount under an each-player target');
   unknown('Exile target creature, Vehicle, or nonbasic land.', 'an or-list mixing a type, a subtype and an adjective');
@@ -268,7 +265,169 @@ test('the family declines what the engine cannot express or what it cannot read 
   unknown('Exile up to X target cards from graveyards.', 'an X target count');
   unknown('Target player scries 2.', 'no scry with a player scope on a number-only op');
   unknown('It becomes a 0/0 Elemental creature with vigilance and haste that\'s still a land.', 'a type change is not a P/T change');
-  unknown("The exiled card's owner creates a 3/3 blue Illusion creature token.", 'an owner is not a controller-of-that');
+  unknown('Exile all multicolored permanents.', 'no "exile all <filter> permanents" template');
+  unknown('Discard all the cards in your hand, then draw that many cards plus one.', 'no "discard all the cards in your hand" template');
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// 9.0c: the wordings the engine bindings, scopes, filter fields and amount forms of that slice made claimable
+// ---------------------------------------------------------------------------------------------------------------
+test('9.0c scopes: "target opponent" is an opponent-only scope, "the exiled card\'s owner" is owner-of-that, Rhystic Study\'s unless-pays runs its clause as the controller', () => {
+  // Sphinx of Enlightenment (legal.ts offers only opponents for target-opponent)
+  assert.deepEqual(parsed('Target opponent draws a card.'), [{ op: 'scoped', who: 'target-opponent', do: [{ op: 'draw', amount: 1, who: 'you' }] }]);
+  assert.deepEqual(parsed('Target opponent draws a card and you draw three cards.'),
+    [{ op: 'scoped', who: 'you', do: [{ op: 'scoped', who: 'target-opponent', do: [{ op: 'draw', amount: 1, who: 'you' }] }, { op: 'draw', amount: 3, who: 'you' }] }]);
+  // Rhystic Study / Mystic Remora: the payer is that player, the draw is yours
+  assert.deepEqual(parsed('You may draw a card unless that player pays {4}.'),
+    [{ op: 'may', effects: [{ op: 'unless-pays', who: 'that-player', cost: { mana: { generic: 4, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{4}' } }, otherwise: [{ op: 'draw', amount: 1, who: 'you' }], otherwiseAs: 'controller' }] }]);
+  // Ghostly Flicker-style owner clause after an exile
+  assert.deepEqual(bound("The exiled card's owner creates a 3/3 blue Illusion creature token."),
+    [{ op: 'scoped', who: 'owner-of-that', do: [{ op: 'token', count: 1, power: 3, toughness: 3, colors: ['U'], types: ['Creature'], subtypes: ['Illusion'], keywords: [], attacking: false }] }]);
+});
+
+test('9.0c review fixes: the frame words the review found mis-bound, and the wordings now declined', () => {
+  const row = (name: string, oracle_text: string, extra: Partial<OracleRow> = {}): OracleRow => ({
+    name, oracle_id: `probe-${name.toLowerCase().replace(/\W+/g, '-')}`, mana_cost: '{1}{B}', mana_value: 2, colors: ['B'], color_identity: ['B'],
+    types: ['Creature'], supertypes: [], subtypes: ['Zombie'], type_line: 'Creature — Zombie', oracle_text, power: '2', toughness: '2', loyalty: null, keywords: [], layout: 'normal', ...extra,
+  });
+  const equipment: Partial<OracleRow> = { types: ['Artifact'], subtypes: ['Equipment'], type_line: 'Artifact — Equipment', power: null, toughness: null };
+  // Abattoir Ghoul: the dead creature's toughness (last known information), not the source's power
+  assert.deepEqual(bound("You gain life equal to that creature's toughness."), [{ op: 'gain-life', amount: { prop: 'toughness', of: 'that' }, who: 'you' }]);
+  // Withdraw: "its controller" is the clause's own target, which the frame cannot name before the clause runs — declined
+  assert.deepEqual(parsed("Return another target creature to its owner's hand unless its controller pays {1}.").map(e => e.op), ['unknown']);
+  // Wight: a token is not "that card" (CR 111.1) — the trigger's object is bound again before the exile
+  let def = parseCard(row('Probe Wight', 'Whenever a creature dealt damage by Probe Wight this turn dies, create a tapped 2/2 black Zombie creature token and exile that card.'));
+  assert.equal(def.fullyParsed, true);
+  assert.deepEqual(def.abilities[0].kind === 'triggered' && def.abilities[0].effects.map(e => e.op), ['bind', 'token', 'bind', 'move']);
+  // Necropolis Regent: "on it" in a trigger about another permanent is that permanent, never the source
+  def = parseCard(row('Probe Regent', 'Whenever a creature you control deals combat damage to a player, put that many +1/+1 counters on it.'));
+  assert.deepEqual(def.abilities[0].kind === 'triggered' && def.abilities[0].effects, [{ op: 'bind', as: 'that', from: 'triggering' }, { op: 'counters', target: 'that', counter: '+1/+1', amount: { count: 'that-many' } }]);
+  def = parseCard(row('Probe Unicorn', 'Whenever another creature you control enters, put a +1/+1 counter on it.'));
+  assert.deepEqual(def.abilities[0].kind === 'triggered' && def.abilities[0].effects, [{ op: 'bind', as: 'that', from: 'triggering' }, { op: 'counters', target: 'that', counter: '+1/+1', amount: 1 }]);
+  // a self trigger's "on it" is still the source
+  def = parseCard(row('Probe Grower', 'Whenever Probe Grower attacks, put a +1/+1 counter on it.'));
+  assert.deepEqual(def.abilities[0].kind === 'triggered' && def.abilities[0].effects, [{ op: 'counters', target: 'self', counter: '+1/+1', amount: 1 }]);
+  // Syr Ginger: with the source itself sacrificed, "its power" is the source (last known information)
+  def = parseCard(row('Probe Ginger', '{2}, {T}, Sacrifice Probe Ginger: You gain life equal to its power.'));
+  assert.equal(def.fullyParsed, true);
+  assert.deepEqual(def.abilities[0].kind === 'activated' && def.abilities[0].effects, [{ op: 'gain-life', amount: { count: 'power-of-source' }, who: 'you' }]);
+  // Skullclamp: "equipped creature" (no article) is the creature this is attached to; "an equipped creature" is any creature carrying Equipment
+  def = parseCard(row('Probe Clamp', 'Whenever equipped creature dies, draw two cards.', equipment));
+  assert.equal(def.fullyParsed, true);
+  assert.deepEqual(def.abilities[0].kind === 'triggered' && def.abilities[0].event, { on: 'dies', self: false, filter: { attachedToSource: true }, controller: 'any' });
+  def = parseCard(row('Probe Banner', 'Whenever an equipped creature you control dies, draw a card.', equipment));
+  assert.deepEqual(def.abilities[0].kind === 'triggered' && def.abilities[0].event, { on: 'dies', self: false, filter: { equipped: true, types: ['Creature'] }, controller: 'you' });
+  // Mystic Remora's head, and the generic opponent-cast head
+  def = parseCard(row('Probe Remora', 'Whenever an opponent casts a noncreature spell, you may draw a card unless that player pays {4}.'));
+  assert.equal(def.fullyParsed, true);
+  assert.deepEqual(def.abilities[0].kind === 'triggered' && def.abilities[0].event, { on: 'cast', filter: { notTypes: ['Creature'] }, who: 'opponent' });
+  def = parseCard(row('Probe Ward', 'Whenever an opponent casts a green spell, you draw a card.'));
+  assert.deepEqual(def.abilities[0].kind === 'triggered' && def.abilities[0].event, { on: 'cast', filter: { colors: ['G'] }, who: 'opponent' });
+  if (hasDb) {
+    const db = CardDB.shared();
+    for (const n of ['Mystic Remora', 'Skullclamp', 'Exalted Angel', 'Exquisite Blood', 'Abattoir Ghoul', 'Wight', 'Necropolis Regent', 'Morbid Plunder', 'Relic Amulet', 'Vengeful Regrowth']) assert.equal(db.get(n)?.fullyParsed, true, `${n} fully parsed`);
+    assert.equal(db.get('Withdraw')?.fullyParsed, false, 'Withdraw is declined');
+  }
+});
+
+test('9.0c review fixes: "that many" must be fed (item.lastAmount) — an unfed reading is unparsed, a fed one is kept', () => {
+  const row = (name: string, oracle_text: string, extra: Partial<OracleRow> = {}): OracleRow => ({
+    name, oracle_id: `probe-${name.toLowerCase().replace(/\W+/g, '-')}`, mana_cost: '{1}{U}', mana_value: 2, colors: ['U'], color_identity: ['U'],
+    types: ['Creature'], supertypes: [], subtypes: ['Wizard'], type_line: 'Creature — Wizard', oracle_text, power: '2', toughness: '2', loyalty: null, keywords: [], layout: 'normal', ...extra,
+  });
+  const sorcery: Partial<OracleRow> = { types: ['Sorcery'], subtypes: [], type_line: 'Sorcery', power: null, toughness: null };
+  const artifact: Partial<OracleRow> = { types: ['Artifact'], subtypes: [], type_line: 'Artifact', power: null, toughness: null };
+  // nothing before it evaluates an amount: unparsed, not a silent 0
+  let def = parseCard(row('Probe Mill', 'Target player mills that many cards.', sorcery));
+  assert.equal(def.fullyParsed, false); assert.deepEqual(def.abilities[0].kind === 'spell' && def.abilities[0].effects.map(e => e.op), ['unknown']);
+  // a trigger about no amount does not feed it either
+  def = parseCard(row('Probe Raid', 'Whenever you attack with one or more creatures, target player mills that many cards.'));
+  assert.equal(def.fullyParsed, false);
+  // fed by a trigger about an amount (the life gained, the damage dealt, the life an opponent lost)
+  assert.equal(parseCard(row('Probe Bond', 'Whenever you gain life, draw that many cards.')).fullyParsed, true);
+  assert.equal(parseCard(row('Probe Angel', 'Whenever Probe Angel deals damage, you gain that much life.')).fullyParsed, true);
+  assert.equal(parseCard(row('Probe Blood', 'Whenever an opponent loses life, you gain that much life.')).fullyParsed, true);
+  // fed by an earlier amount of the same item, across a container
+  assert.equal(parseCard(row('Probe Loot', 'Draw a card for each Island you control, then discard that many cards.', sorcery)).fullyParsed, true);
+  assert.equal(parseCard(row('Probe Regrowth', 'Return up to two target land cards from your graveyard to the battlefield tapped. Create that many 1/1 green Saproling creature tokens.', sorcery)).fullyParsed, true);
+  // fed by a cost that removed counters ("Remove all charge counters from ~": every one)
+  def = parseCard(row('Probe Amulet', '{2}, {T}, Remove all charge counters from Probe Amulet: It deals that much damage to target creature.', artifact));
+  assert.equal(def.fullyParsed, true);
+  assert.deepEqual(def.abilities[0].kind === 'activated' && def.abilities[0].cost.removeCounters, { counter: 'charge', amount: 1, all: true });
+  def = parseCard(row('Probe Amulet 2', '{2}, {T}, Sacrifice Probe Amulet 2: It deals that much damage to target creature.', artifact));
+  assert.equal(def.fullyParsed, false, 'a sacrifice cost feeds no number');
+});
+
+test('9.0c amounts: aggregates over an object set, "that many", scry X', () => {
+  // Torrent of Fire-style maximum, a total
+  assert.deepEqual(parsed('Target creature gets +X/+X until end of turn, where X is the greatest power among creatures you control.'),
+    [{ op: 'pump', target: { kind: 'creature' }, power: { prop: 'power', agg: 'max', over: { types: ['Creature'], who: 'you' } }, toughness: { prop: 'power', agg: 'max', over: { types: ['Creature'], who: 'you' } }, duration: 'eot' }]);
+  assert.deepEqual(parsed('~ deals damage to any target equal to the total power of creatures you control.'),
+    [{ op: 'damage', amount: { prop: 'power', agg: 'sum', over: { types: ['Creature'], who: 'you' } }, target: { kind: 'any' } }]);
+  // "that many" is the last amount the item evaluated (count 'that-many')
+  assert.deepEqual(parsed('Discard your hand, then draw that many cards.'),
+    [{ op: 'scoped', who: 'you', do: [{ op: 'discard', amount: 'hand', who: 'you' }, { op: 'draw', amount: { count: 'that-many' }, who: 'you' }] }]);
+  // scry takes an Amount
+  assert.deepEqual(parsed('Each opponent loses X life and you scry X, where X is the number of Zombies you control.'),
+    [{ op: 'scoped', who: 'you', do: [{ op: 'lose-life', amount: { count: 'permanents-you-control', filter: { subtypes: ['Zombie'] } }, who: 'each-opponent' }, { op: 'scry', amount: { count: 'permanents-you-control', filter: { subtypes: ['Zombie'] } } }] }]);
+});
+
+test('9.0c targets: "up to X target", "target A and target B" (CR 115.3), a filtered spell target, "up to N target … cards from your graveyard"', () => {
+  assert.deepEqual(parsed('Destroy up to X target artifacts.'), [{ op: 'destroy', target: { kind: 'artifact', optional: true, count: 'X' } }]);
+  // Spiteful Blow: two instances of "target" are two parts of one target list
+  assert.deepEqual(parsed('Destroy target creature and target land.'), [{ op: 'destroy', target: { kind: 'multi', specs: [{ kind: 'creature' }, { kind: 'land' }] } }]);
+  // Strix Serenade: the comma list is a filter on the spell
+  assert.deepEqual(parsed('Counter target artifact, creature, or planeswalker spell.'), [{ op: 'counter', target: { kind: 'spell', filter: { types: ['Artifact', 'Creature', 'Planeswalker'] } } }]);
+  // Life from the Loam
+  assert.deepEqual(parsed('Return up to three target land cards from your graveyard to your hand.'),
+    [{ op: 'return-from-graveyard', what: { types: ['Land'] }, to: 'hand', target: true, optional: true, count: 3 }]);
+});
+
+test('9.0c filter fields: non-<Subtype>, supertypes, "without flying", N/N, adjectives, "dealt damage by ~ this turn", all-of type lists', () => {
+  // Restoration Angel: an Angel can no longer blink itself
+  assert.deepEqual(parsed('You may exile target non-Angel creature you control, then return that card to the battlefield under your control.'),
+    [{ op: 'may', effects: [{ op: 'scoped', who: 'you', do: [{ op: 'exile', target: { kind: 'creature', controller: 'you', filter: { notSubtypes: ['Angel'], types: ['Creature'] } } }, { op: 'move', what: 'that', to: 'battlefield', controller: 'you' }] }] }]);
+  assert.deepEqual(parsed('Destroy target non-Aura enchantment.'), [{ op: 'destroy', target: { kind: 'enchantment', filter: { notSubtypes: ['Aura'], types: ['Enchantment'] } } }]);
+  assert.deepEqual(parsed('Snow creatures you control gain trample until end of turn.'),
+    [{ op: 'for-each', over: { supertypes: ['Snow'], types: ['Creature'], who: 'you' }, do: [{ op: 'grant-keyword', target: 'that', keywords: ['trample'], duration: 'eot' }] }]);
+  assert.deepEqual(parsed('Legendary creatures you control get +1/+1 until end of turn.'),
+    [{ op: 'for-each', over: { supertypes: ['Legendary'], types: ['Creature'], who: 'you' }, do: [{ op: 'pump', target: 'that', power: 1, toughness: 1, duration: 'eot' }] }]);
+  assert.deepEqual(parsed('Tap target creature without flying.'), [{ op: 'tap', target: { kind: 'creature', filter: { notKeywords: ['flying'], types: ['Creature'] } } }]);
+  // Aegis of the Meek
+  assert.deepEqual(parsed('Target 1/1 creature gets +1/+2 until end of turn.'), [{ op: 'pump', target: { kind: 'creature', filter: { powerEQ: 1, toughnessEQ: 1, types: ['Creature'] } }, power: 1, toughness: 2, duration: 'eot' }]);
+  assert.deepEqual(parsed('Destroy target monocolored creature.'), [{ op: 'destroy', target: { kind: 'creature', filter: { monocolored: true, types: ['Creature'] } } }]);
+  // "artifact creature" is an artifact AND a creature (typesAll); "artifact or creature" stays any-of
+  assert.deepEqual(parsed('Destroy target artifact creature.'), [{ op: 'destroy', target: { kind: 'creature', filter: { types: ['Artifact', 'Creature'], typesAll: true } } }]);
+  assert.deepEqual(parsed('Destroy target artifact or creature.'), [{ op: 'destroy', target: { kind: 'creature', filter: { types: ['Artifact', 'Creature'] } } }]);
+  // Blood Cultist: the trigger's filter reads the engine's per-turn damage record
+  const cultist = parseCard({ name: 'Probe Cultist', oracle_id: 'pc', mana_cost: '{1}{B}', mana_value: 2, colors: ['B'], color_identity: ['B'], types: ['Creature'], supertypes: [], subtypes: ['Human'], type_line: 'Creature — Human', oracle_text: 'Whenever a creature dealt damage by Probe Cultist this turn dies, put a +1/+1 counter on Probe Cultist.', power: '1', toughness: '1', loyalty: null, keywords: [], layout: 'normal' });
+  assert.equal(cultist.fullyParsed, true, cultist.unparsed.join(' | '));
+  assert.deepEqual((cultist.abilities[0] as { event: unknown }).event, { on: 'dies', self: false, filter: { dealtDamageBySource: true, types: ['Creature'] }, controller: 'any' });
+  // The Meathook Massacre-style "an opponent controls dies"
+  const massacre = parseCard({ name: 'Probe Massacre', oracle_id: 'pm', mana_cost: '{1}{B}', mana_value: 2, colors: ['B'], color_identity: ['B'], types: ['Enchantment'], supertypes: [], subtypes: [], type_line: 'Enchantment', oracle_text: 'Whenever a creature an opponent controls dies, you gain 1 life.', power: null, toughness: null, loyalty: null, keywords: [], layout: 'normal' });
+  assert.equal(massacre.fullyParsed, true, massacre.unparsed.join(' | '));
+  assert.deepEqual((massacre.abilities[0] as { event: unknown }).event, { on: 'dies', self: false, filter: { types: ['Creature'] }, controller: 'opponent' });
+});
+
+test('9.0c statics: "Enchanted creature has base power and toughness N/N and has …" (layer 7b), \'All creatures have "…"\'', () => {
+  const st = (text: string, types: string[], subtypes: string[] = []) => parseCard({ name: 'Probe Static', oracle_id: 'ps', mana_cost: '{2}', mana_value: 2, colors: [], color_identity: [], types, supertypes: [], subtypes, type_line: types.join(' '), oracle_text: text, power: null, toughness: null, loyalty: null, keywords: [], layout: 'normal' });
+  // Super State
+  const superState = st('Enchant creature you control\nEnchanted creature has base power and toughness 9/9 and has flying, first strike, trample, and haste.', ['Enchantment'], ['Aura']);
+  assert.deepEqual(superState.abilities.filter(a => a.kind === 'static').map(a => (a as { effect: unknown }).effect).find(e => (e as { kind: string }).kind === 'set-pt'),
+    { kind: 'set-pt', power: 9, toughness: 9, scope: 'enchanted', keywords: ['flying', 'first strike', 'trample', 'haste'] });
+  // Pendrell Mists: every creature, not a subtype named All
+  const mists = st('All creatures have "At the beginning of your upkeep, sacrifice this creature unless you pay {1}."', ['Enchantment']);
+  assert.equal(mists.fullyParsed, true, mists.unparsed.join(' | '));
+  assert.deepEqual((mists.abilities[0] as { effect: { kind: string; filter: unknown; scope: string } }).effect.filter, { types: ['Creature'] });
+  assert.equal((mists.abilities[0] as { effect: { scope: string } }).effect.scope, 'all');
+});
+
+test('9.0c: "-X" keeps its sign (Death Wind) and the "you control enters" trigger template runs first (Jaws of Defeat)', () => {
+  assert.deepEqual(parsed('Target creature gets -X/-X until end of turn.'),
+    [{ op: 'pump', target: { kind: 'creature' }, power: { sum: ['X'], times: -1 }, toughness: { sum: ['X'], times: -1 }, duration: 'eot' }]);
+  const jaws = parseCard({ name: 'Probe Jaws', oracle_id: 'pj', mana_cost: '{2}{B}', mana_value: 3, colors: ['B'], color_identity: ['B'], types: ['Enchantment'], supertypes: [], subtypes: [], type_line: 'Enchantment', oracle_text: "Whenever a creature you control enters, target opponent loses life equal to the difference between that creature's power and its toughness.", power: null, toughness: null, loyalty: null, keywords: [], layout: 'normal' });
+  assert.equal(jaws.fullyParsed, true, jaws.unparsed.join(' | '));
+  assert.deepEqual((jaws.abilities[0] as { event: unknown }).event, { on: 'etb', self: false, filter: { types: ['Creature'] }, controller: 'you' });
 });
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -290,15 +449,9 @@ test('a sentence the built-ins parse keeps its built-in shape with the family pr
 // ---------------------------------------------------------------------------------------------------------------
 test('a printed restriction no filter field can carry makes the sentence unknown, never a wider filter (CR 115.1)', () => {
   const unknown = (text: string, why: string) => assert.ok(parseEffects(text).some(e => e.op === 'unknown'), `${why}: ${text}`);
-  // Restoration Angel: an Angel that could target itself would blink itself forever (the verify:pool hang)
-  unknown('You may exile target non-Angel creature you control, then return that card to the battlefield under your control.', 'non-Angel has no Filter field');
-  unknown('Destroy target non-Aura enchantment.', 'non-Aura has no Filter field');
-  unknown('Snow creatures you control gain trample until end of turn.', 'a supertype is not a subtype');
-  unknown('Legendary creatures you control get +1/+1 until end of turn.', 'a supertype is not a subtype');
-  unknown('Tap target creature without flying.', 'no negative keyword filter');
-  // "target opponent" would be offered every player by the engine (ScopeWho has no opponent-only word)
-  unknown('Target opponent draws a card.', 'target opponent as a scope');
-  unknown('Target opponent draws a card and you draw three cards.', 'target opponent as a scope');
+  // (non-<Subtype>, supertypes, "without flying", "target opponent" became fields and scopes in 9.0c — see the 9.0c tests above)
+  unknown('Destroy target non-Blorp land.', 'a word the subtype vocabulary does not know is still declined');
+  unknown('Exile target creature of the chosen color.', 'no colour-choice filter field');
 });
 
 test('subtypes are spelt the way the pool prints them: plurals, invariants, and no capitalised English word', () => {
@@ -343,10 +496,10 @@ test('"<player> may …" is a choice that player makes (CR 601.2 / 608.2), never
 });
 
 test('a leading "it" / "that creature" after a sentence that named another object is that object, not the source', () => {
-  // Slave of Bolas: the stolen creature gains haste, not the sorcery — and since gain-control binds nothing itself, the
-  // item's target is bound before it (one bind, however many sentences read it)
+  // Slave of Bolas: the stolen creature gains haste, not the sorcery — gain-control binds what it stole (9.0c), so no
+  // `bind` repair is needed any more
   assert.deepEqual(parsed('Gain control of target creature. Untap that creature. It gains haste until end of turn. Sacrifice it at the beginning of the next end step.'),
-    [{ op: 'bind', as: 'that', from: 'targets' }, { op: 'gain-control', target: { kind: 'creature' }, duration: 'permanent' }, { op: 'untap', target: 'that' }, { op: 'grant-keyword', target: 'that', keywords: ['haste'], duration: 'eot' },
+    [{ op: 'gain-control', target: { kind: 'creature' }, duration: 'permanent' }, { op: 'untap', target: 'that' }, { op: 'grant-keyword', target: 'that', keywords: ['haste'], duration: 'eot' },
      { op: 'delayed-trigger', at: 'next-end-step', bind: 'that', effects: [{ op: 'remove-those', how: 'sacrifice' }] }]);
   // Elemental Appeal: the token, inside the kicked conditional
   assert.deepEqual(parsed('Create a 7/1 red Elemental creature token with trample and haste. Exile it at the beginning of the next end step. If this spell was kicked, that creature gets +7/+0 until end of turn.'),
@@ -391,8 +544,11 @@ test('trigger heads that read "~ or another …" / "… you control with …" / 
   def = parseCard(row('Probe Sliver', 'All Slivers have "{T}: Target Sliver creature gets +1/+0 until end of turn."'));
   assert.equal(def.fullyParsed, true);
   assert.deepEqual((def.abilities[0] as { effect: { filter: unknown } }).effect.filter, { subtypes: ['Sliver'] });
-  // a garbage filter is no longer a silent no-op: the line is unparsed
+  // a garbage filter is no longer a silent no-op: the line is unparsed ("kicked" became a filter flag in 9.0c, "glorious" is nothing)
   def = parseCard(row('Probe Kicked', 'Whenever you cast a kicked spell, draw a card.'));
+  assert.equal(def.fullyParsed, true);
+  assert.deepEqual((def.abilities[0] as { event: unknown }).event, { on: 'cast', filter: { kicked: true }, who: 'you' });
+  def = parseCard(row('Probe Glorious', 'Whenever you cast a glorious spell, draw a card.'));
   assert.equal(def.fullyParsed, false);
 });
 
@@ -417,55 +573,65 @@ test('a trigger about another object binds it as `that` before a family-parsed b
 const BIND: Effect = { op: 'bind', as: 'that', from: 'targets' };
 const CYC = { types: ['Creature'], who: 'you' } as const;
 test('a frame-reading sentence after a targeted antecedent that binds nothing gets the item\'s targets bound before it (CR 608.2h, 400.7)', () => {
-  // Snakeskin Veil: counters bind nothing, so `that` would have been empty and hexproof never granted
+  // Snakeskin Veil / Spidery Grasp: counters and untap bind what they touched (9.0c), so the pronoun reads the frame directly
   assert.deepEqual(parsed('Put a +1/+1 counter on target creature you control. It gains hexproof until end of turn.'),
-    [BIND, { op: 'counters', target: { kind: 'creature', controller: 'you' }, counter: '+1/+1', amount: 1 }, { op: 'grant-keyword', target: 'that', keywords: ['hexproof'], duration: 'eot' }]);
-  // Spidery Grasp: untap binds nothing either
+    [{ op: 'counters', target: { kind: 'creature', controller: 'you' }, counter: '+1/+1', amount: 1 }, { op: 'grant-keyword', target: 'that', keywords: ['hexproof'], duration: 'eot' }]);
   assert.deepEqual(parsed('Untap target creature. It gets +2/+4 and gains reach until end of turn.'),
-    [BIND, { op: 'untap', target: { kind: 'creature' } }, { op: 'pump', target: 'that', power: 2, toughness: 4, keywords: ['reach'], duration: 'eot' }]);
-  // Dream Fracture / Undermine / Access Denied: `counter` binds nothing, so "its controller" and "that spell's mana value"
-  // were nobody and 0 — and a spell target is a stack ref the engine's `bind` cannot take either, so the sentence is
-  // unknown until `counter` binds what it countered (docs/HANDOFF.md item 23)
+    [{ op: 'untap', target: { kind: 'creature' } }, { op: 'pump', target: 'that', power: 2, toughness: 4, keywords: ['reach'], duration: 'eot' }]);
+  // Dream Fracture / Undermine / Access Denied: `counter` binds the countered spell with the controller and mana value it
+  // had on the stack (9.0c), so "its controller" and "that spell's mana value" read the frame
   assert.deepEqual(parsed('Counter target spell. Its controller draws a card.'),
-    [{ op: 'counter', target: { kind: 'spell' } }, { op: 'unknown', text: 'Its controller draws a card.' }]);
-  assert.deepEqual(parsed("Counter target spell. Create X 1/1 colorless Thopter artifact creature tokens with flying, where X is that spell's mana value.").map(e => e.op), ['counter', 'unknown']);
+    [{ op: 'counter', target: { kind: 'spell' } }, { op: 'scoped', who: 'controller-of-that', do: [{ op: 'draw', amount: 1, who: 'you' }] }]);
+  assert.deepEqual(parsed("Counter target spell. Create X 1/1 colorless Thopter artifact creature tokens with flying, where X is that spell's mana value.").map(e => e.op), ['counter', 'token']);
+  // an op that still binds nothing (regenerate) keeps the repair
+  assert.deepEqual(parsed('Regenerate target creature. It gains hexproof until end of turn.'),
+    [BIND, { op: 'regenerate', target: { kind: 'creature' } }, { op: 'grant-keyword', target: 'that', keywords: ['hexproof'], duration: 'eot' }]);
   // a binding antecedent is left alone (destroy binds what it destroyed)
   assert.deepEqual(parsed('Destroy target creature. Its controller draws a card.'),
     [{ op: 'destroy', target: { kind: 'creature' } }, { op: 'scoped', who: 'controller-of-that', do: [{ op: 'draw', amount: 1, who: 'you' }] }]);
   // the bind lands inside the container the antecedent sits in, so a failed condition binds nothing
-  assert.deepEqual(parsed('If ~ was kicked, gain control of target creature. Untap that creature.'),
-    [{ op: 'conditional', condition: { kind: 'kicked' }, then: [BIND, { op: 'gain-control', target: { kind: 'creature' }, duration: 'permanent' }] }, { op: 'untap', target: 'that' }]);
+  assert.deepEqual(parsed('If ~ was kicked, regenerate target creature. Untap that creature.'),
+    [{ op: 'conditional', condition: { kind: 'kicked' }, then: [BIND, { op: 'regenerate', target: { kind: 'creature' } }] }, { op: 'untap', target: 'that' }]);
 });
 
 test('"those" after a group antecedent iterates the same set (CR 608.2f), inside a conditional too', () => {
-  // Gleam of Resistance / Tenacity / War Flare: pump binds nothing, so "those creatures" untapped nothing
+  // Gleam of Resistance / Tenacity / War Flare: pump binds the pumped set (9.0c), so "those creatures" is the frame
   assert.deepEqual(parsed('Creatures you control get +1/+2 until end of turn. Untap those creatures.'),
-    [{ op: 'pump', target: 'creatures-you-control', power: 1, toughness: 2, duration: 'eot' }, { op: 'for-each', over: CYC, do: [{ op: 'untap', target: 'that' }] }]);
+    [{ op: 'pump', target: 'creatures-you-control', power: 1, toughness: 2, duration: 'eot' }, { op: 'untap', target: 'those' }]);
+  // an op that binds nothing on a group word still iterates the set
+  assert.deepEqual(parsed('Creatures you control get +1/+2 until end of turn. Regenerate those creatures.').map(e => e.op), ['pump', 'unknown']);
+  // Gideon, Martial Paragon: the untapped set is "those creatures"
+  assert.deepEqual(parsed('Untap all creatures you control. Those creatures get +1/+1 until end of turn.'),
+    [{ op: 'untap', target: 'creatures-you-control' }, { op: 'pump', target: 'those', power: 1, toughness: 1, duration: 'eot' }]);
   // Dauntless Unity: the "instead" template folds the first sentence into the else branch, after the reference
   assert.deepEqual(parsed('Creatures you control get +1/+1 until end of turn. If ~ was kicked, those creatures get +2/+1 until end of turn instead.'),
     [{ op: 'conditional', condition: { kind: 'kicked' }, then: [{ op: 'for-each', over: CYC, do: [{ op: 'pump', target: 'that', power: 2, toughness: 1, duration: 'eot' }] }], else: [{ op: 'pump', target: 'creatures-you-control', power: 1, toughness: 1, duration: 'eot' }] }]);
-  // Savage Offensive: a grant binds nothing either; "they" is the same set
+  // Savage Offensive: the grant binds the set; "they" reads it inside the conditional
   assert.deepEqual(parsed('Creatures you control gain first strike until end of turn. If ~ was kicked, they get +1/+1 until end of turn.'),
-    [{ op: 'grant-keyword', target: 'creatures-you-control', keywords: ['first strike'], duration: 'eot' }, { op: 'conditional', condition: { kind: 'kicked' }, then: [{ op: 'for-each', over: CYC, do: [{ op: 'pump', target: 'that', power: 1, toughness: 1, duration: 'eot' }] }] }]);
+    [{ op: 'grant-keyword', target: 'creatures-you-control', keywords: ['first strike'], duration: 'eot' }, { op: 'conditional', condition: { kind: 'kicked' }, then: [{ op: 'pump', target: 'those', power: 1, toughness: 1, duration: 'eot' }] }]);
 });
 
 test('a frame-reading sentence nothing can bind is unknown — not the source, not a no-op', () => {
-  // Puresight Merrow: look-top binds nothing and names no target or set
-  assert.deepEqual(parsed('Look at the top card of your library. You may exile that card.'), [{ op: 'look-top', who: 'you', amount: 1 }, { op: 'unknown', text: 'You may exile that card.' }]);
+  // Puresight Merrow: look-top binds the looked-at card (9.0c)
+  assert.deepEqual(parsed('Look at the top card of your library. You may exile that card.'), [{ op: 'look-top', who: 'you', amount: 1 }, { op: 'may', effects: [{ op: 'move', what: 'that', to: 'exile' }] }]);
+  // an op that binds nothing and names no target or set still leaves the pronoun unknown
+  assert.deepEqual(parsed('Scry 1. You may exile that card.'), [{ op: 'scry', amount: 1 }, { op: 'unknown', text: 'You may exile that card.' }]);
   // on its own (no antecedent at all) the same sentences the tests above parse through `bound` are unknown
   assert.deepEqual(parsed('Its controller creates two Treasure tokens.'), [{ op: 'unknown', text: 'Its controller creates two Treasure tokens.' }]);
   assert.deepEqual(parsed('Untap those creatures.'), [{ op: 'unknown', text: 'Untap those creatures.' }]);
-  // a group antecedent cannot say whose controller "its controller" is
-  assert.deepEqual(parsed('Creatures you control get +1/+1 until end of turn. Its controller draws a card.'),
-    [{ op: 'pump', target: 'creatures-you-control', power: 1, toughness: 1, duration: 'eot' }, { op: 'unknown', text: 'Its controller draws a card.' }]);
-  // an earlier object target: `bind` takes every target of the item, so "that creature" would be the artifact
-  assert.deepEqual(parsed('Untap target artifact. Gain control of target creature. Untap that creature.').map(e => e.op), ['untap', 'gain-control', 'unknown']);
+  // an antecedent that binds nothing cannot say whose controller "its controller" is
+  assert.deepEqual(parsed('Scry 1. Its controller draws a card.'),
+    [{ op: 'scry', amount: 1 }, { op: 'unknown', text: 'Its controller draws a card.' }]);
+  // an earlier object target: gain-control binds what it stole (9.0c), so "that creature" is the stolen creature and no
+  // `bind` of every target is needed; with an op that binds nothing the two targets make the pronoun ambiguous
+  assert.deepEqual(parsed('Untap target artifact. Gain control of target creature. Untap that creature.').map(e => e.op), ['untap', 'gain-control', 'untap']);
+  assert.deepEqual(parsed('Regenerate target artifact. Regenerate target creature. Untap that creature.').map(e => e.op), ['regenerate', 'regenerate', 'unknown']);
   // the frame a caller holds: a sacrifice cost binds what was sacrificed; a spell is one item, so the bind goes into the earlier paragraph
   const fling = parseCard({ name: 'Flung', oracle_id: 'f', mana_cost: '{1}{R}', mana_value: 2, colors: ['R'], color_identity: ['R'], types: ['Instant'], supertypes: [], subtypes: [], type_line: 'Instant', oracle_text: "As an additional cost to cast this spell, sacrifice a creature.\nFlung deals damage equal to the sacrificed creature's power to any target.", power: null, toughness: null, loyalty: null, keywords: [], layout: 'normal' });
   assert.equal(fling.fullyParsed, true, fling.unparsed.join(' | '));
   const stolen = parseCard({ name: 'Thief', oracle_id: 't', mana_cost: '{1}{R}', mana_value: 2, colors: ['R'], color_identity: ['R'], types: ['Sorcery'], supertypes: [], subtypes: [], type_line: 'Sorcery', oracle_text: 'Gain control of target creature until end of turn.\nUntap that creature. It gains haste until end of turn.', power: null, toughness: null, loyalty: null, keywords: [], layout: 'normal' });
   assert.equal(stolen.fullyParsed, true, stolen.unparsed.join(' | '));
-  assert.deepEqual(stolen.abilities.find(a => a.kind === 'spell')!.effects.map(e => e.op), ['bind', 'gain-control', 'untap', 'grant-keyword']);
+  assert.deepEqual(stolen.abilities.find(a => a.kind === 'spell')!.effects.map(e => e.op), ['gain-control', 'untap', 'grant-keyword']);   // gain-control binds (9.0c): no bind repair
 });
 
 test('the anthem "… you control have <keywords>" templates take every filter word the vocabulary makes expressible (CR 613.1e)', () => {
@@ -478,16 +644,16 @@ test('the anthem "… you control have <keywords>" templates take every filter w
   // Padeem, Consul of Innovation / Leonin Abunas: every artifact, not only creatures
   assert.deepEqual(st('Artifacts you control have hexproof.'), { fullyParsed: true, effect: { kind: 'anthem', power: 0, toughness: 0, filter: { types: ['Artifact'] }, scope: 'you-control', keywords: ['hexproof'], anyPermanent: true } });
   assert.deepEqual(st('Other enchantments you control have indestructible.').effect, { kind: 'anthem', power: 0, toughness: 0, filter: { types: ['Enchantment'] }, scope: 'other-you-control', keywords: ['indestructible'], anyPermanent: true });
-  // a word no filter field carries still declines
-  assert.equal(st('Legendary creatures you control have hexproof.').fullyParsed, false);
+  // supertypes are a field since 9.0c; a word no filter field carries still declines
+  assert.deepEqual(st('Legendary creatures you control have hexproof.'), { fullyParsed: true, effect: { kind: 'anthem', power: 0, toughness: 0, filter: { supertypes: ['Legendary'] }, scope: 'you-control', keywords: ['hexproof'] } });
   assert.equal(st('Flying creatures you control have vigilance.').fullyParsed, false);
 });
 
 // ---------------------------------------------------------------------------------------------------------------
 // the two parser debts
 // ---------------------------------------------------------------------------------------------------------------
-test('PARSER_VERSION is 3 and parse.ts carries no 0x08 byte (debt 5)', () => {
-  assert.equal(PARSER_VERSION, 3);
+test('PARSER_VERSION is 4 and parse.ts carries no 0x08 byte (debt 5)', () => {
+  assert.equal(PARSER_VERSION, 4);
   const src = fs.readFileSync(path.join(projectRoot(), 'src', 'cards', 'parse.ts'), 'utf8');
   assert.equal(src.includes('\x08'), false, 'a literal backspace byte where a \\b regex boundary was meant');
   assert.match(src, /\\bthis creature\\b\|\\bthis permanent\\b/);
@@ -531,5 +697,24 @@ test('a non-self trigger body that reads the frame binds the triggering object; 
     const weird = trig('Blistercoil Weird');
     assert.deepEqual(weird.effects, [{ op: 'pump', target: 'self', power: 1, toughness: 1, duration: 'eot' }, { op: 'untap', target: 'self' }]);
     assert.equal(db.get('Blistercoil Weird')!.fullyParsed, true);
+  } finally { db.close(); }
+});
+
+test('"permanent cards" in a graveyard is a permanent-type filter, and "for each other snow permanent you control" counts other permanents (9.0c re-review 2)', { skip: !hasDb }, () => {
+  useScriptStore(new ScriptStore(path.join(projectRoot(), 'data', 'master', '.no-scripts')));
+  const db = new CardDB();
+  try {
+    // "Return up to two target permanent cards from your graveyard to your hand."
+    const regenesis = db.get('Regenesis')!;
+    const ret = regenesis.abilities.find(a => a.kind === 'spell')!.effects[0] as { op: string; what: { types?: string[] } };
+    assert.equal(ret.op, 'return-from-graveyard');
+    assert.ok(ret.what.types?.includes('Creature') && ret.what.types.includes('Land') && !ret.what.types.includes('Instant') && !ret.what.types.includes('Sorcery'), JSON.stringify(ret.what));
+    // "~ gets +1/+0 for each other snow permanent you control."
+    const aldergard = db.get('Spirit of the Aldergard')!;
+    const pt = aldergard.abilities.find(a => a.kind === 'static' && a.effect.kind === 'self-pt')!.effect as { power: { count: string; filter: { other?: boolean; supertypes?: string[] } } };
+    assert.equal(pt.power.count, 'permanents-you-control');
+    assert.equal(pt.power.filter.other, true);
+    assert.deepEqual(pt.power.filter.supertypes, ['Snow']);
+    assert.equal(aldergard.fullyParsed, true);
   } finally { db.close(); }
 });
