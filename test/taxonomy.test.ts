@@ -59,7 +59,6 @@ const CARDS: [name: string, primary: Family | null][] = [
   ['Wand of Orcus', 'generic'],
 
   // --- control CHANGES (the heuristic's loudest over-tag is the negative case below)
-  ['Threaten', 'control'],
   ['Ray of Command', 'control'],
 
   // --- copy / clone
@@ -107,6 +106,10 @@ const CARDS: [name: string, primary: Family | null][] = [
   ['Tireless Tracker', 'generic'],
 
   // --- cards the parser finishes: no family, no queue entry
+  // Threaten moved here with the Phase 9.1 control vocabulary: "Untap target creature and gain control of it until
+  // end of turn. That creature gains haste until end of turn." is now a complete parse, so the classifier - which
+  // reads `def.unparsed` - correctly files it under no family at all.
+  ['Threaten', null],
   ['Grizzly Bears', null],
   ['Lightning Bolt', null],
   ['Llanowar Elves', null],

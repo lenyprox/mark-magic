@@ -1310,11 +1310,29 @@ timestamp order, which it does not model for control). A permanent that leaves t
   ~" (Wild Dogs, Ghazbán Ogre, Wild Mammoth, Sokenzan Renegade, Thoughtbound Primoc). A tie means **nobody**: CR
   104.2 knows no such player, and every printed card guards the clause with "if a player has more … than each other
   player" anyway (the `control-leader` condition below).
-* `untap` untaps what was taken, through `Game.setTapped`, so the untap is on the event stream. `haste` delegates to
-  the core `grant-keyword` op with the same target, so "It gains haste until end of turn" is one shape everywhere;
-  it needs `target` (the core op has no group form) and is ignored with `all`. Together they are a Threaten.
+* `who: 'that-player'` is **narrower here than the core's `that player`**. `refs.ts:thatPlayer` falls back to the
+  controller of the last bound object and then to the first player target; this op accepts only
+  `item.triggeringPlayer` — the player the *trigger* was about — and does nothing when there is none. Goblin
+  Festival is why: "{2}: ~ deals 1 damage to any target. Flip a coin. If you lose the flip, choose one of your
+  opponents. That player gains control of ~." parses with its flip and its choice still `unknown`, so the core
+  fallback would read "that player" off the `damage` binding and give the enchantment away on **every** activation,
+  with no flip and to the wrong player. A control change hands a permanent over for good, so it follows only a
+  referent the sentence really named (CR 608.2: an effect does as much as it can, which with no such player is
+  nothing — exactly what the unparsed sentence did before).
+* `untap` untaps what was taken, through `Game.setTapped`, so the untap is on the event stream. `haste` grants haste
+  until end of turn to everything that changed hands — through the core `grant-keyword` op for the `target` form
+  (one shape everywhere, and it binds `that`), and by writing the same end-of-turn keyword list directly for the
+  `all` form, which `grant-keyword` cannot express because it takes one `TargetSpec`/`Ref` and a group binds
+  nothing. Together they are a Threaten, for one creature or for a whole board (CR 702.10b).
 * A permanent under a `control-cant-change` static is skipped, and a controller that already controls the permanent
   is a no-op (nothing is recorded, so nothing is handed back later).
+* **A seat that has left the game is never given a permanent and never given one back** (CR 800.4a). `steal` refuses
+  an eliminated gainer, and when a duration ends on an entry whose `to` seat has since left, the permanent goes to
+  its **owner** instead — who controls it once the leaver's own control-change effect has ended. `leaveGame` only
+  re-homes what a leaver *controlled* at the moment they left, so without this an entry could outlive its seat and
+  park the permanent on a dead battlefield, where it still counts for filters, anthems and board evaluation but can
+  never act. (The core's own `controlUntilEot` wipe in `game.ts` has the same hole; this family does not reproduce
+  it, and the fix there is a core change — see §5.)
 * Every permanent whose controller really changed raises the `control-gained` trigger event.
 
 ```json
@@ -1442,6 +1460,13 @@ Every permanent the choosing player owns and another player controls — "target
 { "op": "control-gain", "target": { "kind": "permanent-you-own-not-control" } }
 ```
 
+`legal.ts:targetOptionsFor` runs its own `targetable()` predicate only for the kinds it knows by name; whatever a
+family handler returns is pushed into the option list **unchecked**. Every legality is therefore this handler's own
+job, and it applies all of them: shroud (CR 702.18b), hexproof (CR 702.11b — the chooser is by definition not the
+permanent's controller here), protection from the source (CR 702.16b) and the spec's own `filter` (CR 115.4). The
+kind already fixes the controller relation, so `controller: 'you'` on the spec is a contradiction and offers
+nothing. **Any other family adding a target kind has to do the same** — the core will not do it for you.
+
 ---
 
 ### 4. Parser wordings (`src/cards/rules/control.ts`)
@@ -1460,7 +1485,7 @@ spelling of the Threaten package — so what follows is everything the pool prin
 | "Untap *target* and gain control of it until end of turn[. That creature / It gains haste until end of turn]" | the same, in the other printed order (Threaten, Blind with Anger, Overtaker, Ray of Command, Word of Seizing) |
 | "Target opponent / player gains control of ~ [until end of turn]" | `scoped` `target-opponent` / `target-player` around `control-gain` on `self` |
 | "Target player gains control of *target* [until end of turn]" | the same `scoped`, with the spec inside (Donate, Bazaar Trader, Harmless Offering, Zedruu the Greathearted) |
-| "That player gains control of ~" | `control-gain` `who: 'that-player'` (Risky Move, Drooling Ogre, Kain) |
+| "That player gains control of ~" | `control-gain` `who: 'that-player'` (Risky Move, Drooling Ogre, Kain) — **inert outside a trigger**: see `who` in §2 (Goblin Festival) |
 | "The player with / who has / who controls the most / highest / lowest / fewest *metric* gains control of ~" | `control-gain` `who: 'leader'` |
 | "Gain control of all *filter* [you control / your opponents control] [until end of turn / until the end of your next turn / for as long as …]" | `control-gain` with `all` (Karrthus, Broadcast Takeover, Varchild, Homeward Path's neighbours) |
 | "Each player gains control of all *filter* they own" | `control-return` |
@@ -1494,6 +1519,16 @@ declined rather than handed to the engine.
 * **"When you lose control of that Equipment, unattach it"** (Ogre Geargrabber) and every other "when you lose
   control" trigger: the family raises `control-gained`, not a loss event, and a loss caused by the core ops could
   not be seen anyway.
+* **The group Threaten's trailing sentences** — "Gain control of all creatures until end of turn. **Untap them.
+  They gain haste until end of turn.**" (Insurrection, Broadcast Takeover, Mutinous Massacre, Hot Pursuit and the
+  Tibalt / Rowan / Dihada ultimates). `parse.ts` splits a paragraph into sentences *before* the family rules are
+  consulted, and only its own built-in `PARAGRAPH_RULES` see the whole paragraph, so a rule anchored on "gain
+  control" cannot reach past the first sentence. Claiming a bare "Untap them." / "They gain haste until end of
+  turn." family-wide is not an option either: 92 cards in the pool print those sentences after a pump, a token, a
+  reanimation or a combat effect, none of which is this family's business. The group steal therefore lands and the
+  two follow-up sentences stay `{ op: 'unknown' }`, so those cards remain *partially* parsed rather than silently
+  wrong — the op itself does the whole package (`all` + `untap` + `haste`) for a script that asks for it. Closing
+  this needs a core change (a `paragraphs` slot on `RuleFamily`); see §5.
 * Every card whose control clause is one sentence of a longer line the rest of which is still unparsed — Merieke Ri
   Berit, Possession Engine, Coveted Falcon, Yes Man, Humble Defector and about forty more. The control sentence is
   now a real op inside a partially-parsed line, which is what `parse:diff`'s "(same unparsed lines)" group shows.
@@ -1511,3 +1546,15 @@ declined rather than handed to the engine.
   than a resolution-time skip).
 * **Control of a player** ("you gain control of target opponent during that player's next turn", Emrakul): the
   engine has no notion of controlling a player's turn.
+* **A paragraph-level parser rule.** `RuleFamily` has `effects` (one sentence), `lines` (a whole line, consulted only
+  *after* every built-in line handler declined) and nothing in between, so a family cannot claim "Gain control of all
+  creatures until end of turn. Untap them. They gain haste until end of turn." as one unit — see the last decline in
+  §4. A `paragraphs?: { re: RegExp; make(m, ctx): Effect[] | null }[]` slot folded into `parse.ts`'s
+  `PARAGRAPH_RULES` loop would close it; that is `src/cards/rules/types.ts` + `src/cards/parse.ts` +
+  `scripts/gen-registry.mjs`, all core.
+* **The schema composer.** `src/cards/schema.ts` builds `EffectSchema` from its own `EFFECT_VARIANTS` array alone and
+  `scripts/gen-registry.mjs` skips every `*.schema.ts`, so `src/engine/ops/control.schema.ts` is written, exported and
+  currently unread: `npm run typecheck:schema`'s six `Equals<>` pins and the runtime "every ability of every 10th
+  playable card validates" test both fail on `control-gain` / `control-return` / `control-exchange`, and
+  `data/scripts/VOCABULARY.md`'s generated `Effect.op` union still omits them. Folding every family schema into the
+  core mirror is the orchestrator's own slice.

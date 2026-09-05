@@ -244,6 +244,84 @@ export const control: Scenario[] = [
     expect: [{ control: ['Hill Giant', 0] }, { life: [0, 23] }, { life: [1, 20] }],
   },
   {
+    // Phase 9.1 review: `legal.ts` pushes a family target kind's answer straight into the option list without running
+    // the `targetable()` predicate that guards every core kind, so the handler has to refuse an illegal target itself.
+    // The requirement is carried by a TRIGGERED ability on purpose: the engine picks a trigger's targets itself out of
+    // the option list this handler builds, so what the handler offers is exactly what the scenario observes.
+    name: 'the permanent-you-own-not-control target kind never offers a permanent with shroud (CR 702.18b)', cr: '702.18b',
+    seats: [{ bf: ['Grizzly Bears', 'Hill Giant'] }, { bf: ['Runeclaw Bear'] }],
+    scripts: {
+      'Grizzly Bears': { abilities: [{ kind: 'static', effect: { kind: 'self-keywords', keywords: ['shroud'] }, text: 'Shroud' }] },
+      // the untargeted group form is how the shrouded Bears leaves its owner's side at all (shroud stops targeting, not theft)
+      'Runeclaw Bear': { abilities: [{ kind: 'activated', cost: {}, effects: [{ op: 'control-gain', all: { all: { subtypes: ['Bear'] }, who: 'each-opponent' } }], text: 'control' }] },
+      'Hill Giant': { abilities: [{
+        kind: 'triggered', event: { on: 'attacks', self: true },
+        effects: [{ op: 'control-gain', target: { kind: 'permanent-you-own-not-control' } }, { op: 'gain-life', amount: 4, who: 'you' }],
+        text: 'Whenever ~ attacks, gain control of target permanent you own but do not control. You gain 4 life.',
+      }] },
+    },
+    script: [{ activate: 'Runeclaw Bear', by: 1 }, { resolve: true }, { attack: ['Hill Giant'] }, { resolve: true }],
+    // the trigger resolved (the 4 life is the proof) and was offered nothing to take back: the only candidate has shroud
+    expect: [{ control: ['Grizzly Bears', 1] }, { life: [0, 24] }],
+  },
+  {
+    // Phase 9.1 review: `endControl` used to hand the permanent to `e.to` whatever had happened to that seat, so a
+    // theft under a theft left the permanent parked on an eliminated player's battlefield forever.
+    name: 'a control duration whose seat has left the game gives the permanent to its owner, not to the empty seat (CR 800.4a)', cr: '800.4a',
+    seats: [
+      { bf: ['Grizzly Bears', 'Mountain'], hand: ['Lightning Bolt'] },
+      { bf: ['Runeclaw Bear'], life: 3 },
+      { bf: ['Hill Giant'] },
+    ],
+    scripts: {
+      ...bearsFree([{ op: 'control-gain', target: oppCreature, duration: 'eot' }]),
+      'Runeclaw Bear': { abilities: [{ kind: 'activated', cost: {}, effects: [{ op: 'control-gain', target: oppCreature }], text: 'control' }] },
+    },
+    script: [
+      { activate: 'Runeclaw Bear', by: 1, targets: [['Hill Giant']] }, { resolve: true },   // P1 takes P2's Hill Giant for good
+      { activate: 'Grizzly Bears', targets: [['Hill Giant']] }, { resolve: true },           // P0 takes it from P1 until end of turn
+      { cast: 'Lightning Bolt', targets: [['P1']] }, { resolve: true }, { sba: true },       // P1 leaves the game
+      { turns: 1 },                                                                          // the cleanup hook fires
+    ],
+    expect: [{ control: ['Hill Giant', 2] }, { zoneCount: [1, 'battlefield', 0] }, { log: 'Hill Giant returns to' }],
+  },
+  {
+    // Phase 9.1 review (Goblin Festival): the core's `thatPlayer` falls back to the controller of the last bound
+    // object, so a control gain after a `damage` in the same ability would give the source away on every activation.
+    name: 'a that-player control gain on an activated ability does nothing: "that player" needs a trigger (Goblin Festival)', cr: '608.2',
+    seats: [{ bf: ['Grizzly Bears'] }, { bf: ['Hill Giant'] }],
+    scripts: bearsFree([
+      { op: 'damage', amount: 1, target: { kind: 'any' } },
+      { op: 'control-gain', target: 'self', who: 'that-player' },
+      { op: 'gain-life', amount: 5, who: 'you' },
+    ]),
+    script: [{ activate: 'Grizzly Bears', targets: [['Hill Giant']] }, { resolve: true }],
+    expect: [{ control: ['Grizzly Bears', 0] }, { life: [0, 25] }, { noLog: 'gains control of Grizzly Bears' }],
+  },
+  {
+    name: 'a that-player control gain under a trigger goes to the player the trigger was about', cr: '603.2',
+    seats: [{ bf: ['Grizzly Bears'] }, { bf: ['Hill Giant', 'Runeclaw Bear'] }],
+    scripts: {
+      ...bearsFree([{ op: 'control-gain', target: oppCreature }]),
+      'Runeclaw Bear': { abilities: [{
+        kind: 'triggered', event: { on: 'control-gained', self: false },
+        effects: [{ op: 'control-gain', target: 'self', who: 'that-player' }],
+        text: 'Whenever a player gains control of a permanent, that player gains control of ~.',
+      }] },
+    },
+    script: [{ activate: 'Grizzly Bears', targets: [['Hill Giant']] }, { resolve: true }, { resolve: true }],
+    expect: [{ control: ['Hill Giant', 0] }, { control: ['Runeclaw Bear', 0] }, { log: 'gains control of Runeclaw Bear' }],
+  },
+  {
+    // Phase 9.1 review: `haste` was applied only to the targeted form, so the group Threaten package (Broadcast
+    // Takeover, Insurrection, the Tibalt / Rowan / Dihada ultimates) handed the board over tapped and summoning-sick.
+    name: 'a group control-gain with untap and haste is the Threaten package for a whole board (CR 702.10b)', cr: '702.10b',
+    seats: [{ bf: ['Mountain'], hand: ['Lightning Bolt'] }, { bf: ['Hill Giant'], tapped: ['Hill Giant'] }],
+    scripts: bolt([{ op: 'control-gain', all: { all: { types: ['Creature'] }, who: 'each-opponent' }, duration: 'eot', untap: true, haste: true }]),
+    script: [{ cast: 'Lightning Bolt' }, { resolve: true }, { attack: ['Hill Giant'] }],
+    expect: [{ life: [1, 17] }, { control: ['Hill Giant', 0] }, { keywords: ['Hill Giant', ['haste']] }, { tapped: ['Hill Giant', true] }],
+  },
+  {
     name: 'the permanent-you-own-not-control target kind offers exactly the permanents an opponent has taken from you', cr: '115.1',
     seats: [{ bf: ['Grizzly Bears'] }, { bf: ['Hill Giant', 'Mountain'], hand: ['Lightning Bolt'] }],
     scripts: {

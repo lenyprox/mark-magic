@@ -152,12 +152,23 @@ function stolen(s: GameState): { o: GameObject; e: ControlReturn }[] {
   return out;
 }
 
-/** Hand `o` back to `e.to` and forget the entry. */
+/**
+ * Hand `o` back to `e.to` and forget the entry.
+ *
+ * CR 800.4a: a player who has left the game controls nothing, and every effect that gave them control of anything has
+ * already ended. `leaveGame` only re-homes what the leaver *controlled* at the moment they left, so an entry pointing
+ * at their seat can outlive them (they were the previous controller of a permanent a third player had since stolen);
+ * handing the permanent back would park it on an empty battlefield, where it still counts for filters, anthems and
+ * board evaluation but can never act. The empty seat is skipped and the permanent goes to its OWNER instead - who
+ * controls it once the leaver's own control-change effect has ended - or, when the owner has left too, it stays where
+ * it is (`leaveGame` exiles what a leaver owns, so that case only arises mid-elimination).
+ */
 function endControl(g: { state: GameState; changeControl(o: GameObject, to: PlayerId): void; note(s: string): void }, o: GameObject, e: ControlReturn, why: string): void {
   extDel(o, EXT);
-  if (o.controller === e.to) return;
-  g.changeControl(o, e.to);
-  g.note(`${chars.name(o)} returns to ${g.state.players[e.to].name} (${why}).`);
+  const to = !g.state.players[e.to]?.lost ? e.to : g.state.players[o.owner]?.lost ? undefined : o.owner;
+  if (to === undefined || o.controller === to) return;
+  g.changeControl(o, to);
+  g.note(`${chars.name(o)} returns to ${g.state.players[to].name} (${why}).`);
 }
 
 // ------------------------------------------------------------------ 4. the leader metric
@@ -210,10 +221,22 @@ async function setOf(c: Ctx, set: ControlSet): Promise<GameObject[]> {
   return out;
 }
 
-/** The one player an effect hands control to. */
+/**
+ * The one player an effect hands control to.
+ *
+ * `that-player` is deliberately NARROWER here than the core's `thatPlayer` (refs.ts), which falls back to the
+ * controller of the last bound object and then to the first player target. A control change hands a permanent over
+ * for good, so it may only follow a referent the sentence really named: the player the TRIGGER was about. Goblin
+ * Festival is why - "{2}: ~ deals 1 damage to any target. Flip a coin. If you lose the flip, choose one of your
+ * opponents. That player gains control of ~." parses with its coin flip and its choice still `unknown`, and the core
+ * fallback would read "that player" off the `damage` binding and give the enchantment away on EVERY activation, with
+ * no flip and to the wrong player. With no trigger there is no such player and the effect does nothing (CR 608.2: an
+ * effect does as much as it can, which here is nothing) - exactly what the unparsed sentence did before.
+ */
 async function gainerOf(c: Ctx, e: ControlGainEffect): Promise<PlayerId | undefined> {
   if (e.who === 'leader') return e.leader ? leaderOf(c.s, e.leader) : undefined;
   if (e.who === undefined || e.who === 'you') return c.item.actor ?? c.p;
+  if (e.who === 'that-player') return c.item.triggeringPlayer;
   const { resolveOnePlayer } = await import('../refs.js');
   return resolveOnePlayer({ s: c.s, item: c.item, p: c.p, src: c.src }, e.who, c.T);
 }
@@ -225,6 +248,7 @@ async function gainerOf(c: Ctx, e: ControlGainEffect): Promise<PlayerId | undefi
 function steal(g: { state: GameState; changeControl(o: GameObject, to: PlayerId): void; note(s: string): void }, o: GameObject, to: PlayerId, duration: ControlDuration, src: GameObject, counter?: string): boolean {
   const s = g.state;
   if (o.zone !== 'battlefield' || o.controller === to || lockedDown(s, o)) return false;
+  if (s.players[to]?.lost) return false;                                          // CR 800.4a: a seat that has left the game controls nothing
   // CR 611.2b: a duration that has already ended never starts the effect (Sower of Temptation that died in response)
   if (!whileHolds(s, o, { until: duration, by: to, src: src.id, counter })) return false;
   const prev = extGet<ControlReturn>(o, EXT);
@@ -252,8 +276,14 @@ const CONTROL: FamilyModule = {
         if (e.untap) c.g.setTapped(o, false, 'effect');
         c.g.queueTriggers('control-gained', { obj: o, player: to });
       }
-      // "It gains haste until end of turn": the core op, so the grant is one shape everywhere (and it binds `that`)
-      if (e.haste && took.length && e.target !== undefined) await c.apply({ op: 'grant-keyword', target: e.target, keywords: ['haste' as Keyword], duration: 'eot' } as Effect);
+      // "It gains haste until end of turn" / "They gain haste until end of turn." The targeted form goes through the
+      // core op, so the grant is one shape everywhere (and it binds `that`). The GROUP form cannot: `grant-keyword`
+      // takes one TargetSpec/Ref and `all` binds nothing, so the same end-of-turn keyword list game.ts writes is
+      // written here directly - the cleanup step wipes it exactly as it wipes the core op's (CR 514.2, 702.10b).
+      if (e.haste && took.length) {
+        if (e.target !== undefined) await c.apply({ op: 'grant-keyword', target: e.target, keywords: ['haste' as Keyword], duration: 'eot' } as Effect);
+        else for (const o of took) if (!o.eotKeywords.includes('haste' as Keyword)) o.eotKeywords.push('haste' as Keyword);
+      }
     },
 
     // "At the beginning of your end step, each player gains control of all creatures they own."
@@ -314,9 +344,30 @@ const CONTROL: FamilyModule = {
   },
 
   targetKinds: {
-    // "target permanent you own but don't control" (Coveted Falcon)
-    'permanent-you-own-not-control': (g, controller): TargetRef[] =>
-      chars.allPermanents(g.state).filter(o => o.owner === controller && o.controller !== controller).map(o => ({ kind: 'object' as const, id: o.id })),
+    /**
+     * "target permanent you own but don't control" (Coveted Falcon).
+     *
+     * `legal.ts:targetOptionsFor` runs its own `targetable()` guard only for the kinds it knows by name; whatever a
+     * family handler returns is pushed into the option list unchecked, so EVERY legality a target has to pass is this
+     * handler's own job: shroud (CR 702.18b), hexproof from anyone but its controller (CR 702.11b), protection from
+     * the source (CR 702.16b) and the spec's own `filter` (CR 115.4 - an illegal target may not be chosen). The kind
+     * already fixes the controller relation ("you own but don't control"), so `controller: 'you'` on the spec is a
+     * contradiction and offers nothing; `controller: 'opponent'` is what the kind already means.
+     */
+    'permanent-you-own-not-control': (g, controller, source, spec): TargetRef[] => {
+      const s = g.state;
+      if (spec.controller === 'you') return [];
+      const out: TargetRef[] = [];
+      for (const o of chars.allPermanents(s)) {
+        if (o.owner !== controller || o.controller === controller || o.zone !== 'battlefield') continue;
+        if (chars.hasKeyword(s, o, 'shroud')) continue;
+        if (chars.hasKeyword(s, o, 'hexproof')) continue;                         // the chooser is never its controller here
+        if (chars.protectedFrom(s, o, source)) continue;
+        if (spec.filter && !chars.matchesFilter(s, o, spec.filter, source)) continue;
+        out.push({ kind: 'object', id: o.id });
+      }
+      return out;
+    },
   },
 
   steps: {
