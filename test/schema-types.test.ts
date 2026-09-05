@@ -17,7 +17,7 @@ import {
 } from '../src/cards/schema.js';
 import type { ParsedAbility, ParsedStaticEffect } from '../src/cards/schema.js';
 import { DEFAULT_SCRIPTS_DIR, oracleHash, type CardScript, type ScriptFace, type Verification } from '../src/cards/scripts.js';
-import type { AbilityCost, AltCost, Amount, AsEnters, Condition, CostModifier, Effect, Filter, ManaCost, TargetSpec, TriggerEvent } from '../src/cards/types.js';
+import type { AbilityCost, AltCost, Amount, AsEnters, Condition, ConditionRegistry, CostModifier, Effect, EffectRegistry, Filter, ManaCost, StaticRegistry, TargetSpec, TriggerEvent, TriggerRegistry } from '../src/cards/types.js';
 import type { z } from 'zod';
 
 // ---------------------------------------------------------------------------
@@ -27,6 +27,17 @@ import type { z } from 'zod';
 /** True only when A and B are the *identical* type (not merely mutually assignable). */
 type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 
+/**
+ * The CORE half of a union a mechanic-family registry widens. `Effect` / `Condition` / `TriggerEvent` /
+ * `StaticEffect` are `Core… | Registry[keyof Registry]`, and until the schema composer folds each family's
+ * `<family>.schema.ts` variants into these schemas (Phase 9.1), the zod mirrors below carry the core union alone.
+ * With no family registered `Registry[keyof Registry]` is `never`, so `CoreOnly<T, R>` is exactly `T` and every
+ * assertion below is unchanged: a variant added to, removed from or retyped in types.ts still breaks the pin.
+ */
+type CoreOnly<T, R> = Exclude<T, R[keyof R]>;
+/** `ParsedAbility` with its static member's effect narrowed the same way (the widening there is nested, so `Exclude` cannot reach it). */
+type CoreParsedAbility = Exclude<ParsedAbility, { kind: 'static' }> | { kind: 'static'; effect: CoreOnly<ParsedStaticEffect, StaticRegistry>; text: string };
+
 const _manaCost: Equals<z.infer<typeof ManaCostSchema>, ManaCost> = true;
 const _filter: Equals<z.infer<typeof FilterSchema>, Filter> = true;
 const _amount: Equals<z.infer<typeof AmountSchema>, Amount> = true;
@@ -35,9 +46,9 @@ const _abilityCost: Equals<z.infer<typeof AbilityCostSchema>, AbilityCost> = tru
 const _altCost: Equals<z.infer<typeof AltCostSchema>, AltCost> = true;
 const _costModifier: Equals<z.infer<typeof CostModifierSchema>, CostModifier> = true;
 const _asEnters: Equals<z.infer<typeof AsEntersSchema>, AsEnters> = true;
-const _condition: Equals<z.infer<typeof ConditionSchema>, Condition> = true;
-const _effect: Equals<z.infer<typeof EffectSchema>, Effect> = true;
-const _trigger: Equals<z.infer<typeof TriggerEventSchema>, TriggerEvent> = true;
+const _condition: Equals<z.infer<typeof ConditionSchema>, CoreOnly<Condition, ConditionRegistry>> = true;
+const _effect: Equals<z.infer<typeof EffectSchema>, CoreOnly<Effect, EffectRegistry>> = true;
+const _trigger: Equals<z.infer<typeof TriggerEventSchema>, CoreOnly<TriggerEvent, TriggerRegistry>> = true;
 // NARROWED (2 of the 16). parse.ts spreads four undeclared fields into `self-keywords`, one into `anthem` and a
 // `condition` into `self-pt` with `as object` casts, and the engine reads them back (see the header of
 // src/cards/schema.ts). The schema must accept what the parser really emits, so these two members are pinned against
@@ -46,8 +57,8 @@ const _trigger: Equals<z.infer<typeof TriggerEventSchema>, TriggerEvent> = true;
 // retyping any FIELD of those three static variants, because they are `Extract`ed rather than re-declared. The hole
 // is exactly six field NAMES (anthem.opponentsOnly, self-pt.condition, self-keywords.mustAttack / .doesntUntap /
 // .blockOnlyFlying / .evasion), which the schema may declare without types.ts knowing. Nothing else is weakened.
-const _static: Equals<z.infer<typeof StaticEffectSchema>, ParsedStaticEffect> = true;
-const _ability: Equals<z.infer<typeof AbilitySchema>, ParsedAbility> = true;
+const _static: Equals<z.infer<typeof StaticEffectSchema>, CoreOnly<ParsedStaticEffect, StaticRegistry>> = true;
+const _ability: Equals<z.infer<typeof AbilitySchema>, CoreParsedAbility> = true;
 const _face: Equals<z.infer<typeof ScriptFaceSchema>, ScriptFace> = true;
 const _verification: Equals<z.infer<typeof VerificationSchema>, Verification> = true;
 const _cardScript: Equals<z.infer<typeof CardScriptSchema>, CardScript> = true;

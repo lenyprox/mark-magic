@@ -25,7 +25,7 @@ import type { CardDef } from '../src/cards/types.js';
 const db = CardDB.shared();
 
 /** Five real cards the parser does not finish, each in a family of its own (see test/taxonomy.test.ts). */
-const NAMES = ["Teferi's Protection", 'Fact or Fiction', "Krark's Thumb", 'Clone', 'Chandra, Torch of Defiance'];
+const NAMES = ["Teferi's Protection", 'Epiphany at the Drownyard', "Krark's Thumb", 'Clone', 'Chandra, Torch of Defiance'];
 const ID = (name: string): string => {
   const d = db.get(name);
   assert.ok(d, `no such card in master.db: ${name}`);
