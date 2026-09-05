@@ -1,18 +1,23 @@
 // Game fuzzer (Phase 8f): play whole seeded games between randomly generated decks, check src/engine/invariants.ts
-// after every turn, bucket whatever throws or violates an invariant by signature, and shrink each bucket's first
-// game with ddmin down to the handful of cards that still reproduce it. The trial lives in src/verify/fuzz.ts, the
-// decks in src/verify/fuzzDecks.ts and the worker pool in src/verify/fuzzWorker.ts; this script owns the command
-// line and the report (data/master/fuzz-failures.json).
+// after every turn (and, with --assert event, after every announced change inside the engine), bucket whatever
+// throws or violates an invariant by signature, and shrink each bucket's first game with ddmin down to the handful
+// of cards that still reproduce it. The trial lives in src/verify/fuzz.ts, the decks in src/verify/fuzzDecks.ts and
+// the worker pool in src/verify/fuzzWorker.ts; this script owns the command line and the report.
 //
 //   npm run fuzz [-- --games N] [--seed S] [--seats 2|4] [--pool parsed|all] [--format freeform|commander]
-//                   [--workers W] [--tier all|paper] [--max-turns N] [--shrink-runs N] [--out FILE]
-//   npm run fuzz -- --repro <bucketId>     replay the bucket's minimal deck with full events and print the tail
+//                   [--workers W] [--tier paper|all] [--max-turns N] [--assert game|event]
+//                   [--shrink-runs N] [--max-buckets N] [--out FILE]
+//   npm run fuzz -- --repro <bucketId> [--out FILE]   replay the bucket's minimal deck with full events, print the tail
+//
+// It is a gate, not a report generator: the run exits 1 when it finds more failure buckets than --max-buckets
+// (default 0), so `fuzz:deep` and any ladder that chains it stop on a regression instead of printing one.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { CardDB } from '../src/cards/db.js';
 import { parseTier, POOL_TIERS } from '../src/cards/tiers.js';
-import { buildDecks, runDecks, type FuzzOptions, type FuzzSeats } from '../src/verify/fuzz.js';
+import type { InvariantMode } from '../src/engine/invariants.js';
+import { buildDecks, DEFAULT_TIER, maxTurnsOf, runDecks, type FuzzOptions, type FuzzSeats } from '../src/verify/fuzz.js';
 import { parseDeckList, type FuzzFormat, type FuzzPool } from '../src/verify/fuzzDecks.js';
 import { runFuzz, type FuzzReport } from '../src/verify/fuzzWorker.js';
 import { defaultPoolWorkers } from '../src/verify/poolWorker.js';
@@ -44,24 +49,36 @@ const format = pick<FuzzFormat>('--format', 'freeform', ['freeform', 'commander'
 const workers = num('--workers', defaultPoolWorkers(os.cpus().length), 1);
 const maxTurns = num('--max-turns', 0) || undefined;
 const shrinkRuns = num('--shrink-runs', 200, 1);
-const tier = parseTier(opt('--tier')) ?? die(`--tier must be one of ${POOL_TIERS.join(', ')} (got ${opt('--tier')})`);
+const assertMode = pick<InvariantMode>('--assert', 'game', ['game', 'event']);
+// the project's denominator is the paper pool; `parseTier(undefined)` answers 'all' for the pool tools, so the
+// fuzzer's own default is spelled out here rather than inherited
+const tier = opt('--tier') === undefined ? DEFAULT_TIER : (parseTier(opt('--tier')) ?? die(`--tier must be one of ${POOL_TIERS.join(', ')} (got ${opt('--tier')})`));
+const maxBuckets = num('--max-buckets', 0);
 const out = opt('--out') ?? 'data/master/fuzz-failures.json';
 const repro = opt('--repro');
 
-const cfg: FuzzOptions = { seed, seats, format, pool, tier, ...(maxTurns ? { maxTurns } : {}) };
+const cfg: FuzzOptions = { seed, seats, format, pool, tier, assertInvariants: assertMode, ...(maxTurns ? { maxTurns } : {}) };
+
+/** Flags that shape the table. `--repro` takes every one of them from the report, so passing one is an error. */
+const TABLE_FLAGS = ['--seed', '--seats', '--pool', '--format', '--tier', '--max-turns', '--assert'];
 
 /** Replay one bucket's minimal deck with `events: 'full'` and print the tail of the log plus the failure. */
 async function reproduce(bucketId: string) {
+  const clash = TABLE_FLAGS.filter(f => args.includes(f));
+  if (clash.length) die(`--repro rebuilds the table from the report, so ${clash.join(', ')} cannot be given with it`);
   if (!fs.existsSync(out)) die(`--repro: no report at ${out} (run the fuzzer first)`);
   const report = JSON.parse(fs.readFileSync(out, 'utf8')) as FuzzReport;
   const b = report.buckets.find(x => x.id === bucketId) ?? die(`--repro: no bucket ${bucketId} in ${out} (have: ${report.buckets.map(x => x.id).join(', ') || 'none'})`);
+  for (const k of ['tier', 'maxTurns', 'assertInvariants'] as const) {
+    if (report[k] === undefined) die(`--repro: ${out} predates the ${k} field, so the table it came from cannot be rebuilt (re-run the fuzzer)`);
+  }
   const cards = CardDB.shared();
-  // the report's own run settings, not this invocation's flags: the deck only reproduces inside the table it came from
-  const opts: FuzzOptions = { seed: report.seed, seats: report.seats, format: report.format, pool: report.pool, tier, ...(maxTurns ? { maxTurns } : {}) };
+  // every setting comes from the report, none from this invocation: the deck only reproduces inside its own table
+  const opts: FuzzOptions = { seed: report.seed, seats: report.seats, format: report.format, pool: report.pool, tier: report.tier, maxTurns: report.maxTurns, assertInvariants: report.assertInvariants };
   const decks = buildDecks(cards, opts, b.first.game);
   decks[b.first.seat] = { ...decks[b.first.seat], cards: parseDeckList(cards, b.minimalDeck) };
   console.log(`bucket ${b.id}  ${b.signature}`);
-  console.log(`  game ${b.first.game}, seat ${b.first.seat}, seed ${b.first.seed}, ${report.seats} seats, ${report.format}, pool ${report.pool}`);
+  console.log(`  game ${b.first.game}, seat ${b.first.seat}, seed ${b.first.seed}, ${report.seats} seats, ${report.format}, pool ${report.pool}, tier ${report.tier}, ${report.maxTurns} turns, assert ${report.assertInvariants}`);
   if (b.commander) console.log(`  commander: ${b.commander}`);
   console.log(`  deck: ${b.minimalDeck.join(', ')}`);
   const outcome = await runDecks(decks, opts, b.first.game, { record: 'full' });
@@ -84,12 +101,17 @@ async function main() {
   const dir = path.dirname(out); if (dir) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(out, JSON.stringify(report, null, 1));
   const total = report.buckets.reduce((a, b) => a + b.n, 0);
-  console.log(`${games} games, ${seats} seats, ${format}, pool ${pool}, seed ${seed}, ${workers} worker(s), ${Math.round((Date.now() - t0) / 1000)} s`);
+  console.log(`${games} games, ${seats} seats, ${format}, pool ${pool}, tier ${tier}, ${maxTurnsOf(cfg)} turns, assert ${assertMode}, seed ${seed}, ${workers} worker(s), ${Math.round((Date.now() - t0) / 1000)} s`);
   console.log(`${total} failing game(s) in ${report.buckets.length} bucket(s) -> ${out}`);
   for (const b of report.buckets) {
     console.log(`\n  [${b.id}] n=${b.n}  ${b.signature}`);
     console.log(`    first: game ${b.first.game}, seat ${b.first.seat}${b.commander ? `, commander ${b.commander}` : ''}`);
     console.log(`    minimal deck (${b.shrinkRuns} shrink runs${b.shrinkCapped ? ', capped' : ''}): ${b.minimalDeck.join(', ')}`);
+    console.log(`    replay: npm run fuzz -- --repro ${b.id}${out === 'data/master/fuzz-failures.json' ? '' : ` --out ${out}`}`);
+  }
+  if (report.buckets.length > maxBuckets) {
+    console.error(`\nFAIL: ${report.buckets.length} failure bucket(s), --max-buckets is ${maxBuckets}`);
+    process.exitCode = 1;
   }
 }
 main().catch(e => { console.error(e); process.exit(1); });

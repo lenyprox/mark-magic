@@ -10,12 +10,15 @@ import { RolloutAgent } from '../analysis/rolloutAgent.js';
 import type { CardDB } from '../cards/db.js';
 import type { PoolTier } from '../cards/tiers.js';
 import type { CardDef } from '../cards/types.js';
-import { assertInvariants } from '../engine/invariants.js';
+import { assertInvariants, InvariantError, type InvariantMode } from '../engine/invariants.js';
 import type { Game } from '../engine/game.js';
 import { createGame } from '../sim/engineAdapter.js';
-import { deckList, makeDeck, poolIndex, withNonland, type FuzzDeck, type FuzzFormat, type FuzzPool } from './fuzzDecks.js';
+import { deckList, makeDeck, poolIndex, withPicks, type FuzzDeck, type FuzzFormat, type FuzzPool } from './fuzzDecks.js';
 
 export type FuzzSeats = 2 | 4;
+
+/** The tier the fuzzer draws from unless one is named: the project's denominator (cards you can hold in your hand). */
+export const DEFAULT_TIER: PoolTier = 'paper';
 
 /** Everything a game index needs to be rebuilt: the fuzzer's whole configuration except how many games to play. */
 export interface FuzzOptions {
@@ -27,6 +30,12 @@ export interface FuzzOptions {
   tier?: PoolTier;
   /** Default: 30 turns freeform, 40 in Commander. */
   maxTurns?: number;
+  /**
+   * How hard the invariants are checked (`GameOptions.assertInvariants`). 'game' (the default) checks between turns;
+   * 'event' also has the engine check after every announced change, which pins a violation to the action that made
+   * it and catches one that heals before end of turn — at roughly an order of magnitude fewer games per second.
+   */
+  assertInvariants?: InvariantMode;
 }
 
 export const maxTurnsOf = (o: FuzzOptions): number => o.maxTurns ?? (o.format === 'commander' ? 40 : 30);
@@ -58,14 +67,18 @@ function frameOf(line: string): string | null {
   return fn ? `${file}:${fn}` : file;
 }
 
-/** The top `n` frames of an error's stack, node internals dropped. */
-export function topFrames(err: unknown, n = 3): string[] {
+/** The top `n` frames of an error's stack, node internals dropped, plus anything `drop` rejects. */
+export function topFrames(err: unknown, n = 3, drop?: (frame: string) => boolean): string[] {
   const stack = (err as Error | undefined)?.stack;
   if (typeof stack !== 'string') return [];
   const out: string[] = [];
-  for (const line of stack.split('\n')) { const f = frameOf(line); if (f) out.push(f); if (out.length >= n) break; }
+  for (const line of stack.split('\n')) { const f = frameOf(line); if (f && !drop?.(f)) out.push(f); if (out.length >= n) break; }
   return out;
 }
+
+/** The invariant machinery's own frames: they are the same for every `assertInvariants: 'event'` violation, so
+ * dropping them puts the *mutator* that broke the state at the top of the signature. */
+const INVARIANT_FRAME = /^(invariants\.ts|game\.ts:Game\.(checkInvariants|emit))/;
 
 /** The bucket key: the message with every run of digits replaced by `#`, then the frames. Object ids and life totals move; the bug does not. */
 export function signatureOf(message: string, frames: string[]): string {
@@ -84,7 +97,7 @@ export interface DeckOverride { seat: number; cards: CardDef[] }
 
 /** Build the table for game `i` — one deck per seat, each from its own seed. */
 export function buildDecks(cards: CardDB, opts: FuzzOptions, i: number): FuzzDeck[] {
-  const idx = poolIndex(cards, opts.tier ?? 'paper');
+  const idx = poolIndex(cards, opts.tier ?? DEFAULT_TIER);
   return Array.from({ length: opts.seats }, (_, s) => makeDeck(cards, idx, deckSeed(opts.seed, i, s), { format: opts.format, pool: opts.pool }));
 }
 
@@ -94,7 +107,11 @@ export interface GameOutcome { failure: Failure | null; turns: number; winner: n
  * Play game `i` of the run, one turn at a time, checking the invariants after the opening hands and after every turn.
  * The opening is the same as `Game.play`'s with mulligans off — a random first seat off the game rng, seven cards
  * each — after which `resumeTurn` takes turn 1 and `playTurns(1)` takes the rest, so the fuzzer sees the state
- * between turns without the engine needing a hook.
+ * between turns whatever `assertInvariants` mode is in force.
+ *
+ * With `assertInvariants: 'event'` the engine checks after every announced change as well and throws
+ * `InvariantError` from inside the mutation that broke the state; the violation is reported as an invariant failure
+ * (not a throw) and its signature carries the mutator's own frames, so the bucket names the action, not the turn.
  */
 export async function runDecks(decks: FuzzDeck[], opts: FuzzOptions, i: number, extra: { record?: 'counts' | 'full' } = {}): Promise<GameOutcome> {
   const maxTurns = maxTurnsOf(opts);
@@ -103,6 +120,7 @@ export async function runDecks(decks: FuzzDeck[], opts: FuzzOptions, i: number, 
     seed: hashSeed(opts.seed, i), quiet: true, mulligans: false, events: extra.record ?? 'counts', maxTurns,
     startingLife: opts.format === 'commander' ? 40 : 20, fastMana: true, format: opts.format,
     commanders: decks.map(d => (d.commander ? [d.commander] : [])),
+    ...(opts.assertInvariants ? { assertInvariants: opts.assertInvariants } : {}),
   });
   const s = g.state;
   let where = 'the opening hands';
@@ -117,13 +135,14 @@ export async function runDecks(decks: FuzzDeck[], opts: FuzzOptions, i: number, 
     let v = assertInvariants(s); if (v) return fail('invariant', `after ${where}: ${v}`, []);
     where = 'turn 1';
     await g.resumeTurn();
-    v = assertInvariants(s); if (v) return fail('invariant', `after turn: ${v}`, []);
+    v = assertInvariants(s); if (v) return fail('invariant', `after ${where}: ${v}`, []);
     while (s.winner === null && s.turn < maxTurns) {
       where = `turn ${s.turn + 1}`;
       await g.playTurns(1);
-      v = assertInvariants(s); if (v) return fail('invariant', `after turn: ${v}`, []);
+      v = assertInvariants(s); if (v) return fail('invariant', `after ${where}: ${v}`, []);
     }
   } catch (e) {
+    if (e instanceof InvariantError) return fail('invariant', `${e.violation} (after ${e.event}, during ${where.replace(/\d+/g, 'N')})`, topFrames(e, 3, f => INVARIANT_FRAME.test(f)));
     return fail('throw', `${(e as Error)?.message ?? String(e)} (during ${where.replace(/\d+/g, 'N')})`, topFrames(e));
   }
   return { failure: null, turns: s.turn, winner: s.winner, log: extra.record === 'full' ? s.log.slice() : undefined };
@@ -170,20 +189,20 @@ export async function ddmin<T>(items: T[], fails: (subset: T[]) => Promise<boole
 export interface ShrinkResult { minimalDeck: string[]; commander?: string; runs: number; capped: boolean }
 
 /**
- * Reduce the failing seat's nonland cards for one bucket. Every candidate deck keeps the seat's basics (plus one
- * extra basic per removed card, so the library keeps its size and the game still plays out) and the other seats'
- * decks untouched; a candidate counts as a reproduction only when it lands in the *same* bucket.
+ * Reduce the failing seat's pool cards (spells and nonbasic lands) for one bucket. Every candidate deck keeps the
+ * seat's basics (plus one extra basic per removed card, so the library keeps its size and the game still plays out)
+ * and the other seats' decks untouched; a candidate counts as a reproduction only when it lands in the *same* bucket.
  */
 export async function shrinkBucket(cards: CardDB, opts: FuzzOptions, first: { game: number; seat: number }, bucket: string, maxRuns = 200): Promise<ShrinkResult> {
   const decks = buildDecks(cards, opts, first.game);
   const deck = decks[first.seat] ?? decks[0];
   const seat = decks[first.seat] ? first.seat : 0;
   const reproduces = async (subset: CardDef[]): Promise<boolean> => {
-    const candidate = withNonland(cards, deck, subset);
+    const candidate = withPicks(cards, deck, subset);
     const out = await runGame(cards, opts, first.game, { override: { seat, cards: candidate.cards } });
     return out.failure?.bucket === bucket;
   };
-  const { minimal, runs, capped } = await ddmin(deck.nonland, reproduces, maxRuns);
-  const final = withNonland(cards, deck, minimal);
+  const { minimal, runs, capped } = await ddmin(deck.picks, reproduces, maxRuns);
+  const final = withPicks(cards, deck, minimal);
   return { minimalDeck: deckList(final.cards), ...(final.commander ? { commander: final.commander.name } : {}), runs, capped };
 }

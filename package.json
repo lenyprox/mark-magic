@@ -27,7 +27,7 @@
     "sim:batch": "tsx scripts/sim-batch.ts",
     "bench:games": "tsx scripts/bench-games.ts",
     "fuzz": "tsx scripts/fuzz-games.ts",
-    "fuzz:deep": "npm run fuzz -- --games 2000 --seats 2 && npm run fuzz -- --games 500 --seats 4",
+    "fuzz:deep": "npm run fuzz -- --games 2000 --seats 2 --out data/master/fuzz-failures.json && npm run fuzz -- --games 500 --seats 4 --out data/master/fuzz-failures-4p.json",
     "verify:scenarios": "node --test --import tsx test/scenarios.test.ts",
     "verify:pool": "tsx scripts/verify-pool.ts",
     "verify:dashboard": "tsx scripts/verify-dashboard.ts",

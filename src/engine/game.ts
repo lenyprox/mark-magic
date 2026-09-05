@@ -10,6 +10,7 @@ import { illegalReasons, legalActions, targetOptionsFor, targetingEffects } from
 import { redact } from './view.js';
 import { citation, LOGGED, renderEvent, type EventMode, type GameEvent, type GameEventBody, type ZoneChangeReason } from './events.js';
 import { alive, apnapOrder, nextInTurnOrder, opponentsOf, primaryOpponent } from './players.js';
+import { assertInvariants, InvariantError, type InvariantMode } from './invariants.js';
 
 export class Rng {
   private s: number;
@@ -37,6 +38,17 @@ export interface GameOptions {
   commanders?: CardDef[][];
   /** The first mulligan costs nothing (CR 103.5c multiplayer; default: commander games with three or more players). */
   freeFirstMulligan?: boolean;
+  /**
+   * Run `src/engine/invariants.ts` as the game plays (the fuzzer's gate, Phase 8f). Off by default — every check
+   * walks all six zone lists of every player, so this is for verification runs, never for AI rollouts.
+   *   'game'  the caller checks between turns itself (the engine does nothing; the fuzzer's default).
+   *   'event' the engine checks after every announced change and throws `InvariantError`, so a violation is pinned
+   *           to the event that made it instead of to the whole turn — and one that heals before end of turn
+   *           (mid-combat `blocking`/`blockedBy`, a zone field a later SBA pass repairs) is still caught.
+   * Mid-event states are checked with `transient: true`: the handful of invariants that only hold once the stack
+   * has drained and state-based actions have run are skipped (see `assertInvariants`).
+   */
+  assertInvariants?: InvariantMode;
 }
 
 export class Game {
@@ -157,12 +169,19 @@ export class Game {
     if (mode !== 'none') { const c = (s.eventCounts ??= {}); c[body.type] = (c[body.type] ?? 0) + 1; }
     const line = text ?? (LOGGED.has(body.type) ? renderEvent(body, p => this.pname(p)) : '');
     if (line) this.log(line);
-    if (!s.events && !this.onEvent) return undefined; // counts mode: no per-event allocation
+    if (!s.events && !this.onEvent) { this.checkInvariants(body); return undefined; } // counts mode: no per-event allocation
     const ev = { seq: ++this.seq, turn: s.turn, step: s.step, text: line, ...body } as GameEvent;
     const cr = citation(body); if (cr) ev.cr = cr;
     if (s.events) s.events.push(ev);
     this.onEvent?.(ev);
+    this.checkInvariants(body);
     return ev;
+  }
+  /** `assertInvariants: 'event'`: the state must satisfy the structural invariants after every announced change. */
+  private checkInvariants(body: GameEventBody) {
+    if (this.opts.assertInvariants !== 'event') return;
+    const v = assertInvariants(this.state, { transient: true });
+    if (v) throw new InvariantError(v, body.type);
   }
   /** Append a line to the string log (legacy lines and notes; typed events arrive here through `emit`). */
   log(line: string) { this.state.log.push(line); if (!this.opts.quiet) for (const a of this.agents) a.onLog?.(line); }

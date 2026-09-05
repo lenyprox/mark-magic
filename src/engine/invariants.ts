@@ -13,17 +13,46 @@ function* everyObject(s: GameState): Generator<{ o: GameObject; list: ZoneList; 
   for (const p of s.players) for (const list of ZONE_LISTS) for (const o of p[list]) yield { o, list, owner: p.name };
 }
 
+/** How hard a caller checks the invariants: 'game' between turns (the caller's own business), 'event' after every
+ * announced change (`GameOptions.assertInvariants`, Phase 8f). */
+export type InvariantMode = 'game' | 'event';
+
+/** A violation seen from inside the engine (`assertInvariants: 'event'`), tagged with the event that exposed it. */
+export class InvariantError extends Error {
+  /** The `GameEventBody.type` the engine had just announced. */
+  readonly event: string;
+  /** The violation on its own, without the event tag — what the fuzzer buckets on. */
+  readonly violation: string;
+  constructor(violation: string, event: string) {
+    super(`${violation} (after ${event})`);
+    this.name = 'InvariantError'; this.violation = violation; this.event = event;
+  }
+}
+
+/** Checking options. `transient` means "mid-event": the state has not settled, so the at-rest checks are skipped. */
+export interface InvariantOptions {
+  /**
+   * The state is being checked between two engine mutations rather than at rest. State-based actions (CR 704) have
+   * not necessarily run yet, combat assignments are only half written and a permanent in the middle of a zone
+   * change is briefly in no zone list, so the three checks that need a settled board are skipped: tokens outside
+   * the battlefield, symmetric `blocking`/`blockedBy`, and locating an attachment's host. Everything else — unique
+   * ids, zone fields, attachments off the battlefield, negative counters, tapped cards off the battlefield, stack
+   * items with no source, an object on the stack and in a zone list — holds at every single instant.
+   */
+  transient?: boolean;
+}
+
 /**
  * Check a state against the structural invariants; returns the first violation as a human-readable string, or null.
  * The first six checks are the ones the pool sandbox has always run (kept verbatim so their wording does not move);
  * the rest were added in Phase 8e.
  */
-export function assertInvariants(s: GameState): string | null {
+export function assertInvariants(s: GameState, opts: InvariantOptions = {}): string | null {
   const ids = new Set<number>();
   for (const p of s.players) for (const z of [p.hand, p.library, p.graveyard, p.exile, p.battlefield, p.command]) for (const o of z) { if (ids.has(o.id)) return `object ${o.id} in two zones`; ids.add(o.id); }
   for (const p of s.players) for (const o of p.battlefield) if (o.zone !== 'battlefield') return `${o.def.name} on battlefield list with zone ${o.zone}`;
   for (const p of s.players) for (const o of p.hand) if (o.zone !== 'hand') return `${o.def.name} in hand list with zone ${o.zone}`;
-  for (const o of allPermanents(s)) { if (o.attachedTo != null && !findObject(s, o.attachedTo)) return `${o.def.name} attached to a missing object`; for (const [k, v] of Object.entries(o.counters)) if (v < 0) return `${o.def.name} has ${v} ${k} counters`; }
+  for (const o of allPermanents(s)) { if (!opts.transient && o.attachedTo != null && !findObject(s, o.attachedTo)) return `${o.def.name} attached to a missing object`; for (const [k, v] of Object.entries(o.counters)) if (v < 0) return `${o.def.name} has ${v} ${k} counters`; }
   for (const p of s.players) if (!Number.isFinite(p.life)) return `${p.name} life is ${p.life}`;
   for (const it of s.stack) if (!it.source) return 'stack item without a source';
 
@@ -34,18 +63,22 @@ export function assertInvariants(s: GameState): string | null {
   const stackIds = new Set<number>();
   for (const it of s.stack) { if (stackIds.has(it.id)) return `stack item ${it.id} (${it.name}) is on the stack twice`; stackIds.add(it.id); }
   for (const it of s.stack) if (it.source.zone === 'stack' && ids.has(it.source.id)) return `${it.source.def.name} is on the stack and in a zone list`;
-  // attachments live on the battlefield and so do their hosts (CR 303.4f / 301.5c)
+  // attachments live on the battlefield and so do their hosts (CR 303.4f / 301.5c). Looking the *host* up is an
+  // at-rest check: `Game.moveTo` pulls a permanent out of every zone list before it detaches what was attached to
+  // it, so between those two steps the other attachments legitimately name an object that is in no list at all.
   for (const { o, owner } of everyObject(s)) {
     if (o.attachedTo == null) continue;
     if (o.zone !== 'battlefield') return `${o.def.name} in ${owner}'s ${o.zone} is still attached to ${o.attachedTo}`;
+    if (opts.transient) continue;
     const host = findObject(s, o.attachedTo);
     if (!host) return `${o.def.name} attached to a missing object`;
     if (host.zone !== 'battlefield') return `${o.def.name} attached to ${host.def.name} in ${host.zone}`;
   }
-  // blocking / blockedBy name each other, and only battlefield creatures
+  // blocking / blockedBy name each other, and only battlefield creatures. Half-written mid-declaration (the engine
+  // writes the blocker's `blocking` and the attacker's `blockedBy` one after the other), so at rest only.
   const onBattlefield = new Map<number, GameObject>();
   for (const p of s.players) for (const o of p.battlefield) onBattlefield.set(o.id, o);
-  for (const o of onBattlefield.values()) {
+  if (!opts.transient) for (const o of onBattlefield.values()) {
     for (const aid of o.blocking) {
       const a = onBattlefield.get(aid);
       if (!a) return `${o.def.name} blocks ${aid}, which is not on the battlefield`;
@@ -59,8 +92,9 @@ export function assertInvariants(s: GameState): string | null {
   }
   // only permanents are tapped (moveTo untaps; a leftover flag means a zone change skipped it)
   for (const { o, list, owner } of everyObject(s)) if (o.tapped && list !== 'battlefield') return `${o.def.name} is tapped in ${owner}'s ${list}`;
-  // tokens cease to exist as a state-based action (CR 704.5d); only meaningful once the stack has drained
-  if (!s.stack.length) for (const { o, list, owner } of everyObject(s)) if (o.token && list !== 'battlefield') return `token ${o.def.name} is still in ${owner}'s ${list}`;
+  // tokens cease to exist as a state-based action (CR 704.5d); only meaningful once the stack has drained and, in
+  // event mode, once SBAs have actually run — a token in a graveyard between its move and the next SBA pass is legal
+  if (!opts.transient && !s.stack.length) for (const { o, list, owner } of everyObject(s)) if (o.token && list !== 'battlefield') return `token ${o.def.name} is still in ${owner}'s ${list}`;
   // No liveness check on s.activePlayer / s.priority: an eliminated active player finishing its own turn is a state
   // the engine deliberately produces (CR 800.4a leaves the turn structure alone; game.ts skips its priority rounds and
   // only hands the turn on with nextInTurnOrder at cleanup). A draw-X spell that decks its controller out in a pod

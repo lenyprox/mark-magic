@@ -7,7 +7,9 @@
 // the report is identical for any --workers N.
 import { isMainThread, parentPort, Worker } from 'node:worker_threads';
 import { CardDB } from '../cards/db.js';
-import { runGame, shrinkBucket, type Failure, type FuzzOptions, type FuzzSeats } from './fuzz.js';
+import type { PoolTier } from '../cards/tiers.js';
+import type { InvariantMode } from '../engine/invariants.js';
+import { DEFAULT_TIER, maxTurnsOf, runGame, shrinkBucket, type Failure, type FuzzOptions, type FuzzSeats } from './fuzz.js';
 import type { FuzzFormat, FuzzPool } from './fuzzDecks.js';
 
 export type ToFuzzWorker =
@@ -86,6 +88,10 @@ export interface FuzzBucket {
   shrinkCapped: boolean;
 }
 
+/**
+ * A run's result. Every field a game index needs to be rebuilt is written down — `--repro` replays a bucket inside
+ * the table it came from, so the settings must come from the report and never from the replaying command line.
+ */
 export interface FuzzReport {
   /** Passed in by the coordinator (never read from the clock in a worker), so a report is reproducible. */
   at?: string;
@@ -94,6 +100,12 @@ export interface FuzzReport {
   seats: FuzzSeats;
   format: FuzzFormat;
   pool: FuzzPool;
+  /** The tier the decks were drawn from, resolved (never the flag's absence). */
+  tier: PoolTier;
+  /** The turn limit the games were played to, resolved (30 freeform / 40 Commander unless `--max-turns` said otherwise). */
+  maxTurns: number;
+  /** How hard the invariants were checked. */
+  assertInvariants: InvariantMode;
   buckets: FuzzBucket[];
 }
 
@@ -130,8 +142,9 @@ export function runFuzz(opts: FuzzOptions & { games: number; at?: string }, run:
   const total = Math.max(0, Math.floor(opts.games));
   const chunkSize = Math.max(1, run.chunk ?? Math.ceil(total / (size * 8)));
   const shrinkRuns = run.shrinkRuns ?? 200;
-  const cfg: FuzzOptions = { seed: opts.seed, seats: opts.seats, format: opts.format, pool: opts.pool, ...(opts.tier ? { tier: opts.tier } : {}), ...(opts.maxTurns ? { maxTurns: opts.maxTurns } : {}) };
-  const report = (buckets: FuzzBucket[]): FuzzReport => ({ ...(opts.at ? { at: opts.at } : {}), seed: opts.seed, games: total, seats: opts.seats, format: opts.format, pool: opts.pool, buckets });
+  // resolved, never "the flag was absent": the report is what `--repro` rebuilds the table from
+  const cfg: FuzzOptions = { seed: opts.seed, seats: opts.seats, format: opts.format, pool: opts.pool, tier: opts.tier ?? DEFAULT_TIER, maxTurns: maxTurnsOf(opts), assertInvariants: opts.assertInvariants ?? 'game' };
+  const report = (buckets: FuzzBucket[]): FuzzReport => ({ ...(opts.at ? { at: opts.at } : {}), seed: opts.seed, games: total, seats: opts.seats, format: opts.format, pool: opts.pool, tier: cfg.tier!, maxTurns: cfg.maxTurns!, assertInvariants: cfg.assertInvariants!, buckets });
 
   return new Promise<FuzzReport>((resolve, reject) => {
     const runQueue: number[][] = [];
