@@ -16,8 +16,11 @@ import type {
 /** One family with the file it came from (runtime registrations report `(runtime)`). */
 export interface RegistryEntry { file: string; mod: FamilyModule }
 
+import family_combat_restr from './combat-restr.js';
 
-const GENERATED: RegistryEntry[] = [];
+const GENERATED: RegistryEntry[] = [
+  { file: "combat-restr.ts", mod: family_combat_restr },
+];
 
 // ---------------------------------------------------------------- flat lookups (mutated in place by rebuild())
 export type EffectOp = (e: never, c: OpCtx) => void | Promise<void>;
