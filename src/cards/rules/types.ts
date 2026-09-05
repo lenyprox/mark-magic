@@ -9,8 +9,11 @@
 // the signal a *later* built-in stage uses (the trigger head's greedy comma re-split, the static branch under a failed
 // activated cost, the spell-text branch under a failed static, the " and " decomposition under a failed sentence), so
 // parse.ts runs a complete built-ins-only pass through each of those ladders before the pass that consults these
-// rules. A rule therefore only ever sees what every built-in stage declined. Weaker: what a rule does with the line it
-// claims is entirely the family's own, and a rule wide enough to match text you were not aiming at will still change
+// rules. A rule therefore only ever sees what every built-in stage declined — and it sees it whichever *kinds* the
+// family happens to register: each of those second passes is gated on an `ANY` flag in ./_registry.ts that ORs every
+// array the pass can reach, so a family of nothing but `conditions` is still consulted by the sentence, activated,
+// granted-ability and static ladders. Weaker: what a rule does with the line it claims is entirely the family's own,
+// and a rule wide enough to match text you were not aiming at will still change
 // that card's parse. `npm run parse:diff` is how you check — read every group it prints.
 //
 // Nothing here imports parse.ts at runtime: the helper callbacks on `LineCtx` hand a rule the built-in sub-parsers, so

@@ -214,12 +214,27 @@ is also the signal a **later built-in stage** uses to claim the very same text.
 | `parseTrigger` on the narrow first-comma head | the greedy comma re-split of the same line |
 | `parseCostPhrase`, through `parseActivatedLine` | the static branch below it — and, on an instant or sorcery, the spell-text branch below that |
 | `parseStatic` | the spell-text branch, on an instant or sorcery |
+| `parseActivatedLine` inside `parseGrantedAbility` | the triggered shape of the same quoted text |
 
 So each of those ladders runs a complete **built-ins-only pass first** (a `useRegistry` flag threaded through the
 sub-parsers) and only then the same ladder with the registry enabled. Get this wrong and the damage is quiet: a static
 rule that fires on a sorcery line still leaves the card `fullyParsed` with an empty spell ability, so `coverage:pool`
 shows nothing and only `parse:diff` can see it. `test/parser-registry.test.ts` pins all four orderings with a
 deliberately over-wide probe family, each case paired with a positive control so it cannot pass vacuously.
+
+The built-in tables themselves never reach the registry either, not even through a nested sub-parse: the handful of
+built-in templates that parse a slot of their own (`PARAGRAPH_RULES`' "You may X. If you do, Y", the two
+"... instead if <condition>" effect rules, `parseCondition`'s "A or if B") call the sub-parser with `useRegistry:
+false`, because a table is the first stage of *both* passes. That one is not theoretical: before it was fixed, a
+catch-all effect family moved Shivan Fire, Burst Lightning and Roil Eruption — three cards that parsed fully without
+it — because the kicker paragraph rule could suddenly parse its second slot and claimed the paragraph ahead of the
+built-in stage that owns it.
+
+How the invariant is measured: register catch-all families (one rule of each kind, matching everything) and reparse
+the whole pool. As *spies* (matching everything, claiming nothing) they must move **0 of 34,513 cards**; as *claimers*
+they move a lot of cards, and every one of them must be a card that already had an unparsed line — **0 cards that were
+fully parsed may move**, per kind and all six together. `scripts/parse-snapshot.ts` is the same check with the real
+(empty) registry: `npm run parse:diff` must print 0 changed.
 
 What is true, then: **a rule only ever sees text that every built-in stage declined.** What does *not* follow is "a
 family can never change a parse that already worked" — the shape a rule produces for the line it claims is the
@@ -235,10 +250,30 @@ The line loop has two hooks, because a line can die in two different places:
    mode, keyword, alternative cost, as-enters, loyalty, trigger, activated, static, and spell text on an instant or
    sorcery — has already declined.
 
-Both hooks are guarded by `LINE_RULES.length`, so a parse with no families registered never even builds a `LineCtx`.
-The registry retries of `parseActivatedLine` (cost rules) and `parseStatic` (static rules) sit just above hook 2 —
-below the spell-text branch, in the same order as the built-in ladder — and are guarded by `COST_RULES.length` /
-`STATIC_RULES.length` the same way.
+Both hooks are guarded by `ANY.line`, so a parse with no families registered never even builds a `LineCtx`. The
+registry retries of `parseActivatedLine` and `parseStatic` sit just above hook 2 — below the spell-text branch, in
+the same order as the built-in ladder — and are guarded the same way.
+
+### Which second pass runs: the `ANY` flags
+
+A registry pass re-runs a whole **ladder**, and a ladder reaches several rule kinds at once. So each pass is gated on a
+derived boolean from `src/cards/rules/_registry.ts` (rebuilt by `registerRules` / `unregisterRules`, the parser twin
+of the engine registry's `HAS`), never on one array's `.length`:
+
+| flag | the pass it gates | every array that pass can reach |
+|---|---|---|
+| `ANY.sentence` | `parseSentenceRecursive`'s second pass | `effects` (the sentence itself) + `conditions` (its "if <condition>" splits) |
+| `ANY.activated` | the `parseActivatedLine` retry in the line loop | `costs` (the cost phrases) + `conditions` ("Activate only if ...") |
+| `ANY.trigger` | the trigger-head retry in the line loop | `triggers` |
+| `ANY.granted` | `parseGrantedAbility`'s second pass | `ANY.activated` + `triggers` + `ANY.sentence` (an unknown effect makes the shape decline there) |
+| `ANY.static` | the `parseStatic` retry in the line loop | `statics` + `ANY.granted` + `ANY.sentence` (its "as long as" and quoted-ability slots) |
+| `ANY.line` | both line hooks | `lines` |
+
+Gating on a single array is the bug this replaced, and it fails silently: a family that registers **conditions and no
+costs** had its conditions consulted nowhere but the built-in branches that ask for one — not from "Activate only if
+...", not from a sentence's "... if <condition>", not from a granted ability.
+`test/parser-registry.test.ts` registers a conditions-only, a triggers-only and a statics-only family and makes each
+fire at every site that can reach it, each with the same card parsed with nothing registered as the control.
 
 ### `PARSER_VERSION`
 

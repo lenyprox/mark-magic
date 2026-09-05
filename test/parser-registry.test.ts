@@ -9,13 +9,17 @@
 //     lines the built-ins claim at a *later* stage than the sub-parser the rule hangs off. Each assertion pairs a
 //     built-in that must still win with a positive control on the same rule, so the test cannot pass vacuously.
 //
+// A third group registers families of exactly ONE kind (conditions only, triggers only, statics only). Those pin the
+// *gating*: every registry pass in parse.ts re-runs a whole ladder, and a ladder reaches several rule kinds at once,
+// so each pass is gated on an `ANY` flag rather than on one array's `.length`.
+//
 // Sizes are asserted as deltas and every synthetic line uses a nonsense word, so a real rule family landing in a later
 // phase neither breaks these tests nor makes them silently stop testing anything.
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { parseCard, parseEffects, parseEffectSentence, PARSER_VERSION, type OracleRow } from '../src/cards/parse.js';
-import { CONDITION_RULES, COST_RULES, EFFECT_RULES, LINE_RULES, registerRules, RULE_FAMILIES, rulesHash, STATIC_RULES, TRIGGER_RULES, unregisterRules } from '../src/cards/rules/_registry.js';
+import { ANY, CONDITION_RULES, COST_RULES, EFFECT_RULES, LINE_RULES, registerRules, RULE_FAMILIES, rulesHash, STATIC_RULES, TRIGGER_RULES, unregisterRules } from '../src/cards/rules/_registry.js';
 import type { RuleFamily } from '../src/cards/rules/types.js';
 import { renderRules, RULES_OUT_FILE } from '../scripts/gen-registry.mjs';
 
@@ -223,6 +227,154 @@ test('a rule can never pre-empt a built-in stage that runs later than its own di
   } finally {
     unregisterRules(ADVERSARIAL.name);
   }
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// One kind at a time — the gating.
+//
+// Every registry pass in parse.ts re-runs a whole ladder, and a ladder reaches more than one of the flat arrays: the
+// activated ladder reaches cost rules AND the conditions behind "Activate only if ...", the sentence ladder reaches
+// effect rules AND the conditions behind "... if <condition>", the granted-ability ladder reaches costs, conditions
+// and triggers, and parseStatic's retry reaches everything its own sub-parses do. Gating those passes on a single
+// array's `.length` drops the other kinds silently — no error, just a family that never fires — so each is gated on
+// an `ANY` flag that ORs every array its pass can reach. Each family below registers exactly ONE kind and has to
+// fire at every site that can reach it; every case is preceded by the same card parsed with no family registered.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Run `fn` with no probe family registered — the negative controls have to be parses of the bare built-ins. */
+function noFamilies(fn: () => void): void {
+  const hadProbe = RULE_FAMILIES.some(f => f.name === PROBE.name);
+  if (hadProbe) unregisterRules(PROBE.name);
+  try { fn(); } finally { if (hadProbe) registerRules(PROBE); }
+}
+
+/** Run `fn` with `fam` as the only registered family, so the ANY flags describe that family alone. */
+function onlyFamily(fam: RuleFamily, fn: () => void): void {
+  const hadProbe = RULE_FAMILIES.some(f => f.name === PROBE.name);
+  if (hadProbe) unregisterRules(PROBE.name);
+  registerRules(fam);
+  try { fn(); } finally { unregisterRules(fam.name); if (hadProbe) registerRules(PROBE); }
+}
+
+const prow = (types: string[], text: string): OracleRow => ({ ...row(types, text), name: 'Probe Subject', oracle_id: 'probe-single-kind-0001' });
+
+const CONDITIONS_ONLY: RuleFamily = {
+  name: 'probe-conditions-only',
+  conditions: [{ name: 'charged', make: t => (/^the probe is charged$/i.test(t.trim()) ? { kind: 'your-turn' } : null) }],
+};
+const ONLY_IF = '{T}: Draw a card. Activate only if the probe is charged.';
+const GRANTED_ONLY_IF = 'Creatures you control have "{T}: Draw a card. Activate only if the probe is charged."';
+
+test('a family with only condition rules is consulted by every ladder that reaches conditions', () => {
+  // Negative controls: none of the three parses without the family.
+  noFamilies(() => {
+    assert.ok(parseEffects('Draw a card if the probe is charged.').some(e => e.op === 'unknown'));
+    assert.equal(parseCard(prow(['Creature'], ONLY_IF)).fullyParsed, false);
+    assert.equal(parseCard(prow(['Enchantment'], GRANTED_ONLY_IF)).fullyParsed, false);
+  });
+
+  onlyFamily(CONDITIONS_ONLY, () => {
+    // Conditions alone must still arm the sentence, activated, granted-ability and static passes.
+    assert.deepEqual({ ...ANY }, { sentence: true, activated: true, trigger: false, granted: true, static: true, line: false });
+
+    // (a) the sentence ladder: "<effects> if <condition>", which only the second pass reaches.
+    assert.deepEqual(parseEffects('Draw a card if the probe is charged.'), [
+      { op: 'conditional', condition: { kind: 'your-turn' }, then: [{ op: 'draw', amount: 1, who: 'you' }] },
+    ]);
+
+    // (b) parseActivatedLine's "Activate only if ..." — its retry used to be gated on COST_RULES.length alone.
+    const act = parseCard(prow(['Creature'], ONLY_IF));
+    assert.equal(act.fullyParsed, true);
+    assert.equal(act.abilities.length, 1);
+    assert.ok(act.abilities[0].kind === 'activated');
+    assert.equal(act.abilities[0].cost.tap, true);
+    assert.deepEqual(act.abilities[0].activateOnlyIf, { kind: 'your-turn' });
+    assert.deepEqual(act.abilities[0].effects, [{ op: 'draw', amount: 1, who: 'you' }]);
+
+    // (c) the same clause inside a granted ability, reached through parseStatic's registry pass.
+    const granted = parseCard(prow(['Enchantment'], GRANTED_ONLY_IF));
+    assert.equal(granted.fullyParsed, true);
+    assert.equal(granted.abilities.length, 1);
+    const st = granted.abilities[0];
+    assert.ok(st.kind === 'static' && st.effect.kind === 'grant-ability');
+    assert.ok(st.effect.ability.kind === 'activated');
+    assert.deepEqual(st.effect.ability.activateOnlyIf, { kind: 'your-turn' });
+  });
+});
+
+const TRIGGERS_ONLY: RuleFamily = {
+  name: 'probe-triggers-only',
+  triggers: [{
+    name: 'probetriggers',
+    make: h => {
+      const t = h.trim().toLowerCase();
+      if (t === 'whenever ~ wardsignals') return { on: 'etb', self: true };            // the narrow first-comma head
+      if (t === 'whenever ~ wardstirs, at dawn') return { on: 'upkeep', whose: 'your' }; // only the greedy re-split
+      if (t === 'whenever ~ wardchimes') return { on: 'dies', self: true };            // inside a granted ability
+      return null;
+    },
+  }],
+};
+const GRANTED_TRIGGER = 'Creatures you control have "Whenever this creature wardchimes, draw a card."';
+
+test('a family with only trigger rules is consulted by every ladder that reaches triggers', () => {
+  noFamilies(() => {
+    assert.equal(parseCard(prow(['Creature'], 'Whenever Probe Subject wardsignals, draw a card.')).fullyParsed, false);
+    assert.equal(parseCard(prow(['Enchantment'], GRANTED_TRIGGER)).fullyParsed, false);
+  });
+
+  onlyFamily(TRIGGERS_ONLY, () => {
+    // Triggers alone arm the trigger-head retry, and through parseGrantedAbility the static retry as well.
+    assert.deepEqual({ ...ANY }, { sentence: false, activated: false, trigger: true, granted: true, static: true, line: false });
+
+    // (a) the line loop's trigger-head retry, narrow head.
+    const narrow = parseCard(prow(['Creature'], 'Whenever Probe Subject wardsignals, draw a card.'));
+    assert.equal(narrow.fullyParsed, true);
+    assert.ok(narrow.abilities[0].kind === 'triggered');
+    assert.deepEqual(narrow.abilities[0].event, { on: 'etb', self: true });
+    assert.deepEqual(narrow.abilities[0].effects, [{ op: 'draw', amount: 1, who: 'you' }]);
+
+    // (b) the same retry's second half: the head the built-in *greedy comma re-split* produces.
+    const greedy = parseCard(prow(['Creature'], 'Whenever Probe Subject wardstirs, at dawn, draw a card.'));
+    assert.equal(greedy.fullyParsed, true);
+    assert.ok(greedy.abilities[0].kind === 'triggered');
+    assert.deepEqual(greedy.abilities[0].event, { on: 'upkeep', whose: 'your' });
+    assert.deepEqual(greedy.abilities[0].effects, [{ op: 'draw', amount: 1, who: 'you' }]);
+
+    // (c) a granted ability's trigger head — parseStatic's registry pass, through parseGrantedAbility.
+    const granted = parseCard(prow(['Enchantment'], GRANTED_TRIGGER));
+    assert.equal(granted.fullyParsed, true);
+    const st = granted.abilities[0];
+    assert.ok(st.kind === 'static' && st.effect.kind === 'grant-ability');
+    assert.ok(st.effect.ability.kind === 'triggered');
+    assert.deepEqual(st.effect.ability.event, { on: 'dies', self: true });
+  });
+});
+
+const STATICS_ONLY: RuleFamily = {
+  name: 'probe-statics-only',
+  statics: [{ name: 'wardguard', make: line => (/^~ is wardguarded\.?$/i.test(line.trim()) ? { kind: 'self-keywords', keywords: ['flying'] } : null) }],
+};
+
+test('a family with only static rules fires at the one site that reaches statics, and no earlier', () => {
+  noFamilies(() => assert.equal(parseCard(prow(['Creature'], 'Probe Subject is wardguarded.')).fullyParsed, false));
+
+  onlyFamily(STATICS_ONLY, () => {
+    assert.deepEqual({ ...ANY }, { sentence: false, activated: false, trigger: false, granted: false, static: true, line: false });
+
+    // The line loop's static retry — the only pass that reaches parseStatic with the registry enabled. (parseStatic's
+    // other call, the "whenever you tap ... for mana" pre-check, is built-ins-only by design: the built-in trigger
+    // branch below it claims every line that reaches it.)
+    const permanent = parseCard(prow(['Creature'], 'Probe Subject is wardguarded.'));
+    assert.equal(permanent.fullyParsed, true);
+    assert.deepEqual(permanent.abilities.map(a => (a.kind === 'static' ? a.effect : null)), [{ kind: 'self-keywords', keywords: ['flying'] }]);
+
+    // ... and the retry still sits below the spell-text branch: the same line on a sorcery stays with the spell.
+    const sorcery = parseCard(prow(['Sorcery'], 'Probe Subject is wardguarded.'));
+    assert.equal(sorcery.abilities.length, 1);
+    assert.equal(sorcery.abilities[0].kind, 'spell');
+    assert.equal(sorcery.fullyParsed, false);
+  });
 });
 
 test('unregisterRules empties the flat arrays again', () => {
