@@ -5,7 +5,7 @@ Vocabulary documents (one per wave; what script authors and the round-trip rende
 | document | contents |
 |---|---|
 | [composition.md](composition.md) | Phase 9.0 composition core: `Ref` / `ScopeWho` binding rules, the amount forms (`objects`, `diff`, `sum`, `max`, `min`, `prop`), `multi` targets, and the ops `for-each`, `bind`, `reflexive`, `scoped`, `may`, `unless-pays`, `move`, `set-pt`, `lose-abilities`, `exchange`, plus the delayed-trigger points `this-turn:dies` / `this-turn:ltb` / `next-turn:upkeep` / `until-eot:end` |
-| this file | how a family module extends the engine, the hook table, the lints, the op-coverage ratchet and the parser rule registry |
+| this file | how a family module extends the engine, the hook table, the lints, the family schema (the zod half a script is validated against), the op-coverage ratchet and the parser rule registry |
 
 The engine is extended through **families**: one file per mechanic, `src/engine/ops/<family>.ts`, whose default export
 is a `FamilyModule`. A family adds AST shapes (effects, conditions, triggers, statics, amounts, costs, keywords,
@@ -49,11 +49,13 @@ game with no families registered pays one boolean or one `.length` test per hook
    `EventRegistry` in `src/engine/events.ts`. The public names (`Effect`, `Condition`, `TriggerEvent`, …) are unchanged,
    so nothing else in the codebase has to move.
 3. **Write the hooks.** See the table below.
-4. **Regenerate the barrel.** `npm run gen:registry`. It lists every `src/engine/ops/<name>.ts` that does not start with
+4. **Regenerate the barrels.** `npm run gen:registry`. It lists every `src/engine/ops/<name>.ts` that does not start with
    `_`, is not shared plumbing (`types.ts`, `ext.ts`, `chars.ts`) and is not a `<name>.schema.ts`, imports the default
    exports and rebuilds the flat lookups. Duplicate keys across two families are a **hard error naming both files**. The output is deterministic and
    written with LF endings — running it twice produces no diff, and `test/lint-ops.test.ts` asserts the checked-in file
-   is up to date. **Never hand-edit `_registry.ts`.**
+   is up to date. **Never hand-edit `_registry.ts`.** The same run lists every `<name>.schema.ts` into
+   `src/cards/_schemas.ts` (the [family schema](#family-schema) barrel) and every `src/cards/rules/<name>.ts` into the
+   parser rule barrel.
 5. **Test.** `npm run verify:quick` (typecheck + lints + registry and parser-registry tests + scripts check), then
    scenarios (below), then `npm run verify:all` (which includes `parse:diff`) before the merge.
 
@@ -144,10 +146,102 @@ Three mechanics are state, not hooks:
 
 | lint | what it checks |
 |---|---|
-| `test/lint-ops.test.ts` | no `node:` imports under `src/engine/ops`; no `new`-ed value (Set, Map, Date, any class) anywhere in an `ext` write, in any shape — `x.ext.k = v`, `x.ext = { k: v }`, `extSet(o, 'k', v)`, `extPush(o, 'k', v)` — since the whole assigned expression is scanned; `_registry.ts` matches what `scripts/gen-registry.mjs` produces |
+| `test/lint-ops.test.ts` | no `node:` imports under `src/engine/ops`; no `new`-ed value (Set, Map, Date, any class) anywhere in an `ext` write, in any shape — `x.ext.k = v`, `x.ext = { k: v }`, `extSet(o, 'k', v)`, `extPush(o, 'k', v)` — since the whole assigned expression is scanned; `_registry.ts` and `src/cards/_schemas.ts` match what `scripts/gen-registry.mjs` produces |
 | `test/lint-direct-writes.test.ts` | direct writes to observable state — ceiling **0** for every pattern under `src/engine/ops/**` (the `game.ts` ceilings are a separate ratchet) |
 | `test/lint-nplayer.test.ts` | no two-player assumptions (`players[0]`, `opponentOf(`, `[Agent, Agent]`) under `src/engine/ops` |
 | `test/registry.test.ts` | every hook kind is reachable: a probe family is registered at runtime and each hook is observed firing in a real game |
+
+---
+
+## Family schema
+
+A family has a third half beside its engine module and its parser rules: the **zod schema** of the shapes it adds,
+which is what a per-card script is validated against. The engine never imports it (zod is a devDependency; the
+engine's own types come from the `declare module` merges), but without it a script naming a family op dies at
+stage 1 of `scripts:verify` — the strict schema — before the registry stage ever sees the op.
+
+### The contract
+
+Each family file `src/engine/ops/<family>.schema.ts` exports
+
+```ts
+export const schema: FamilySchema = {
+  effects?: ZodObject[], conditions?: ZodObject[], triggers?: ZodObject[], statics?: ZodObject[],
+  amounts?: string[], costParts?: Record<string, ZodTypeAny>, asEnters?: ZodObject[], targetKinds?: string[],
+}
+```
+
+where every list entry is a strict `z.object` whose discriminator is a `z.literal` (`op` for effects, `kind` for
+conditions / statics / asEnters, `on` for triggers), and `amounts` / `targetKinds` are string literals.
+`FamilySchema` is the type in `src/engine/ops/types.ts` (a type-only import of zod; it is erased before the web
+worker is bundled).
+
+```ts
+// src/engine/ops/suspend.schema.ts
+import { z } from 'zod';
+import type { FamilySchema } from './types.js';
+import { AmountSchema, FilterSchema } from '../../cards/schema.js';   // the leaf schemas a family builds on
+
+export const schema: FamilySchema = {
+  effects: [z.strictObject({ op: z.literal('suspend'), counters: AmountSchema, filter: FilterSchema.optional() })],
+  conditions: [z.strictObject({ kind: z.literal('suspended'), least: z.number().optional() })],
+  triggers: [z.strictObject({ on: z.literal('last-time-counter-removed'), self: z.boolean() })],
+  amounts: ['time-counters'],
+  costParts: { timeCounters: z.number() },      // the schema of the VALUE; the composer makes the key optional
+  targetKinds: ['suspended-card'],
+};
+```
+
+Rules the composer enforces at import time (an Error naming the file, and both files for a duplicate):
+
+* every list entry is `z.strictObject` (a typo'd field in a script must be a validation error, never a silently
+  dropped clause) with a string-literal discriminator at the right key;
+* every literal is declared **once**, across all families and against the core — a family cannot redeclare `draw`,
+  `objects`, `multi` or `mana`;
+* no key outside the eight above (a keyword, for instance, has no schema slot: `Keyword` is widened by declaration
+  merging only, and the lint's keyword vocabulary is the core list).
+
+What to import from where: `src/cards/schema.js` exports every leaf a family needs (`FilterSchema`, `AmountSchema`,
+`TargetSpecSchema`, `ManaCostSchema`, `KeywordSchema`, `RefSchema`, `ScopeWhoSchema`, `ObjectSetSchema`, …) and the
+**composed** unions (`EffectSchema`, `ConditionSchema`, `TriggerEventSchema`, `StaticEffectSchema`, `AsEntersSchema`,
+`AbilityCostSchema`) for a family op that nests effects or conditions. All of them are safe to use at module scope
+from inside a `.schema.ts` even though `schema.ts` imports your file back through the generated barrel: they are
+indirect re-exports of `src/cards/schema-core.ts`, which has finished evaluating before any family file starts, and
+the composed unions are `z.lazy` faces resolved on the first parse. Never import `schema-core.ts` directly.
+
+### How the composer folds it
+
+`npm run gen:registry` lists every `<family>.schema.ts` (not underscore-prefixed, sorted by file name) into the
+generated `src/cards/_schemas.ts`: `FAMILY_SCHEMA_ENTRIES` (family, file, schema), `FAMILY_SCHEMAS` by family
+name, and the merged lists `FAMILY_EFFECT_VARIANTS`, `FAMILY_CONDITION_VARIANTS`, `FAMILY_TRIGGER_VARIANTS`,
+`FAMILY_STATIC_VARIANTS`, `FAMILY_AMOUNTS`, `FAMILY_COST_PARTS`, `FAMILY_AS_ENTERS`, `FAMILY_TARGET_KINDS`. With no
+family every list is empty and the composed schema is exactly the core.
+
+`src/cards/schema.ts` composes them with the core vocabulary on the first parse:
+
+| slot | composed as |
+|---|---|
+| `effects` | `EffectSchema = z.discriminatedUnion('op', [...EFFECT_VARIANTS, ...FAMILY_EFFECT_VARIANTS])` |
+| `conditions` / `triggers` / `statics` / `asEnters` | the same, on `kind` / `on` / `kind` / `kind` |
+| `amounts` | `Amount.count` becomes `z.enum([...AMOUNT_COUNTS, 'objects', ...FAMILY_AMOUNTS])` |
+| `targetKinds` | `TargetSpec.kind` becomes `z.enum([...TARGET_KINDS, 'multi', ...FAMILY_TARGET_KINDS])` |
+| `costParts` | `AbilityCost` becomes `z.strictObject({ ...core fields, ...each family part, optional })` — unknown keys are still rejected |
+
+Every recursive position in the core variants (`conditional.then`, `for-each.do`, a `damage` target, a filter's
+`mvLE`, an activated ability's `cost`) goes through the composed face, so a family op nested in a core container,
+a family amount count inside a core amount, or a family target kind on a core op validates the same as at the top
+level. `CardScriptChecked` — stage 1 of `scripts:verify` and what `scripts:check` runs — is built on the composed
+faces, so a script using a family op passes it; stage 3 (the registry) then checks the family's engine half is
+installed. Downstream, `src/cards/lint.ts` derives its op / condition / trigger / static / as-enters / target-kind /
+amount-count vocabularies from the composed schema (`schemaVocabulary()`), `npm run vocab:doc` lists each family's
+ops under `## Mechanic families` → `### Schema — <family>` with their zod field names, and `npm run scripts:schema`
+emits the composed schema into `data/scripts/schema.json`. The round-trip renderer is unchanged: a family op with
+no `FamilyModule.render` template is still a renderer gap in the batch report.
+
+The compile-time pins in `test/schema-types.test.ts` are on the **core** faces (`CoreEffectSchema` against
+`CoreEffect`, and so on) — a family's variants are runtime values in a generated list, which no `Equals<>` can see;
+the runtime half of that test composes an in-memory family through `composeSchemas([...])` and checks a script
+using it passes and a typo fails. `test/lint-ops.test.ts` asserts `_schemas.ts` is up to date.
 
 ---
 
@@ -386,11 +480,12 @@ built-in.
 
 | command | what it does |
 |---|---|
-| `npm run gen:registry` | regenerate `src/engine/ops/_registry.ts` **and** `src/cards/rules/_registry.ts` from the directory listings |
+| `npm run gen:registry` | regenerate `src/engine/ops/_registry.ts`, `src/cards/rules/_registry.ts` **and** `src/cards/_schemas.ts` from the directory listings |
 | `npm run parse:diff` | reparse every playable card and diff against `data/master/parse-snapshot.json` (exit 1 on any change) |
 | `npm run parse:accept` | re-baseline that snapshot |
 | `npm run coverage:pool` | parser coverage: `fully_parsed` and the most common unparsed clauses |
 | `npm run typecheck:example` | typecheck `_example.ts` on its own (it is excluded from the main program) |
+| `npm run typecheck:schema` | typecheck `test/schema-types.test.ts`: the core zod schema pinned to the `Core*` types, every `<family>.schema.ts` included |
 | `npm run verify:quick` | typecheck + `lint-*` + `registry` + `parser-registry` + `scripts` tests + `scripts:check` (the `parser-registry` test is what catches a stale rules barrel) |
 | `npm run verify:scenarios` | the behavioural scenario suite |
 | `npm run coverage:ops` | the op-coverage ratchet report: uncovered ops with exemplar cards to write scenarios with |

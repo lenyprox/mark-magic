@@ -50,6 +50,7 @@ orchestrated by a Claude Code session. The plan has three phases, continuing the
 | edceb29 | 9.0a | composition core, engine side: `Ref`, ten composition ops, amount forms, `multi` targets, four delayed-at points, `src/engine/refs.ts`, zod schema + structural gate + op-coverage probes extended, `docs/vocabulary/composition.md`; soft cast-time target requirements for older-container branches; `docs/workflows/phase-9-0a-composition-core.js` |
 | (9.0b) | 9.0b | composition parser rules (`src/cards/rules/composition.ts`, 74 effect rules + 1 line rule; `EffectCtx` sub-parsers handed to registry rules; built-in "you may" wrapped in `may`), parser debts 4 and 5 (second faces unparsed, 0x08 bytes), subtype vocabulary (`npm run gen:subtypes` → `src/cards/subtype-vocab.ts`; unknown words no longer become subtypes), antecedent-aware frame binding (`bindAntecedent`, `withFrame`), `PARSER_VERSION` 3, parse snapshot + fidelity ceilings accepted; `docs/workflows/phase-9-0b-composition-parser.js` |
 | (10.0) | 10.0 | first script wave over the owner's six decks: 164 queued cards in 8 batches (`docs/workflows/script-wave.js`, Opus author → blind scenario author → two judges); 44 scripts written, 26 through the mechanical gate, **11 judged** (both judges faithful, blind scenarios green), 13 rejected by a judge (re-author pass pending), 18 scripted only (1 quarantined), **121 blocked** with 108 recorded needs → `data/scripts/needs.json` (77 families; cost-alter 14, layers 9, copy-clone 6, replacement 5, named keywords prepare/toxic/backup/undying/spree, choose-mode not-chosen, class levels, grant-alt-cost, main-phase triggers …); `scripts:promote --judges 2`; goldens re-accepted (Lyra Dawnbringer's script moves one wu-fliers game); fidelity ceilings lowered to 6.47 / 7.60 / 5.93 / 10.90 hits per game |
+| (8a-4) | 8a-4 | family schema composition (plan 1.5): `FamilySchema` in `src/engine/ops/types.ts`, `src/engine/ops/<family>.schema.ts` → generated `src/cards/_schemas.ts` (third barrel of `gen:registry`), `src/cards/schema-core.ts` + `schema.ts` composing `EffectSchema` / `ConditionSchema` / `TriggerEventSchema` / `StaticEffectSchema` / `AsEntersSchema` / `AbilityCostSchema` and the `Amount.count` / `TargetSpec.kind` enums with every family; lint, `vocab:doc`, `scripts:schema` read the composed schema; `test/schema-types.test.ts` pins the core faces and composes an in-memory family; docs/vocabulary/README.md "Family schema"; items 12 (schema half) and 26 closed |
 | (9.0c) | 9.0c | engine bindings (`noteAffected` in pump / grant-keyword / counters / untap / untap-all / gain-control / sacrifice / look-top / counter — the countered spell with its stack-time controller and mana value; `bind` reads spell targets), scopes `target-opponent` (legal.ts offers opponents only) and `owner-of-that`, `unless-pays.otherwiseAs`, `Filter` fields (`notSubtypes`, `supertypes` / `notSupertypes`, `notKeywords`, `powerEQ` / `toughnessEQ` / `toughnessGE`, `typesAll`, the adjective flags, `dealtDamageBySource` with the per-turn `ext.damagedBy` record), `dies` / `etb` `controller: 'opponent'`, `return-from-graveyard` `count` / `optional`, `graveyard-card` `who`, `TargetSpec.count: 'X'`, aggregate amounts (`agg` + `over`), `count: 'that-many'` from `item.lastAmount` (and the trigger's amount), `scry` / `surveil` amounts, the `set-pt` static, LKI for `power-of-source`; parser: `PARSER_VERSION` 4 (the "-X" sign, "target A and target B" as a `multi` spec, 'All creatures have "…"', the "you control enters" template first, adjacent type words all-of), the `bind` / `for-each` repairs dropped where the engine now binds, the 9.0b declines claimed; op-allowlist shrunk by 8 |
 
 Numbers on `main` after 9.0b (2026-09-05, machine shared with a second session): `coverage:pool` 11,713 / 34,513 fully
@@ -177,7 +178,13 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     `KEYWORDS` / `TARGET_KINDS` / `AMOUNT_COUNTS`, `Object.keys` of `EFFECT_OPS` / `CONDITIONS` / `TRIGGERS` /
     `STATICS` / `AMOUNTS` / `TARGET_KINDS` for the family additions), and `discriminators` THROWS when it cannot read
     a discriminator rather than returning a short list that would accept anything. `test/lint.test.ts` pins the
-    derivation and one case per rule; `scripts:verify`'s registry stage uses the same sets.
+    derivation and one case per rule; `scripts:verify`'s registry stage uses the same sets. ~~The schema half of
+    this — the zod barrel itself knowing only the core — was item 26~~; **done in 8a-4**: the lint now reads the
+    COMPOSED schema (`schemaVocabulary()` in `src/cards/schema.ts`: the core lists plus every
+    `src/engine/ops/<family>.schema.ts` through the generated `src/cards/_schemas.ts`), so a family op declared in
+    its schema is never "unknown" to the lint even before its engine module is registered. What is still type-only:
+    a `Keyword` a family adds by declaration merging (the schema contract has no keyword slot), so the keyword
+    vocabulary is the core `KEYWORDS` list.
 13. Parser-registry purity gap (8a-2 re-review): the built-in `EFFECT_RULES` entry `~ gains "(.+)"` (parse.ts ~472)
     calls `parseActivatedLine` with the registry enabled even during the built-ins-only pass, and four line-loop
     condition slots consult condition rules in place (documented in parse.ts's header). With catch-all claiming
@@ -356,14 +363,24 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     permanent you control" counts PERMANENTS with `other: true` (`eachYouControl` in parse.ts; Spirit of the
     Aldergard is 2/4 with two Snow-Covered Forests — the old template counted creatures and the source itself).
     Both pinned in test/parser-composition.test.ts and test/scenarios/composition-cards.ts.
-26. **A family op cannot be scripted at all yet** (found while building 8c): `CardScriptChecked`'s effect union is
+26. ~~**A family op cannot be scripted at all yet** (found while building 8c): `CardScriptChecked`'s effect union is
     the hand-written, core-only `EFFECT_VARIANTS` in `src/cards/schema.ts`, so a script naming an op a family
     registered at run time fails stage 1 (schema) before stage 3 (registry) — which is the only stage that consults
-    the registries — ever sees it. `scripts:verify` therefore cannot verify a family-op script, and
-    `test/scripts-verify.test.ts` reaches the `sandbox: 'throws'` branch through an injected `trial` rather than
-    through a family op that throws. The fix is plan 1.5's generated `_schemas.ts`
-    (`EffectSchema = z.discriminatedUnion('op', [...core, ...families])`, one `<family>.schema.ts` per family), which
-    no slice has built; it belongs with 8k's `gen:registry` extension. Until then every op a script uses must be core.
+    the registries — ever sees it.~~ — **done in 8a-4** (plan 1.5, "validation without the TS compiler API"):
+    `npm run gen:registry` now also generates `src/cards/_schemas.ts` from every `src/engine/ops/<family>.schema.ts`
+    (`export const schema: FamilySchema`, the contract in `src/engine/ops/types.ts` and docs/vocabulary/README.md
+    "Family schema"), and `src/cards/schema.ts` composes it with the core — `EffectSchema =
+    z.discriminatedUnion('op', [...core, ...FAMILY_EFFECT_VARIANTS])` and likewise for conditions / triggers /
+    statics / as-enters, `Amount.count` and `TargetSpec.kind` widened, `AbilityCost` extended with the families'
+    cost parts (optional; loose keys still rejected), every recursive position going through the composed face.
+    The core lives in `src/cards/schema-core.ts` (which imports no family) and `schema.ts` re-exports it, so a
+    family's `.schema.ts` can import the leaf schemas from `schema.ts` at module scope from inside the import cycle.
+    The compile-time pins of `test/schema-types.test.ts` moved to the core faces (`CoreEffectSchema` vs
+    `CoreEffect`, …; the composed faces are typed with the widened aliases) and a runtime test composes an
+    in-memory family with `composeSchemas([...])` — a script using its ops passes `CardScriptChecked`, a typo fails.
+    Proved with a scratch `zz_probe` family end to end through `scripts:verify` (stage 1 ok, the op reaches stage 3
+    and the sandbox), then deleted. Open: a family that registers its engine module at run time only
+    (`registerFamily`) still has no schema, which is what stage 3 is for; and `Keyword` has no schema slot (see 12).
 27. ~~**8c's round trip is weak on printed keyword lines that the parser expands into abilities**~~ — **closed by
     review fixes 2**. Review fixes 1 recognised the class (`printedKeywordLine` in `src/cards/render.ts`: a
     capitalised name of at most three words, an optional number or mana-cost parameter, no sentence punctuation) but

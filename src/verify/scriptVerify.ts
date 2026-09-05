@@ -59,8 +59,7 @@ export interface VerifyOptions {
   reportPath?: string;
   /**
    * The sandbox trial to run. Only the tests pass one — it is how `test/scripts-verify.test.ts` reaches the
-   * `sandbox: 'throws'` branch without an engine bug to reproduce (a family op that throws cannot be scripted at all
-   * today: the strict schema's effect union is core-only, see docs/HANDOFF.md).
+   * `sandbox: 'throws'` branch without an engine bug to reproduce.
    */
   trial?: typeof trialCard;
 }
@@ -109,9 +108,10 @@ const ABILITY_KINDS = new Set(['triggered', 'activated', 'static', 'spell']);
 
 /**
  * Stage 3: every discriminator the script uses is one the ENGINE can dispatch on. The zod schema already rejects an
- * op it has never heard of, but a family registers its ops at runtime and the generated schema barrel may lag, so
- * the registries are consulted here as well — and this is the only stage that sees a script written against a family
- * that is not installed on this machine.
+ * op it has never heard of — the composed schema (src/cards/schema.ts) knows every family's `<family>.schema.ts`
+ * — but a family's schema and its engine module are two files, and a family registered at run time only
+ * (`registerFamily`) has no schema at all, so the registries are consulted here as well: this is the stage that
+ * tells a script written against a family whose engine half is not installed on this machine from one that is.
  */
 function registryProblems(script: CardScript): string[] {
   const out: string[] = [];

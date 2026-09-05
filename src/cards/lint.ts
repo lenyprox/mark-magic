@@ -5,9 +5,14 @@
 // validates and whose `counter: "power"` / `subtypes: ["Zomby"]` / `withKeyword: "flanking "` names nothing.
 //
 // EVERY vocabulary here has a RUNTIME source, which is what closes HANDOFF item 12's "type-only registries":
-//   * ops / conditions / triggers / statics / as-enters / cost modifiers — the discriminator LITERALS of the zod
-//     unions in `./schema.ts`, plus whatever a family registered in `src/engine/ops/_registry.ts`;
-//   * keywords / target kinds / amount counts — the named `z.enum` constants of the same file, plus the registries;
+//   * ops / conditions / triggers / statics / as-enters — the discriminator LITERALS of the COMPOSED zod unions of
+//     `./schema.ts` (`schemaVocabulary()`: the core variant lists plus every family's `<family>.schema.ts`, folded
+//     by the generated `./_schemas.ts`), plus whatever a family registered in `src/engine/ops/_registry.ts` — so an
+//     op a family declares in its schema is never "unknown" here, and one it registers at run time only is not
+//     unknown either;
+//   * cost modifiers — the core union (no family slot in the schema contract);
+//   * target kinds / amount counts — the composed enums of the same file, plus the registries; keywords — the named
+//     `z.enum` constant (a family can only widen `Keyword` by declaration merging, which has no runtime source);
 //   * subtypes — the GENERATED `./subtype-vocab.ts` (`npm run gen:subtypes`), never a live master.db query, so the
 //     lint runs in a worktree with no database and gives the same answer on every machine;
 //   * counter names — a curated core list plus every keyword (CR 122.1 keyword counters) plus every name THIS card's
@@ -18,10 +23,7 @@
 import {
   AMOUNTS, CONDITIONS, EFFECT_OPS, STATICS, TARGET_KINDS as TARGET_KIND_HOOKS, TRIGGERS,
 } from '../engine/ops/_registry.js';
-import {
-  AMOUNT_COUNTS, ASENTERS_VARIANTS, CONDITION_VARIANTS, COST_MODIFIER_VARIANTS, EFFECT_VARIANTS, KEYWORDS,
-  STATIC_VARIANTS, TARGET_KINDS, TRIGGER_VARIANTS,
-} from './schema.js';
+import { COST_MODIFIER_VARIANTS, KEYWORDS, schemaVocabulary } from './schema.js';
 import {
   coverProblems, ignoreLineProblem, scriptableLines, type CardScript, type ScriptFace,
 } from './scripts.js';
@@ -53,23 +55,26 @@ export function discriminators(variants: readonly unknown[], key: string): strin
 
 const union = (core: readonly string[], registry: Record<string, unknown>): ReadonlySet<string> => new Set<string>([...core, ...Object.keys(registry)]);
 
-/** Every `Effect.op` a script may use: the core union plus every family-registered op. */
-export const EFFECT_OP_VOCAB: ReadonlySet<string> = union(discriminators(EFFECT_VARIANTS, 'op'), EFFECT_OPS);
+/** The composed vocabulary: the core lists plus every generated family schema (read once, when this module loads). */
+const COMPOSED = schemaVocabulary();
+
+/** Every `Effect.op` a script may use: the composed union (core + family schemas) plus every family-registered op. */
+export const EFFECT_OP_VOCAB: ReadonlySet<string> = union(discriminators(COMPOSED.effectVariants, 'op'), EFFECT_OPS);
 /** Every `Condition.kind`. */
-export const CONDITION_VOCAB: ReadonlySet<string> = union(discriminators(CONDITION_VARIANTS, 'kind'), CONDITIONS);
+export const CONDITION_VOCAB: ReadonlySet<string> = union(discriminators(COMPOSED.conditionVariants, 'kind'), CONDITIONS);
 /** Every `TriggerEvent.on`. */
-export const TRIGGER_VOCAB: ReadonlySet<string> = union(discriminators(TRIGGER_VARIANTS, 'on'), TRIGGERS);
+export const TRIGGER_VOCAB: ReadonlySet<string> = union(discriminators(COMPOSED.triggerVariants, 'on'), TRIGGERS);
 /** Every `StaticEffect.kind`. */
-export const STATIC_VOCAB: ReadonlySet<string> = union(discriminators(STATIC_VARIANTS, 'kind'), STATICS);
-/** Every `AsEnters.kind` and `CostModifier.kind` (both core-only unions a family widens through the registry). */
-export const AS_ENTERS_VOCAB: ReadonlySet<string> = new Set(discriminators(ASENTERS_VARIANTS, 'kind'));
+export const STATIC_VOCAB: ReadonlySet<string> = union(discriminators(COMPOSED.staticVariants, 'kind'), STATICS);
+/** Every `AsEnters.kind` (composed) and `CostModifier.kind` (core only: the family schema contract has no slot for it). */
+export const AS_ENTERS_VOCAB: ReadonlySet<string> = new Set(discriminators(COMPOSED.asEntersVariants, 'kind'));
 export const COST_MODIFIER_VOCAB: ReadonlySet<string> = new Set(discriminators(COST_MODIFIER_VARIANTS, 'kind'));
 /** Every `Keyword`. The zod enum IS the runtime source item 12 asked for. */
 export const KEYWORD_VOCAB: ReadonlySet<string> = new Set<string>(KEYWORDS.map(String));
-/** Every `TargetSpec.kind` (`multi` is the composition core's own). */
-export const TARGET_KIND_VOCAB: ReadonlySet<string> = union([...TARGET_KINDS, 'multi'], TARGET_KIND_HOOKS);
+/** Every `TargetSpec.kind` (`multi` is the composition core's own; the families' come from their schemas and their registry hooks). */
+export const TARGET_KIND_VOCAB: ReadonlySet<string> = union(COMPOSED.targetKinds, TARGET_KIND_HOOKS);
 /** Every `Amount.count` (`objects` counts a filter rather than a named set). */
-export const AMOUNT_COUNT_VOCAB: ReadonlySet<string> = union([...AMOUNT_COUNTS, 'objects'], AMOUNTS);
+export const AMOUNT_COUNT_VOCAB: ReadonlySet<string> = union(COMPOSED.amountCounts, AMOUNTS);
 
 /**
  * Counter names the engine and the pool use often enough to be worth naming here. It is deliberately NOT the full

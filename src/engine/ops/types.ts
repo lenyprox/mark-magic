@@ -14,6 +14,10 @@ import type { AmountCtx } from '../characteristics.js';
 import type { GameEventBody } from '../events.js';
 import type { Game, TriggerCtx } from '../game.js';
 import type { Decision, GameObject, GameState, LegalAction, Player, PlayerAction, PlayerId, StackItem, Step, TargetRef, TokenSpec, Zone } from '../state.js';
+// TYPE-ONLY: erased by tsc and by the web bundler (apps/web compiles src/engine with SWC under `isolatedModules`, which
+// drops `import type` before webpack ever sees it), so zod — a devDependency — never reaches the game or the worker
+// bundle. It is here only so `FamilySchema` can name zod's object type; the runtime zod lives in `<family>.schema.ts`.
+import type { ZodObject, ZodType } from 'zod';
 
 export type { AmountCtx, TriggerCtx };
 
@@ -168,8 +172,49 @@ export interface FamilyModule {
   freeCast?: (g: Game, p: PlayerId, card: GameObject, from: CastZone) => boolean | undefined;
   /** Round-trip English per op (the renderer the script verification pipeline uses). */
   render?: Record<string, (e: never) => string>;
-  /** zod schemas live in `<family>.schema.ts` (tooling only, never imported by the engine). */
+  /** zod schemas live in `<family>.schema.ts` as `export const schema: FamilySchema` (tooling only, never imported by the engine). */
   schema?: never;
+}
+
+/**
+ * The zod half of a family — the contract every `src/engine/ops/<family>.schema.ts` exports as
+ * `export const schema: FamilySchema = { … }`:
+ *
+ *     effects?: ZodObject[], conditions?: ZodObject[], triggers?: ZodObject[], statics?: ZodObject[], amounts?: string[],
+ *     costParts?: Record<string, ZodType>, asEnters?: ZodObject[], targetKinds?: string[]
+ *
+ * where every list entry is a STRICT `z.object` (`z.strictObject`) whose discriminator is a `z.literal` — `op` for
+ * effects, `kind` for conditions / statics / asEnters, `on` for triggers — and `amounts` / `targetKinds` are string
+ * literals (the `Amount.count`s and `TargetSpec.kind`s the family's `amounts` / `targetKinds` hooks answer to).
+ * `costParts` is keyed by the `AbilityCost` field the family's `costParts` hook pays, each value the zod schema of
+ * that field's value (the composer makes it optional on the cost object: a cost carries only the parts it uses).
+ *
+ * `npm run gen:registry` lists every such file into the generated `src/cards/_schemas.ts`, and `src/cards/schema.ts`
+ * composes the lists with the core vocabulary (`EffectSchema = z.discriminatedUnion('op', [...core, ...families])`,
+ * the `Amount.count` / `TargetSpec.kind` enums widened, the `AbilityCost` object extended), so a script that uses a
+ * family op passes `CardScriptChecked` — stage 1 of `scripts:verify` — and the lint, `vocab:doc` and
+ * `data/scripts/schema.json` know the family's vocabulary. A discriminator declared by two families, or by a family
+ * and the core, is a hard error naming both files. The schema file may import the leaf schemas it needs
+ * (`FilterSchema`, `AmountSchema`, `TargetSpecSchema`, `EffectSchema`, …) from `src/cards/schema.ts`; see
+ * docs/vocabulary/README.md, "Family schema".
+ */
+export interface FamilySchema {
+  /** `Effect` variants, discriminated by `op`. */
+  effects?: readonly ZodObject[];
+  /** `Condition` variants, discriminated by `kind`. */
+  conditions?: readonly ZodObject[];
+  /** `TriggerEvent` variants, discriminated by `on`. */
+  triggers?: readonly ZodObject[];
+  /** `StaticEffect` variants, discriminated by `kind`. */
+  statics?: readonly ZodObject[];
+  /** `Amount.count` literals the family's `amounts` hook evaluates. */
+  amounts?: readonly string[];
+  /** Non-core `AbilityCost` fields the family's `costParts` hook pays, each with the schema of its value. */
+  costParts?: Readonly<Record<string, ZodType>>;
+  /** `AsEnters` variants, discriminated by `kind`. */
+  asEnters?: readonly ZodObject[];
+  /** `TargetSpec.kind` literals the family's `targetKinds` hook enumerates. */
+  targetKinds?: readonly string[];
 }
 
 // Re-exported so a family file needs one import for everything it touches.
