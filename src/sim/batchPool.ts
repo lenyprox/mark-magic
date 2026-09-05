@@ -31,6 +31,7 @@ export interface BatchRunOptions {
 export interface BatchHandle { jobId: string; result: Promise<MatchResult>; cancel(): void; readonly cancelled: boolean }
 
 interface Slot { worker: BatchWorkerLike; busy: string | null; ready: boolean }
+interface ReadyWaiter { resolve: () => void; reject: (e: Error) => void }
 interface Job {
   id: string; spec: MatchSpec; chunks: { id: string; gameStart: number; games: number; indices?: number[] }[]; pendingChunks: number; loaded: number;
   records: GameRecordLite[]; started: number; cancelled: boolean; opts: BatchRunOptions; lastEmit: number; emitTimer: ReturnType<typeof setTimeout> | null;
@@ -41,7 +42,9 @@ export class BatchPool {
   private slots: Slot[] = [];
   private jobs = new Map<string, Job>();
   private counter = 0;
-  private readyWaiters: (() => void)[] = [];
+  private readyWaiters: ReadyWaiter[] = [];
+  /** Set when a worker errored or died before answering init: ready() then rejects instead of waiting forever. */
+  private startupError: string | null = null;
   readonly size: number;
 
   constructor(factory: () => BatchWorkerLike, size = 1) {
@@ -54,10 +57,18 @@ export class BatchPool {
     }
   }
 
-  /** Resolves once every worker answered the init message. */
+  /** Resolves once every worker answered the init message; rejects if one errored or died before answering. */
   ready(): Promise<void> {
+    if (this.startupError) return Promise.reject(new Error(this.startupError));
     if (this.slots.every(s => s.ready)) return Promise.resolve();
-    return new Promise(res => this.readyWaiters.push(res));
+    return new Promise((resolve, reject) => this.readyWaiters.push({ resolve, reject }));
+  }
+
+  /** A worker that never booted (a loader failure in the thread, an exit) can never answer init: fail the waiters. */
+  private failStartup(message: string) {
+    this.startupError ??= message;
+    const waiters = this.readyWaiters; this.readyWaiters = [];
+    for (const w of waiters) w.reject(new Error(this.startupError));
   }
 
   run(spec: MatchSpec, opts: BatchRunOptions = {}): BatchHandle {
@@ -98,7 +109,7 @@ export class BatchPool {
   }
 
   private onMessage(slot: Slot, m: FromBatchWorker) {
-    if (m.type === 'ready') { slot.ready = true; if (this.slots.every(s => s.ready)) { const w = this.readyWaiters; this.readyWaiters = []; for (const r of w) r(); } this.pump(); return; }
+    if (m.type === 'ready') { slot.ready = true; if (this.slots.every(s => s.ready)) { const w = this.readyWaiters; this.readyWaiters = []; for (const r of w) r.resolve(); } this.pump(); return; }
     if (m.type === 'loaded') { const job = this.jobs.get(m.jobId); if (job) { job.loaded++; this.pump(); } return; }
     const job = 'jobId' in m && m.jobId ? this.jobs.get(m.jobId) : undefined;
     if (m.type === 'progress') { if (job && !job.cancelled) { job.records.push(...m.records); this.emit(job); } return; }
@@ -108,6 +119,7 @@ export class BatchPool {
       this.pump(); return;
     }
     if (m.type === 'error') {
+      if (!slot.ready) this.failStartup(m.message);
       if (m.chunkId && slot.busy === m.chunkId) slot.busy = null;
       if (job) { job.errors.push(m.message); if (m.chunkId) { job.pendingChunks--; if (job.pendingChunks <= 0) this.finish(job); } else if (!job.loaded) { this.jobs.delete(job.id); job.reject(new Error(m.message)); } }
       this.pump();
@@ -137,7 +149,7 @@ export class BatchPool {
     job.resolve(result);
   }
 
-  dispose() { for (const j of [...this.jobs.values()]) this.cancel(j.id); for (const s of this.slots) s.worker.terminate(); this.slots = []; }
+  dispose() { for (const j of [...this.jobs.values()]) this.cancel(j.id); for (const s of this.slots) s.worker.terminate(); this.slots = []; this.failStartup('batch pool disposed'); }
 }
 
 /** Default pool size: leave one core for the UI (browser) or the main thread (Node). */

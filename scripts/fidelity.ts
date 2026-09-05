@@ -20,6 +20,9 @@ const opt = (k: string, d: string) => { const i = args.indexOf(k); return i >= 0
 const accept = args.includes('--accept');
 const force = args.includes('--force');
 const games = Number(opt('--games', '60'));
+// A bad --games would otherwise make the gate vacuous: 0 or NaN games measures 0 hits/game, which passes every
+// ceiling, and with --accept it would ratchet every committed ceiling down to 0 and wedge the ratchet at zero.
+if (!Number.isInteger(games) || games < 1) { console.error(`fidelity: --games must be a whole number of at least 1 (got "${opt('--games', '60')}")`); process.exit(2); }
 /** A pairing may sit 10% above its ceiling before it counts as a regression (games are seeded, so this is slack for deck edits). */
 const TOLERANCE = 1.10;
 /** The bench's Commander turn cap (bench-games.ts), so a fidelity run and the benchmark see the same games. */
@@ -60,12 +63,18 @@ async function main() {
     const spec: MatchSpec = { id: `fidelity-${p.seed}`, decks: payloads, games, baseSeed: p.seed, seating: 'rotate', agent: 'rollout', format: 'commander', maxTurns: MAX_TURNS, mulligans: 'lands', record: 'summary', trackUnsimulated: true };
     const t0 = Date.now();
     const a: MatchAggregate = (await runMatches(spec, { yieldEvery: 1000 })).aggregate;
-    const hitsPerGame = round(a.unsimulated / Math.max(1, a.games));
+    // A pairing that played nothing measures 0 hits/game, which would pass any ceiling and, under --accept, lower it
+    // to 0; refuse the whole run instead of recording a number no game produced.
+    if (a.games < 1) { console.error(`fidelity: ${p.name} played 0 of ${games} games — refusing to score or accept a run with no games`); process.exit(2); }
+    const hitsPerGame = round(a.unsimulated / a.games);
     const was = saved.pairings.find(x => x.name === p.name);
     const ceiling = was?.ceiling ?? hitsPerGame;
     const row: Pairing = { name: p.name, decks: p.decks, seed: p.seed, games: a.games, hitsPerGame, ceiling, topClauses: a.topUnsimulated.slice(0, 15) };
     const over = hitsPerGame > ceiling * TOLERANCE;
     if (accept) {
+      // A shorter run is a thinner sample: still allowed, but say so, because the ceiling it writes is the one every
+      // later check is measured against.
+      if (was && a.games < was.games) console.log(`  note: ${a.games} games this run vs ${was.games} in the fixture — the new ceiling rests on fewer games`);
       row.ceiling = force ? hitsPerGame : Math.min(ceiling, hitsPerGame);
       show(row, `${was ? `ceiling ${ceiling} -> ${row.ceiling}` : 'new pairing'} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
     } else {

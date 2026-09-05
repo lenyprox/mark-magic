@@ -20,7 +20,11 @@ const payload = (file: string) => buildDeckPayload(db, parseDeckList(fs.readFile
 const spec = (): MatchSpec => ({ id: 'determinism', decks: [payload('mono-red-burn'), payload('mono-green-stompy')], games: 10, baseSeed: 5, seating: 'rotate', agent: 'rollout', format: 'freeform', maxTurns: 30, mulligans: 'lands', record: 'events' });
 const vectors = (games: { index: number; winner: number | null; eventVector: string }[]) => games.map(g => `${g.index}:${g.winner}:${g.eventVector}`);
 
-test('the same ten games replay identically in-process and through the node worker pool', async () => {
+// The pool spawns real worker_threads, so this test is the one that can wedge the suite: node:test's default timeout
+// is Infinity and live threads keep the process alive. Hence an explicit timeout, and t.after (which runs even on a
+// timeout) to terminate the threads so the run fails fast instead of hanging. BatchPool.ready() also rejects outright
+// when a worker dies or errors before answering init.
+test('the same ten games replay identically in-process and through the node worker pool', { timeout: 180_000 }, async t => {
   const a = await runMatches(spec(), { yieldEvery: 1000 });
   const b = await runMatches(spec(), { yieldEvery: 1000 });
   const inProcess = vectors(a.games.map(fingerprint));
@@ -29,12 +33,11 @@ test('the same ten games replay identically in-process and through the node work
   assert.ok(a.games.every(g => g.eventCounts && Object.keys(g.eventCounts).length > 3), 'every game recorded an event vector');
 
   const pool = new BatchPool(nodeBatchWorker, 2);
+  t.after(() => pool.dispose());
   await pool.ready();
-  try {
-    const r = await pool.run(spec(), { chunk: 3 }).result;
-    assert.deepEqual(vectors(r.games.map(fingerprint)), inProcess, 'a chunked worker_threads run of the same spec');
-    assert.deepEqual(r.games.map(g => g.index), a.games.map(g => g.index), 'the pool returns the games in index order');
-  } finally { pool.dispose(); }
+  const r = await pool.run(spec(), { chunk: 3 }).result;
+  assert.deepEqual(vectors(r.games.map(fingerprint)), inProcess, 'a chunked worker_threads run of the same spec');
+  assert.deepEqual(r.games.map(g => g.index), a.games.map(g => g.index), 'the pool returns the games in index order');
 });
 
 // Only the seeded Rng may produce randomness. Files listed here are grandfathered exceptions: the list may shrink,
@@ -42,7 +45,7 @@ test('the same ten games replay identically in-process and through the node work
 const RNG_MODULE = path.join('src', 'engine', 'game.ts');
 const ALLOWLIST: string[] = [];
 
-test('Math.random is confined to the engine RNG module', () => {
+test('Math.random is confined to the engine RNG module', { timeout: 60_000 }, () => {
   const hits: string[] = [];
   const walk = (dir: string) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
