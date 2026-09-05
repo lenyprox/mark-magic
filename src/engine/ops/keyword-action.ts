@@ -20,14 +20,13 @@
 // leaves the battlefield, because CR 400.7 makes the thing that comes back a new object with no memory of any of it.
 //
 // Rules that are approximations rather than the printed thing are listed in docs/vocabulary/keyword-action.md under
-// "Known gaps"; each one is also a line in the family's report. The two that matter most: goad records the state and
-// raises the event but cannot *force* the attack (the engine's attack requirement is read off printed statics), and
-// discover's free cast is a window for the turn rather than a cast during its own resolution — the card is still
-// never lost, because CR 701.56a's other half (put it into your hand) is offered up front and an unused window hands
-// the card over at `cleanup-end`.
+// "Known gaps"; each one is also a line in the family's report. The one that matters most: goad records the state and
+// raises the event but cannot *force* the attack (the engine's attack requirement is read off printed statics).
+// Discover is NOT one of them any more: CR 701.56a's cast half really casts the card, during the discover's own
+// resolution, through `Game.performAction` — see `castDiscovered`.
 import type { Amount, CardType, Effect, Filter, ManaCost, Ref, TargetSpec } from '../../cards/types.js';
-import type { FamilyModule, Game, GameObject, GameState, OpCtx, PlayerId, StackItem, TokenSpec } from './types.js';
-import { extDel, extGet, extGetOr, extPush, extSet } from './ext.js';
+import type { FamilyModule, Game, GameObject, GameState, LegalAction, OpCtx, PlayerAction, PlayerId, StackItem, TargetRef, TokenSpec } from './types.js';
+import { extDel, extGet, extGetOr, extSet } from './ext.js';
 import { chars } from './chars.js';
 
 // ------------------------------------------------------------------ 1. the AST this family adds
@@ -201,18 +200,24 @@ async function collectEvidence(g: Game, p: PlayerId, n: number, label: string): 
   return true;
 }
 
-/** Can "forage" (CR 701.57a) be done right now: three cards in your graveyard, or a Food to sacrifice? */
-function forageOptions(s: GameState, p: PlayerId): { yard: boolean; food: GameObject | undefined } {
+/**
+ * Can "forage" (CR 701.57a) be done right now: three cards in your graveyard, or a Food to sacrifice?
+ * A Food is anything with the SUBTYPE (CR 205.3g, CR 701.57a says "sacrifice a Food", not "a Food token"): the
+ * predefined token carries `token.food`, and every printed Food — Gingerbrute, Peppermint Sparkler, the Food halves
+ * of the Wilds of Eldraine adventures — is an ordinary card whose type line says Food, animated subtypes included.
+ * Both are offered, so a board with only a nontoken Food can still pay a `forage` cost.
+ */
+function forageOptions(s: GameState, p: PlayerId): { yard: boolean; food: GameObject[] } {
   const pl = s.players[p];
-  return { yard: pl.graveyard.length >= 3, food: chars.battlefieldOf(s, p).find(o => o.token?.food === true) };
+  return { yard: pl.graveyard.length >= 3, food: chars.battlefieldOf(s, p).filter(o => o.token?.food === true || chars.subtypes(o).includes('Food')) };
 }
 /** Pay "forage": exile three cards from your graveyard, or sacrifice a Food (you choose when both are open). */
 async function forage(g: Game, p: PlayerId, label: string): Promise<boolean> {
   const { yard, food } = forageOptions(g.state, p);
-  if (!yard && !food) return false;
+  if (!yard && !food.length) return false;
   let useFood = !yard;
-  if (yard && food) useFood = (await g.ask(p, { kind: 'choose-option', options: ['exile three cards from your graveyard', 'sacrifice a Food'], reason: `${label}: forage` })) === 'sacrifice a Food';
-  if (useFood && food) g.sacrifice(food);
+  if (yard && food.length) useFood = (await g.ask(p, { kind: 'choose-option', options: ['exile three cards from your graveyard', 'sacrifice a Food'], reason: `${label}: forage` })) === 'sacrifice a Food';
+  if (useFood) { const [f] = await pick(g, p, food, 1, `${label}: forage (sacrifice a Food)`); if (!f) return false; g.sacrifice(f); }
   else { const three = await pick(g, p, g.state.players[p].graveyard, 3, `${label}: forage (exile three cards)`); for (const o of three) g.moveTo(o, 'exile', 'top', 'exile'); }
   announce(g, p, 'forage', `${g.pname(p)} forages.`);
   g.queueTriggers('forages', { player: p });
@@ -245,14 +250,92 @@ async function behold(g: Game, p: PlayerId, what: Filter, src: GameObject, label
 const PERMANENT_EXT = ['monstrous', 'suspected', 'harnessed', 'goadedBy', 'goadedTurn', 'manifested', 'cloaked', 'clashWon'] as const;
 
 /**
- * CR 701.56a: a discovered card is CAST for free or PUT INTO YOUR HAND — it is never left behind in exile. The cast
- * half is a free-play window (an op cannot cast during its own resolution the way the core's `cascade` does), and a
- * window nobody used would strand the card, so the card is remembered here and the family's `cleanup-end` step puts
- * it into its owner's hand when the turn it was discovered on ends: the other outcome CR 701.56a allows, never a
- * card lost to exile. `{ id, turn }` is JSON-plain, so it clones and serializes like any other ext value.
+ * CR 701.56a: a discovered card is CAST WITHOUT PAYING ITS MANA COST or PUT INTO YOUR HAND, and the cast happens
+ * during the discover's own resolution — not in some later window. The whole cast is the core's:
+ *
+ *   * `castableFromExile.free` is the flag `legal.ts:castActionsFor` reads to price the card at `ZERO_COST` and to
+ *     let it be cast with the stack full (CR 601.2 timing permissions do not apply to a cast an effect instructs),
+ *     and the same flag `Game.castSpell` reads to charge nothing for it;
+ *   * `castActionsFor` then enumerates the real cast variants (each mode set, each X, the aura's enchant target,
+ *     every cost increase that still applies — CR 601.2f), so nothing about casting is re-implemented here;
+ *   * `Game.performAction` performs the chosen one, which is what makes it a real cast: the zone-change and `cast`
+ *     events, the cast triggers, storm and cascade, prowess, `spellsCastThisTurn`, `castWith`.
+ *
+ * The one gate in the way is `cost.ts:exileWindowOpen`, which is written for rebound: a *free* exile window is only
+ * open during its controller's upkeep. `DISCOVER_CASTING` holds the id of the card being cast for exactly the length
+ * of that `performAction` call, and the family's `castFrom` hook opens the gate for that one card (the sanctioned
+ * way past it — the hook exists for precisely this).
+ *
+ * A cast that the core refuses (no legal target, a cost increase the player cannot pay) leaves the card in exile,
+ * where CR 701.56a's last sentence has it join the other exiled cards on the bottom of the library. The card is
+ * therefore never stranded in exile, whichever half of the choice is taken.
  */
-interface DiscoverPending { [k: string]: number; id: number; turn: number }
-const DISCOVER_PENDING = 'kaDiscoverPending';
+const DISCOVER_CASTING = 'kaDiscoverCasting';
+
+/**
+ * The ops that make a spell something you point at an OPPONENT — the list `Game.autoPickTargets` scores on, kept in
+ * step with it deliberately (that method is private, so a free cast made from a family cannot call it).
+ */
+const HOSTILE_OPS = ['damage', 'destroy', 'exile', 'bounce', 'tap', 'lose-life', 'discard', 'mill', 'counter', 'cant-attack-or-block', 'fight', 'bite'];
+
+/**
+ * The options of one target requirement, best first. Every agent in the tree answers a `choose-option` with the
+ * FIRST option (src/ai/ai.ts, src/ai/search.ts, the scenario agent), so the order is what an unattended cast will
+ * take: a hostile spell points across the table, a helpful one at your own side. A human UI still sees every option
+ * and picks freely — this only decides which one leads.
+ */
+function ordered(g: Game, p: PlayerId, opts: TargetRef[], hostile: boolean): TargetRef[] {
+  const mine = (r: TargetRef): boolean => r.kind === 'player' ? r.id === p : r.kind === 'stack' ? false : chars.findObject(g.state, r.id)?.controller === p;
+  return [...opts].sort((a, b) => Number(mine(a) === hostile) - Number(mine(b) === hostile));
+}
+
+/**
+ * The targets for the free cast, one requirement at a time. The op is resolving, so there is no priority decision to
+ * carry them: the controller is asked instead, with `Game.refName` labelling every option (an object as
+ * "Hill Giant#12", a player by name), which is the same set `legal.ts:targetOptionsFor` offered the UI. A single
+ * mandatory option is taken without asking, exactly as `clash` takes the only opponent.
+ */
+async function chooseTargets(g: Game, p: PlayerId, reqs: NonNullable<LegalAction['targetOptions']>, label: string, hostile: boolean): Promise<TargetRef[][]> {
+  const out: TargetRef[][] = [];
+  for (const req of reqs) {
+    const left = ordered(g, p, req.options, hostile); const picked: TargetRef[] = [];
+    for (let i = 0; i < req.count && left.length; i++) {
+      if (left.length === 1 && !req.optional) { picked.push(left[0]); break; }
+      const names = left.map(r => g.refName(r));
+      if (req.optional) names.push('no target');
+      const k = names.indexOf(await g.ask(p, { kind: 'choose-option', options: names, reason: `${label}: ${req.spec}` }) as string);
+      if (k < 0 || k >= left.length) break;                       // "no target", or an answer that is not on the list
+      picked.push(...left.splice(k, 1));
+    }
+    out.push(picked);
+  }
+  return out;
+}
+
+/** CR 701.56a's first half: cast the discovered card, from exile, without paying its mana cost, right now. */
+async function castDiscovered(c: OpCtx, card: GameObject): Promise<boolean> {
+  const g = c.g, p = c.p, s = c.s;
+  card.castableFromExile = { afterTurn: s.turn - 1, free: true, untilTurn: s.turn, by: p };
+  const { castActionsFor, flattenEffects } = await import('../legal.js');
+  const all: LegalAction[] = [];
+  castActionsFor(g, p, card, 'exile', false, all);
+  const spell = chars.defOf(card).abilities.find(a => a.kind === 'spell');
+  const hostile = flattenEffects(spell?.kind === 'spell' ? spell.effects : []).some(e => HOSTILE_OPS.includes(e.op)
+    || (e.op === 'pump' && typeof e.power === 'number' && e.power < 0) || (e.op === 'counters' && e.counter === '-1/-1'));
+  // Only the plain free cast: an alternative cost is a cost, and CR 701.56a pays none (the kicked variants are
+  // hand-only in `castActionsFor` already). What is left is one entry per mode set / X, so the caster chooses.
+  const ways = all.filter((l): l is LegalAction & { action: Extract<PlayerAction, { type: 'cast' }> } => l.action.type === 'cast' && l.action.alt === undefined);
+  let cast = false;
+  if (ways.length) {
+    const labels = ways.map(w => w.label);
+    const way = ways.length === 1 ? ways[0] : ways[Math.max(0, labels.indexOf(await g.ask(p, { kind: 'choose-option', options: labels, reason: `discover: how to cast ${chars.name(card)}` }) as string))];
+    const targets = await chooseTargets(g, p, way.targetOptions ?? [], chars.name(card), hostile);
+    extSet(s, DISCOVER_CASTING, card.id);
+    try { cast = await g.performAction(p, { ...way.action, targets }); } finally { extDel(s, DISCOVER_CASTING); }
+  }
+  if (!cast) { delete card.castableFromExile; g.note(`${chars.name(card)} could not be cast, so it goes to the bottom of the library with the other discovered cards.`); }
+  return cast;
+}
 
 /** The Incubator token (CR 701.54a): a colorless artifact with "{2}: Transform this artifact." */
 const INCUBATOR_INDEX = -91;
@@ -417,22 +500,20 @@ const KEYWORD_ACTION: FamilyModule = {
         if (!chars.isLand(card) && chars.manaValueOf(card) <= n) { hit = card; break; }
       }
       if (!exiled.length) return;
-      let took = '';
+      let took = ''; let taken: GameObject | undefined;
       if (hit) {
         bind(c, [hit]);
         const cast = `cast ${chars.name(hit)} without paying its mana cost`, hand = `put ${chars.name(hit)} into your hand`;
         if (await c.g.ask(c.p, { kind: 'choose-option', options: [cast, hand], reason: `${c.item.name}: discover ${n}` }) === hand) {
           c.g.moveTo(hit, 'hand', 'top', 'effect');
-          took = ` and puts ${chars.name(hit)} into their hand`;
+          taken = hit; took = ` and puts ${chars.name(hit)} into their hand`;
+        } else if (await castDiscovered(c, hit)) {
+          taken = hit; took = ` and casts ${chars.name(hit)} without paying its mana cost`;
         } else {
-          // The free cast is a play window for the turn (an op cannot cast during its own resolution); if it goes
-          // unused the `cleanup-end` sweep below hands the card to its owner, so nothing is stranded in exile.
-          await c.apply({ op: 'play-exiled', until: 'eot', free: true });
-          extPush<DiscoverPending>(c.s, DISCOVER_PENDING, { id: hit.id, turn: c.s.turn });
-          took = ` and may cast ${chars.name(hit)} for free this turn`;
+          took = ` but could not cast ${chars.name(hit)}`;        // CR 701.56a: not cast, so it goes to the bottom too
         }
       }
-      const rest = exiled.filter(x => x !== hit);
+      const rest = exiled.filter(x => x !== taken);
       c.g.rng.shuffle(rest);                                          // CR 701.56b — exactly what the core's cascade does
       for (const card of rest) c.g.moveTo(card, 'library', 'bottom', 'tuck');
       announce(c.g, c.p, 'discover', `${c.g.pname(c.p)} discovers ${n}: exiles ${exiled.length} card${exiled.length === 1 ? '' : 's'}${took}.`, hit, n);
@@ -578,7 +659,7 @@ const KEYWORD_ACTION: FamilyModule = {
     },
     // "{T}, Forage:" / "Kicker—Forage." / "As an additional cost to cast this spell, forage."
     forage: {
-      payable: (_v, s, pl) => { const o = forageOptions(s, pl.id); return o.yard || o.food !== undefined; },
+      payable: (_v, s, pl) => { const o = forageOptions(s, pl.id); return o.yard || o.food.length > 0; },
       pay: async (_v, g, p, self, label) => forage(g, p, label || chars.name(self)),
     },
     // "As an additional cost to cast this spell, behold a Dragon."
@@ -619,23 +700,13 @@ const KEYWORD_ACTION: FamilyModule = {
         g.note(`${chars.name(o)} is no longer goaded.`);
       }
     },
-    // CR 701.56a: a discovered card is cast or put into its owner's hand - never left in exile. A free-cast window
-    // that expired unused resolves to the other half of that choice as the turn it opened on ends.
-    'cleanup-end': (g) => {
-      const pending = extGet<DiscoverPending[]>(g.state, DISCOVER_PENDING);
-      if (pending === undefined) return;
-      const keep: DiscoverPending[] = [];
-      for (const d of pending) {
-        if (d.turn > g.state.turn) { keep.push(d); continue; }     // a window that has not closed yet (never today)
-        const o = chars.findObject(g.state, d.id);
-        if (o === undefined || o.zone !== 'exile') continue;        // cast, or moved on by something else
-        delete o.castableFromExile;
-        g.moveTo(o, 'hand', 'top', 'return');
-        g.note(`${chars.name(o)} was discovered and not cast, so it goes to its owner's hand.`);
-      }
-      if (keep.length) extSet<DiscoverPending[]>(g.state, DISCOVER_PENDING, keep); else extDel(g.state, DISCOVER_PENDING);
-    },
   },
+
+  // CR 701.56a: the discovered card is cast from exile during the discover's resolution. `cost.ts:exileWindowOpen`
+  // only ever opens a FREE exile window during its controller's upkeep (that window is rebound's, CR 702.88a), so
+  // this hook is what lets `Game.castSpell` accept the one card `castDiscovered` is casting, for the length of that
+  // call and no longer. `undefined` everywhere else: a hook that returned false would forbid other families' casts.
+  castFrom: (g, _p, card, from) => from === 'exile' && extGet<number>(g.state, DISCOVER_CASTING) === card.id ? true : undefined,
 
   keywordHooks: {
     // CR 701.61a: a suspected creature can't block.

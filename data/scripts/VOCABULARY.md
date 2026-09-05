@@ -1216,7 +1216,7 @@ ability whose whole substance is a keyword action.
 
 | file | what it holds |
 |---|---|
-| `src/engine/ops/keyword-action.ts` | the ops, conditions, triggers, cost parts, the amount form, the step hooks (goad expiry, the discover hand-back), the CR 400.7 `leave` reset, the combat hooks and the Incubator token ability |
+| `src/engine/ops/keyword-action.ts` | the ops, conditions, triggers, cost parts, the amount form, the goad-expiry step hook, the CR 400.7 `leave` reset, discover's `castFrom` gate, the combat hooks and the Incubator token ability |
 | `src/engine/ops/keyword-action.schema.ts` | the zod variants a per-card script is validated against (tooling only) |
 | `src/cards/rules/keyword-action.ts` | the printed wordings that produce them |
 | `test/scenarios/keyword-action.ts` | one scenario per op, condition, trigger, amount and cost part |
@@ -1225,7 +1225,7 @@ Two things run through the whole family:
 
 * **Everything defined as a shorthand recurses into the core.** "Investigate" *is* "create a Clue token"
   (CR 701.20a), so the op calls `token`; endure's token half calls `token`; populate calls `token` with the chosen
-  token's own copiable values; discover's "you may play it" calls `play-exiled`. The core keeps ownership of the
+  token's own copiable values; discover's cast half is `Game.performAction`. The core keeps ownership of the
   event stream, the token-doubling statics and the `that` binding.
 * **Family state is public.** `monstrous`, `harnessed`, `suspected`, `manifested`, `cloaked`, `clashWon`,
   `goadedBy` / `goadedTurn` are booleans and numbers in the object's `ext` bag, every one of them information all
@@ -1433,10 +1433,19 @@ then makes CR 701.56a's choice — **cast it without paying its mana cost, or pu
 that were not taken go to the bottom of the library **in a random order** (CR 701.56b, `Game.rng.shuffle`, exactly as
 the core's `cascade` does). Raises `discovers`.
 
-The cast half is a free-play window for the turn (the core `play-exiled` op with `free: true`) rather than a cast
-during resolution — see *Known gaps* — so the family's `cleanup-end` step puts a card whose window closed unused into
-its owner's hand: that is the *other* outcome CR 701.56a allows, and it means **a discovered card is never stranded
-in exile**, not even for a discover that resolved on an opponent's turn.
+The cast half is a **real cast, made during the discover's own resolution**, not a window for the turn:
+`castableFromExile.free` prices the card at `ZERO_COST` and lifts the timing permission, `legal.ts:castActionsFor`
+enumerates the cast variants (each mode set, each X, the aura's enchant target, every cost increase that still
+applies — CR 601.2f), the controller is asked which variant and which targets, and `Game.performAction` performs it.
+Everything a cast does is therefore the core's: the `cast` event, the cast triggers, storm and cascade, prowess,
+`spellsCastThisTurn`. The family's `castFrom` hook is what opens `cost.ts:exileWindowOpen` — written for rebound, so
+a *free* exile window is otherwise legal only during its controller's upkeep — for that one card, for the length of
+that one call.
+
+A cast the core refuses (no legal target, an unpayable cost increase) leaves the card in exile, where CR 701.56a's
+last sentence has it go to the bottom of the library with the other exiled cards. **A discovered card is therefore
+never stranded in exile**, whichever half of the choice is taken, and not even for a discover that resolved on an
+opponent's turn.
 
 ```json
 { "op": "discover", "amount": 4 }
@@ -1445,9 +1454,12 @@ in exile**, not even for a discover that resolved on an opponent's turn.
 
 #### `forage` — CR 701.57a
 
-No fields. Exile three cards from your graveyard, **or** sacrifice a Food; you choose when both are open. When
-neither is, nothing happens and **no event is emitted**, so a `reflexive` ("When you do, …") after it correctly does
-not fire (CR 603.12).
+No fields. Exile three cards from your graveyard, **or** sacrifice a Food; you choose when both are open, and which
+Food when there is more than one. A Food is anything with the **subtype** (CR 205.3g): the predefined Food token, and
+every printed one — Gingerbrute, the Food creatures and artifacts — because CR 701.57a says "sacrifice a Food", not
+"a Food token". When neither half can be done, nothing happens and **no event is emitted**, so a `reflexive`
+("When you do, …") after it correctly does not fire (CR 603.12), and `forage` as a cost is unpayable (`payable`
+answers the same question).
 
 ```json
 { "op": "forage" }
@@ -1668,12 +1680,13 @@ report; none of them is silent — the behaviour is either absent or logged as a
    statics on `o.def.abilities`, which no hook can extend, so a goaded creature is recorded, logged and readable
    (`ext.goadedBy`, the `goaded` log line, the `suspected`-style condition surface) but its controller is still free
    not to attack with it. Fixing it needs a `FamilyModule` hook in that computation (reported as `coreChangeNeeded`).
-2. **Discover's free cast is a window for the turn, not a cast during resolution.** CR 701.56a casts the exiled
-   card as part of the discover; the engine's cast entry points (`autoPickTargets` and `putTargets`) are private to
-   `Game`, so a player who takes the cast half gets a free-play window for the turn instead (the core `play-exiled`
-   op with `free: true`). The card is **not** lost either way: the other half of CR 701.56a's choice (put it into
-   your hand) is offered up front, and a window that closed unused hands the card to its owner at `cleanup-end`.
-   What is still approximate is only the timing — the caster may hold priority and cast it later in the turn.
+2. **Discover's free cast picks its targets through a `choose-option` question, not the priority UI.** The card is
+   really cast, during the discover's resolution, by the core's own `castSpell` (see `discover` above) — but a cast
+   made from inside a resolution has no priority decision to carry its targets, so the family asks the controller
+   one `choose-option` per target requirement, labelled by `Game.refName`. Every agent in the tree answers a
+   `choose-option` with the first option, so the options are ordered best-first (hostile spells across the table,
+   helpful ones at your own side) the way `Game.autoPickTargets` scores them — that method is private, so the
+   ordering is a small deliberate copy of its op list rather than a call. A human UI sees the whole list.
 3. **A cloaked permanent has no ward {2}.** Ward is a printed keyword with a cost the engine reads off the card;
    there is no way to grant a *valued* ward to a permanent from a family hook.
 4. **Nothing turns a manifested or cloaked creature face up.** The core's `turn-face-up` action is gated on

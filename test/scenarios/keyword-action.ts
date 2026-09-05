@@ -189,14 +189,15 @@ export const keywordAction: Scenario[] = [
     name: 'Long-Range Sensor discovers 4: cards are exiled from the top until a cheap nonland card', cr: '701.56a',
     seats: [{ bf: ['Mountain', 'Mountain', 'Long-Range Sensor'], counters: { 'Long-Range Sensor': { charge: 2 } }, libraryTop: ['Lightning Bolt'] }, {}],
     script: [{ activate: 'Long-Range Sensor' }, { resolve: true }],
-    expect: [{ zone: ['Lightning Bolt', 'exile'] }, { log: 'discovers 4' }, { counters: ['Long-Range Sensor', { charge: 0 }] }],
+    // the Bolt is the discovered card, and CR 701.56a's default half casts it: it resolves and is in the graveyard
+    expect: [{ zone: ['Lightning Bolt', 'graveyard'] }, { log: 'discovers 4' }, { counters: ['Long-Range Sensor', { charge: 0 }] }],
   },
   {
     name: 'a "whenever you discover" trigger fires on a discover', cr: '701.56a',
     seats: [{ bf: ['Grizzly Bears', 'Hill Giant', 'Forest'], libraryTop: ['Lightning Bolt'] }, {}],
     scripts: { ...bears([{ op: 'discover', amount: 1 }]), ...watcher({ on: 'discovers' }, 'discover watcher') },
     script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
-    expect: [{ life: [0, 24] }, { zone: ['Lightning Bolt', 'exile'] }],
+    expect: [{ life: [0, 24] }, { zone: ['Lightning Bolt', 'graveyard'] }],
   },
 
   // ---------------------------------------------------------------- forage (CR 701.57a)
@@ -205,6 +206,24 @@ export const keywordAction: Scenario[] = [
     seats: [{ bf: ['Forest', 'Forest', 'Forest'], hand: ['Curious Forager'], graveyard: ['Grizzly Bears', 'Hill Giant', 'Runeclaw Bear', 'Shock'] }, {}],
     script: [{ cast: 'Curious Forager' }, { resolve: true }],
     expect: [{ zoneCount: [0, 'exile', 3] }, { zone: ['Shock', 'hand'] }, { graveyardCount: [0, 0] }, { log: 'forages' }],
+  },
+  {
+    // the major of review round 2: only the predefined Food TOKEN was recognised, so a board with a printed Food and
+    // fewer than three cards in the graveyard foraged silently — nothing exiled, nothing sacrificed, no event.
+    // Gingerbrute is an Artifact Creature — Food Golem, and CR 701.57a says "sacrifice a Food", not "a Food token".
+    name: 'forage sacrifices a nontoken Food (Gingerbrute) when the graveyard cannot pay', cr: '701.57a',
+    seats: [{ bf: ['Grizzly Bears', 'Forest', 'Gingerbrute'], graveyard: ['Shock'] }, {}],
+    scripts: bears([{ op: 'forage' }]),
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
+    expect: [{ zone: ['Gingerbrute', 'graveyard'] }, { log: 'forages' }, { graveyardCount: [0, 2] }, { zoneCount: [0, 'exile', 0] }],
+  },
+  {
+    name: 'Forage as a cost is payable with a nontoken Food alone', cr: '701.57a',
+    seats: [{ bf: ['Grizzly Bears', 'Forest', 'Gingerbrute'] }, {}],
+    scripts: { 'Grizzly Bears': { abilities: [{ kind: 'activated', cost: { tap: true, forage: true }, effects: [{ op: 'gain-life', amount: 3, who: 'you' }], text: 'forage cost' }] } },
+    // an empty graveyard: the ability is only a legal action at all because the Food can be sacrificed
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
+    expect: [{ zone: ['Gingerbrute', 'graveyard'] }, { life: [0, 23] }, { log: 'forages' }],
   },
   {
     name: 'a "whenever you forage" trigger fires on a forage', cr: '701.57a',
@@ -441,15 +460,37 @@ export const keywordAction: Scenario[] = [
     seats: [{ bf: ['Grizzly Bears', 'Forest'], libraryTop: ['Hill Giant'] }, {}],
     scripts: bearsFree([{ op: 'discover', amount: 4 }], 'discover 4'),
     script: [{ answer: 'put Hill Giant into your hand' }, { activate: 'Grizzly Bears' }, { resolve: true }],
-    expect: [{ zone: ['Hill Giant', 'hand'] }, { log: 'puts Hill Giant into their hand' }],
+    expect: [{ zone: ['Hill Giant', 'hand'] }, { log: 'puts Hill Giant into their hand' }, { noLog: 'casts Hill Giant' }],
   },
   {
-    name: 'discover: a free-cast window nobody used hands the card over rather than stranding it in exile', cr: '701.56a',
+    // the blocker of review round 2: the cast half used to be a free-play WINDOW, and `cost.ts:exileWindowOpen` only
+    // ever opens a free window during its controller's upkeep, so every printed Discover N degraded to the hand half.
+    // Hill Giant costs {3}{R} and the discovering seat has one Forest: it can only be on the battlefield if it was
+    // really cast, from exile, during the discover's own resolution, without paying its mana cost.
+    name: 'discover: the cast half casts the card during the resolution, without paying its mana cost', cr: '701.56a',
     seats: [{ bf: ['Grizzly Bears', 'Forest'], libraryTop: ['Hill Giant'] }, {}],
     scripts: bearsFree([{ op: 'discover', amount: 4 }], 'discover 4'),
-    // the default choice is the free cast; the turn then ends without it being taken
-    script: [{ activate: 'Grizzly Bears' }, { resolve: true }, { turns: 1 }],
-    expect: [{ zone: ['Hill Giant', 'hand'] }, { log: 'discovered and not cast' }],
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'battlefield'] }, { log: 'casts Hill Giant without paying its mana cost' }, { log: /casts Hill Giant.*from exile/ }, { mana: [0, ''] }],
+  },
+  {
+    // …and on an opponent's turn, where the old free-play window could never have opened at all: a 3/3 creature
+    // spell is cast off an instant's resolution, which no timing permission of its own would ever allow (CR 701.56a).
+    name: 'discover: the free cast happens on an opponent\'s turn too', cr: '701.56a',
+    seats: [{ bf: ['Mountain'], hand: ['Lightning Bolt'], libraryTop: ['Hill Giant'] }, {}],
+    scripts: bolt([{ op: 'discover', amount: 4 }], 'discover 4'),
+    script: [{ passUntil: 'main1' }, { cast: 'Lightning Bolt', by: 0 }, { resolve: true }],
+    expect: [{ zone: ['Hill Giant', 'battlefield'] }, { control: ['Hill Giant', 0] }, { log: 'casts Hill Giant without paying its mana cost' }],
+  },
+  {
+    // CR 701.56a's last sentence: a discovered card that was NOT cast goes to the bottom with the rest. Naturalize
+    // has no legal target here (no artifact, no enchantment), so the cast the controller chose cannot be made — and
+    // the card must still leave exile.
+    name: 'discover: a card that cannot be cast goes to the bottom of the library, never stranded in exile', cr: '701.56a',
+    seats: [{ bf: ['Grizzly Bears', 'Forest'], libraryTop: ['Naturalize'] }, {}],
+    scripts: bearsFree([{ op: 'discover', amount: 2 }], 'discover 2'),
+    script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
+    expect: [{ zone: ['Naturalize', 'library'] }, { log: 'could not be cast' }, { noLog: 'casts Naturalize' }],
   },
   {
     name: 'discover: the cards that were not taken go to the bottom in a random order', cr: '701.56b',
