@@ -76,6 +76,21 @@ export const replacement: Scenario[] = [
     expect: [{ life: [0, 20] }, { life: [1, 17] }, { events: { type: 'prevented', min: 1 } }, { unsimulated: 0 }],
   },
   {
+    name: 'Circle of Protection: Red binds the red source that is already on the stack', cr: '615.10',
+    ruling: 'The source is chosen as the shield is created, and a spell on the stack is a legal choice (CR 609.7).',
+    seats: [{ bf: ['Circle of Protection: Red', 'Plains', 'Plains'] }, { bf: ['Mountain', 'Mountain', 'Mountain'], hand: ['Lightning Bolt', 'Shock'] }],
+    script: [{ cast: 'Lightning Bolt', by: 1, targets: [['P0']] }, { activate: 'Circle of Protection: Red' }, { resolve: true }, { cast: 'Shock', by: 1, targets: [['P0']] }, { resolve: true }],
+    // the bound Bolt is prevented in full; Shock is a different source and is not
+    expect: [{ life: [0, 18] }, { events: { type: 'prevented', min: 1, max: 1 } }, { unsimulated: 0 }],
+  },
+  {
+    name: 'Circle of Protection: Red activated with no red source to choose prevents nothing at all', cr: '615.10',
+    ruling: 'A shield that must name a source and cannot is bound to no source, so no damage ever matches it. Leaving it unbound would make it better than the printed card.',
+    seats: [{ bf: ['Circle of Protection: Red', 'Plains', 'Plains'] }, { bf: ['Mountain', 'Mountain', 'Mountain'], hand: ['Lightning Bolt', 'Shock'] }],
+    script: [{ activate: 'Circle of Protection: Red' }, { resolve: true }, { cast: 'Lightning Bolt', by: 1, targets: [['P0']] }, { resolve: true }, { cast: 'Shock', by: 1, targets: [['P0']] }, { resolve: true }],
+    expect: [{ life: [0, 15] }, { events: { type: 'prevented', max: 0 } }, { log: 'no source of damage to choose' }, { unsimulated: 0 }],
+  },
+  {
     name: 'Cho-Arrim Alchemist gains life equal to the damage its shield prevented', cr: '615.1',
     ruling: 'The source is chosen as the shield is created (CR 615.10), so the shield goes up in response to the spell it is meant to stop.',
     seats: [{ bf: ['Cho-Arrim Alchemist', 'Plains', 'Plains', 'Plains'], hand: ['Island'] }, { bf: ['Mountain'], hand: ['Lightning Bolt'] }],
@@ -97,12 +112,30 @@ export const replacement: Scenario[] = [
     expect: [{ counters: ['Grizzly Bears', { '+1/+1': 2 }] }, { pt: ['Grizzly Bears', 4, 4] }],
   },
   {
-    name: 'a rider with no shield of its own to attach to reports the clause as unsimulated', cr: '615.1',
-    ruling: "Test of Faith's shield is the core `prevent-damage` op, whose counter is consumed before any family replacement is consulted, so the rider cannot see what it prevented and says so instead of silently doing nothing.",
+    name: "Test of Faith's rider adopts the core prevention shield and turns what it prevents into +1/+1 counters", cr: '615.1',
+    ruling: 'One replacement effect printed as two sentences (CR 615.1). The shield half is the core `prevent-damage` op, whose counter `dealDamage` spends before any family fold runs, so the rider takes that counter over as it resolves and the whole card works.',
     seats: [{ bf: ['Grizzly Bears', 'Plains', 'Plains'], hand: ['Test of Faith'] }, { bf: ['Mountain'], hand: ['Shock'] }],
     script: [{ cast: 'Test of Faith', targets: [['Grizzly Bears']] }, { resolve: true }, { cast: 'Shock', by: 1, targets: [['Grizzly Bears']] }, { resolve: true }],
-    // the shield itself works (the 2 damage is prevented); only the counters half is out of reach
-    expect: [{ pt: ['Grizzly Bears', 2, 2] }, { zone: ['Grizzly Bears', 'battlefield'] }, { unsimulated: 1 }],
+    // Shock's 2 damage is prevented by the adopted 3-point shield, so exactly two +1/+1 counters are placed
+    expect: [{ counters: ['Grizzly Bears', { '+1/+1': 2 }] }, { pt: ['Grizzly Bears', 4, 4] }, { zone: ['Grizzly Bears', 'battlefield'] }, { unsimulated: 0 }],
+  },
+  {
+    name: 'a rider with no shield of any kind to attach to still reports the clause as unsimulated', cr: '615.1',
+    ruling: 'The rider is a no-op on its own; rather than let the clause vanish it goes out through the engine\'s "skipped a clause" channel.',
+    seats: [{ bf: ['Mountain'], hand: ['Lightning Bolt'] }, {}],
+    scripts: {
+      'Lightning Bolt': { mode: 'replace', abilities: [{ kind: 'spell', effects: [{ op: 'prevent-rider', rider: { mode: 'gain-life' } }], text: 'replacement' }] },
+    },
+    script: [{ cast: 'Lightning Bolt' }, { resolve: true }],
+    expect: [{ life: [0, 20] }, { unsimulated: 1 }],
+  },
+  {
+    name: 'Furnace of Rath doubles the damage BEFORE a shield eats it, so 3 of the 6 still gets through', cr: '616.1',
+    ruling: 'CR 614.1a modifications are applied before CR 615 prevention, which is the order this family fixes for a damage event (CR 616.1 would let the affected player choose).',
+    seats: [{ bf: ['Furnace of Rath', 'Mountain', 'Mountain', 'Mountain'], hand: ['Lightning Bolt'] }, { bf: ['Grizzly Bears', 'Plains', 'Plains'], hand: ['Test of Faith'] }],
+    script: [{ cast: 'Test of Faith', by: 1, targets: [['Grizzly Bears']] }, { resolve: true }, { cast: 'Lightning Bolt', targets: [['Grizzly Bears']] }, { resolve: true }, { sba: true }],
+    // 3 doubled to 6; the 3-point shield eats 3 and 3 is dealt (a shield read first would have absorbed all of it)
+    expect: [{ log: 'deals 3 damage to Grizzly Bears' }, { counters: ['Grizzly Bears', { '+1/+1': 3 }] }, { pt: ['Grizzly Bears', 5, 5] }, { zone: ['Grizzly Bears', 'battlefield'] }],
   },
   {
     name: 'a shield whose rider deals the prevented damage to a chosen target hits that target', cr: '615.1',
@@ -126,6 +159,27 @@ export const replacement: Scenario[] = [
     seats: [{ bf: ['Cho-Manno, Revolutionary'] }, { bf: ['Mountain', 'Mountain', 'Mountain'], hand: ['Flaring Pain', 'Lightning Bolt'] }],
     script: [{ cast: 'Flaring Pain', by: 1 }, { resolve: true }, { cast: 'Lightning Bolt', by: 1, targets: [['Cho-Manno, Revolutionary']] }, { resolve: true }, { sba: true }],
     expect: [{ zone: ['Cho-Manno, Revolutionary', 'graveyard'] }, { unsimulated: 0 }],
+  },
+  {
+    name: "Leyline of Punishment switches prevention off for an INSTANT's damage, not just a permanent's", cr: '615.6',
+    ruling: 'CR 609.7: any object can be a source of damage, so "Damage can\'t be prevented" has to be read off a spell on the stack as well as off a permanent — which is the case the card is printed for.',
+    seats: [{ bf: ['Cho-Manno, Revolutionary'] }, { bf: ['Leyline of Punishment', 'Mountain'], hand: ['Lightning Bolt'] }],
+    script: [{ cast: 'Lightning Bolt', by: 1, targets: [['Cho-Manno, Revolutionary']] }, { resolve: true }, { sba: true }],
+    expect: [{ zone: ['Cho-Manno, Revolutionary', 'graveyard'] }, { events: { type: 'prevented', max: 0 } }],
+  },
+  {
+    name: "Flaring Pain switches off a CORE prevention shield too (Healing Salve's)", cr: '615.6',
+    ruling: 'The shield the core `prevent-damage` op parks on the creature lasts exactly this turn, and so does "damage can\'t be prevented this turn", so it is taken away rather than left to fire.',
+    seats: [{ bf: ['Grizzly Bears', 'Plains', 'Plains'], hand: ['Healing Salve'] }, { bf: ['Mountain', 'Mountain', 'Mountain', 'Mountain'], hand: ['Flaring Pain', 'Lightning Bolt'] }],
+    script: [{ cast: 'Healing Salve', modes: [1], targets: [['Grizzly Bears']] }, { resolve: true }, { cast: 'Flaring Pain', by: 1 }, { resolve: true }, { cast: 'Lightning Bolt', by: 1, targets: [['Grizzly Bears']] }, { resolve: true }, { sba: true }],
+    expect: [{ zone: ['Grizzly Bears', 'graveyard'] }, { log: 'prevention shield does not apply' }, { unsimulated: 0 }],
+  },
+  {
+    name: 'Flaring Pain switches off a Fog', cr: '615.6',
+    ruling: "Fog is a prevention effect (CR 615.1); \"damage can't be prevented this turn\" means it simply does not apply.",
+    seats: [{ bf: ['Hill Giant', 'Mountain', 'Mountain'], hand: ['Flaring Pain'] }, { bf: ['Forest'], hand: ['Fog'] }],
+    script: [{ cast: 'Fog', by: 1 }, { resolve: true }, { cast: 'Flaring Pain' }, { resolve: true }, attackWith(['Hill Giant'])],
+    expect: [{ life: [1, 17] }, { log: 'fog does not apply' }, { unsimulated: 0 }],
   },
   {
     name: 'Questing Beast makes every creature you control deal unpreventable combat damage', cr: '615.6',
@@ -264,6 +318,26 @@ export const replacement: Scenario[] = [
     seats: [{ bf: ['Thought Reflection', 'Island', 'Island', 'Island'], hand: ['Divination'] }, {}],
     script: [{ cast: 'Divination' }, { resolve: true }],
     expect: [{ handCount: [0, 4] }, { libraryCount: [0, 16] }, { unsimulated: 0 }],
+  },
+  {
+    name: 'two draw doublers each apply to the draws the other creates (four cards a draw)', cr: '614.5',
+    ruling: 'CR 614.5: a replacement effect does not apply to the events it creates itself, but a different one still does — so the second doubler applies to each of the two draws the first made.',
+    seats: [{ bf: ['Thought Reflection', "Alhammarret's Archive", 'Island', 'Island', 'Island'], hand: ['Divination'] }, {}],
+    script: [{ cast: 'Divination' }, { resolve: true }],
+    // Divination's two draws are doubled twice: 8 cards, 20 - 8 = 12 left
+    expect: [{ handCount: [0, 8] }, { libraryCount: [0, 12] }, { unsimulated: 0 }],
+  },
+  {
+    name: "an upkeep draw does not spend Teferi's Ageless Insight's draw-step exemption", cr: '614.1',
+    ruling: '"The first one you draw in each of your draw steps" is decided by the draw step, not by the turn\'s draw count: the upkeep draw is doubled and the draw-step draw is still the exempt one.',
+    seats: [{ bf: ["Teferi's Ageless Insight", 'Runeclaw Bear', 'Island', 'Island', 'Island'] }, {}],
+    step: 'untap',
+    scripts: {
+      'Runeclaw Bear': { abilities: [{ kind: 'triggered', event: { on: 'upkeep', whose: 'your' }, effects: [{ op: 'draw', amount: 1, who: 'you' }], text: 'At the beginning of your upkeep, draw a card.' }] },
+    },
+    script: [{ passUntil: 'main1' }],
+    // upkeep: 1 draw doubled to 2; draw step: the exempt turn-based draw, 1 card. 3 in hand, 20 - 3 = 17 left
+    expect: [{ handCount: [0, 3] }, { libraryCount: [0, 17] }, { unsimulated: 0 }],
   },
   {
     name: "Teferi's Ageless Insight leaves the first draw of your draw step alone", cr: '614.1',

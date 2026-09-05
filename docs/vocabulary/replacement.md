@@ -101,13 +101,20 @@ splits a line into sentences before any rule sees it, so the rider is its own ef
 **this same source** created that does not carry a rider yet, which in practice means the `prevent` that ran
 immediately before it in the same resolution. `target` is only needed for `{ mode: 'damage-targets' }`.
 
-> **Limitation.** The rider can only attach to a shield of *this* family. The core `prevent-damage` op (which
-> `parse.ts` produces for "prevent the next N damage that would be dealt to **target** … this turn") stores its
-> counter in `o.eotFlags.preventDamage`, and `Game.dealDamage` consumes that before any family replacement is
-> consulted. When a rider finds no shield of its own it therefore emits an `unsimulated` event naming the clause,
-> so the skip is counted by `verify:pool`, the fidelity ratchet and a scenario's `unsimulated` expectation instead
-> of vanishing. Test of Faith, Temper and Brace for Impact are the printed cards in that position today; the fix is
-> a core change that routes `prevent-damage` through this family.
+When there is no shield of this family's to ride on, the rider **adopts the core one**. The core `prevent-damage`
+op (which `parse.ts` produces for "prevent the next N damage that would be dealt to **target** … this turn") parks a
+counter in `o.eotFlags.preventDamage`, and `Game.dealDamage` spends that counter before any family replacement is
+consulted — so a rider could never see what it prevented. CR 615.1 makes the two sentences **one** replacement
+effect, and it makes no difference which half of the engine holds the shield as long as the half that holds it can
+run the follow-up, so the rider takes the counter over: it becomes a family shield bound to exactly the objects this
+resolution targeted (that is what "that creature" in the rider means) and behaves like any other shield from there
+on. Test of Faith, Temper, Brace for Impact and Candles' Glow work this way.
+
+> **Limitation.** A rider on a card whose shield sentence is itself *unparsed* (Refraction Trap, Hallow, Acolyte's
+> Reward, Awe Strike, Chant of Vitu-Ghazi, Divine Deflection — all of which have other unparsed clauses too, so none
+> of them is counted as fully parsed) has nothing to adopt. It emits an `unsimulated` event naming the clause, so
+> the skip is counted by `verify:pool`, the fidelity ratchet and a scenario's `unsimulated` expectation instead of
+> vanishing.
 
 ```jsonc
 // Cho-Arrim Alchemist's second sentence: "You gain life equal to the damage prevented this way."
@@ -127,6 +134,20 @@ immediately before it in the same resolution. `target` is only needed for `{ mod
 Every prevention effect of this family simply does not apply to matching damage for the rest of the turn. `match`
 narrows it ("combat damage dealt by creatures you control can't be prevented this turn"); with no `match` it is all
 damage.
+
+The shields the **core** owns are switched off as well, by a different route. `Game.dealDamage` spends
+`o.eotFlags.preventDamage` — and `dealDamageToPlayer` the Fog flag — *before* the `replacements.damage` fold runs, so
+this family never sees those events. Both of those flags last exactly one turn and so does an unrestricted "damage
+can't be prevented this turn", so an unrestricted effect **takes them away** instead: they could not legally have
+prevented anything for the rest of the turn anyway. The sweep runs as the effect resolves and again in `sba` — before
+any player receives priority (CR 117.5) — so a core shield or a Fog put up later in the turn is switched off too,
+before it can be used.
+
+> **Limitation.** A *restricted* no-prevent (`match` naming a source) is deliberately left out of that sweep: those
+> core shields may still legally answer for other sources, and the core carries no way to ask this family per event.
+> No printed card in the pool is in that position today (Skullcrack, Flaring Pain, Insult // Injury, Wild Slash,
+> Unstable Footing and the rest are all unrestricted), but a script that writes `match` is. The real fix is the
+> ordering change in §6.
 
 ```jsonc
 // Skullcrack / Flaring Pain: "Damage can't be prevented this turn."
@@ -166,9 +187,14 @@ prevents damage in both directions ("to and dealt by enchanted creature") is **t
 { kind: 'unpreventable-damage', filter?: Filter, who?: 'you' | 'opponent' | 'any', combat?: 'combat' | 'noncombat' }
 ```
 
-The only static in this family that is a *characteristic of another permanent*: it folds a flag into `Mods.flags` for
-each permanent that matches `filter` / `who`, and the damage fold reads that flag off the damage source. Damage from
-a matching source is not prevented by anything in this family.
+Damage from a matching source is not prevented by anything in this family. It is read **two ways**, because CR 609.7
+lets any object be a source of damage while `Mods` is a per-permanent layer computation:
+
+* the statics are matched directly against the damage source, in whatever zone it is — which is the case Leyline of
+  Punishment, Everlasting Torment, Sunspine Lynx, Spider-Punk and Kevin, Questing Dragon are printed for (beating a
+  Circle of Protection against an *instant*);
+* and a `Mods.flags` flag is folded onto every permanent that matches `filter` / `who`, which is how another family
+  can **grant** "damage it deals can't be prevented" to one permanent.
 
 ```jsonc
 // Questing Beast: "Combat damage that would be dealt by creatures you control can't be prevented."
@@ -278,8 +304,16 @@ life" trigger fires.
 
 `instead: 'skip'` replaces the draw with nothing; a number draws that many cards instead of the one.
 `drawStepOnly` limits it to the draw taken as the draw step's turn-based action (CR 504.1), which is what "Skip your
-draw step." means; `exceptFirstInDrawStep` is the opposite exception. A replacement that draws does not replace its
-own draws.
+draw step." means; `exceptFirstInDrawStep` is the opposite exception.
+
+Two details that are easy to get wrong and are pinned by scenarios:
+
+* **CR 614.5.** A replacement does not apply to the draws it creates itself, but a *different* one still does. The
+  guard is per effect (`s.ext.replDrawApplied` is the chain of effects used on the way down to this draw), so
+  Thought Reflection plus Alhammarret's Archive gives **four** cards for one draw, not two.
+* **`exceptFirstInDrawStep` is decided by the draw step, not by the turn's draw count.** The first draw *event* of
+  the active player's draw step is marked as it happens (`s.ext.replDrawStepSeen`), so an upkeep draw earlier in the
+  turn does not spend the exemption — and the nested draws a replacement makes are not "the first one you draw".
 
 > **Limitation.** `Game.draw` awaits only in its dredge branch, so the recursive draws are synchronous. A numeric
 > replacement therefore stands down (the single printed draw happens) when that player has a dredge card in their
@@ -377,12 +411,24 @@ ladder sits above the spell-text branch.
 The built-in tables keep the three shapes they already own — "prevent all damage that would be dealt to **target**
 … this turn", "prevent all combat damage that would be dealt this turn" (fog) and "prevent the next N damage that
 would be dealt to **target** … this turn" — so those still produce the core `prevent-damage` op. That is the split
-the `prevent-rider` limitation above comes from.
+the `prevent-rider` adoption above exists for, and the split §6's ordering note is about.
 
 ---
 
 ## 6. What this family does not express yet
 
+* **A core prevention shield is spent before this family's damage fold runs.** `Game.dealDamage` consumes
+  `o.eotFlags.preventDamage` at game.ts:1902-1903 and `dealDamageToPlayer` short-circuits on the Fog flag at
+  game.ts:1883, both *before* `REPLACEMENTS.damage` at the line after. Two consequences:
+  * a `damage-replacement` multiplier is applied **after** that shield, so Furnace of Rath's doubling of a Lightning
+    Bolt is fully absorbed by a 3-point Healing Salve instead of leaving 3 to be dealt (CR 614.1a modifications come
+    first, then CR 615 prevention — the order this family promises and keeps for every shield it owns itself);
+  * a *restricted* `damage-cant-be-prevented` cannot switch that shield off (see §2; the unrestricted case is handled
+    by the sweep described there).
+
+  Both are one core change: fold `REPLACEMENTS.damage` **before** the `eotFlags.preventDamage` / Fog branches and let
+  this family answer "may this be prevented?" for them. It is written up as `coreChangeNeeded` in the Phase 9.1
+  report; nothing inside a family file can reach it.
 * **Comeuppance and Honorable Passage** split the rider by the *kind* of the prevented source ("if damage from a
   creature source is prevented this way … if damage from a noncreature source …"). `PreventFollowUp` has one mode
   per shield, so those lines stay unparsed.

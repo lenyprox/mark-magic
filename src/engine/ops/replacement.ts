@@ -13,7 +13,8 @@
 //                         `prevent-rider`               "if damage is prevented this way, ..." (the same replacement)
 //                         `damage-cant-be-prevented`    CR 615.6, for a turn
 //   eight static kinds    `prevention-shield`           a shield a permanent hands out continuously
-//                         `unpreventable-damage`        CR 615.6 printed on a permanent (the only Mods fold here)
+//                         `unpreventable-damage`        CR 615.6 printed on a permanent (matched on the source, in any
+//                                                       zone, and folded into Mods.flags so it can also be granted)
 //                         `damage-replacement`          CR 614.1a on damage: plus / times / minus / as counters
 //                         `zone-replacement`            "if it would die, exile it instead"
 //                         `counter-replacement`         CR 614.1c generalised: none / plus / minus / times
@@ -28,7 +29,8 @@
 //   s.ext.replNoPrevent    NoPrevent[]    the `damage-cant-be-prevented` effects in force this turn
 //   s.ext.replShieldSeq    number         id counter for shields (a stable handle across a clone)
 //   s.ext.replUntapPending number[]       permanents that have just entered and owe an `enters-untapped` check
-//   s.ext.replDrawing      true           re-entrancy guard for a draw replacement that draws
+//   s.ext.replDrawApplied  string[]       the draw replacements already applied on the way down to this draw (CR 614.5)
+//   s.ext.replDrawStepSeen "<turn>:<p>"   the active player's draw step has already had its first draw event
 //   o.ext.chosenLandType   string         what `choose-type` chose (the layers family reads it for "is the chosen type")
 //
 // `clone.ts` deep-copies those bags with `plainCopy` and `serialize.ts` round-trips them; nothing here is hidden from
@@ -42,6 +44,13 @@
 // battlefield order), then *prevention* (statics before one-shot shields, oldest shield first). That is the order a
 // player almost always picks — a doubler then a shield gives the shield the doubled damage to eat — and it is
 // deterministic, which the fuzzer and the goldens need.
+//
+// That order holds for every shield this family owns, including one it adopts from the core `prevent-damage` op (see
+// the `prevent-rider` effect). It does NOT hold for a core shield nothing adopted: `Game.dealDamage` spends
+// `o.eotFlags.preventDamage` — and `dealDamageToPlayer` the Fog flag — before `REPLACEMENTS.damage` is folded at all,
+// so a doubler is applied after that shield rather than before it. Fixing that is a core reorder; it is written up in
+// docs/vocabulary/replacement.md §6 and as `coreChangeNeeded` in the Phase 9.1 report. `sweepCoreShields` below is
+// the half of the problem a family CAN reach (CR 615.6).
 import type { Amount, Filter, FamilyModule, Game, GameObject, GameState, Json, PlayerId, TargetSpec, Zone } from './types.js';
 import type { MoveZone } from '../../cards/types.js';
 import { extDel, extGet, extGetOr, extPush, extSet } from './ext.js';
@@ -233,7 +242,12 @@ interface ShieldState {
   left: number | 'all' | 'next';
   from?: DamageSource;
   to: DamageRecipient;
-  /** The source chosen for a `from.chosen` shield (CR 615.10). */
+  /**
+   * Instead of `to`: exactly these object ids. Only a shield ADOPTED from the core `prevent-damage` op uses it (see
+   * the `prevent-rider` effect) — that shield is a counter parked on one object, not a description of a recipient.
+   */
+  toIds?: number[];
+  /** The source chosen for a `from.chosen` shield (CR 615.10); `-1` = there was no legal source, so it binds nothing. */
   chosenSourceId?: number;
   /** The objects / players this effect targeted, for a `damage-targets` follow-up. */
   targetIds?: number[];
@@ -282,23 +296,43 @@ function recipientMatches(s: GameState, r: DamageRecipient, target: GameObject |
   return false;
 }
 
-/** Every static of one kind on the battlefield, with the permanent that carries it (battlefield order, CR 613.7). */
-function staticsOf<K extends ReplStatic['kind']>(s: GameState, kind: K): { src: GameObject; e: Extract<ReplStatic, { kind: K }> }[] {
-  const out: { src: GameObject; e: Extract<ReplStatic, { kind: K }> }[] = [];
-  for (const o of chars.allPermanents(s)) for (const ab of chars.abilitiesOf(o)) {
-    if (ab.kind === 'static' && (ab.effect as { kind: string }).kind === kind) out.push({ src: o, e: ab.effect as Extract<ReplStatic, { kind: K }> });
+/**
+ * Every static of one kind on the battlefield, with the permanent that carries it (battlefield order, CR 613.7).
+ * `key` names the *effect* — "<object id>:<ability index>" — which is what CR 614.5 needs to say "this one has
+ * already applied on the way here" without confusing it with another copy of the same card.
+ */
+function staticsOf<K extends ReplStatic['kind']>(s: GameState, kind: K): { src: GameObject; e: Extract<ReplStatic, { kind: K }>; key: string }[] {
+  const out: { src: GameObject; e: Extract<ReplStatic, { kind: K }>; key: string }[] = [];
+  for (const o of chars.allPermanents(s)) {
+    const abs = chars.abilitiesOf(o);
+    for (let i = 0; i < abs.length; i++) {
+      const ab = abs[i];
+      if (ab.kind === 'static' && (ab.effect as { kind: string }).kind === kind) out.push({ src: o, e: ab.effect as Extract<ReplStatic, { kind: K }>, key: `${o.id}:${i}` });
+    }
   }
   return out;
 }
 
 /**
  * Can this damage be prevented at all (CR 615.6)? Two sources say no: the `damage-cant-be-prevented` effects in force
- * this turn, and the `unpreventable-damage` statics, which reach the damage source through `Mods.flags` — the one
- * place in this family where a static really is a characteristic of another permanent.
+ * this turn, and the `unpreventable-damage` statics.
+ *
+ * Those statics are read TWICE on purpose. `Mods.flags` is a per-permanent layer computation, so it only ever reaches
+ * a source that is itself a battlefield permanent — and CR 609.7 lets any object be a source of damage. Leyline of
+ * Punishment is printed to beat a Circle of Protection against a *Lightning Bolt*, so the statics are also matched
+ * directly against the source here, which `chars.matchesFilter` does in any zone. The flag path stays because it is
+ * how another family can GRANT "damage it deals can't be prevented" to one permanent.
  */
 function preventable(s: GameState, src: GameObject, combat: boolean): boolean {
   const list = noPrevent(s);
   for (const n of list) if (sourceMatches(s, n.match, src, n.controller, combat, src)) return false;
+  for (const { src: self, e } of staticsOf(s, 'unpreventable-damage')) {
+    if (e.combat === 'combat' && !combat) continue;
+    if (e.combat === 'noncombat' && combat) continue;
+    if (!whoOk(e.who, self.controller, src.controller)) continue;
+    if (e.filter && !chars.matchesFilter(s, src, e.filter, self)) continue;
+    return false;
+  }
   if (src.zone === 'battlefield') {
     const f = chars.flags(s, src);
     if (f.replUnpreventableDamage) return false;
@@ -306,6 +340,37 @@ function preventable(s: GameState, src: GameObject, combat: boolean): boolean {
     if (!combat && f.replUnpreventableNoncombatDamage) return false;
   }
   return true;
+}
+
+/**
+ * CR 615.6 against the shields the CORE owns. `Game.dealDamage` spends `o.eotFlags.preventDamage` — and
+ * `dealDamageToPlayer` the Fog flag — BEFORE the `replacements.damage` fold runs, so `preventable()` above never sees
+ * those events and a Skullcrack would otherwise lose to a Healing Salve. Both of those flags last exactly one turn
+ * and so does an unrestricted "damage can't be prevented this turn", so taking them away IS switching them off: they
+ * could not legally have prevented anything for the rest of the turn anyway.
+ *
+ * It runs as the effect resolves and again in `sba` — which is before any player receives priority (CR 117.5) — so a
+ * core shield put up LATER in the turn is switched off too, before it can be used.
+ *
+ * A *restricted* no-prevent ("damage dealt by creatures you control can't be prevented") is deliberately left alone:
+ * those core shields may still legally answer for other sources, and the core carries no way to ask this family
+ * per-event. That half is the ordering fix in the 9.1 report's `coreChangeNeeded`; see docs/vocabulary/replacement.md.
+ */
+function sweepCoreShields(g: Game): boolean {
+  const s = g.state;
+  const unrestricted = noPrevent(s).some(n => n.match === undefined
+    || (n.match.combat === undefined && n.match.filter === undefined && n.match.who === undefined && !n.match.self && !n.match.attached && !n.match.chosen));
+  if (!unrestricted) return false;
+  let changed = false;
+  for (const o of chars.allPermanents(s)) {
+    if (o.eotFlags.preventDamage === undefined) continue;
+    delete o.eotFlags.preventDamage;
+    g.note(`${chars.name(o)}'s prevention shield does not apply: damage can't be prevented this turn.`);
+    changed = true;
+  }
+  const st = s as GameState & { fog?: number };
+  if (st.fog === s.turn) { delete st.fog; g.note("The fog does not apply: damage can't be prevented this turn."); changed = true; }
+  return changed;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -378,7 +443,7 @@ function damageHook(g: Game, src: GameObject, target: GameObject | PlayerId, n: 
     const self = chars.findObject(s, sh.sourceId);
     if (!self) continue;
     if (!sourceMatches(s, sh.from, src, sh.controller, combat, self, sh.chosenSourceId)) continue;
-    if (!recipientMatches(s, sh.to, target, sh.controller, self)) continue;
+    if (sh.toIds ? typeof target === 'number' || !sh.toIds.includes(target.id) : !recipientMatches(s, sh.to, target, sh.controller, self)) continue;
     const prevented = sh.left === 'all' || sh.left === 'next' ? amount : Math.min(sh.left, amount);
     if (prevented <= 0) continue;
     amount -= prevented;
@@ -447,21 +512,34 @@ function countersHook(g: Game, o: GameObject, counter: string, delta: number): n
 
 function drawHook(g: Game, p: PlayerId): boolean {
   const s = g.state;
-  if (extGet<boolean>(s as never, 'replDrawing') === true) return false;    // the replacement's own draws are not replaced again
   const pl = s.players[p];
-  const firstInDrawStep = s.step === 'draw' && s.activePlayer === p && (pl.cardsDrawnThisTurn ?? 0) === 0;
-  for (const { src: self, e } of staticsOf(s, 'draw-replacement')) {
+  // CR 614.5: a replacement effect applies to an event at most once, and it does not apply to the events it creates
+  // itself — but a DIFFERENT one still applies to each of those. `replDrawApplied` is the chain of effects already
+  // used on the way down to this draw, keyed per effect, so two draw doublers give four cards for one draw (the
+  // published ruling for stacking them) instead of the two a single "am I re-entrant?" boolean would allow.
+  const applied = extGetOr<string[]>(s as never, 'replDrawApplied', []);
+  // CR 121.6 / 504.1: "except the first one you draw in each of your draw steps" is decided by the DRAW STEP, not by
+  // the turn's draw count — an upkeep draw must not spend the exemption. The first draw event of the active player's
+  // draw step is marked here whether or not any replacement claims it; the mark is keyed by turn and player, and the
+  // nested draws a replacement makes never re-mark it (they are not "the first one you draw").
+  const inDrawStep = s.step === 'draw' && s.activePlayer === p;
+  const stepKey = `${s.turn}:${p}`;
+  const firstInDrawStep = inDrawStep && extGet<string>(s as never, 'replDrawStepSeen') !== stepKey;
+  if (inDrawStep && applied.length === 0) extSet(s as never, 'replDrawStepSeen', stepKey);
+  for (const { src: self, e, key } of staticsOf(s, 'draw-replacement')) {
+    if (applied.includes(key)) continue;                                   // CR 614.5: this one has already applied
     if (e.who === 'you' && p !== self.controller) continue;
     if (e.who === 'opponent' && p === self.controller) continue;
-    if (e.drawStepOnly && !(s.step === 'draw' && s.activePlayer === p)) continue;
+    if (e.drawStepOnly && !inDrawStep) continue;
     if (e.exceptFirstInDrawStep && firstInDrawStep) continue;
     if (e.instead === 'skip') { g.note(`${pl.name} skips the draw (${chars.name(self)}).`); return true; }
     // "draw two cards instead": `Game.draw` only ever awaits in its dredge branch, so the recursion below is
     // synchronous as long as this player has no dredge card in the graveyard. When they do, the replacement stands
     // down rather than leaving a floating promise (documented in docs/vocabulary/replacement.md).
     if (pl.graveyard.some(c => c.def.dredge !== undefined && pl.library.length >= c.def.dredge)) continue;
-    extSet(s as never, 'replDrawing', true);
-    try { for (let i = 0; i < e.instead; i++) void g.draw(p); } finally { extDel(s as never, 'replDrawing'); }
+    extSet(s as never, 'replDrawApplied', [...applied, key] as unknown as Json);
+    try { for (let i = 0; i < e.instead; i++) void g.draw(p); }
+    finally { if (applied.length) extSet(s as never, 'replDrawApplied', applied as unknown as Json); else extDel(s as never, 'replDrawApplied'); }
     g.note(`${pl.name} draws ${e.instead} cards instead of one (${chars.name(self)}).`);
     return true;
   }
@@ -551,6 +629,13 @@ const REPLACEMENT: FamilyModule = {
           const pick = await c.g.ask(c.p, { kind: 'choose-cards', from: cands.map(o => o.id), count: 1, reason: `${chars.name(c.src)}: choose a source of damage`, exact: false }) as number[];
           const id = Array.isArray(pick) ? pick[0] : undefined;
           chosenSourceId = cands.some(o => o.id === id) ? id : cands[0].id;
+        } else {
+          // No legal source to choose. The shield still exists, but CR 615.10 binds it to a source and there is none,
+          // so it answers for nothing. Leaving the binding `undefined` would make `sourceMatches` accept EVERY source
+          // — strictly better than the printed card, and a Circle of Protection activated on an empty board would
+          // eat the next burn spell — so it binds an id no object can ever have.
+          chosenSourceId = -1;
+          c.g.note(`${chars.name(c.src)}: there is no source of damage to choose, so the shield answers for nothing.`);
         }
       }
       const sh: ShieldState = {
@@ -571,24 +656,51 @@ const REPLACEMENT: FamilyModule = {
     // CR 615.1: the "if damage is prevented this way, ..." half of the same replacement effect, printed as its own
     // sentence. It rides on the shields this source has just created and has nothing to do on its own.
     'prevent-rider': (e: PreventRiderEffect, c) => {
-      let n = 0;
-      for (const sh of shields(c.s)) {
-        if (sh.sourceId !== c.src.id || sh.rider !== undefined) continue;
+      const s = c.s;
+      const attach = (sh: ShieldState): void => {
         sh.rider = e.rider;
         if (e.rider.mode === 'damage-targets') {
           sh.targetIds = c.T.filter(t => t.kind === 'object').map(t => t.id);
           sh.targetPlayers = c.T.filter(t => t.kind === 'player').map(t => t.id);
         }
+      };
+      let n = 0;
+      for (const sh of shields(s)) {
+        if (sh.sourceId !== c.src.id || sh.rider !== undefined) continue;
+        attach(sh);
         n++;
       }
+      // No shield of this family's to ride on: the shield half of the same card was claimed by the CORE
+      // `prevent-damage` op (parse.ts owns "prevent the next N damage that would be dealt to <target> this turn"),
+      // which parks a counter on each target object — and `dealDamage` spends that counter before any family
+      // replacement is consulted, so the rider could never see what it prevented.
+      //
+      // So the rider takes the counter over. CR 615.1: this is ONE replacement effect printed as two sentences, and
+      // it makes no difference which half of the engine holds the shield, as long as the half that holds it can run
+      // the follow-up. The adopted shield is bound to exactly the objects this resolution targeted (`toIds`), which
+      // is what "that creature" in the rider means, and behaves like any other shield from there on.
+      if (!n) {
+        const ids = new Set<number>();
+        for (const refs of c.item.targetsByEffect.values()) for (const t of refs) if (t.kind === 'object') ids.add(t.id);
+        for (const id of ids) {
+          const o = chars.findObject(s, id);
+          const left = o?.eotFlags.preventDamage;
+          if (!o || left === undefined || (typeof left === 'number' && left <= 0)) continue;
+          delete o.eotFlags.preventDamage;
+          const sh: ShieldState = {
+            id: (extGetOr<number>(s as never, 'replShieldSeq', 0)) + 1,
+            controller: c.p, sourceId: c.src.id, sourceName: chars.name(c.src), left, to: {}, toIds: [o.id],
+          };
+          attach(sh);
+          extSet(s as never, 'replShieldSeq', sh.id);
+          extPush<Json>(s as never, 'replShields', sh as unknown as Json);
+          n++;
+        }
+      }
       if (n) { c.g.note(`${chars.name(c.src)}: damage prevented this way will not be wasted.`); return; }
-      // No shield of this family's to ride on. That happens when the shield half of the same card was claimed by the
-      // core `prevent-damage` op (parse.ts owns "prevent the next N damage that would be dealt to <target> this
-      // turn"), whose `eotFlags.preventDamage` counter is consumed inside `dealDamage` before any family replacement
-      // is consulted — so the rider can never see what it prevented. Rather than let the clause disappear from a
-      // card the coverage report calls fully parsed, it is reported through the engine's own "skipped a clause"
-      // channel, which `verify:pool`, the fidelity ratchet and a scenario's `unsimulated` expectation all count.
-      // The fix is a core one (route `prevent-damage` through this family); see coreChangeNeeded in the 9.1 report.
+      // Nothing at all to ride on (the shield sentence of this card is itself unparsed). Rather than let the clause
+      // disappear from a card the coverage report might call fully parsed, it is reported through the engine's own
+      // "skipped a clause" channel, which `verify:pool`, the fidelity ratchet and `{ unsimulated: n }` all count.
       c.g.emit({ type: 'unsimulated', id: c.src.id, name: chars.name(c.src), clause: 'if damage is prevented this way, … (no prevention shield of this effect to attach to)' });
     },
 
@@ -596,6 +708,7 @@ const REPLACEMENT: FamilyModule = {
     'damage-cant-be-prevented': (e: UnpreventableEffect, c) => {
       extPush<Json>(c.s as never, 'replNoPrevent', { ...(e.match ? { match: e.match } : {}), controller: c.p } as unknown as Json);
       c.g.note(`${chars.name(c.src)}: ${combatWords(e.match)}${sourceWords(e.match)} can't be prevented this turn.`);
+      sweepCoreShields(c.g);                                               // CR 615.6 against the core's own shields
     },
   },
 
@@ -635,10 +748,11 @@ const REPLACEMENT: FamilyModule = {
   // exactly once per enter and a permanent tapped later that turn is never touched.
   sba: (g) => {
     const s = g.state;
+    // CR 615.6 first: a core prevention shield created since the last check is switched off before it can be used.
+    let changed = sweepCoreShields(g);
     const pending = extGet<number[]>(s as never, 'replUntapPending');
-    if (pending === undefined || !pending.length) return false;
+    if (pending === undefined || !pending.length) return changed;
     extDel(s as never, 'replUntapPending');
-    let changed = false;
     for (const id of pending) {
       const o = chars.findObject(s, id);
       if (!o || o.zone !== 'battlefield' || !o.tapped) continue;
@@ -651,7 +765,10 @@ const REPLACEMENT: FamilyModule = {
 
   // CR 514.2: "this turn" shields and "can't be prevented this turn" effects end as the turn does.
   steps: {
-    'cleanup-end': (g) => { extDel(g.state as never, 'replShields'); extDel(g.state as never, 'replNoPrevent'); extDel(g.state as never, 'replUntapPending'); },
+    'cleanup-end': (g) => {
+      extDel(g.state as never, 'replShields'); extDel(g.state as never, 'replNoPrevent');
+      extDel(g.state as never, 'replUntapPending'); extDel(g.state as never, 'replDrawStepSeen');
+    },
   },
 
   render: {
