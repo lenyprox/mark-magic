@@ -148,11 +148,18 @@ function bansOf(s: GameState): Ban[] {
   return list === undefined ? [] : list.filter(b => b.turn === s.turn);
 }
 
-/** CR 509.1b: how many creatures must block `a` at once for the block to be legal (menace N; 0 = no such restriction). */
+/**
+ * CR 509.1b: how many creatures must block `a` at once for the block to be legal; 0 = no such restriction.
+ *
+ * Both sources count, and the larger wins: the CORE `menace` keyword (CR 702.110b, "can't be blocked except by two
+ * or more creatures", which `Game.applyBlockFixups` enforces *before* this family's hook runs and therefore never
+ * re-checks afterwards) and this family's own `cant-be-blocked-except-by` statics with a `least`. Every requirement
+ * pass below asks this before it forces a block, because CR 509.1c never meets a requirement by violating a
+ * restriction — a lone blocker on a menace attacker is an illegal declaration, not a forced one.
+ */
 function leastBlockers(s: GameState, a: GameObject): number {
-  if (!flag(s, a, F.blockedExcept)) return 0;
-  let n = 0;
-  for (const e of staticsOn<BlockedExceptStatic>(s, a, 'cant-be-blocked-except-by')) if (e.least !== undefined && e.least > n) n = e.least;
+  let n = chars.hasKeyword(s, a, 'menace') ? 2 : 0;
+  if (flag(s, a, F.blockedExcept)) for (const e of staticsOn<BlockedExceptStatic>(s, a, 'cant-be-blocked-except-by')) if (e.least !== undefined && e.least > n) n = e.least;
   return n;
 }
 
@@ -167,12 +174,14 @@ function extraBlocks(b: GameObject): number {
  * May `b` be added to `a`'s blockers right now? The same clauses `Game.blockLegal` applies (CR 509.1a-b) — a family
  * hook cannot call that private method, and a forced block the rules step would have refused is worse than none.
  */
-function canAdd(s: GameState, b: GameObject, a: GameObject): boolean {
+function canAdd(s: GameState, b: GameObject, a: GameObject, moving = false): boolean {
   if (b.zone !== 'battlefield' || a.zone !== 'battlefield') return false;
   if (a.attacking === null || a.attacking !== b.controller) return false;
   if (!chars.isCreature(b) || b.tapped) return false;
   if (b.blocking.includes(a.id)) return false;
-  if (b.blocking.length > extraBlocks(b)) return false;
+  // `moving` asks the counterfactual "could it block `a` if it gave up what it is blocking now?" — the requirement
+  // passes need that to count able blockers before they force anything (CR 509.1c), and `attach` performs the move.
+  if (!moving && b.blocking.length > extraBlocks(b)) return false;
   if (a.blockedBy.length >= 1 && chars.abilitiesOf(a).some(ab => ab.kind === 'static' && ab.effect.kind === 'cant-be-blocked-by-more-than-one')) return false;
   return chars.canBlock(s, b, a);
 }
@@ -187,6 +196,22 @@ function addBlock(g: { note(t: string): unknown }, b: GameObject, a: GameObject,
 function detach(s: GameState, b: GameObject): void {
   for (const id of b.blocking) { const a = chars.findObject(s, id); if (a) a.blockedBy = a.blockedBy.filter(x => x !== b.id); }
   b.blocking = [];
+}
+
+/**
+ * Put `b` onto `a`'s blockers, giving up the blocks it has to give up first, and report whether it worked. A block
+ * this family requires is worth strictly more than a block nothing requires (CR 509.1c: the declaration must meet
+ * the maximum possible number of requirements), so the move is the correct reading — but only when it succeeds:
+ * a failed attempt puts every abandoned block back exactly as it was.
+ */
+function attach(g: { note(t: string): unknown }, s: GameState, b: GameObject, a: GameObject, why: string): boolean {
+  if (canAdd(s, b, a)) { addBlock(g, b, a, why); return true; }
+  if (!b.blocking.length) return false;
+  const was = [...b.blocking];
+  detach(s, b);
+  if (canAdd(s, b, a)) { addBlock(g, b, a, why); return true; }
+  for (const id of was) { const at = chars.findObject(s, id); if (at) { b.blocking.push(id); at.blockedBy.push(b.id); } }
+  return false;
 }
 
 /** What an effect op is handed, narrowed to the fields the target resolvers need. */
@@ -275,10 +300,12 @@ const COMBAT_RESTR: FamilyModule = {
   // --------------------------------------------------------------- combat hooks
   keywordHooks: {
     /**
-     * CR 506.4: a creature that can't attack alone and that is the only creature its controller could possibly attack
-     * with cannot attack at all, so the hook forbids it outright. The partial case — legal only if another creature
-     * also attacks — needs a fixup pass over the declaration, which the hook table has no seat for; see
-     * `coreChangeNeeded` and the Declines section of docs/vocabulary/combat-restr.md.
+     * CR 506.4, the half a single creature can be judged by: a creature that can't attack alone and that is the only
+     * creature its controller could possibly attack with can never attack, so the hook forbids it outright and the
+     * AI is never offered the attack. The other half — a declaration that ends up with this creature alone although
+     * something else could have come along — needs a hook that judges the FINISHED declaration, which the hook table
+     * has no seat for: the `attackFixup` patch (core, verified but not applied here) is in `coreChangeNeeded`, and
+     * section 6 of docs/vocabulary/combat-restr.md says what the family does and does not enforce until it lands.
      */
     canAttack: (s, o) => {
       if (!flag(s, o, F.noAttackAlone)) return undefined;
@@ -337,37 +364,45 @@ const COMBAT_RESTR: FamilyModule = {
       // ---- requirement 1: "All creatures able to block ~ do so" (the static and the one-shot both land here).
       // A candidate that is unable only because it is already blocking something else is MOVED: blocking the lure
       // creature is a requirement and blocking anything else is not, so the move meets strictly more of them.
+      // CR 509.1c: none of them moves when the attacker's own "except by N or more" restriction (menace included)
+      // could not be satisfied by the creatures that are able — the requirement is then simply not met.
       for (const a of attackers) {
         if (!(flag(s, a, F.lure) || extGet<number>(a, E.lure) === s.turn)) continue;
-        for (const b of candidates) {
-          if (b.blocking.includes(a.id)) continue;
-          if (canAdd(s, b, a)) { addBlock(g, b, a, 'must block'); continue; }
-          if (!b.blocking.length) continue;
-          const was = [...b.blocking];
-          detach(s, b);
-          if (canAdd(s, b, a)) addBlock(g, b, a, 'must block');
-          else for (const id of was) { const at = chars.findObject(s, id); if (at) { b.blocking.push(id); at.blockedBy.push(b.id); } }
-        }
+        const able = candidates.filter(b => b.blocking.includes(a.id) || canAdd(s, b, a, true));
+        if (able.length < Math.max(1, leastBlockers(s, a))) continue;
+        for (const b of able) if (!b.blocking.includes(a.id)) attach(g, s, b, a, 'must block');
       }
 
       // ---- requirement 2: "~ must be blocked if able" — one blocker is enough, or as many as the attacker's own
-      //      "except by N or more" restriction demands.
+      //      "except by N or more" restriction (or the core `menace` keyword) demands. A creature already blocking
+      //      elsewhere is moved for exactly the reason the lure pass moves one, and for the same rule; free
+      //      creatures are spent first, so a move only happens when nothing else can meet the requirement.
       for (const a of attackers) {
         if (!flag(s, a, F.mustBeBlocked) || flag(s, a, F.lure)) continue;
         const need = Math.max(1, leastBlockers(s, a));
-        for (const b of candidates) { if (a.blockedBy.length >= need) break; if (canAdd(s, b, a)) addBlock(g, b, a, 'must be blocked'); }
+        if (a.blockedBy.length >= need) continue;
+        const pool = candidates.filter(b => !b.blocking.includes(a.id) && canAdd(s, b, a, true)).sort((x, y) => x.blocking.length - y.blocking.length);
+        if (a.blockedBy.length + pool.length < need) continue;   // cannot be met without violating the restriction
+        for (const b of pool) { if (a.blockedBy.length >= need) break; attach(g, s, b, a, 'must be blocked'); }
       }
 
-      // ---- requirement 3: "Target creature blocks this turn if able"
+      // ---- requirement 3: "Target creature blocks this turn if able" — it blocks an attacker it can legally block
+      //      ALONE (one more blocker has to finish the "N or more" count, or the block is no block at all).
       for (const b of candidates) {
         if (extGet<number>(b, E.mustBlock) !== s.turn || b.blocking.length) continue;
-        for (const a of attackers) if (canAdd(s, b, a)) { addBlock(g, b, a, 'blocks if able'); break; }
+        for (const a of attackers) {
+          if (!canAdd(s, b, a)) continue;
+          const need = leastBlockers(s, a);
+          if (need && a.blockedBy.length + 1 < need) continue;   // menace and friends: this creature is not "able"
+          addBlock(g, b, a, 'blocks if able'); break;
+        }
       }
 
       // ---- restriction: "can't be blocked except by N or more creatures" (CR 509.1b, menace N)
       for (const a of attackers) {
+        if (!a.blockedBy.length) continue;                        // cheap first: leastBlockers reads a keyword
         const need = leastBlockers(s, a);
-        if (!need || !a.blockedBy.length || a.blockedBy.length >= need) continue;
+        if (!need || a.blockedBy.length >= need) continue;
         const dropped = a.blockedBy.map(id => chars.findObject(s, id)).filter((o): o is GameObject => o !== undefined);
         a.blockedBy = [];
         for (const b of dropped) { b.blocking = b.blocking.filter(id => id !== a.id); g.note(`${chars.name(b)} can't block ${chars.name(a)} except with ${need} or more creatures.`); }

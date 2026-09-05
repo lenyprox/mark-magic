@@ -35,15 +35,34 @@ pass, and it works in that order:
 1. **lure requirements** — every creature that can block a lured attacker is added to its blockers. A creature that
    is unable *only* because it already declared a block elsewhere is **moved**: blocking the lured attacker is a
    requirement and blocking anything else is not, so the move meets strictly more requirements (CR 509.1c). If the
-   move turns out to be illegal the old blocks are put back.
-2. **"must be blocked if able"** — blockers are added until the attacker has one, or as many as its own
-   "except by N or more creatures" restriction demands.
-3. **"blocks this turn if able"** — an idle creature carrying the marker is given the first attacker it can block.
+   move turns out to be illegal the old blocks are put back. The whole requirement is skipped when fewer creatures
+   are able to block the attacker than `leastBlockers` demands (below): it cannot be met legally, so it is not met.
+2. **"must be blocked if able"** — blockers are added until the attacker has `leastBlockers` of them (one, unless a
+   count restriction demands more), and the same move-a-blocker rule applies, idle creatures first: a creature is
+   pulled off another attacker only when nothing idle can meet the requirement, and nothing is pulled at all when
+   the requirement cannot be met legally.
+3. **"blocks this turn if able"** — an idle creature carrying the marker is given the first attacker it can block
+   **alone**: an attacker whose count restriction one more blocker would still not satisfy is skipped, so the marked
+   creature blocks something it may legally block rather than nothing at all.
 4. **"except by N or more creatures"** — an attacker blocked by fewer than N creatures loses every block.
 5. **"can't block alone"** — a creature that ended up as its controller's only blocker loses its block.
 
 Steps 4 and 5 run last on purpose: a requirement is never met by breaking a restriction, so a forced block that turns
 out illegal is thrown away again rather than kept.
+
+### `leastBlockers`: menace is a CORE restriction this family has to count
+
+`Game.applyBlockFixups` runs the core's own `menace` pass (CR 702.110b) **before** `BLOCK_FIXUPS` and never looks
+again, so a block this family adds afterwards is unchecked by it. Every pass above therefore asks `leastBlockers`,
+which is the larger of
+
+* `2` when `chars.hasKeyword(s, attacker, 'menace')` — the core keyword, on ~1,400 printed cards, and
+* the largest `least` among this family's own `cant-be-blocked-except-by` statics on that attacker,
+
+and a requirement that cannot reach that count is left unmet (CR 509.1c: a requirement is never met by violating a
+restriction). Lure on a menace creature with one able blocker is therefore no block at all rather than an illegal
+one; with two able blockers, both block. The six scenarios under "requirements weighed against menace" in
+`test/scenarios/combat-restr.ts` pin both directions for all three requirement passes.
 
 Every block the pass adds is a real declaration: it fires `blocks` and `becomes-blocked` triggers, because
 `combatFrom` queues those *after* `applyBlockFixups`.
@@ -172,8 +191,11 @@ A restriction carried by the **blocker**, read against each attacker it is offer
 
 `attack: true` is a **partial** implementation, and deliberately so. The hook table has no seat for a fixup pass over
 the declared attackers, so `canAttack` forbids the attack only in the case it can decide alone: no other creature its
-controller controls could possibly attack. When another creature could attack, the engine allows the declaration and
-does not check afterwards whether that creature really did — see Declines below.
+controller controls could possibly attack. When another creature *could* have attacked but did not, the declaration
+stands even though CR 506.4 makes it illegal: seat 0 with Mogg Flunkies and an untapped Hill Giant may attack with
+the Flunkies alone. Read `attack: true` as "enforced whenever the answer is knowable from this creature alone". The
+`attackFixup` hook that closes it is a core change: written, verified in this worktree against exactly that board,
+and handed over in `coreChangeNeeded` (see Declines).
 
 ```json
 { "kind": "static", "effect": { "kind": "cant-act-alone", "scope": "self", "attack": true, "block": true }, "text": "~ can't attack or block alone." }
@@ -334,11 +356,27 @@ which creatures a restriction reaches on hundreds of cards.
 | `All creatures able to block target creature this turn do so` | `lure` |
 | `After this [main] phase, there is an additional combat phase [followed by an additional main phase]` | `extra-combat` |
 
-`npm run coverage:pool` moved from 12,200 to 12,296 fully parsed cards overall (35.35 % → 35.63 %) and from 12,065 to
-12,161 on the paper tier (37.61 % → 37.91 %). `npm run parse:diff` shows 164 cards changed and **0 previously
-fully-parsed card moved**; 20 of the 164 keep the same unparsed lines because the family gave a real op to a clause
-inside a line whose trigger head the parser still does not know (Aurelia, the Warleader and the other extra-combat
-attack triggers).
+`npm run coverage:pool` moved from 12,200 to **12,317** fully parsed cards overall (35.35 % → 35.69 %) and from
+12,065 to **12,182** on the paper tier (37.61 % → 37.97 %). `npm run parse:diff` reports `rulesHash f93a8a16 ->
+d038db86`, `registryHash 811c9dc5 -> 904ba86c` and **205 changed, 0 added, 0 removed**, in 87 groups — every one of
+them a wording in the table above. The count is large because those rows fan out over colours, subtypes and power
+thresholds (`~ can't be blocked by <filter>` alone is 20 groups), and because every "creatures ... can't block this
+turn" spell reaches `restrict-blocking` through a different sentence: behind a condition (Barrage of Boulders,
+Demoralize), as a mode (Gruul Charm, Temur Charm), as an ETB trigger (Seismic Elemental, Mournwillow), as an attack
+trigger (Hero of Oxid Ridge, Goblin Locksmith) and as a second sentence (Fire of Orthanc, Tectonic Rift).
+
+Re-derived from `data/master/parse-snapshot.json` with parse-snapshot.ts's own canonical hash, over all 205:
+
+| | cards |
+|---|---|
+| newly fully parsed | **117** |
+| previously fully parsed that lost a parse | **0** |
+| previously fully parsed whose shape changed | **0** |
+| still incomplete, but an ability inside them now parses | 88 (21 with byte-identical unparsed lines) |
+
+The 21 are the extra-combat attack triggers (Aurelia, the Warleader, Najeela, Karlach, ...): the family gave the
+"After this phase ..." sentence a real op inside a line whose trigger head the parser still does not know. The +117
+matches `coverage:pool`'s +117 exactly (the two totals differ by the 43 per-card scripts parse:diff ignores).
 
 ---
 
@@ -353,7 +391,19 @@ Each of these needs a core change; none was made in the family's worktree.
   in the wave's `coreChangeNeeded`. Until it lands there is no `must-attack` op here, because an op nothing enforces
   is worse than a clause a script author can see is missing.
 * **"can't attack alone" in the partial case.** See `cant-act-alone` above: the declaration is only refused when no
-  other creature could have attacked. The same attacker-fixup hook would close it.
+  other creature could have attacked. The `attackFixup` patch in `coreChangeNeeded` closes it: a `keywordHooks` seat
+  called on the finished declaration, before the attack event and the `attacks` triggers, from both `combatFrom` and
+  `simulateCombat`, with `Game` undoing the attack tap for whatever a family removes. It was applied in this
+  worktree — `typecheck:all`, `npm test` (954 tests, 0 fail) and `scripts:check` were green with it, and the Mogg
+  Flunkies board then logs "Mogg Flunkies can't attack alone." and deals no damage. It is not in this commit because
+  the family contract forbids editing `src/engine/game.ts`.
+* **A family's zod variants reaching `CardScriptChecked`.** `src/engine/ops/combat-restr.schema.ts` is written and
+  imported by nothing: `src/cards/schema.ts` has no composer yet, so `npm run typecheck:schema` fails on the
+  `Equals<>` pins (declaration merging widened `Effect` and `StaticEffect`; the zod side could not follow) and the
+  pool half of `test/schema-types.test.ts` rejects `{"op": "lure"}`. The composer is three hunks and is in
+  `coreChangeNeeded`; with it applied, `typecheck:schema`, the whole 954-test suite and `scripts:check` are green.
+  This file is already written for it: `z.lazy` forward references make the import cycle safe, and `as const
+  satisfies FamilySchema` keeps each variant's own inferred type, which is what the `Equals<>` pins are made of.
 * **"~ can attack as though it didn't have defender."** `canAttack` returns false on `defender` before the family
   fold runs, and the fold can only forbid, never allow. A static cannot remove a keyword either: `Mods` has no
   "keywords lost" term (only `ext.lost`, which one-shot ops write).

@@ -87,6 +87,96 @@ export const combatRestr: Scenario[] = [
     ],
   },
 
+  // ------------------------------------------------- requirements weighed against menace (CR 509.1c + 702.110b)
+  // A requirement is never met by breaking a restriction, and `menace` is a restriction the CORE keyword table owns
+  // (CR 702.110b), not this family — so every pass that forces a block has to count it. Each of the six below is a
+  // requirement this family adds meeting a menace attacker; three can be met (enough creatures are able) and three
+  // cannot, and the ones that cannot end with no block at all rather than with an illegal single blocker.
+  {
+    name: 'Alluring Scent cannot force a lone creature to block a creature with menace', cr: '702.110b',
+    ruling: 'CR 509.1c: a blocking requirement is obeyed only as far as the restrictions allow, and menace forbids a single blocker — so the lured creature is not blocked at all.',
+    seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Boggart Brute'], hand: ['Alluring Scent'] }, { bf: ['Grizzly Bears'] }],
+    script: [
+      { cast: 'Alluring Scent', targets: [['Boggart Brute']] }, { resolve: true },
+      { attack: ['Boggart Brute'], refused: [['Grizzly Bears', 'Boggart Brute']] },
+    ],
+    expect: [
+      { life: [1, 17] },                                          // 3 power got through, unblocked
+      { noLog: 'Grizzly Bears blocks Boggart Brute' },
+      { zone: ['Grizzly Bears', 'battlefield'] },                 // it never blocked, so it was never dealt damage
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'Alluring Scent forces both creatures onto a menace attacker when two are able', cr: '509.1c',
+    ruling: 'The positive control: with two able creatures the requirement can be met without breaking menace, so it must be.',
+    seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Boggart Brute'], hand: ['Alluring Scent'] }, { bf: ['Grizzly Bears', 'Walking Corpse'] }],
+    script: [{ cast: 'Alluring Scent', targets: [['Boggart Brute']] }, { resolve: true }, { attack: ['Boggart Brute'] }],
+    expect: [
+      { life: [1, 20] },
+      { log: 'Grizzly Bears blocks Boggart Brute \\(must block\\)' },
+      { log: 'Walking Corpse blocks Boggart Brute \\(must block\\)' },
+      { zone: ['Boggart Brute', 'graveyard'] },                   // 2 + 2 damage against toughness 2
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'Gaea\'s Protector with Madcap Skills is not blocked at all when only one creature could block it', cr: '702.110b',
+    ruling: 'Madcap Skills gives menace, so "must be blocked if able" cannot be satisfied by the single creature that is able: the requirement goes unmet.',
+    seats: [{ bf: ['Mountain', 'Mountain', 'Gaea\'s Protector'], hand: ['Madcap Skills'] }, { bf: ['Grizzly Bears'] }],
+    script: [
+      { cast: 'Madcap Skills', targets: [['Gaea\'s Protector']] }, { resolve: true },
+      { attack: ['Gaea\'s Protector'], refused: [['Grizzly Bears', 'Gaea\'s Protector']] },
+    ],
+    expect: [
+      { attachedTo: ['Madcap Skills', 'Gaea\'s Protector'] },
+      { life: [1, 13] },                                          // 4 + 3 power, unblocked
+      { noLog: 'Grizzly Bears blocks Gaea\'s Protector' },
+      { zone: ['Grizzly Bears', 'battlefield'] },
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'Two creatures are forced to block a menace creature that must be blocked if able', cr: '509.1c',
+    ruling: 'One blocker is enough for the requirement and not enough for menace, so the declaration that meets both is the one with two.',
+    seats: [{ bf: ['Mountain', 'Mountain', 'Gaea\'s Protector'], hand: ['Madcap Skills'] }, { bf: ['Grizzly Bears', 'Walking Corpse'] }],
+    script: [{ cast: 'Madcap Skills', targets: [['Gaea\'s Protector']] }, { resolve: true }, { attack: ['Gaea\'s Protector'] }],
+    expect: [
+      { life: [1, 20] },
+      { log: 'Grizzly Bears blocks Gaea\'s Protector \\(must be blocked\\)' },
+      { log: 'Walking Corpse blocks Gaea\'s Protector \\(must be blocked\\)' },
+      { zone: ['Gaea\'s Protector', 'graveyard'] },               // 2 + 2 damage against toughness 2
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'Culling Mark sends the blocker at the attacker it can legally block alone', cr: '509.1c',
+    ruling: '"Blocks this turn if able" is met by a block that is legal: blocking the menace creature alone is not, blocking the other attacker is.',
+    seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Boggart Brute', 'Bog Rats'], hand: ['Culling Mark'] }, { bf: ['Grizzly Bears'] }],
+    script: [{ cast: 'Culling Mark', targets: [['Grizzly Bears']] }, { resolve: true }, { attack: ['Boggart Brute', 'Bog Rats'] }],
+    expect: [
+      { life: [1, 17] },                                          // the menace creature went through, Bog Rats did not
+      { log: 'Grizzly Bears blocks Bog Rats \\(blocks if able\\)' },
+      { noLog: 'Grizzly Bears blocks Boggart Brute' },
+      { zone: ['Bog Rats', 'graveyard'] },
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'A creature that must be blocked if able pulls the only blocker off another attacker', cr: '509.1c',
+    ruling: 'CR 509.1c: the declaration must meet the maximum possible number of requirements, and blocking Bog Rats meets none.',
+    seats: [{ bf: ['Gaea\'s Protector', 'Bog Rats'] }, { bf: ['Grizzly Bears'] }],
+    // the block on Bog Rats is legal in isolation and is still refused, exactly as it is for the lure above
+    script: [{ attack: ['Gaea\'s Protector', 'Bog Rats'], refused: [['Grizzly Bears', 'Bog Rats']] }],
+    expect: [
+      { life: [1, 19] },                                          // only Bog Rats got through
+      { log: 'Grizzly Bears blocks Gaea\'s Protector \\(must be blocked\\)' },
+      { zone: ['Grizzly Bears', 'graveyard'] },                   // 4 power against toughness 2
+      { zone: ['Gaea\'s Protector', 'graveyard'] },               // 2 power against toughness 2
+      { unsimulated: 0 },
+    ],
+  },
+
   // ---------------------------------------------------------------- restrictions (CR 509.1b)
   {
     name: 'Phyrexian Colossus can\'t be blocked except by three or more creatures — two are not enough', cr: '509.1b',

@@ -13,6 +13,7 @@
 // The field-level semantics live in docs/vocabulary/combat-restr.md; the engine side is ./combat-restr.ts.
 import { z } from 'zod';
 import { FilterSchema, RefSchema, TargetSpecSchema } from '../../cards/schema.js';
+import type { Filter, Ref, TargetSpec } from '../../cards/types.js';
 
 /**
  * What a family's `<family>.schema.ts` exports. `src/engine/ops/types.ts` declares no such type yet (it is the
@@ -42,22 +43,34 @@ export interface FamilySchema {
 const B = z.boolean();
 const N = z.number();
 
+// Forward references, exactly the idiom src/cards/schema.ts uses for its own recursive positions, and here for a
+// second reason: the composer folds this file into schema.ts, so schema.ts imports it and it imports schema.ts.
+// `z.lazy` is what makes that cycle safe — nothing in this module's body reads a binding of schema.ts while
+// schema.ts is still evaluating; the annotation keeps `z.infer` exactly pinned to the AST type all the same.
+const FilterRef: z.ZodType<Filter> = z.lazy(() => FilterSchema);
+const TargetSpecRef: z.ZodType<TargetSpec> = z.lazy(() => TargetSpecSchema);
+const RefRef: z.ZodType<Ref> = z.lazy(() => RefSchema);
+
 /** The scope fields every combat-restr static carries (see `RestrScope` / `RestrSide` in ./combat-restr.ts). */
 const SCOPE = {
   scope: z.enum(['self', 'enchanted', 'equipped', 'filter']),
-  filter: FilterSchema.optional(),
+  filter: FilterRef.optional(),
   side: z.enum(['you', 'opponents', 'all']).optional(),
 };
 
 /** `TargetSpec | Ref` — the target slot every one-shot combat restriction takes. */
-const TargetOrRef = z.union([TargetSpecSchema, RefSchema]);
+const TargetOrRef = z.union([TargetSpecRef, RefRef]);
 
-export const schema: FamilySchema = {
+// `as const satisfies` rather than a `: FamilySchema` annotation: the annotation would widen every variant to the
+// bare `z.ZodObject`, whose inferred output is `Record<string, unknown>`, and the composed union in schema.ts would
+// stop matching `Effect` — `test/schema-types.test.ts`'s `Equals<>` pins would fail. `satisfies` checks exactly the
+// same contract and keeps each variant's own inferred shape, which is what the pins are made of.
+export const schema = {
   effects: [
     z.strictObject({
       op: z.literal('restrict-blocking'),
       whose: z.enum(['all', 'you', 'opponents']),
-      filter: FilterSchema.optional(),
+      filter: FilterRef.optional(),
       duration: z.literal('eot'),
     }),
     z.strictObject({
@@ -79,12 +92,12 @@ export const schema: FamilySchema = {
   ],
   statics: [
     z.strictObject({ kind: z.literal('must-be-blocked'), ...SCOPE, all: B.optional() }),
-    z.strictObject({ kind: z.literal('cant-be-blocked-except-by'), ...SCOPE, by: FilterSchema.optional(), least: N.optional(), power: z.literal('ge-source').optional() }),
-    z.strictObject({ kind: z.literal('cant-be-blocked-by'), ...SCOPE, by: FilterSchema }),
-    z.strictObject({ kind: z.literal('cant-block-creatures'), ...SCOPE, what: FilterSchema.optional(), only: FilterSchema.optional(), power: z.literal('gt-self').optional() }),
+    z.strictObject({ kind: z.literal('cant-be-blocked-except-by'), ...SCOPE, by: FilterRef.optional(), least: N.optional(), power: z.literal('ge-source').optional() }),
+    z.strictObject({ kind: z.literal('cant-be-blocked-by'), ...SCOPE, by: FilterRef }),
+    z.strictObject({ kind: z.literal('cant-block-creatures'), ...SCOPE, what: FilterRef.optional(), only: FilterRef.optional(), power: z.literal('gt-self').optional() }),
     z.strictObject({ kind: z.literal('cant-act-alone'), ...SCOPE, attack: B.optional(), block: B.optional() }),
     z.strictObject({ kind: z.literal('damage-as-though-unblocked'), ...SCOPE }),
   ],
-};
+} as const satisfies FamilySchema;
 
 export default schema;
