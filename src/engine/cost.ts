@@ -2,9 +2,10 @@
 // (Thalia taxes, affinity, domain), delve / convoke / improvise contributions and the non-mana cost checks shared by
 // activated abilities and spells. Pure helpers; paying happens in Game.
 import type { AbilityCost, AltCost, CardDef, ManaCost, ManaSymbol } from '../cards/types.js';
-import { abilitiesOf, colors, evalAmount, isCreature, isType, matchesFilter, power } from './characteristics.js';
+import { abilitiesOf, colors, evalAmount, isCreature, isPhasedOut, isType, matchesFilter, phasingOn, power } from './characteristics.js';
 import type { ManaSource } from './mana.js';
 import type { CastZone, GameObject, GameState, Player, PlayerId } from './state.js';
+import { CORE_COST_KEYS, COST_MODS, COST_PARTS, HAS, MODE_COSTS } from './ops/_registry.js';
 
 export const ZERO_COST: ManaCost = { generic: 0, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '' };
 
@@ -17,10 +18,14 @@ export function exileWindowOpen(s: GameState, p: PlayerId, w: NonNullable<GameOb
   return true;
 }
 
-/** Net generic-mana reduction for casting `card` (positive = cheaper): cost-adjust statics on both battlefields plus the card's own reduce modifiers. */
+/** Net generic-mana reduction for casting `card` (positive = cheaper): cost-adjust statics on every battlefield, the
+ * card's own reduce modifiers, and whatever the registry's `costMod` hooks add (cost alteration the fixed-`amount`
+ * core static cannot express: an `Amount`, a cast-from-zone tax, "costs {1} less for each ..."). */
 export function costAdjust(s: GameState, p: PlayerId, card: GameObject, from: CastZone = 'hand'): number {
   let r = 0;
+  const phased = phasingOn(s);                                      // hot path: no array is built for the common case
   for (const pl of s.players) for (const o of pl.battlefield) for (const ab of abilitiesOf(o)) {
+    if (phased && isPhasedOut(o)) continue;
     if (ab.kind !== 'static' || ab.effect.kind !== 'cost-adjust') continue;
     const e = ab.effect; const mine = o.controller === p;
     if (e.who === 'you' && !mine) continue;
@@ -30,15 +35,25 @@ export function costAdjust(s: GameState, p: PlayerId, card: GameObject, from: Ca
     r += e.amount;
   }
   for (const m of card.def.costModifiers ?? []) if (m.kind === 'reduce') r += evalAmount(s, m.amount, p, 0, card);
+  if (COST_MODS.length) for (const h of COST_MODS) r += h(s, p, card, from);
   return r;
 }
 
-/** The mana cost actually paid for a cast: the alternative cost's mana (or nothing) instead of the printed cost, plus kicker. */
-export function spellManaCost(def: CardDef, alt?: AltCost, kicked?: boolean): ManaCost {
-  const base = alt ? (alt.cost.mana ?? ZERO_COST) : (def.manaCost ?? ZERO_COST);
-  if (!kicked || !def.kicker) return base;
-  const k = def.kicker;
+/** Two mana costs added together (the printed cost plus kicker, plus whatever the chosen modes cost). */
+function plusCost(base: ManaCost, k: ManaCost): ManaCost {
   return { ...base, generic: base.generic + k.generic, pips: [...base.pips, ...k.pips], hybrid: [...base.hybrid, ...k.hybrid], phyrexian: [...base.phyrexian, ...k.phyrexian] };
+}
+
+/**
+ * The mana cost actually paid for a cast: the alternative cost's mana (or nothing) instead of the printed cost, plus
+ * kicker, plus what the chosen modes cost. No core mode carries a cost, so `modes` only matters to a family that
+ * registers `modeCost` (entwine, escalate, spree, multikicker).
+ */
+export function spellManaCost(def: CardDef, alt?: AltCost, kicked?: boolean, modes?: number[]): ManaCost {
+  let base = alt ? (alt.cost.mana ?? ZERO_COST) : (def.manaCost ?? ZERO_COST);
+  if (kicked && def.kicker) base = plusCost(base, def.kicker);
+  if (MODE_COSTS.length && modes !== undefined) for (const h of MODE_COSTS) { const extra = h(def, modes, alt, !!kicked); if (extra) base = plusCost(base, extra); }
+  return base;
 }
 
 export function hasModifier(def: CardDef, kind: 'delve' | 'convoke' | 'improvise'): boolean { return !!def.costModifiers?.some(m => m.kind === kind); }
@@ -87,6 +102,12 @@ export function nonManaCostPayable(s: GameState, pl: Player, cost: AbilityCost, 
   if (cost.tapCreaturesTotalPower) {
     const crew = pl.battlefield.filter(o => !o.tapped && isCreature(o) && (!cost.tapCreaturesTotalPower!.other || o.id !== self.id));
     if (crew.reduce((a, o) => a + Math.max(0, power(s, o)), 0) < cost.tapCreaturesTotalPower.power) return false;
+  }
+  // family cost parts (AbilityCost keys outside CORE_COST_KEYS)
+  if (HAS.costParts) for (const k in cost) {
+    if (CORE_COST_KEYS.has(k)) continue;
+    const part = COST_PARTS[k]; const v = (cost as unknown as Record<string, unknown>)[k];
+    if (part && v !== undefined && !part.payable(v, s, pl, self)) return false;
   }
   return true;
 }

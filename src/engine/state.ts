@@ -1,5 +1,5 @@
 // Game state types shared by the engine, the AI and the CLI.
-import type { Amount, CardDef, Color, Effect, Keyword, ManaSymbol, Ability, ActivatedAbility, TriggeredAbility } from '../cards/types.js';
+import type { Amount, AltCostId, CardDef, CastZone, Color, Effect, Keyword, ManaSymbol, Ability, ActivatedAbility, TriggeredAbility } from '../cards/types.js';
 import type { GameEvent, GameEventType } from './events.js';
 
 /** A seat index (0..3). Two-player code that assumed 0 | 1 should use the helpers in players.ts. */
@@ -56,17 +56,25 @@ export interface GameObject {
   warpExileTurn?: number;
   /** 0 = front face, 1 = back face of a double-faced card. */
   activeFace?: 0 | 1;
+  /** CR 706: the def this object is a copy of; `defOf` returns it instead of `def`. Set through `Game.setCopyDef` (never
+   * written directly), shared by reference across `clone` because CardDefs are immutable, and inlined by `serialize`. */
+  copyDef?: CardDef;
   /** Abilities granted by effects (Saga chapters); indexed after def.abilities. */
   grantedAbilities?: Ability[];
   /** Abilities granted by another permanent's static ability; recomputed whenever the battlefield changes. */
   staticGranted?: Ability[];
   /** This card is one of its owner's commanders (CR 903.3): it may return to the command zone when it would change zones. */
   commander?: boolean;
+  /** Family state (suspend counters, phasing, copy keys, ...). JSON-plain only: primitives, arrays and plain objects — no Set/Map/class instances (clone.ts deep-copies it, serialize.ts round-trips it). */
+  ext?: Record<string, unknown>;
 }
-export type CastZone = 'hand' | 'graveyard' | 'exile' | 'command';
-export type AltCostId = 'pitch' | 'life' | 'evoke' | 'warp' | 'impending' | 'flashback' | 'escape' | 'jump-start' | 'from-graveyard' | 'buyback' | 'dash' | 'morph';
+export type { CastZone, AltCostId };
 
-export interface DelayedTrigger { id: number; at: 'next-upkeep' | 'next-end-step' | 'your-next-end-step' | 'end-of-combat'; controller: PlayerId; sourceId: number; sourceName: string; effects: Effect[]; affected?: StackItem['affected']; createdTurn: number }
+export type CoreDelayedAt = 'next-upkeep' | 'next-end-step' | 'your-next-end-step' | 'end-of-combat';
+/** Families add delayed-trigger firing points by augmenting DelayedAtRegistry; a STEP_HOOK flushes them. */
+export interface DelayedAtRegistry {}
+export type DelayedAt = CoreDelayedAt | keyof DelayedAtRegistry;
+export interface DelayedTrigger { id: number; at: DelayedAt; controller: PlayerId; sourceId: number; sourceName: string; effects: Effect[]; affected?: StackItem['affected']; createdTurn: number }
 
 export interface Player {
   id: PlayerId;
@@ -110,6 +118,8 @@ export interface Player {
   extraLandsThisTurn?: number;
   cardsDrawnThisTurn?: number;
   lifeGainedThisTurn?: number;
+  /** Family state (emblems, city's blessing, ...). JSON-plain only — see GameObject.ext. */
+  ext?: Record<string, unknown>;
 }
 
 export interface StackItem {
@@ -175,12 +185,14 @@ export interface GameState {
   events?: GameEvent[];
   /** Per-type event counts (GameOptions.events = 'counts' or 'full'). */
   eventCounts?: Partial<Record<GameEventType, number>>;
+  /** Family state (day/night, extra combats, the `defs` table copies resolve through, ...). JSON-plain only — see GameObject.ext. */
+  ext?: Record<string, unknown>;
 }
 
 export const STEPS: Step[] = ['untap', 'upkeep', 'draw', 'main1', 'combat-begin', 'declare-attackers', 'declare-blockers', 'first-strike-damage', 'combat-damage', 'combat-end', 'main2', 'end', 'cleanup'];
 
 // ---- Actions a player can take when they have priority --------------------------------------
-export type PlayerAction =
+export type CorePlayerAction =
   | { type: 'pass' }
   | { type: 'play-land'; cardId: number; face?: 0 | 1; from?: 'graveyard' | 'library' }
   | { type: 'cast'; cardId: number; targets?: TargetRef[][]; x?: number; modes?: number[]; kicked?: boolean;
@@ -191,6 +203,9 @@ export type PlayerAction =
   | { type: 'activate'; objectId: number; abilityIndex: number; targets?: TargetRef[][]; x?: number; modes?: number[] }
   | { type: 'turn-face-up'; objectId: number }
   | { type: 'concede' };
+/** Families add player actions by augmenting ActionRegistry; ACTIONS[type] performs them. */
+export interface ActionRegistry {}
+export type PlayerAction = CorePlayerAction | ActionRegistry[keyof ActionRegistry];
 
 /** What an attacker attacks: a player (seat) or a planeswalker (object id). */
 export type AttackTarget = PlayerId | { planeswalker: number };
@@ -199,7 +214,7 @@ export interface AttackDeclaration { attackers: number[]; targets?: Record<numbe
 export interface BlockDeclaration { blocks: { blocker: number; attacker: number }[] }
 
 /** Something the engine needs a player to decide. */
-export type Decision =
+export type CoreDecision =
   | { kind: 'priority'; legal: LegalAction[]; /** Why cards with no legal action cannot be played right now (only for agents with `wantsHints`). */ illegal?: IllegalHint[] }
   | { kind: 'attackers'; candidates: number[]; mustAttack: number[]; /** Players that can be attacked (multiplayer). */ defenders?: PlayerId[]; /** Planeswalkers that can be attacked (with their controller). */ planeswalkers?: { id: number; controller: PlayerId }[] }
   | { kind: 'blockers'; attackers: number[]; candidates: number[] }
@@ -212,6 +227,9 @@ export type Decision =
   | { kind: 'choose-player'; options: PlayerId[]; reason: string }
   | { kind: 'choose-number'; min: number; max: number; reason: string }
   | { kind: 'order-triggers'; items: number[]; labels: string[] };
+/** Families add decisions by augmenting DecisionRegistry; DECISION_DEFAULTS[kind] answers them. */
+export interface DecisionRegistry {}
+export type Decision = CoreDecision | DecisionRegistry[keyof DecisionRegistry];
 
 /** Why an object in hand or on the battlefield has no legal action right now, with the rule that says so. */
 export interface IllegalHint { id: number; reasons: { code: 'land-drop-used' | 'sorcery-timing' | 'not-your-turn' | 'stack-not-empty' | 'summoning-sick' | 'tapped' | 'cant-pay' | 'no-action' | 'once-per-turn' | 'no-targets'; rule: string; text: string }[] }

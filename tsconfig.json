@@ -11,5 +11,7 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "//": "_example.ts is the family template: dead at runtime, but its `declare module` blocks are global, so it is typechecked on its own (tsconfig.example.json, npm run typecheck:example) instead of adding phantom variants to every core union here.",
+  "exclude": ["src/engine/ops/_example.ts"]
 }

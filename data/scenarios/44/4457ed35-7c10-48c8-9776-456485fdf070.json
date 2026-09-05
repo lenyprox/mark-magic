@@ -1,0 +1,67 @@
+{
+  "oracleId": "4457ed35-7c10-48c8-9776-456485fdf070",
+  "name": "Lightning Bolt",
+  "scenarios": [
+    {
+      "name": "Lightning Bolt destroys a creature with 3 or less toughness",
+      "cr": "704.5g",
+      "ruling": "Damage marked on a creature is compared with its toughness by state-based actions; 3 damage on a 2/2 is lethal.",
+      "seats": [
+        { "bf": ["Mountain"], "hand": ["Lightning Bolt"] },
+        { "bf": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["Grizzly Bears"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "graveyard"] },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "graveyardCount": [1, 1] },
+        { "log": "deals 3 damage" },
+        { "events": { "type": "damage", "min": 1, "max": 1 } },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Lightning Bolt deals 3 damage to a player",
+      "cr": "120.3",
+      "seats": [
+        { "bf": ["Mountain"], "hand": ["Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["P1"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [1, 17] },
+        { "life": [0, 20] },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Lightning Bolt leaves a creature with more than 3 toughness alive",
+      "cr": "119.3",
+      "ruling": "Damage does not reduce toughness; it is only lethal when it is at least the creature's toughness.",
+      "seats": [
+        { "bf": ["Mountain"], "hand": ["Lightning Bolt"] },
+        { "bf": ["Colossal Dreadmaw"] }
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["Colossal Dreadmaw"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Colossal Dreadmaw", "battlefield"] },
+        { "pt": ["Colossal Dreadmaw", 6, 6] },
+        { "noLog": "Colossal Dreadmaw is destroyed" },
+        { "log": "deals 3 damage" },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}
