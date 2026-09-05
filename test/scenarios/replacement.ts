@@ -84,6 +84,30 @@ export const replacement: Scenario[] = [
     expect: [{ life: [0, 18] }, { events: { type: 'prevented', min: 1, max: 1 } }, { unsimulated: 0 }],
   },
   {
+    name: 'Deflecting Palm binds the attacker, not the first of two permanents the opponent controls', cr: '615.10',
+    ruling: 'CR 615.10 lets the player choose; the candidates are offered most-threatening first, so an agent that takes the first option gets the source that is about to deal the damage — here the bigger of two idle creatures, one of which is about to attack.',
+    seats: [{ bf: ['Plains', 'Mountain'], hand: ['Deflecting Palm'] }, { bf: ['Grizzly Bears', 'Hill Giant'] }],
+    active: 1,
+    script: [{ cast: 'Deflecting Palm', by: 0 }, { resolve: true }, attackWith(['Hill Giant'])],
+    // Grizzly Bears has the lower object id: an order that only sorted by id would bind it and prevent nothing
+    expect: [{ life: [0, 20] }, { life: [1, 17] }, { events: { type: 'prevented', min: 1 } }, { unsimulated: 0 }],
+  },
+  {
+    name: 'a shield that must choose a source takes the creature that is attacking over a bigger idle one', cr: '615.10',
+    ruling: 'A source that is already attacking or blocking is about to deal damage; that outranks a larger permanent doing nothing.',
+    seats: [{ bf: ['Grizzly Bears'] }, { bf: ['Serra Angel', 'Hill Giant'] }],
+    active: 1,
+    scripts: {
+      'Grizzly Bears': { abilities: [{ kind: 'triggered', event: { on: 'blocks', self: true }, effects: [
+        { op: 'prevent', amount: 'all', from: { chosen: true, filter: { types: ['Creature'] }, who: 'opponent' }, to: { filter: { types: ['Creature'] }, who: 'you' }, duration: 'eot' },
+      ], text: 'replacement' }] },
+    },
+    script: [attackWith(['Hill Giant'], [['Grizzly Bears', 'Hill Giant']]), { sba: true }],
+    // Serra Angel is both the lower id and the bigger creature; only "is it attacking?" picks the Hill Giant that
+    // the 2/2 blocker is about to be dealt 3 damage by
+    expect: [{ zone: ['Grizzly Bears', 'battlefield'] }, { zone: ['Hill Giant', 'battlefield'] }, { events: { type: 'prevented', min: 1 } }],
+  },
+  {
     name: 'Circle of Protection: Red activated with no red source to choose prevents nothing at all', cr: '615.10',
     ruling: 'A shield that must name a source and cannot is bound to no source, so no damage ever matches it. Leaving it unbound would make it better than the printed card.',
     seats: [{ bf: ['Circle of Protection: Red', 'Plains', 'Plains'] }, { bf: ['Mountain', 'Mountain', 'Mountain'], hand: ['Lightning Bolt', 'Shock'] }],
@@ -120,6 +144,17 @@ export const replacement: Scenario[] = [
     expect: [{ counters: ['Grizzly Bears', { '+1/+1': 2 }] }, { pt: ['Grizzly Bears', 4, 4] }, { zone: ['Grizzly Bears', 'battlefield'] }, { unsimulated: 0 }],
   },
   {
+    name: "a rider does not adopt the prevention shield ANOTHER spell put on the creature it targets", cr: '615.1',
+    ruling: "The rider is half of its own card's replacement effect (CR 615.1), so it may only take over the core shield the same resolution created. Divine Deflection's shield sentence is unparsed, so it has none — and Healing Salve's shield goes on protecting the creature both spells named.",
+    seats: [{ bf: ['Grizzly Bears', 'Plains', 'Plains', 'Plains', 'Plains'], hand: ['Healing Salve', 'Divine Deflection'] }, { bf: ['Mountain', 'Mountain'], hand: ['Shock'] }],
+    script: [{ cast: 'Healing Salve', modes: [1], targets: [['Grizzly Bears']] }, { resolve: true },
+      { cast: 'Divine Deflection', x: 2, targets: [['Grizzly Bears']] }, { resolve: true },
+      { cast: 'Shock', by: 1, targets: [['Grizzly Bears']] }, { resolve: true }, { sba: true }],
+    // Healing Salve's 3-point shield absorbs Shock in full; a rider that had stolen it would have deleted it and
+    // then dealt the 2 it "prevented" straight back into the 2/2 it was protecting
+    expect: [{ zone: ['Grizzly Bears', 'battlefield'] }, { noLog: 'Divine Deflection deals' }, { life: [0, 20] }, { unsimulated: 2 }],
+  },
+  {
     name: 'a rider with no shield of any kind to attach to still reports the clause as unsimulated', cr: '615.1',
     ruling: 'The rider is a no-op on its own; rather than let the clause vanish it goes out through the engine\'s "skipped a clause" channel.',
     seats: [{ bf: ['Mountain'], hand: ['Lightning Bolt'] }, {}],
@@ -150,6 +185,22 @@ export const replacement: Scenario[] = [
     script: [{ cast: 'Lightning Bolt', targets: [['Hill Giant']] }, { resolve: true }, { cast: 'Shock', by: 1, targets: [['P0']] }, { resolve: true }, { sba: true }],
     // Shock's 2 damage to seat 0 is prevented and dealt to Hill Giant instead
     expect: [{ life: [0, 20] }, { zone: ['Hill Giant', 'battlefield'] }, { log: 'deals 2 damage to Hill Giant' }],
+  },
+
+  {
+    name: "a shield does not prevent the damage its own rider deals to something it protects", cr: '614.5',
+    ruling: 'The shield and its rider are one replacement effect (CR 615.1), and a replacement effect does not apply to the events it creates itself (CR 614.5) — without that, the rider prevents its own damage and the fold recurses forever.',
+    seats: [{ bf: ['Grizzly Bears', 'Hill Giant', 'Mountain'], hand: ['Lightning Bolt'] }, { bf: ['Mountain'], hand: ['Shock'] }],
+    scripts: {
+      'Lightning Bolt': { mode: 'replace', abilities: [{ kind: 'spell', effects: [
+        { op: 'prevent', amount: 'all', to: { filter: { types: ['Creature'] }, who: 'you' }, duration: 'eot' },
+        { op: 'prevent-rider', rider: { mode: 'damage-targets' }, target: { kind: 'creature' } },
+      ], text: 'replacement' }] },
+    },
+    script: [{ cast: 'Lightning Bolt', targets: [['Hill Giant']] }, { resolve: true }, { cast: 'Shock', by: 1, targets: [['Grizzly Bears']] }, { resolve: true }, { sba: true }],
+    // Shock's 2 damage to the Bears is prevented (once); the 2 the rider deals to the Hill Giant the same shield
+    // also covers is dealt, not prevented a second time
+    expect: [{ zone: ['Grizzly Bears', 'battlefield'] }, { zone: ['Hill Giant', 'battlefield'] }, { log: 'deals 2 damage to Hill Giant' }, { events: { type: 'prevented', min: 1, max: 1 } }],
   },
 
   // ---------------------------------------------------------------- damage-cant-be-prevented / unpreventable-damage (CR 615.6)
@@ -312,6 +363,23 @@ export const replacement: Scenario[] = [
     script: [{ passUntil: 'main1' }, { cast: 'Divination' }, { resolve: true }],
     // the draw step draws nothing; Divination still draws two (20 - 2 = 18 left)
     expect: [{ libraryCount: [0, 18] }, { handCount: [0, 2] }, { log: 'skips the draw' }, { unsimulated: 0 }],
+  },
+  {
+    name: "Yawgmoth's Bargain draws during its controller's own draw step (only the turn-based draw is skipped)", cr: '504.1',
+    ruling: '"Skip your draw step" replaces the draw the step takes as its turn-based action (CR 504.1), not every draw that happens while the step is going on — an ability activated in that step still draws.',
+    seats: [{ bf: ["Yawgmoth's Bargain", 'Swamp', 'Swamp'] }, {}],
+    step: 'upkeep',
+    script: [{ passUntil: 'draw' }, { resolve: true }, { activate: "Yawgmoth's Bargain" }, { resolve: true }],
+    // the turn-based draw is skipped; the 1-life activation in the same step draws its card
+    expect: [{ handCount: [0, 1] }, { libraryCount: [0, 19] }, { life: [0, 19] }, { log: 'skips the draw' }],
+  },
+  {
+    name: 'on the first turn, where the draw step draws nothing at all, an activated draw is still not skipped', cr: '504.1',
+    ruling: "The starting player's first draw step takes no turn-based draw (CR 103.7a), so there is nothing for \"skip your draw step\" to replace; the family's `draw` step hook closes the window even though no draw event happened.",
+    seats: [{ bf: ["Yawgmoth's Bargain", 'Swamp', 'Swamp'] }, {}],
+    turn: 1, step: 'upkeep',
+    script: [{ passUntil: 'draw' }, { resolve: true }, { activate: "Yawgmoth's Bargain" }, { resolve: true }],
+    expect: [{ handCount: [0, 1] }, { libraryCount: [0, 19] }, { noLog: 'skips the draw' }],
   },
   {
     name: 'Thought Reflection draws two cards for every card you would draw', cr: '614.1',

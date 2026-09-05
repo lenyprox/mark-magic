@@ -23,7 +23,7 @@ field restricts nothing, and an absent (or empty) `DamageSource` / `DamageRecipi
 
 | field | meaning |
 |---|---|
-| `chosen?: true` | "a source of your choice": one source is chosen **as the shield is created** (CR 615.10) and bound by id. The decision offers every permanent and every spell on the stack that passes `filter` / `who`, ordered stack-first, then another player's permanents, then your own — so an agent that takes the first option picks the spell it is responding to. |
+| `chosen?: true` | "a source of your choice": one source is chosen **as the shield is created** (CR 615.10) and bound by id. The decision offers every permanent and every spell on the stack that passes `filter` / `who`, ordered so that the source about to deal the damage comes first: a damage spell on the stack, then any other spell, then a creature attacking the chooser, one attacking somebody else, one that is blocking, any other permanent an opponent controls, and last the chooser's own — ties broken by power (the bigger threat first) and then by id, so the pick is deterministic. Nothing legal is removed; an agent that takes the first option gets the useful one. |
 | `self?: true` | the source of the ability itself ("… that would be dealt **by ~**") |
 | `attached?: true` | the permanent the source is attached to ("… dealt by **enchanted creature**") |
 | `filter?: Filter` | characteristics the source must have — "a **blue** source", "**creatures**", "**another red** source" |
@@ -110,11 +110,23 @@ run the follow-up, so the rider takes the counter over: it becomes a family shie
 resolution targeted (that is what "that creature" in the rider means) and behaves like any other shield from there
 on. Test of Faith, Temper, Brace for Impact and Candles' Glow work this way.
 
+**Only a counter this resolution parked is adopted.** The objects are read off the **sibling `prevent-damage`
+effect of this very stack item** (`Game.effectiveEffects` plus that effect's own entry in `targetsByEffect`), never
+off every target the item happened to choose. A shield on an object this spell merely *targets* may belong to a
+different spell's replacement effect — a Healing Salve's 3 points on the creature a Divine Deflection names — and
+CR 615.1 makes that shield part of *that* effect: adopting it would delete the shield that was protecting the
+creature and re-arm it with this card's rider, which then deals the damage it "prevented" back into it.
+
 > **Limitation.** A rider on a card whose shield sentence is itself *unparsed* (Refraction Trap, Hallow, Acolyte's
 > Reward, Awe Strike, Chant of Vitu-Ghazi, Divine Deflection — all of which have other unparsed clauses too, so none
-> of them is counted as fully parsed) has nothing to adopt. It emits an `unsimulated` event naming the clause, so
-> the skip is counted by `verify:pool`, the fidelity ratchet and a scenario's `unsimulated` expectation instead of
-> vanishing.
+> of them is counted as fully parsed) has no sibling to adopt from, whatever else is on the board. It emits an
+> `unsimulated` event naming the clause, so the skip is counted by `verify:pool`, the fidelity ratchet and a
+> scenario's `unsimulated` expectation instead of vanishing.
+
+The shield and its rider are **one** replacement effect, so CR 614.5 applies to the damage the rider deals: that
+shield does not prevent it. Without that guard a rider aimed at something the same shield protects prevents its own
+damage and the fold recurses until the stack overflows (`s.ext.replRiderActive` holds the shields whose rider is
+running). Every *other* shield still applies to it.
 
 ```jsonc
 // Cho-Arrim Alchemist's second sentence: "You gain life equal to the damage prevented this way."
@@ -311,9 +323,14 @@ Two details that are easy to get wrong and are pinned by scenarios:
 * **CR 614.5.** A replacement does not apply to the draws it creates itself, but a *different* one still does. The
   guard is per effect (`s.ext.replDrawApplied` is the chain of effects used on the way down to this draw), so
   Thought Reflection plus Alhammarret's Archive gives **four** cards for one draw, not two.
-* **`exceptFirstInDrawStep` is decided by the draw step, not by the turn's draw count.** The first draw *event* of
-  the active player's draw step is marked as it happens (`s.ext.replDrawStepSeen`), so an upkeep draw earlier in the
-  turn does not spend the exemption — and the nested draws a replacement makes are not "the first one you draw".
+* **Both flags are decided by the turn-based draw, not by the step or by the turn's draw count.** `drawStepOnly` and
+  `exceptFirstInDrawStep` speak about the one draw CR 504.1 makes the draw step take, so they are matched against
+  the *first draw event* of the active player's draw step — which is taken before any player receives priority
+  (CR 117.5) and is marked as it happens in `s.ext.replDrawStepSeen`. An upkeep draw earlier in the turn therefore
+  does not spend the exemption, a Yawgmoth's Bargain activated during its controller's own draw step still draws
+  (the skip is not "no draws while the step lasts"), and the nested draws a replacement makes are neither. The
+  family's `draw` step hook sets the same mark right after the turn-based draw, so the window is closed even on a
+  turn where no turn-based draw happened at all (the starting player's first turn).
 
 > **Limitation.** `Game.draw` awaits only in its dredge branch, so the recursive draws are synchronous. A numeric
 > replacement therefore stands down (the single printed draw happens) when that player has a dredge card in their

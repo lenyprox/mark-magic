@@ -85,7 +85,6 @@
     "you-lost-life-this-turn"
   ],
   "triggers": [
-    "blocks",
     "chapter",
     "combat-begin",
     "draw",
@@ -152,7 +151,6 @@
     "energy",
     "exileFromHand",
     "exileOtherFromGraveyard",
-    "payLife",
     "returnToHand",
     "tapCreaturesTotalPower",
     "tapUntappedCreature"

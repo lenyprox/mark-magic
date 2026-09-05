@@ -30,7 +30,8 @@
 //   s.ext.replShieldSeq    number         id counter for shields (a stable handle across a clone)
 //   s.ext.replUntapPending number[]       permanents that have just entered and owe an `enters-untapped` check
 //   s.ext.replDrawApplied  string[]       the draw replacements already applied on the way down to this draw (CR 614.5)
-//   s.ext.replDrawStepSeen "<turn>:<p>"   the active player's draw step has already had its first draw event
+//   s.ext.replDrawStepSeen "<turn>:<p>"   that draw step's turn-based draw window is over (CR 504.1); see `drawHook`
+//   s.ext.replRiderActive  number[]       shields whose "if damage is prevented this way" rider is running (CR 614.5)
 //   o.ext.chosenLandType   string         what `choose-type` chose (the layers family reads it for "is the chosen type")
 //
 // `clone.ts` deep-copies those bags with `plainCopy` and `serialize.ts` round-trips them; nothing here is hidden from
@@ -264,6 +265,19 @@ const noPrevent = (s: GameState): { match?: DamageSource; controller: PlayerId }
 // 4. Matching
 // ---------------------------------------------------------------------------------------------------------------
 
+/**
+ * Would this effect list deal damage at all? Used only to rank the sources a `from.chosen` shield offers (CR 615.10):
+ * a burn spell already on the stack is the source these cards are cast in response to. The walk is over the item's
+ * own `Effect[]`, which is card data (plain JSON, no cycles), and every damage op is named `damage*`.
+ */
+const dealsDamage = (v: unknown): boolean => {
+  if (Array.isArray(v)) return v.some(dealsDamage);
+  if (v === null || typeof v !== 'object') return false;
+  const op = (v as { op?: unknown }).op;
+  if (typeof op === 'string' && op.startsWith('damage')) return true;
+  return Object.values(v as Record<string, unknown>).some(dealsDamage);
+};
+
 /** Does `who` (a controller word read relative to `ctrl`) accept the controller of `o`? */
 function whoOk(who: 'you' | 'opponent' | 'any' | undefined, ctrl: PlayerId, of: PlayerId): boolean {
   return who === undefined || who === 'any' ? true : who === 'you' ? of === ctrl : of !== ctrl;
@@ -377,22 +391,38 @@ function sweepCoreShields(g: Game): boolean {
 // 5. The damage fold (CR 614.1a + CR 615)
 // ---------------------------------------------------------------------------------------------------------------
 
-/** Run a shield's "if damage is prevented this way …" rider with `n` the amount prevented (CR 615.1). */
+/** The shields whose rider is running right now — they may not prevent the damage that rider deals (CR 614.5). */
+const ridersRunning = (s: GameState): number[] => extGetOr<number[]>(s as never, 'replRiderActive', []);
+
+/**
+ * Run a shield's "if damage is prevented this way …" rider with `n` the amount prevented (CR 615.1).
+ *
+ * CR 614.5: a replacement effect does not apply to the events it creates itself, and the damage a rider deals is one
+ * of those events — the rider and the shield are ONE replacement effect (CR 615.1). Without the guard, a rider that
+ * deals its damage into an object the same shield protects ("prevent all damage to creatures you control" + "~ deals
+ * that much damage to any target", aimed at one of those creatures) prevents its own damage, runs the rider again on
+ * what it just prevented, and recurses until the stack overflows. The shield is marked for the length of the
+ * follow-up and `damageHook` skips a marked shield; every OTHER shield still applies, which is what CR 614.5 says.
+ */
 function runFollowUp(g: Game, sh: ShieldState, rider: PreventFollowUp, src: GameObject, target: GameObject | PlayerId, n: number): void {
   const s = g.state;
   const from = chars.findObject(s, sh.sourceId);
-  switch (rider.mode) {
-    case 'gain-life': g.gainLife(sh.controller, n); break;
-    case 'damage-source': if (from && src.zone === 'battlefield') g.dealDamage(from, src, n); break;
-    case 'damage-source-controller': if (from) g.dealDamageToPlayer(from, src.controller, n); break;
-    case 'damage-targets': {
-      if (!from) break;
-      for (const id of sh.targetIds ?? []) { const o = chars.findObject(s, id); if (o && o.zone === 'battlefield') g.dealDamage(from, o, n); }
-      for (const p of sh.targetPlayers ?? []) g.dealDamageToPlayer(from, p, n);
-      break;
+  const busy = ridersRunning(s);
+  extSet(s as never, 'replRiderActive', [...busy, sh.id] as unknown as Json);
+  try {
+    switch (rider.mode) {
+      case 'gain-life': g.gainLife(sh.controller, n); break;
+      case 'damage-source': if (from && src.zone === 'battlefield') g.dealDamage(from, src, n); break;
+      case 'damage-source-controller': if (from) g.dealDamageToPlayer(from, src.controller, n); break;
+      case 'damage-targets': {
+        if (!from) break;
+        for (const id of sh.targetIds ?? []) { const o = chars.findObject(s, id); if (o && o.zone === 'battlefield') g.dealDamage(from, o, n); }
+        for (const p of sh.targetPlayers ?? []) g.dealDamageToPlayer(from, p, n);
+        break;
+      }
+      case 'counters': if (typeof target !== 'number' && target.zone === 'battlefield') g.addCounters(target, rider.counter, n); break;
     }
-    case 'counters': if (typeof target !== 'number' && target.zone === 'battlefield') g.addCounters(target, rider.counter, n); break;
-  }
+  } finally { if (busy.length) extSet(s as never, 'replRiderActive', busy as unknown as Json); else extDel(s as never, 'replRiderActive'); }
 }
 
 function damageHook(g: Game, src: GameObject, target: GameObject | PlayerId, n: number, combat: boolean): number {
@@ -438,10 +468,12 @@ function damageHook(g: Game, src: GameObject, target: GameObject | PlayerId, n: 
     return 0;
   }
   const live = shields(s);
+  const busy = ridersRunning(s);
   for (let i = 0; i < live.length && amount > 0; i++) {
     const sh = live[i];
     const self = chars.findObject(s, sh.sourceId);
     if (!self) continue;
+    if (busy.includes(sh.id)) continue;                                  // CR 614.5: not to the damage its own rider deals
     if (!sourceMatches(s, sh.from, src, sh.controller, combat, self, sh.chosenSourceId)) continue;
     if (sh.toIds ? typeof target === 'number' || !sh.toIds.includes(target.id) : !recipientMatches(s, sh.to, target, sh.controller, self)) continue;
     const prevented = sh.left === 'all' || sh.left === 'next' ? amount : Math.min(sh.left, amount);
@@ -518,20 +550,26 @@ function drawHook(g: Game, p: PlayerId): boolean {
   // used on the way down to this draw, keyed per effect, so two draw doublers give four cards for one draw (the
   // published ruling for stacking them) instead of the two a single "am I re-entrant?" boolean would allow.
   const applied = extGetOr<string[]>(s as never, 'replDrawApplied', []);
-  // CR 121.6 / 504.1: "except the first one you draw in each of your draw steps" is decided by the DRAW STEP, not by
-  // the turn's draw count — an upkeep draw must not spend the exemption. The first draw event of the active player's
-  // draw step is marked here whether or not any replacement claims it; the mark is keyed by turn and player, and the
-  // nested draws a replacement makes never re-mark it (they are not "the first one you draw").
-  const inDrawStep = s.step === 'draw' && s.activePlayer === p;
+  // CR 121.6 / 504.1: BOTH "skip your draw step" and "except the first one you draw in each of your draw steps" are
+  // about one draw — the one the draw step takes as its turn-based action — and not about "any draw while the step
+  // happens". An upkeep draw must not spend the exemption, and an activated ability that draws during its
+  // controller's own draw step (Yawgmoth's Bargain) is nobody's turn-based draw and must not be skipped.
+  //
+  // That draw is the first draw EVENT of the active player's draw step: it is taken before any player receives
+  // priority (CR 117.5), so nothing else can have drawn yet. The mark is keyed by turn and player; the nested draws a
+  // replacement makes carry an `applied` chain and are never "the first one you draw"; and the family's own `draw`
+  // step hook sets the mark right after the turn-based draw, which closes the window even on a turn where no
+  // turn-based draw happened at all (the starting player's first turn, or a draw step some other effect skipped).
   const stepKey = `${s.turn}:${p}`;
-  const firstInDrawStep = inDrawStep && extGet<string>(s as never, 'replDrawStepSeen') !== stepKey;
-  if (inDrawStep && applied.length === 0) extSet(s as never, 'replDrawStepSeen', stepKey);
+  const turnBased = s.step === 'draw' && s.activePlayer === p && applied.length === 0
+    && extGet<string>(s as never, 'replDrawStepSeen') !== stepKey;
+  if (turnBased) extSet(s as never, 'replDrawStepSeen', stepKey);
   for (const { src: self, e, key } of staticsOf(s, 'draw-replacement')) {
     if (applied.includes(key)) continue;                                   // CR 614.5: this one has already applied
     if (e.who === 'you' && p !== self.controller) continue;
     if (e.who === 'opponent' && p === self.controller) continue;
-    if (e.drawStepOnly && !inDrawStep) continue;
-    if (e.exceptFirstInDrawStep && firstInDrawStep) continue;
+    if (e.drawStepOnly && !turnBased) continue;
+    if (e.exceptFirstInDrawStep && turnBased) continue;
     if (e.instead === 'skip') { g.note(`${pl.name} skips the draw (${chars.name(self)}).`); return true; }
     // "draw two cards instead": `Game.draw` only ever awaits in its dredge branch, so the recursion below is
     // synchronous as long as this player has no dredge card in the graveyard. When they do, the replacement stands
@@ -618,13 +656,25 @@ const REPLACEMENT: FamilyModule = {
         // deal damage is a legal choice; the shield's own `from.filter` narrows the list.
         //
         // The ORDER of the candidates is what a shipped agent that just takes the first option ends up choosing, so
-        // it is the useful order rather than the battlefield's: a spell already on the stack (which is what these
-        // cards are almost always cast in response to) first, then permanents another player controls, then the
-        // chooser's own. Nothing legal is removed — the decision still offers every source.
-        const rank = (o: GameObject): number => (o.zone === 'stack' ? 0 : o.controller !== c.p ? 1 : 2);
+        // it is the useful order rather than the battlefield's — the source that is actually about to deal the
+        // damage this shield answers for, as far as the board says:
+        //
+        //   0  a spell on the stack that deals damage (what these cards are almost always cast in response to)
+        //   1  any other spell on the stack
+        //   2  a creature attacking the chooser, 3 one attacking somebody else, 4 one that is blocking
+        //   5  any other permanent another player controls, 6 the chooser's own permanents
+        //
+        // and inside a tier the source that would deal the most damage first (a creature's power), then by id, so
+        // the pick is deterministic — the fuzzer and the goldens need that. Nothing legal is removed: the decision
+        // still offers every source, and a real agent may take any of them.
+        const dmgSpell = new Set(s.stack.filter(it => dealsDamage(it.effects)).map(it => it.source.id));
+        const rank = (o: GameObject): number => (o.zone === 'stack' ? (dmgSpell.has(o.id) ? 0 : 1)
+          : o.controller !== c.p ? (o.attacking !== null ? (o.attacking === c.p ? 2 : 3) : o.blocking.length ? 4 : 5)
+            : 6);
+        const threat = (o: GameObject): number => (chars.isCreature(o) ? chars.power(s, o) : 0);
         const cands = [...chars.allPermanents(s), ...s.stack.map(it => it.source)]
           .filter(o => o.id !== c.src.id && (!e.from?.filter || chars.matchesFilter(s, o, e.from.filter, c.src)) && (e.from?.who === undefined || e.from.who === 'any' || (e.from.who === 'you' ? o.controller === c.p : o.controller !== c.p)))
-          .sort((a, b) => rank(a) - rank(b) || a.id - b.id);
+          .sort((a, b) => rank(a) - rank(b) || threat(b) - threat(a) || a.id - b.id);
         if (cands.length) {
           const pick = await c.g.ask(c.p, { kind: 'choose-cards', from: cands.map(o => o.id), count: 1, reason: `${chars.name(c.src)}: choose a source of damage`, exact: false }) as number[];
           const id = Array.isArray(pick) ? pick[0] : undefined;
@@ -679,9 +729,22 @@ const REPLACEMENT: FamilyModule = {
       // it makes no difference which half of the engine holds the shield, as long as the half that holds it can run
       // the follow-up. The adopted shield is bound to exactly the objects this resolution targeted (`toIds`), which
       // is what "that creature" in the rider means, and behaves like any other shield from there on.
+      //
+      // Only a counter THIS resolution parked may be adopted, which is why the objects are read off the sibling
+      // `prevent-damage` effect of this very item rather than off every target the item chose. A shield another
+      // spell created belongs to that spell's replacement effect (CR 615.1): a Healing Salve's 3 points sitting on
+      // the creature a Divine Deflection merely targets are not this card's to take, and adopting them would delete
+      // the shield that was doing the protecting and re-arm it with this card's rider. When the shield sentence of
+      // this card is the unparsed one, there is no sibling and nothing is adopted — the `unsimulated` path below.
       if (!n) {
         const ids = new Set<number>();
-        for (const refs of c.item.targetsByEffect.values()) for (const t of refs) if (t.kind === 'object') ids.add(t.id);
+        const effs = c.g.effectiveEffects(c.item);
+        for (let i = 0; i < effs.length; i++) {
+          const sib = effs[i];
+          if (sib.op !== 'prevent-damage') continue;
+          if (sib.target === 'self') { ids.add(c.src.id); continue; }
+          for (const t of c.item.targetsByEffect.get(i) ?? []) if (t.kind === 'object') ids.add(t.id);
+        }
         for (const id of ids) {
           const o = chars.findObject(s, id);
           const left = o?.eotFlags.preventDamage;
@@ -763,8 +826,14 @@ const REPLACEMENT: FamilyModule = {
     return changed;
   },
 
-  // CR 514.2: "this turn" shields and "can't be prevented this turn" effects end as the turn does.
   steps: {
+    // CR 504.1: `game.ts` takes the draw step's turn-based draw and then runs this hook, still before any player
+    // receives priority. Once it has fired, every later draw in the step belongs to a spell or an ability, so the
+    // window closes here whether or not a turn-based draw actually happened (the starting player's first turn draws
+    // nothing at all) — see `drawHook` for the `drawStepOnly` / `exceptFirstInDrawStep` half of the same mark.
+    'draw': (g, ap) => { extSet(g.state as never, 'replDrawStepSeen', `${g.state.turn}:${ap}`); },
+
+    // CR 514.2: "this turn" shields and "can't be prevented this turn" effects end as the turn does.
     'cleanup-end': (g) => {
       extDel(g.state as never, 'replShields'); extDel(g.state as never, 'replNoPrevent');
       extDel(g.state as never, 'replUntapPending'); extDel(g.state as never, 'replDrawStepSeen');
