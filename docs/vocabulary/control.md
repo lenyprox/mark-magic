@@ -55,19 +55,34 @@ recomputes, so the family ends its own effects:
 * every `while-*` — the `sba` hook, i.e. the state-based-action loop, which runs after every action and every
   resolution. That is the engine's polling point, not a claim that this is a state-based action.
 
-**The bookkeeping.** A stolen permanent carries `o.ext.controlReturn`, JSON-plain and never hidden (nothing here is
-secret — every player can see who controls what — so the family registers no `redact` hook):
+**The bookkeeping.** A stolen permanent carries `o.ext.controlReturn`: a **stack** of entries, oldest first, one per
+live control-change effect that has a duration. It is JSON-plain and never hidden (nothing here is secret — every
+player can see who controls what — so the family registers no `redact` hook):
 
 ```ts
-{ to: PlayerId; by: PlayerId; until: ControlDuration; src: number; turn: number; counter: string }
+{ to: PlayerId; by: PlayerId; until: ControlDuration; src: number; turn: number; counter: string }[]
 ```
 
-`to` is the controller to hand it back to, `by` the player who gained control (the "you" of "for as long as you
-control ~"), `src` the source object's id (the "~"), `turn` the turn the effect started. A **second** theft over a
-live one keeps the original `to`, so the permanent eventually goes home rather than to the first thief, and a
-`permanent` gain deletes the entry (the newest effect never gives it back — the engine's stand-in for CR 613.7
-timestamp order, which it does not model for control). A permanent that leaves the battlefield is a new object
-(CR 400.7): `moveTo` has already handed it to its owner and the family's `leave` hook drops the entry.
+`to` is the controller to hand the permanent back to when *that* effect ends, `by` the player who gained control (the
+"you" of "for as long as you control ~"), `src` the source object's id (the "~"), `turn` the turn the effect started.
+
+The stack **is** this family's timestamp order (CR 613.1c): each entry records the controller the permanent had the
+instant its own effect applied, i.e. what every older effect still makes of it. So:
+
+* a **second** theft over a live one pushes an entry whose `to` is the *first thief* — when the newer duration ends,
+  the older effect has not, so control reverts to the older thief rather than going home (Act of Treason on the
+  creature a Sower of Temptation is holding; the Sower's controller gets it back at the cleanup step);
+* an effect that ends **underneath** a live one moves nothing — the newer effect still says who controls the
+  permanent — and the entry above it inherits its `to`, so it will hand the permanent to the seat the dead effect
+  had found it on (kill the Sower first and the creature goes to its owner when the Treason wears off);
+* a theft by the player who **already** controls the permanent changes nothing on the battlefield (no note, no
+  `control-gained`), but still pushes an entry when a stack is live, because its later timestamp outranks the older
+  effect;
+* a `permanent` gain clears the whole stack: the newest effect never ends, so nothing under it can ever hand the
+  permanent back.
+
+A permanent that leaves the battlefield is a new object (CR 400.7): `moveTo` has already handed it to its owner and
+the family's `leave` hook drops the whole stack.
 
 ---
 
@@ -141,8 +156,9 @@ timestamp order, which it does not model for control). A permanent that leaves t
 
 Each named player (default `each-player`, APNAP) gains control of every permanent they **own** and do not control,
 matching `filter` (absent = all of them). Homeward Path, Brooding Saurian ("all nontoken permanents they own"),
-Trostani Discordant, Alicia Masters, The Fall of Lord Konda. It clears any `controlReturn` entry it undoes, so a
-duration that was running does not later hand the permanent somewhere else, and it raises `control-gained` too.
+Trostani Discordant, Alicia Masters, The Fall of Lord Konda. It clears the whole `controlReturn` stack of every
+permanent it undoes, so a duration that was running does not later hand the permanent somewhere else, and it raises
+`control-gained` too.
 Like `who` above, it takes no target word — wrap it in a `scoped` if a card ever needs one.
 
 ```json
@@ -328,8 +344,16 @@ declined rather than handed to the engine.
 
 ## 5. What is deliberately not here
 
-* **Timestamps for control (CR 613.7).** Two live control effects on one permanent are approximated: the newest
-  wins, and the oldest recorded `to` is where the permanent goes home. The engine has no timestamp order.
+* **Timestamps for control (CR 613.7) as a general layer.** Two or more live control effects on one permanent ARE
+  ordered here — the `o.ext.controlReturn` stack above is exactly their timestamp order, and CR 613.1c comes out
+  right at any depth. What is missing is that the order is this family's alone. The core's `gain-control` keeps its
+  own one-slot `o.controlUntilEot` and writes no entry, so the two bookkeeping schemes only interleave correctly in
+  one direction: a family effect applied OVER a core end-of-turn theft is fine (the family entry records the core
+  thief, the family hook runs first in the cleanup step and the core wipe then runs), while a core end-of-turn theft
+  applied over a live `while-*` family effect is not — when the family duration ends the family hands the permanent
+  to the seat it recorded, ignoring the newer core effect. Unifying them is a core change (see `coreChangeNeeded` in
+  the phase report). Nothing re-orders an existing stack either: a timestamp here is the order effects were applied
+  in (CR 613.7a), but an effect that acquires a NEW timestamp is not modelled.
 * **A hook on `Game.changeControl`.** `control-gained` sees this family's own control changes only, and
   `control-cant-change` binds this family's own ops only. Both would need a core change (`FamilyModule` has no
   control hook); the family is honest about the boundary rather than pretending to be universal.

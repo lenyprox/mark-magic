@@ -321,6 +321,62 @@ export const control: Scenario[] = [
     script: [{ cast: 'Lightning Bolt' }, { resolve: true }, { attack: ['Hill Giant'] }],
     expect: [{ life: [1, 17] }, { control: ['Hill Giant', 0] }, { keywords: ['Hill Giant', ['haste']] }, { tapped: ['Hill Giant', true] }],
   },
+
+  // ------------------------------------------------------------------ two live control effects on one permanent (CR 613.1c)
+  {
+    // Phase 9.1 re-review: `steal` used to keep only the FIRST live effect's `to`, so the newer duration handed the
+    // permanent all the way home while the older effect was still in force. CR 613.1c / 611.2: control-change
+    // effects apply in timestamp order and each one lasts until its OWN duration ends, so when the newer one ends
+    // the older one is still applying — the permanent goes back to the older thief, not to its owner.
+    name: 'a control duration ending over a still-live one gives the permanent to the older thief (CR 613.1c)', cr: '613.1c',
+    seats: [{ bf: ['Grizzly Bears'] }, { bf: ['Hill Giant'] }, { bf: ['Runeclaw Bear'] }],
+    scripts: {
+      ...bears([{ op: 'control-gain', target: oppCreature, duration: 'eot' }]),
+      'Hill Giant': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'control-gain', target: oppCreature, duration: 'while-source-on-battlefield' }], text: 'control' }] },
+    },
+    script: [
+      { activate: 'Hill Giant', by: 1, targets: [['Runeclaw Bear']] }, { resolve: true },   // P1 takes P2's Bear for as long as the Giant is there
+      { activate: 'Grizzly Bears', targets: [['Runeclaw Bear']] }, { resolve: true },       // P0 takes it from P1 until end of turn
+      { turns: 1 },                                                                         // the cleanup ends only the newer effect
+    ],
+    expect: [{ control: ['Runeclaw Bear', 1] }, { control: ['Hill Giant', 1] }, { log: 'returns to P1 .until end of turn.' }],
+  },
+  {
+    // The other order: the OLDER effect ends first. It is underneath a live one, so nothing moves — the newer effect
+    // still says who controls the permanent (CR 613.1c) — but the seat it will hand the permanent to is now the one
+    // the older effect had recorded. The second theft is by the player who already controls the creature (Act of
+    // Treason on the creature your own Sower of Temptation is holding), which is exactly the case that has no
+    // controller change to hang a new entry on.
+    name: 'a for-as-long-as control effect ending under a live one moves nothing (CR 613.1c)', cr: '613.1c',
+    seats: [{ bf: ['Mountain'], hand: ['Lightning Bolt'] }, { bf: ['Hill Giant', 'Grizzly Bears'] }, { bf: ['Runeclaw Bear'] }],
+    scripts: {
+      'Hill Giant': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'control-gain', target: oppCreature, duration: 'while-source-on-battlefield' }], text: 'control' }] },
+      'Grizzly Bears': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'control-gain', target: { kind: 'creature' }, duration: 'eot' }], text: 'control' }] },
+    },
+    script: [
+      { activate: 'Hill Giant', by: 1, targets: [['Runeclaw Bear']] }, { resolve: true },   // P1 takes P2's Bear for as long as the Giant is there
+      { activate: 'Grizzly Bears', by: 1, targets: [['Runeclaw Bear']] }, { resolve: true }, // P1 takes it again, until end of turn
+      { cast: 'Lightning Bolt', targets: [['Hill Giant']] }, { resolve: true },              // the Giant dies: the older effect ends
+    ],
+    expect: [{ zone: ['Hill Giant', 'graveyard'] }, { control: ['Runeclaw Bear', 1] }, { noLog: 'Runeclaw Bear returns to' }],
+  },
+  {
+    // …and once the newer effect ends too, the permanent goes home to its owner: with the older effect gone, the
+    // seat the end-of-turn effect found the permanent on is the owner's (CR 613.1c, 514.2).
+    name: 'the newer control effect still ends on its own duration once the older one is gone (CR 514.2)', cr: '514.2',
+    seats: [{ bf: ['Mountain'], hand: ['Lightning Bolt'] }, { bf: ['Hill Giant', 'Grizzly Bears'] }, { bf: ['Runeclaw Bear'] }],
+    scripts: {
+      'Hill Giant': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'control-gain', target: oppCreature, duration: 'while-source-on-battlefield' }], text: 'control' }] },
+      'Grizzly Bears': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'control-gain', target: { kind: 'creature' }, duration: 'eot' }], text: 'control' }] },
+    },
+    script: [
+      { activate: 'Hill Giant', by: 1, targets: [['Runeclaw Bear']] }, { resolve: true },
+      { activate: 'Grizzly Bears', by: 1, targets: [['Runeclaw Bear']] }, { resolve: true },
+      { cast: 'Lightning Bolt', targets: [['Hill Giant']] }, { resolve: true },
+      { turns: 1 },
+    ],
+    expect: [{ control: ['Runeclaw Bear', 2] }, { log: 'Runeclaw Bear returns to P2 .until end of turn.' }],
+  },
   {
     name: 'the permanent-you-own-not-control target kind offers exactly the permanents an opponent has taken from you', cr: '115.1',
     seats: [{ bf: ['Grizzly Bears'] }, { bf: ['Hill Giant', 'Mountain'], hand: ['Lightning Bolt'] }],

@@ -14,10 +14,11 @@
 //     Saurian, Trostani Discordant), which is not the end of a duration but an effect in its own right;
 //   * EXCHANGES with a duration and the "two target permanents" single-spec form.
 //
-// State: one JSON-plain entry per stolen permanent, `o.ext.controlReturn` (see `ControlReturn`). Nothing here is
-// hidden information — every player can see who controls what — so the family registers no `redact` hook. `clone.ts`
-// deep-copies the bag and `serialize.ts` round-trips it; a permanent that leaves the battlefield is a new object
-// (CR 400.7) and its entry is dropped by the `leave` hook.
+// State: a JSON-plain STACK of entries per stolen permanent, `o.ext.controlReturn` (see `ControlReturn`), oldest
+// first — one entry per live control-change effect with a duration, which is this family's stand-in for the
+// timestamp order of CR 613.7. Nothing here is hidden information — every player can see who controls what — so the
+// family registers no `redact` hook. `clone.ts` deep-copies the bag and `serialize.ts` round-trips it; a permanent
+// that leaves the battlefield is a new object (CR 400.7) and its whole stack is dropped by the `leave` hook.
 //
 // Where a duration ends:
 //   time-based  `steps.cleanup` (eot, your-next-turn) and `steps['combat-end']` (end-of-combat)
@@ -27,7 +28,7 @@
 //               action in the CR sense; it is the engine's polling point.
 import type { Condition, Ref } from '../../cards/types.js';
 import type { Effect, Filter, FamilyModule, GameObject, GameState, Keyword, PlayerId, TargetRef, TargetSpec } from './types.js';
-import { extDel, extGet, extSet } from './ext.js';
+import { extDel, extGet, extHas, extPush } from './ext.js';
 import { chars } from './chars.js';
 
 // ------------------------------------------------------------------ 1. the AST this family adds
@@ -113,16 +114,26 @@ declare module '../../cards/types.js' {
 // ------------------------------------------------------------------ 3. the ext entry and the duration predicate
 
 /**
- * `o.ext.controlReturn` — what a stolen permanent remembers. JSON-plain (numbers and strings only).
- *   to     the controller to hand it back to when the duration ends (the controller before the FIRST live effect:
- *          a second theft over a live one keeps this, so the permanent goes home rather than to the first thief)
+ * One entry of `o.ext.controlReturn` — what ONE live control-change effect with a duration remembers. JSON-plain
+ * (numbers and strings only).
+ *   to     the controller to hand it back to when THIS effect's duration ends: the controller the permanent had the
+ *          instant this effect applied, i.e. what every OLDER effect still in the stack makes of it (CR 613.1c)
  *   by     the player who gained control — the "you" of "for as long as you control ~"
  *   src    the source object's id — the "~" of "for as long as ~ remains on the battlefield"
  *   turn   the turn the effect started (`your-next-turn`)
  */
 export type ControlReturn = { to: PlayerId; by: PlayerId; until: ControlDuration; src: number; turn: number; counter: string };
 
+/**
+ * The bag key. Its value is a `ControlReturn[]` in timestamp order, oldest first — NOT a single entry: CR 613.1c
+ * applies control-change effects in timestamp order, so a second theft over a still-live first one must give the
+ * permanent back to the FIRST thief when it ends, not to the seat that held it before either effect existed. The
+ * stack is the order; the top of it is the current controller's title.
+ */
 const EXT = 'controlReturn';
+
+/** `o`'s live duration entries, oldest first (the live array — callers that walk it must snapshot). */
+const stackOf = (o: GameObject): ControlReturn[] | undefined => extGet<ControlReturn[]>(o, EXT);
 
 /** Is `d` one of the CR 611.2b conditional durations (the ones the sba hook polls)? */
 const isWhile = (d: ControlDuration): boolean => d.startsWith('while-');
@@ -145,15 +156,27 @@ function whileHolds(s: GameState, o: GameObject, e: { until: ControlDuration; by
   }
 }
 
-/** Every permanent carrying a live entry, as a snapshot (the callers change control while they walk it). */
-function stolen(s: GameState): { o: GameObject; e: ControlReturn }[] {
-  const out: { o: GameObject; e: ControlReturn }[] = [];
-  for (const o of chars.allPermanents(s)) { const e = extGet<ControlReturn>(o, EXT); if (e !== undefined) out.push({ o, e }); }
+/**
+ * Every permanent carrying live entries, as a snapshot of both the object list and each stack (the callers change
+ * control and splice stacks while they walk it). The entry objects themselves are the live ones, so `endControl`
+ * can find them by identity.
+ */
+function stolen(s: GameState): { o: GameObject; es: ControlReturn[] }[] {
+  const out: { o: GameObject; es: ControlReturn[] }[] = [];
+  for (const o of chars.allPermanents(s)) { const es = stackOf(o); if (es !== undefined && es.length) out.push({ o, es: [...es] }); }
   return out;
 }
 
 /**
- * Hand `o` back to `e.to` and forget the entry.
+ * End the ONE effect `e` and forget its entry.
+ *
+ * CR 613.1c / 611.2: the other entries on the stack are effects that have not ended, and they go on applying. So the
+ * permanent moves only when `e` is the TOP entry (the newest live effect — the one whose word is currently law);
+ * ending an effect UNDERNEATH a live one changes nothing on the battlefield, it only rewrites where the effect above
+ * will hand the permanent when its own turn comes: with `e` gone, "the controller before the effect above" is what
+ * `e` recorded, so the entry above inherits `e.to`. That is what keeps Sower of Temptation's creature coming back to
+ * the Sower's controller when an Act of Treason cast on top of it wears off, and going home to its owner instead
+ * once the Sower has died first.
  *
  * CR 800.4a: a player who has left the game controls nothing, and every effect that gave them control of anything has
  * already ended. `leaveGame` only re-homes what the leaver *controlled* at the moment they left, so an entry pointing
@@ -164,7 +187,14 @@ function stolen(s: GameState): { o: GameObject; e: ControlReturn }[] {
  * it is (`leaveGame` exiles what a leaver owns, so that case only arises mid-elimination).
  */
 function endControl(g: { state: GameState; changeControl(o: GameObject, to: PlayerId): void; note(s: string): void }, o: GameObject, e: ControlReturn, why: string): void {
-  extDel(o, EXT);
+  const st = stackOf(o);
+  const i = st ? st.indexOf(e) : -1;
+  if (!st || i < 0) return;                                                       // already ended (a cascade got here first)
+  const top = i === st.length - 1;
+  if (!top) st[i + 1].to = e.to;                                                  // CR 613.1c: the effect above now sits on what this one sat on
+  st.splice(i, 1);
+  if (!st.length) extDel(o, EXT);
+  if (!top) return;                                                               // a newer effect still says who controls it
   const to = !g.state.players[e.to]?.lost ? e.to : g.state.players[o.owner]?.lost ? undefined : o.owner;
   if (to === undefined || o.controller === to) return;
   g.changeControl(o, to);
@@ -247,13 +277,18 @@ async function gainerOf(c: Ctx, e: ControlGainEffect): Promise<PlayerId | undefi
  */
 function steal(g: { state: GameState; changeControl(o: GameObject, to: PlayerId): void; note(s: string): void }, o: GameObject, to: PlayerId, duration: ControlDuration, src: GameObject, counter?: string): boolean {
   const s = g.state;
-  if (o.zone !== 'battlefield' || o.controller === to || lockedDown(s, o)) return false;
+  if (o.zone !== 'battlefield' || lockedDown(s, o)) return false;
   if (s.players[to]?.lost) return false;                                          // CR 800.4a: a seat that has left the game controls nothing
   // CR 611.2b: a duration that has already ended never starts the effect (Sower of Temptation that died in response)
   if (!whileHolds(s, o, { until: duration, by: to, src: src.id, counter })) return false;
-  const prev = extGet<ControlReturn>(o, EXT);
-  if (duration === 'permanent') extDel(o, EXT);                                   // the newest effect never ends: it never gives the permanent back
-  else extSet<ControlReturn>(o, EXT, { to: prev?.to ?? o.controller, by: to, until: duration, src: src.id, turn: s.turn, counter: counter ?? '' });
+  const same = o.controller === to;                                               // it is already theirs; only the TIMESTAMP is new
+  if (duration === 'permanent') extDel(o, EXT);                                   // the newest effect never ends: nothing under it can ever hand it back
+  // A new entry records the controller it found (CR 613.1c — see `endControl`). When `to` already controls the
+  // permanent the entry is worth keeping only over a live stack, where it outranks the older effect and so keeps the
+  // permanent here when that one ends (Act of Treason on the creature your own Sower of Temptation is holding);
+  // over a bare permanent it would record `to` returning it to `to`, so it is not written at all.
+  else if (!same || extHas(o, EXT)) extPush<ControlReturn>(o, EXT, { to: o.controller, by: to, until: duration, src: src.id, turn: s.turn, counter: counter ?? '' });
+  if (same) return false;                                                         // nothing changed hands: no note, no `control-gained` (CR 603.2)
   g.changeControl(o, to);
   return true;
 }
@@ -374,13 +409,13 @@ const CONTROL: FamilyModule = {
     // CR 514.2: "until end of turn" effects end during the cleanup step. `your-next-turn` ends at the cleanup of a
     // LATER turn of the player who gained control, so a theft on your own turn survives that turn (CR 611.2).
     cleanup: (g, ap) => {
-      for (const { o, e } of stolen(g.state)) {
+      for (const { o, es } of stolen(g.state)) for (const e of es) {
         if (e.until === 'eot') endControl(g, o, e, 'until end of turn');
         else if (e.until === 'your-next-turn' && ap === e.by && g.state.turn > e.turn) endControl(g, o, e, 'until the end of your next turn');
       }
     },
     // CR 511.3: "until end of combat" effects end as the combat phase ends.
-    'combat-end': (g) => { for (const { o, e } of stolen(g.state)) if (e.until === 'end-of-combat') endControl(g, o, e, 'until end of combat'); },
+    'combat-end': (g) => { for (const { o, es } of stolen(g.state)) for (const e of es) if (e.until === 'end-of-combat') endControl(g, o, e, 'until end of combat'); },
   },
 
   // CR 611.2b: a "for as long as" duration ends the moment its condition stops holding. Control is a field on the
@@ -388,7 +423,7 @@ const CONTROL: FamilyModule = {
   // where that is noticed. Returning true makes checkSBA run again, and the entry is gone, so it cannot loop.
   sba: (g) => {
     let changed = false;
-    for (const { o, e } of stolen(g.state)) if (isWhile(e.until) && !whileHolds(g.state, o, e)) { endControl(g, o, e, e.until); changed = true; }
+    for (const { o, es } of stolen(g.state)) for (const e of es) if (isWhile(e.until) && !whileHolds(g.state, o, e)) { endControl(g, o, e, e.until); changed = true; }
     return changed;
   },
 
