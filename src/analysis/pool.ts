@@ -35,7 +35,7 @@ export interface AnalyzeOptions {
 export interface AnalysisHandle { requestId: string; quick: Promise<AnalysisReport>; done: Promise<AnalysisReport> }
 
 interface Job { candidateId: string; req: McRequest }
-interface Slot { worker: WorkerLike; busy: Job | null; ready: boolean }
+interface Slot { worker: WorkerLike; busy: Job | null; ready: boolean; dead: boolean }
 
 export class AnalysisPool {
   private slots: Slot[] = [];
@@ -44,23 +44,29 @@ export class AnalysisPool {
   private current: { requestId: string; report: AnalysisReport; results: Map<string, TrialResult[]>; jobs: Job[]; pending: number; snapshot: Omit<Extract<ToWorker, { type: 'mc' }>, 'type' | 'requestId' | 'req'>; opts: AnalyzeOptions; resolveDone: (r: AnalysisReport) => void } | null = null;
   private lastEmit = 0; private emitTimer: ReturnType<typeof setTimeout> | null = null;
   private waiters = new Map<string, (m: FromWorker) => void>();
+  /** The slot the current `quick` request went to: only that worker can answer it. */
+  private quickSlot: Slot | null = null;
   readonly size: number;
 
   constructor(factory: () => WorkerLike, size = 1) {
     this.size = Math.max(1, size);
     for (let i = 0; i < this.size; i++) {
-      const worker = factory(); const slot: Slot = { worker, busy: null, ready: false };
+      const worker = factory(); const slot: Slot = { worker, busy: null, ready: false, dead: false };
       worker.onmessage = ev => this.onMessage(slot, ev.data);
       this.slots.push(slot);
     }
   }
 
-  /** Load the card definitions into every worker; resolves when all are ready. */
+  /** Load the card definitions into every worker; resolves when all are ready, rejects if one dies before answering. */
   init(defs: Iterable<CardDef>): Promise<void> {
     const list = [...defs];
-    return Promise.all(this.slots.map(s => new Promise<void>(res => { const key = `ready:${this.slots.indexOf(s)}`; this.waiters.set(key, () => { s.ready = true; this.waiters.delete(key); res(); }); s.worker.postMessage({ type: 'init', defs: list }); }))).then(() => undefined);
+    return Promise.all(this.slots.map((s, i) => new Promise<void>((res, rej) => {
+      const key = `ready:${i}`;
+      this.waiters.set(key, m => { this.waiters.delete(key); if (m.type === 'error') rej(new Error(m.message)); else { s.ready = true; res(); } });
+      s.worker.postMessage({ type: 'init', defs: list });
+    }))).then(() => undefined);
   }
-  addDefs(defs: Iterable<CardDef>) { const list = [...defs]; for (const s of this.slots) s.worker.postMessage({ type: 'add-defs', defs: list }); }
+  addDefs(defs: Iterable<CardDef>) { const list = [...defs]; for (const s of this.slots) if (!s.dead) s.worker.postMessage({ type: 'add-defs', defs: list }); }
 
   /** Start an analysis: the quick report resolves first, MC updates follow via `onUpdate`, `done` resolves when all trials finished. */
   analyze(input: AnalyzeRequest, opts: AnalyzeOptions = {}): AnalysisHandle {
@@ -68,11 +74,15 @@ export class AnalysisPool {
     const gen = ++this.generation;
     const requestId = `a${gen}-${++this.counter}`;
     const defs = [...collectDefs(input.state).values()];
-    for (const s of this.slots) s.worker.postMessage({ type: 'add-defs', defs });
+    for (const s of this.slots) if (!s.dead) s.worker.postMessage({ type: 'add-defs', defs });
     const snapshot = { snapshot: serializeState(input.state), viewer: input.viewer, model: input.model, myList: input.myList };
     let resolveDone!: (r: AnalysisReport) => void;
     const done = new Promise<AnalysisReport>(res => { resolveDone = res; });
+    // The quick pass runs on one worker; a dead one could never answer it, so pick a live slot and remember which.
+    const head = this.slots.find(s => !s.dead);
+    this.quickSlot = head ?? null;
     const quick = new Promise<AnalysisReport>((res, rej) => {
+      if (!head) { rej(new Error('every analysis worker has died')); resolveDone(null as unknown as AnalysisReport); return; }
       this.waiters.set(`quick:${requestId}`, m => {
         this.waiters.delete(`quick:${requestId}`);
         if (m.type === 'error') { rej(new Error(m.message)); resolveDone(null as unknown as AnalysisReport); return; }
@@ -83,7 +93,7 @@ export class AnalysisPool {
         this.scheduleMc(report, input, opts);
       });
     });
-    this.slots[0].worker.postMessage({ type: 'quick', requestId, baseSeed: input.baseSeed, maxCandidates: opts.candidates, maxSims: opts.maxSims, ...snapshot });
+    head?.worker.postMessage({ type: 'quick', requestId, baseSeed: input.baseSeed, maxCandidates: opts.candidates, maxSims: opts.maxSims, ...snapshot });
     return { requestId, quick, done };
   }
 
@@ -104,14 +114,18 @@ export class AnalysisPool {
   private pump() {
     const cur = this.current; if (!cur) return;
     for (const slot of this.slots) {
-      if (slot.busy || !cur.jobs.length) continue;
+      if (slot.busy || slot.dead || !cur.jobs.length) continue;
       const job = cur.jobs.shift()!; slot.busy = job;
       slot.worker.postMessage({ type: 'mc', requestId: cur.requestId, req: job.req, ...cur.snapshot });
     }
   }
 
   private onMessage(slot: Slot, m: FromWorker) {
+    if (slot.dead) return;
     if (m.type === 'ready') { this.waiters.get(`ready:${this.slots.indexOf(slot)}`)?.(m); return; }
+    // An error naming no request is the worker itself going down: it will never answer anything again, and whatever
+    // it was running would otherwise leave `init`, `quick`, `done` or a `rerun` pending for good.
+    if (m.type === 'error' && !m.requestId) { this.killSlot(slot, m.message); return; }
     if (m.type === 'error' && m.requestId?.startsWith('rerun')) { this.waiters.get(m.requestId)?.(m); return; }
     if (m.type === 'quick-result' || (m.type === 'error' && m.requestId && this.waiters.has(`quick:${m.requestId}`))) { this.waiters.get(`quick:${m.requestId}`)?.(m); return; }
     if ((m.type === 'mc-batch' || m.type === 'mc-done') && m.requestId.startsWith('rerun')) { this.waiters.get(m.requestId)?.(m); if (m.type === 'mc-done') slot.busy = null; this.pump(); return; }
@@ -120,6 +134,34 @@ export class AnalysisPool {
     if (m.type === 'mc-batch') { cur.results.get(m.candidateId)?.push(...m.results); this.refresh(m.candidateId); this.emit(); }
     if (m.type === 'mc-done') { slot.busy = null; cur.pending--; if (cur.pending <= 0) this.finish(); else this.pump(); }
     if (m.type === 'error') { cur.report.warnings.push(`worker error: ${m.message}`); slot.busy = null; cur.pending--; if (cur.pending <= 0) this.finish(); else this.pump(); }
+  }
+
+  /**
+   * Retire a worker that died on us. Its in-flight MC chunk is charged to the current analysis (so `done` still
+   * settles), and anything only this worker -- or, once every worker is gone, any worker -- could have answered is
+   * failed with its message instead of left pending.
+   */
+  private killSlot(slot: Slot, message: string) {
+    if (slot.dead) return;
+    slot.dead = true;
+    const busy = slot.busy; slot.busy = null;
+    slot.worker.onmessage = null;
+    const allDead = this.slots.every(s => s.dead);
+    const err: FromWorker = { type: 'error', message };
+    this.waiters.get(`ready:${this.slots.indexOf(slot)}`)?.(err); // died before answering init
+    // The quick pass only ever went to one worker; a rerun went to some idle one, so only give up on a rerun when
+    // there is no worker left that could still answer it.
+    for (const [key, w] of [...this.waiters]) {
+      if (allDead || (key.startsWith('quick:') && this.quickSlot === slot)) { this.waiters.delete(key); w(err); }
+    }
+    const cur = this.current;
+    if (cur) {
+      cur.report.warnings.push(`worker error: ${message}`);
+      if (busy) cur.pending--;
+      if (allDead) { cur.jobs.length = 0; cur.pending = 0; }
+      if (cur.pending <= 0) { this.finish(); return; }
+    }
+    this.pump();
   }
 
   /** Recompute a candidate's MC estimates from its accumulated trials. */
@@ -151,7 +193,7 @@ export class AnalysisPool {
 
   /** Drop the current analysis: workers stop at their next trial boundary and stale messages are ignored. */
   cancel() {
-    if (this.current) { const cur = this.current; this.current = null; for (const s of this.slots) s.worker.postMessage({ type: 'cancel', requestId: cur.requestId }); cur.resolveDone(cur.report); }
+    if (this.current) { const cur = this.current; this.current = null; for (const s of this.slots) if (!s.dead) s.worker.postMessage({ type: 'cancel', requestId: cur.requestId }); cur.resolveDone(cur.report); }
     if (this.emitTimer) { clearTimeout(this.emitTimer); this.emitTimer = null; }
     this.generation++;
   }
@@ -160,7 +202,8 @@ export class AnalysisPool {
   rerun(req: McRequest, snapshot: AnalyzeRequest): Promise<TrialResult[]> {
     const requestId = `rerun-${++this.counter}`;
     const defs = [...collectDefs(snapshot.state).values()];
-    const slot = this.slots.find(s => !s.busy) ?? this.slots[this.slots.length - 1];
+    const slot = this.slots.find(s => !s.dead && !s.busy) ?? this.slots.find(s => !s.dead);
+    if (!slot) return Promise.reject(new Error('every analysis worker has died'));
     const results: TrialResult[] = [];
     return new Promise<TrialResult[]>((res, rej) => {
       this.waiters.set(requestId, m => {
@@ -174,7 +217,13 @@ export class AnalysisPool {
     });
   }
 
-  dispose() { this.cancel(); for (const s of this.slots) s.worker.terminate(); this.slots = []; }
+  /** Cancel, terminate every worker and fail anything still waiting on one, so no promise is left open. */
+  dispose() {
+    this.cancel();
+    for (const s of this.slots) { s.dead = true; s.busy = null; s.worker.onmessage = null; s.worker.terminate(); }
+    this.slots = []; this.quickSlot = null;
+    for (const [key, w] of [...this.waiters]) { this.waiters.delete(key); w({ type: 'error', message: 'analysis pool disposed' }); }
+  }
 }
 
 /** Default pool size for a browser: leave one core for the UI. */

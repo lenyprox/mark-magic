@@ -19,6 +19,7 @@ import { redactEvent, type GameEvent } from '@engine/events';
 import { defTable, deserializeState, serializeState, type SerializedState } from '@engine/serialize';
 import { AnalysisPool, inlineWorker, defaultPoolSize, type WorkerLike } from '@analysis/pool';
 import type { AnalysisReport, ListEntry, McRequest, OpponentModel } from '@analysis/types';
+import type { FromWorker } from '@analysis/protocol';
 import { buildView } from '@play/view';
 import { expandPayload, isCommanderMatch, splitPayload } from '@play/payload';
 import type { MainToWorker, WorkerToMain, StartOptions, DeckPayload, UndoAvailability } from '@play/protocol';
@@ -115,10 +116,20 @@ function listOf(p: DeckPayload): ListEntry[] {
 
 function makeAnalysisWorker(): WorkerLike {
   if (typeof Worker === 'undefined') return inlineWorker();
-  try {
-    const w = new Worker(new URL('./analysis.worker.ts', import.meta.url), { type: 'module' });
-    return w as unknown as WorkerLike;
-  } catch { return inlineWorker(); }
+  let w: Worker;
+  try { w = new Worker(new URL('./analysis.worker.ts', import.meta.url), { type: 'module' }); }
+  catch { return inlineWorker(); }
+  // As in lib/sim/batchClient.ts: a nested worker that fails to load fires 'error' rather than posting anything, and
+  // the pool needs the bare protocol error to know the slot is gone instead of waiting on it for ever.
+  const like: WorkerLike = {
+    onmessage: null,
+    postMessage(msg) { w.postMessage(msg); },
+    terminate() { like.onmessage = null; w.terminate(); },
+  };
+  w.onmessage = ev => like.onmessage?.({ data: ev.data as FromWorker });
+  w.onerror = e => like.onmessage?.({ data: { type: 'error', message: e.message || 'analysis worker failed to load' } });
+  w.onmessageerror = () => like.onmessage?.({ data: { type: 'error', message: 'analysis worker sent an unreadable message' } });
+  return like;
 }
 
 function opponentModel(): OpponentModel {

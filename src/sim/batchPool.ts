@@ -30,7 +30,7 @@ export interface BatchRunOptions {
 }
 export interface BatchHandle { jobId: string; result: Promise<MatchResult>; cancel(): void; readonly cancelled: boolean }
 
-interface Slot { worker: BatchWorkerLike; busy: string | null; ready: boolean }
+interface Slot { worker: BatchWorkerLike; busy: string | null; ready: boolean; dead: boolean }
 interface ReadyWaiter { resolve: () => void; reject: (e: Error) => void }
 interface Job {
   id: string; spec: MatchSpec; chunks: { id: string; gameStart: number; games: number; indices?: number[] }[]; pendingChunks: number; loaded: number;
@@ -50,7 +50,7 @@ export class BatchPool {
   constructor(factory: () => BatchWorkerLike, size = 1) {
     this.size = Math.max(1, size);
     for (let i = 0; i < this.size; i++) {
-      const worker = factory(); const slot: Slot = { worker, busy: null, ready: false };
+      const worker = factory(); const slot: Slot = { worker, busy: null, ready: false, dead: false };
       worker.onmessage = ev => this.onMessage(slot, ev.data);
       worker.postMessage({ type: 'init' });
       this.slots.push(slot);
@@ -63,6 +63,9 @@ export class BatchPool {
     if (this.slots.every(s => s.ready)) return Promise.resolve();
     return new Promise((resolve, reject) => this.readyWaiters.push({ resolve, reject }));
   }
+
+  /** Slots that can still answer a message (a dead worker is one that errored or exited on us). */
+  private live(): number { return this.slots.reduce((n, s) => n + (s.dead ? 0 : 1), 0); }
 
   /** A worker that never booted (a loader failure in the thread, an exit) can never answer init: fail the waiters. */
   private failStartup(message: string) {
@@ -83,7 +86,10 @@ export class BatchPool {
     const job: Job = { id, spec, chunks, pendingChunks: chunks.length, loaded: 0, records: [], started: Date.now(), cancelled: false, opts, lastEmit: 0, emitTimer: null, resolve, reject, errors: [] };
     this.jobs.set(id, job);
     if (!chunks.length) { this.finish(job); }
-    else for (const s of this.slots) s.worker.postMessage({ type: 'load', jobId: id, spec });
+    // Every worker is gone (they died, or the pool was disposed): nothing can ever run these chunks. Settle on the
+    // next turn so the caller has its handle — and its rejection handler — before the promise settles.
+    else if (!this.live()) setTimeout(() => this.fail(job, this.startupError ?? 'every batch worker has died'), 0);
+    else for (const s of this.slots) if (!s.dead) s.worker.postMessage({ type: 'load', jobId: id, spec });
     const handle: BatchHandle = { jobId: id, result, cancel: () => this.cancel(id), get cancelled() { return job.cancelled; } };
     return handle;
   }
@@ -91,7 +97,7 @@ export class BatchPool {
   cancel(jobId: string) {
     const job = this.jobs.get(jobId); if (!job || job.cancelled) return;
     job.cancelled = true; job.chunks.length = 0;
-    for (const s of this.slots) s.worker.postMessage({ type: 'cancel', jobId });
+    for (const s of this.slots) if (!s.dead) s.worker.postMessage({ type: 'cancel', jobId });
     // chunks that never started are dropped now; running ones report chunk-done when they stop
     const running = this.slots.filter(s => s.busy?.startsWith(`${jobId}/`)).length;
     job.pendingChunks = running;
@@ -100,8 +106,8 @@ export class BatchPool {
 
   private pump() {
     for (const slot of this.slots) {
-      if (slot.busy || !slot.ready) continue;
-      const job = [...this.jobs.values()].find(j => j.chunks.length && j.loaded >= this.size && !j.cancelled);
+      if (slot.busy || !slot.ready || slot.dead) continue;
+      const job = [...this.jobs.values()].find(j => j.chunks.length && j.loaded >= this.live() && !j.cancelled);
       if (!job) return;
       const c = job.chunks.shift()!; slot.busy = c.id;
       slot.worker.postMessage({ type: 'run', jobId: job.id, chunkId: c.id, gameStart: c.gameStart, games: c.games, indices: c.indices });
@@ -109,6 +115,7 @@ export class BatchPool {
   }
 
   private onMessage(slot: Slot, m: FromBatchWorker) {
+    if (slot.dead) return;
     if (m.type === 'ready') { slot.ready = true; if (this.slots.every(s => s.ready)) { const w = this.readyWaiters; this.readyWaiters = []; for (const r of w) r.resolve(); } this.pump(); return; }
     if (m.type === 'loaded') { const job = this.jobs.get(m.jobId); if (job) { job.loaded++; this.pump(); } return; }
     const job = 'jobId' in m && m.jobId ? this.jobs.get(m.jobId) : undefined;
@@ -120,10 +127,38 @@ export class BatchPool {
     }
     if (m.type === 'error') {
       if (!slot.ready) this.failStartup(m.message);
+      // An error naming neither a job nor a chunk is the worker itself going down (a thread 'error' or 'exit'): it
+      // will never answer again, so retiring the slot is the only way its busy chunk ever settles.
+      if (!m.jobId && !m.chunkId) { this.killSlot(slot, m.message); return; }
       if (m.chunkId && slot.busy === m.chunkId) slot.busy = null;
       if (job) { job.errors.push(m.message); if (m.chunkId) { job.pendingChunks--; if (job.pendingChunks <= 0) this.finish(job); } else if (!job.loaded) { this.jobs.delete(job.id); job.reject(new Error(m.message)); } }
       this.pump();
     }
+  }
+
+  /**
+   * Retire a worker that died on us: pump() stops feeding it, the chunk it was running is charged to its job (which
+   * can no longer complete, so the run rejects with the worker's message), and if it was the last live worker every
+   * remaining job rejects too rather than waiting for a message that can never arrive.
+   */
+  private killSlot(slot: Slot, message: string) {
+    if (slot.dead) return;
+    slot.dead = true;
+    const busy = slot.busy; slot.busy = null;
+    slot.worker.onmessage = null;
+    const doomed = new Set<Job>();
+    if (busy) { const j = [...this.jobs.values()].find(x => busy.startsWith(`${x.id}/`)); if (j) doomed.add(j); }
+    if (!this.live()) for (const j of this.jobs.values()) doomed.add(j);
+    for (const j of doomed) this.fail(j, message);
+    this.pump();
+  }
+
+  /** Settle a job as a failure: drop it, stop its timer and reject its result promise. */
+  private fail(job: Job, message: string) {
+    if (!this.jobs.has(job.id)) return;
+    this.jobs.delete(job.id);
+    if (job.emitTimer) { clearTimeout(job.emitTimer); job.emitTimer = null; }
+    job.reject(new Error(message));
   }
 
   private emit(job: Job, final = false) {
@@ -142,14 +177,23 @@ export class BatchPool {
     if (!this.jobs.has(job.id)) return;
     this.jobs.delete(job.id);
     if (job.emitTimer) { clearTimeout(job.emitTimer); job.emitTimer = null; }
-    for (const s of this.slots) s.worker.postMessage({ type: 'unload', jobId: job.id });
+    for (const s of this.slots) if (!s.dead) s.worker.postMessage({ type: 'unload', jobId: job.id });
     if (job.errors.length && !job.records.length) { job.reject(new Error(job.errors[0])); return; }
     const result = assembleResult(job.spec, job.records, Date.now() - job.started);
     if (job.errors.length) result.derivation.assumptions.push(`${job.errors.length} worker error(s): ${job.errors[0]}`);
     job.resolve(result);
   }
 
-  dispose() { for (const j of [...this.jobs.values()]) this.cancel(j.id); for (const s of this.slots) s.worker.terminate(); this.slots = []; this.failStartup('batch pool disposed'); }
+  /** Terminate every worker and settle every outstanding job; nothing is left waiting on a worker that is gone. */
+  dispose() {
+    for (const j of [...this.jobs.values()]) this.cancel(j.id);
+    for (const s of this.slots) { s.dead = true; s.busy = null; s.worker.onmessage = null; s.worker.terminate(); }
+    // cancel() leaves a job pending until the worker running its chunk reports back; those workers are gone now, so
+    // close the rest here with whatever they had rather than leaving their promises open for good.
+    for (const j of [...this.jobs.values()]) this.finish(j);
+    this.slots = [];
+    this.failStartup('batch pool disposed');
+  }
 }
 
 /** Default pool size: leave one core for the UI (browser) or the main thread (Node). */

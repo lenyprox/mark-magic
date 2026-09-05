@@ -31,7 +31,7 @@
     "golden:accept": "tsx scripts/golden.ts --accept",
     "fidelity:check": "tsx scripts/fidelity.ts",
     "fidelity:accept": "tsx scripts/fidelity.ts --accept",
-    "verify:deep": "npm run golden:check && npm run fidelity:check",
+    "verify:deep": "echo \"verify:deep covers the goldens and the fidelity ratchet only - the fuzz [phase 8f] and Playwright [phase 8i] legs join this gate when those phases land\" && npm run golden:check && npm run fidelity:check",
     "bench:games": "tsx scripts/bench-games.ts",
     "test:scenarios": "node --test --import tsx test/scenarios.test.ts",
     "verify:scenarios": "tsx scripts/verify-scenarios.ts",

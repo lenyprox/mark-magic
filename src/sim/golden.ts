@@ -32,7 +32,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
   { name: 'mono-red-burn-vs-mono-green-stompy', decks: ['mono-red-burn', 'mono-green-stompy'], games: 30, seed: 11, maxTurns: 30 },
   { name: 'ub-control-vs-wu-fliers', decks: ['ub-control', 'wu-fliers'], games: 30, seed: 12, maxTurns: 30 },
   // a turn is one player's turn, so a pod needs proportionally more of them (the sim:batch rule: 30 * seats / 2)
-  { name: 'mono-red-burn-vs-mono-green-stompy-vs-ub-control', decks: ['mono-red-burn', 'mono-green-stompy', 'ub-control'], games: 20, seed: 13, maxTurns: 45 },
+  { name: 'mono-red-burn-vs-mono-green-stompy-vs-ub-control', decks: ['mono-red-burn', 'mono-green-stompy', 'ub-control'], games: 30, seed: 13, maxTurns: 45 },
 ];
 
 /** One game's fingerprint. `turnHashes[k]` covers turn k's log lines; index 0 is everything before turn 1 (setup). */

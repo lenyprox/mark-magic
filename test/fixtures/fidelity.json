@@ -111,56 +111,68 @@
    ],
    "seed": 22,
    "games": 60,
-   "hitsPerGame": 14.317,
-   "ceiling": 14.317,
+   "hitsPerGame": 16.117,
+   "ceiling": 16.117,
    "topClauses": [
     {
      "card": "Nissa, Who Shakes the World",
      "clause": "It becomes a 0/0 Elemental creature with vigilance and haste that's still a land.",
-     "hits": 121,
-     "games": 16
+     "hits": 131,
+     "games": 19
     },
     {
      "card": "Quintorius, History Chaser",
      "clause": "If you do, draw two cards, then mill a card.",
-     "hits": 76,
-     "games": 12
-    },
-    {
-     "card": "Augusta, Order Returned",
-     "clause": "When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature.",
-     "hits": 37,
-     "games": 7
-    },
-    {
-     "card": "Augusta, Order Returned",
-     "clause": "each player exiles a card from their graveyard.",
-     "hits": 37,
-     "games": 7
+     "hits": 88,
+     "games": 14
     },
     {
      "card": "Quintorius, Loremaster",
      "clause": "exile target noncreature, nonland card from your graveyard.",
-     "hits": 36,
-     "games": 11
+     "hits": 51,
+     "games": 12
     },
     {
      "card": "Guardian Scalelord",
      "clause": "return target nonland permanent card with mana value X or less from your graveyard to the battlefield, where X is ~'s power.",
-     "hits": 35,
+     "hits": 40,
      "games": 11
+    },
+    {
+     "card": "Augusta, Order Returned",
+     "clause": "When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature.",
+     "hits": 40,
+     "games": 8
+    },
+    {
+     "card": "Augusta, Order Returned",
+     "clause": "each player exiles a card from their graveyard.",
+     "hits": 40,
+     "games": 8
     },
     {
      "card": "Conspiracy Theorist",
      "clause": "If you do, draw a card.",
-     "hits": 23,
-     "games": 6
+     "hits": 25,
+     "games": 8
     },
     {
      "card": "Conspiracy Theorist",
      "clause": "you may pay {1} and discard a card.",
-     "hits": 23,
-     "games": 6
+     "hits": 25,
+     "games": 8
+    },
+    {
+     "card": "Mightform Harmonizer",
+     "clause": "double the power of target creature you control until end of turn.",
+     "hits": 24,
+     "games": 9
+    },
+    {
+     "card": "Emeritus of Abundance // Regrowth",
+     "clause": "~ becomes prepared.",
+     "hits": 24,
+     "games": 5
     },
     {
      "card": "Excava, the Risen Past",
@@ -177,32 +189,20 @@
     {
      "card": "Horizon Explorer",
      "clause": "create a Lander token.",
-     "hits": 20,
-     "games": 4
+     "hits": 21,
+     "games": 5
     },
     {
      "card": "Vanguard of the Restless",
      "clause": "If you do, return ~ from your graveyard to the battlefield.",
-     "hits": 19,
-     "games": 4
+     "hits": 21,
+     "games": 5
     },
     {
      "card": "Vanguard of the Restless",
      "clause": "you may pay {2}{W}.",
-     "hits": 19,
-     "games": 4
-    },
-    {
-     "card": "Emeritus of Abundance // Regrowth",
-     "clause": "~ becomes prepared.",
-     "hits": 19,
-     "games": 3
-    },
-    {
-     "card": "Mightform Harmonizer",
-     "clause": "double the power of target creature you control until end of turn.",
-     "hits": 17,
-     "games": 8
+     "hits": 21,
+     "games": 5
     }
    ]
   },
@@ -319,19 +319,19 @@
    ],
    "seed": 24,
    "games": 60,
-   "hitsPerGame": 19.833,
-   "ceiling": 19.833,
+   "hitsPerGame": 20.517,
+   "ceiling": 20.517,
    "topClauses": [
     {
      "card": "Quintorius, History Chaser",
      "clause": "If you do, draw two cards, then mill a card.",
-     "hits": 54,
-     "games": 13
+     "hits": 64,
+     "games": 15
     },
     {
      "card": "Nissa, Who Shakes the World",
      "clause": "It becomes a 0/0 Elemental creature with vigilance and haste that's still a land.",
-     "hits": 50,
+     "hits": 51,
      "games": 13
     },
     {
@@ -347,34 +347,40 @@
      "games": 11
     },
     {
+     "card": "Sergeant John Benton",
+     "clause": "you and that player each draw that many cards.",
+     "hits": 38,
+     "games": 8
+    },
+    {
      "card": "Augusta, Order Returned",
      "clause": "When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature.",
-     "hits": 35,
-     "games": 8
+     "hits": 37,
+     "games": 9
     },
     {
      "card": "Augusta, Order Returned",
      "clause": "each player exiles a card from their graveyard.",
-     "hits": 35,
-     "games": 8
+     "hits": 37,
+     "games": 9
     },
     {
      "card": "Betor, Kin to All",
      "clause": "Then if creatures you control have total toughness 20 or greater, untap each creature you control.",
-     "hits": 31,
-     "games": 9
+     "hits": 33,
+     "games": 10
     },
     {
      "card": "Betor, Kin to All",
      "clause": "Then if creatures you control have total toughness 40 or greater, each opponent loses half their life, rounded up.",
-     "hits": 31,
-     "games": 9
+     "hits": 33,
+     "games": 10
     },
     {
-     "card": "Sergeant John Benton",
-     "clause": "you and that player each draw that many cards.",
-     "hits": 30,
-     "games": 6
+     "card": "Horizon Explorer",
+     "clause": "create a Lander token.",
+     "hits": 27,
+     "games": 8
     },
     {
      "card": "Gandalf the Grey",
@@ -383,16 +389,10 @@
      "games": 8
     },
     {
-     "card": "Horizon Explorer",
-     "clause": "create a Lander token.",
-     "hits": 24,
-     "games": 7
-    },
-    {
      "card": "Antiquities on the Loose",
      "clause": "Then if ~ was cast from anywhere other than your hand, put a +1/+1 counter on each Spirit you control.",
-     "hits": 19,
-     "games": 12
+     "hits": 21,
+     "games": 13
     },
     {
      "card": "Conspiracy Theorist",

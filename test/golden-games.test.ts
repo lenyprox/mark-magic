@@ -25,6 +25,9 @@ test('golden: the mono-red / mono-green pair reproduces its committed fingerprin
   assert.equal(games.length, c.games);
   assert.ok(games.every(g => g.turnHashes.length > 1), 'every golden game logged at least one turn');
   const diffs = compareGolden(fixture.games, games, logs);
-  const first = diffs[0];
-  assert.equal(diffs.length, 0, first ? `game ${first.index} changed (${first.fields.join('; ')}), first differing turn ${first.turn}:\n${first.lines.join('\n')}` : '');
+  // Name every changed game, not just the first: one engine change usually moves a whole family of games, and the
+  // list of (index, first differing turn) pairs is what says whether it moved one card or the whole event stream.
+  const where = (t: number | null) => (t === null ? 'no turn hash moved' : t === 0 ? 'first differs in the pre-game' : `first differing turn ${t}`);
+  const listed = diffs.map(d => `  game ${d.index}: ${d.fields.join('; ')} (${where(d.turn)})`).join('\n');
+  assert.equal(diffs.length, 0, diffs.length ? `${diffs.length} of ${games.length} golden game(s) changed:\n${listed}\n\ngame ${diffs[0].index}, turn ${diffs[0].turn}:\n${diffs[0].lines.join('\n')}\n\nreview with npm run golden:check, then npm run golden:accept` : '');
 });
