@@ -45,13 +45,13 @@ const CARDS: [name: string, primary: Family | null][] = [
   ['Comet Storm', 'named-keyword:multikicker'],
   ['Leyline of Anticipation', 'other'],
   ['Toxic Deluge', 'generic'],
-  ['Questing Beast', 'replacement'],
+  ['Questing Beast', 'generic'],          // 9.1: the "can't be prevented" line parses; the planeswalker-damage trigger is what is left
   ['Bloodline Bidding', 'generic'],
   ['Skyclave Apparition', 'generic'],
   ['Urborg, Tomb of Yawgmoth', 'layers'],
-  ['Deflecting Palm', 'replacement'],
+  ['Deflecting Palm', null],              // 9.1: fully parsed by the replacement family
   ['Gandalf the Grey', 'piles-choices'],
-  ['Horizon Explorer', 'replacement'],
+  ['Horizon Explorer', 'generic'],        // 9.1: "lands you control enter untapped" parses; the attack trigger is what is left
   ['Archetype of Finality', 'layers'],
   ['Ochran Assassin', 'combat-restr'],
   ['Kindred Dominance', 'generic'],
