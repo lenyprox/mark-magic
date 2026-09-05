@@ -64,7 +64,10 @@ export class RolloutAgent implements Agent {
       if (lands.length) {
         const have = new Map<string, number>(); for (const o of pl.battlefield) for (const m of o.def.producesMana) have.set(m, (have.get(m) ?? 0) + 1);
         const need = new Map<string, number>(); for (const c of pl.hand) for (const p of c.def.manaCost?.pips ?? []) need.set(p, (need.get(p) ?? 0) + 1);
-        const score = (l: LegalAction) => { const c = pl.hand.find(x => x.id === (l.action as { cardId: number }).cardId)!; let sc = c.def.entersTapped ? -0.5 : 0; for (const m of c.def.producesMana) sc += (need.get(m) ?? 0) / (1 + (have.get(m) ?? 0)); return sc; };
+        // A land drop is not always from hand: an effect that lets you play a card from exile or from a graveyard
+        // (impulse draw, Quintorius, Goph) makes those legal play-land actions too, so look the card up in every
+        // zone. A land the lookup cannot find scores below any real one rather than throwing mid-game.
+        const score = (l: LegalAction) => { const c = findObject(s, (l.action as { cardId: number }).cardId); if (!c) return -1; let sc = c.def.entersTapped ? -0.5 : 0; for (const m of c.def.producesMana) sc += (need.get(m) ?? 0) / (1 + (have.get(m) ?? 0)); return sc; };
         return lands.sort((a, b) => score(b) - score(a))[0].action;
       }
       // biggest castable spell; hold counterspells and pure combat tricks; equip and loyalty abilities are fine too

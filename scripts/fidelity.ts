@@ -1,0 +1,119 @@
+// Fidelity ratchet: how much card text the engine still plays inert. Fixed pairings of the owner's Commander decks
+// are replayed with per-clause tracking; the metric is hits per game, and test/fixtures/fidelity.json holds a ceiling
+// per pairing. `check` fails when a pairing drifts more than 10% above its ceiling (a regression: newly inert text);
+// `accept` ratchets the ceilings down to what was just measured and never raises one unless --force says so.
+// A pairing that errors, or that has no ceiling in the fixture, fails the check outright: both would otherwise be
+// scored as "no inert text found" and quietly ratchet the gate to zero.
+// Minutes, not seconds — this is a verify:deep step, not part of npm test.
+//   npm run fidelity:check [-- --games 60]
+//   npm run fidelity:accept [-- --force]
+import fs from 'node:fs';
+import path from 'node:path';
+import { CardDB } from '../src/cards/db.js';
+import { projectRoot, USER_DB } from '../src/config/paths.js';
+import { runMatches } from '../src/sim/batch.js';
+import { resolveDeckRef } from '../src/sim/deckRef.js';
+import type { MatchAggregate, MatchSpec } from '../src/sim/types.js';
+import { openUserDb } from '../src/user/db.js';
+import { DeckStore } from '../src/user/decks.js';
+
+const args = process.argv.slice(2);
+const opt = (k: string, d: string) => { const i = args.indexOf(k); return i >= 0 && args[i + 1] !== undefined ? args[i + 1] : d; };
+const accept = args.includes('--accept');
+const force = args.includes('--force');
+const games = Number(opt('--games', '60'));
+// A bad --games would otherwise make the gate vacuous: 0 or NaN games measures 0 hits/game, which passes every
+// ceiling, and with --accept it would ratchet every committed ceiling down to 0 and wedge the ratchet at zero.
+if (!Number.isInteger(games) || games < 1) { console.error(`fidelity: --games must be a whole number of at least 1 (got "${opt('--games', '60')}")`); process.exit(2); }
+/** A pairing may sit 10% above its ceiling before it counts as a regression (games are seeded, so this is slack for deck edits). */
+const TOLERANCE = 1.10;
+/** The bench's Commander turn cap (bench-games.ts), so a fidelity run and the benchmark see the same games. */
+const MAX_TURNS = 40;
+
+interface Clause { card: string; clause: string; hits: number; games: number }
+interface Pairing { name: string; decks: string[]; seed: number; games: number; hitsPerGame: number; ceiling: number; topClauses: Clause[] }
+interface Fixture { pairings: Pairing[] }
+
+const FIXTURE = () => path.join(projectRoot(), 'test', 'fixtures', 'fidelity.json');
+const round = (x: number) => Math.round(x * 1000) / 1000;
+
+/** The fixed pairings: six Commander decks by name in three pairs, plus a pod of the first four. Seeds 21..24. */
+function pairings(names: string[]): { name: string; decks: string[]; seed: number }[] {
+  const out: { name: string; decks: string[]; seed: number }[] = [];
+  for (let i = 0; i + 1 < 6 && i + 1 < names.length; i += 2) out.push({ name: `${names[i]} vs ${names[i + 1]}`, decks: [names[i], names[i + 1]], seed: 21 + i / 2 });
+  if (names.length >= 4) out.push({ name: `pod: ${names.slice(0, 4).join(', ')}`, decks: names.slice(0, 4), seed: 24 });
+  return out;
+}
+
+function show(p: Pairing, verdict: string) {
+  console.log(`${p.name}\n  ${p.hitsPerGame} hits/game over ${p.games} games (ceiling ${p.ceiling}) — ${verdict}`);
+  for (const c of p.topClauses.slice(0, 5)) console.log(`    ${String(c.hits).padStart(5)} hits ${String(c.games).padStart(3)} games  ${c.card}: ${c.clause.length > 80 ? `${c.clause.slice(0, 77)}...` : c.clause}`);
+}
+
+async function main() {
+  if (!fs.existsSync(USER_DB())) { console.log('fidelity: skipped — no user.db'); return; }
+  const userDb = openUserDb();
+  const decks = new DeckStore(userDb).list().filter(d => d.format === 'commander' && d.role === 'mine').sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  if (decks.length < 2) { console.log(`fidelity: skipped — user.db has ${decks.length} Commander deck(s) of my own (need at least two)`); return; }
+  if (decks.length !== 6) console.log(`note: expected six Commander decks, found ${decks.length} — pairing what is there`);
+  const cards = CardDB.shared();
+  const saved: Fixture = fs.existsSync(FIXTURE()) ? (JSON.parse(fs.readFileSync(FIXTURE(), 'utf8')) as Fixture) : { pairings: [] };
+  const out: Pairing[] = []; const failures: string[] = [];
+
+  for (const p of pairings(decks.map(d => d.name))) {
+    const payloads = p.decks.map(n => resolveDeckRef(decks.find(d => d.name === n)!.id, cards, userDb).payload);
+    const spec: MatchSpec = { id: `fidelity-${p.seed}`, decks: payloads, games, baseSeed: p.seed, seating: 'rotate', agent: 'rollout', format: 'commander', maxTurns: MAX_TURNS, mulligans: 'lands', record: 'summary', trackUnsimulated: true };
+    const t0 = Date.now();
+    const res = await runMatches(spec, { yieldEvery: 1000 });
+    const a: MatchAggregate = res.aggregate;
+    // A pairing that played nothing measures 0 hits/game, which would pass any ceiling and, under --accept, lower it
+    // to 0; refuse the whole run instead of recording a number no game produced.
+    if (a.games < 1) { console.error(`fidelity: ${p.name} played 0 of ${games} games — refusing to score or accept a run with no games`); process.exit(2); }
+    // A game that threw stopped where it threw, so it read almost none of its cards' text: its clause counts are not
+    // a measurement of anything. Sixty thrown games would score 0 hits/game, clear every ceiling and, under --accept,
+    // ratchet the whole gate to zero — so any error fails the pairing and refuses the accept.
+    const messages = [...new Set(res.games.filter(g => g.error).map(g => g.error as string))];
+    if (a.errors) {
+      console.error(`fidelity: ${p.name} — ${a.errors} of ${a.games} game(s) hit an engine error:`);
+      for (const m of messages.slice(0, 5)) console.error(`    ${m}`);
+      if (messages.length > 5) console.error(`    ... and ${messages.length - 5} more distinct message(s)`);
+      if (accept) { console.error(`fidelity: refusing to write ceilings from a run with errored games (fix the engine error, then re-run fidelity:accept)`); process.exit(2); }
+      failures.push(`${p.name}: ${a.errors} of ${a.games} game(s) errored — ${messages[0]}`);
+    }
+    const hitsPerGame = round(a.unsimulated / a.games);
+    const was = saved.pairings.find(x => x.name === p.name);
+    const ceiling = was?.ceiling ?? hitsPerGame;
+    const row: Pairing = { name: p.name, decks: p.decks, seed: p.seed, games: a.games, hitsPerGame, ceiling, topClauses: a.topUnsimulated.slice(0, 15) };
+    const over = hitsPerGame > ceiling * TOLERANCE;
+    if (accept) {
+      // A shorter run is a thinner sample: still allowed, but say so, because the ceiling it writes is the one every
+      // later check is measured against.
+      if (was && a.games < was.games) console.log(`  note: ${a.games} games this run vs ${was.games} in the fixture — the new ceiling rests on fewer games`);
+      row.ceiling = force ? hitsPerGame : Math.min(ceiling, hitsPerGame);
+      show(row, `${was ? `ceiling ${ceiling} -> ${row.ceiling}` : 'new pairing'} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+    } else {
+      if (over) failures.push(`${p.name}: ${hitsPerGame} hits/game > ceiling ${ceiling} x ${TOLERANCE}`);
+      // A pairing with no fixture row is a gate that measures nothing — a deck was renamed, deleted or added since the
+      // ceilings were accepted. Name it and fail, the way golden:check fails on a missing fixture.
+      if (!was) failures.push(`${p.name}: no ceiling in ${path.relative(projectRoot(), FIXTURE())} — a deck was added or renamed; run npm run fidelity:accept`);
+      show(row, `${a.errors ? 'ERRORED' : over ? 'REGRESSED' : was ? 'ok' : 'NO CEILING (run fidelity:accept)'} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+    }
+    out.push(row);
+  }
+
+  if (accept) {
+    fs.mkdirSync(path.dirname(FIXTURE()), { recursive: true });
+    fs.writeFileSync(FIXTURE(), `${JSON.stringify({ pairings: out } satisfies Fixture, null, 1)}\n`);
+    console.log(`\nwritten ${path.relative(projectRoot(), FIXTURE())} — ceilings ${force ? 'set to the measured values (--force)' : 'lowered where the run improved; never raised'}`);
+    return;
+  }
+  // The other direction: a row the fixture still carries that this run never replayed (its deck was renamed or
+  // deleted), which would otherwise sit in the file as a ceiling nothing is measured against.
+  const replayed = new Set(out.map(x => x.name));
+  for (const x of saved.pairings) if (!replayed.has(x.name)) failures.push(`${x.name}: in ${path.relative(projectRoot(), FIXTURE())} but not replayed — a deck was renamed or deleted; run npm run fidelity:accept`);
+  console.log(`\n${out.length} pairing(s), ${failures.length} failure(s)`);
+  for (const f of failures) console.log(`  ${f}`);
+  if (failures.length) process.exit(1);
+}
+
+main().catch(e => { console.error(e); process.exit(1); });

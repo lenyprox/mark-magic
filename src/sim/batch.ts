@@ -82,6 +82,9 @@ export async function playOne(spec: MatchSpec, prepared: PreparedMatch, i: numbe
   let game;
   try {
     game = createGame(order.map(d => prepared.arrays[d]), agents, { seed, quiet: true, mulligans: spec.mulligans !== 'none', maxTurns: spec.maxTurns, startingLife: spec.startingLife ?? (spec.format === 'commander' ? 40 : 20), fastMana: true, format: spec.format, commanders: order.map(d => prepared.commanderDefs[d]) });
+    // Per-clause inert text: the engine already announces every unparsed clause as an 'unsimulated' event, so the
+    // listener Game exposes is enough — no 'full' event stream (and no engine change) is needed to tally them.
+    if (spec.trackUnsimulated) { const m: Record<string, number> = {}; rec.unsimulatedClauses = m; game.onEvent = ev => { if (ev.type === 'unsimulated') { const k = `${ev.name}|${ev.clause}`; m[k] = (m[k] ?? 0) + 1; } }; }
     for (const a of agents) if (a.inner instanceof AiAgent) a.inner.attach(game);
     await game.play();
   } catch (e) {
@@ -101,7 +104,7 @@ export async function playOne(spec: MatchSpec, prepared: PreparedMatch, i: numbe
     rec.firstCommanderCastTurn[d] = st.firstCommanderCastTurn; rec.lossReason[d] = s.players[seat].lossReason ?? null;
     rec.seen[d] = seenNames(s, seat as PlayerId);
   });
-  if (spec.record === 'events') rec.log = s.log.slice();
+  if (spec.record === 'events') { rec.log = s.log.slice(); const ec: Record<string, number> = {}; for (const [k, v] of Object.entries(s.eventCounts ?? {})) if (v) ec[k] = v; rec.eventCounts = ec; }
   return rec;
 }
 
@@ -176,8 +179,24 @@ export function aggregateMatches(spec: MatchSpecRef, records: GameRecordLite[], 
     games: records.length, decided: ok.length - draws, draws, errors: records.length - ok.length, byDeck,
     avgTurns: ok.length ? round(ok.reduce((a, r) => a + r.turns, 0) / ok.length) : 0,
     unsimulated: records.reduce((a, r) => a + r.unsimulated, 0),
+    topUnsimulated: topUnsimulated(records),
     ms: Math.round(ms), gamesPerSecond: ms > 0 ? round(records.length / (ms / 1000)) : 0,
   };
+}
+
+/**
+ * The inert clauses these games hit, most-fired first (ties broken by card then clause so the table is a function of
+ * the records alone). `hits` counts every firing, `games` the number of games the clause fired in at least once.
+ */
+export function topUnsimulated(records: GameRecordLite[], limit = 50): MatchAggregate['topUnsimulated'] {
+  const tally = new Map<string, { hits: number; games: number }>();
+  for (const r of records) for (const [k, n] of Object.entries(r.unsimulatedClauses ?? {})) {
+    const e = tally.get(k) ?? { hits: 0, games: 0 }; e.hits += n; e.games++; tally.set(k, e);
+  }
+  const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  return [...tally].map(([k, v]) => { const i = k.indexOf('|'); return { card: k.slice(0, i), clause: k.slice(i + 1), hits: v.hits, games: v.games }; })
+    .sort((a, b) => b.hits - a.hits || b.games - a.games || cmp(a.card, b.card) || cmp(a.clause, b.clause))
+    .slice(0, limit);
 }
 
 /** The derivation of one deck's win rate, with the reference needed to replay the batch. */

@@ -1,5 +1,7 @@
 // Messages between a batch pool (main thread) and its workers. A spec (with card definitions) is loaded once per
-// worker under a job id; chunks of games then refer to it by that id. Everything is JSON-safe.
+// worker under a job id; chunks of games then refer to it by that id. Everything is JSON-safe: the spec's
+// `trackUnsimulated` flag and each record's `unsimulatedClauses` / `eventCounts` maps cross the boundary as plain
+// objects, so a pooled run aggregates inert clauses exactly like a serial one.
 import type { GameRecordLite, MatchSpec } from './types.js';
 
 export type ToBatchWorker =

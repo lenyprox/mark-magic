@@ -1,12 +1,12 @@
 // Batch runner: seat rotation, determinism (same spec twice → identical JSON), pool == serial, cancellation at a
-// game boundary, instrumentation (mulligans, opening hands, seen sets) and the rerun verifier.
+// game boundary, a worker dying mid-run, instrumentation (mulligans, opening hands, seen sets) and the rerun verifier.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { parseDeckList } from '../src/cards/db.js';
 import { buildDeckPayload } from '../src/play/payload.js';
 import { aggregateMatches, assembleResult, deckArray, deckHash, runMatches, seatOrderFor, specRef, verifyRerun } from '../src/sim/batch.js';
-import { BatchPool, inlineBatchWorker } from '../src/sim/batchPool.js';
+import { BatchPool, inlineBatchWorker, type BatchWorkerLike } from '../src/sim/batchPool.js';
 import type { GameRecordLite, MatchSpec } from '../src/sim/types.js';
 import { db } from './helpers.js';
 
@@ -68,6 +68,56 @@ test('a chunked pool run equals the serial run and cancellation stops at a game 
     assert.ok(h.cancelled); assert.ok(partial.games.length < 40, `cancelled with ${partial.games.length} games`);
     assert.ok(partial.games.every(g => g.turns > 0 || g.error), 'no half-played game leaked out');
   } finally { pool.dispose(); }
+});
+
+/**
+ * A worker that dies part-way through a run: it plays its first chunk, then answers the next `run` with the bare
+ * `error` a dead thread produces (nodeWorker turns worker_threads' 'error'/'exit' into exactly this — no jobId, no
+ * chunkId) and goes silent for good.
+ */
+function dyingBatchWorker(): BatchWorkerLike {
+  const inner = inlineBatchWorker();
+  let runs = 0; let dead = false;
+  const w: BatchWorkerLike = {
+    onmessage: null,
+    postMessage(msg) {
+      if (dead) return;
+      if (msg.type === 'run' && ++runs === 2) { dead = true; setTimeout(() => w.onmessage?.({ data: { type: 'error', message: 'batch worker thread exited with code 1' } }), 0); return; }
+      inner.postMessage(msg);
+    },
+    terminate() { dead = true; w.onmessage = null; inner.terminate(); },
+  };
+  inner.onmessage = ev => { if (!dead) w.onmessage?.(ev); };
+  return w;
+}
+
+test('a worker that dies after init settles its run instead of hanging', async () => {
+  const pool = new BatchPool(() => dyingBatchWorker(), 1);
+  await pool.ready();
+  const within5s = async (p: Promise<unknown>) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const out = await Promise.race([p.then(() => 'resolved' as const, (e: Error) => e), new Promise<'hung'>(r => { timer = setTimeout(() => r('hung'), 5000); })]);
+    clearTimeout(timer);
+    return out;
+  };
+  try {
+    // The worker takes chunk 0, then dies on chunk 1: nothing will ever report that chunk done, so the run must reject.
+    const first = await within5s(pool.run(spec({ games: 8 }), { chunk: 2 }).result);
+    assert.ok(first instanceof Error, `the run settled within 5 s (got ${first})`);
+    assert.match(first.message, /exited with code 1/, 'the run rejects with the worker\'s own message');
+    // The pool has no live worker left, so a later run must fail fast rather than wait for a load that cannot come.
+    const second = await within5s(pool.run(spec({ games: 4 }), { chunk: 2 }).result);
+    assert.ok(second instanceof Error, `a run on a dead pool settled within 5 s (got ${second})`);
+  } finally { pool.dispose(); }
+});
+
+test('dispose settles the runs still in flight', async () => {
+  const pool = new BatchPool(() => inlineBatchWorker(), 2);
+  await pool.ready();
+  const h = pool.run(spec({ games: 40 }), { chunk: 4 });
+  pool.dispose();
+  const r = await h.result.then(x => x, (e: Error) => e);
+  assert.ok(!(r instanceof Error) ? r.games.length <= 40 : true, 'a disposed pool settles its run either way');
 });
 
 test('aggregate: per-deck stats and best-deck call', () => {
