@@ -1,6 +1,7 @@
 // Validate the scripts under data/scripts: schema (strict, including typed `covers` entries), LF-only bytes,
-// oracle-hash freshness (stale after a Scryfall refresh), every ability carrying behaviour, every `covers` entry
-// naming a declaration its face really has and a line of that face, every `ignore` line matching a line
+// oracle-hash freshness (stale after a Scryfall refresh), every ability carrying a SUBSTANTIVE effect and naming no
+// more lines than it has effects, no line claimed twice, every `covers` entry naming a declaration its face really
+// has, a line of that face and the VALUE that declaration prints, every `ignore` line matching a line
 // `scriptableLines(def)` names, every `ignore` reason matching its whitelist entry for this card's pool tier, no
 // `unknown` anywhere, and that EVERY face with playable text (front, `backFace` for a transform / modal DFC,
 // `secondFace` for a split / adventure / flip card) ends up fully simulated — for EVERY source, `generated` included: the
@@ -19,9 +20,9 @@ import { parseCard } from '../src/cards/parse.js';
 import { tierOf } from '../src/cards/pool.js';
 import { CardScriptChecked } from '../src/cards/schema.js';
 import {
-  abilityIsSubstantive, applyScript, coverProblems, DEFAULT_SCRIPTS_DIR, faceScriptableLines, hasUnknown,
-  ignoreLineProblem, oracleHash, scriptableLines, scriptHash, ScriptStore, secondFaceLines, secondFaceUnclaimed,
-  unmatchedAbilityTexts, type CardScript, type ScriptFace,
+  applyScript, coverProblems, DEFAULT_SCRIPTS_DIR, faceClaimProblems, faceScriptableLines, hasUnknown,
+  ignoreLineProblem, oracleHash, scriptableLines, scriptHash, ScriptStore, secondFaceLines, secondFaceOf,
+  secondFaceUnclaimed, unmatchedAbilityTexts, type CardScript, type ScriptFace,
 } from '../src/cards/scripts.js';
 
 const args = process.argv.slice(2);
@@ -104,15 +105,18 @@ for (const id of ids) {
   const fresh = oracleHash(def.oracleText);
   if (script.oracleHash !== fresh) problems.push(`${id} (${script.name}): stale — oracle text changed (hash ${fresh})`);
 
-  // 3. every ability must CARRY BEHAVIOUR: an ability with an empty `effects` array claims no line (it would
-  //    otherwise be a card with the right texts and nothing behind them). The schema rejects that too; this reports
-  //    it by name, and also catches an ability whose only content is an `unknown`.
-  for (const [where, face] of [['abilities', script as ScriptFace], ['backFace', script.backFace], ['secondFace', script.secondFace]] as const) {
-    for (const a of face?.abilities ?? []) {
-      if (abilityIsSubstantive(a)) continue;
-      const why = a.kind !== 'static' && (a.effects?.length ?? 0) === 0 ? 'ability declares no effect' : 'ability is nothing but an unknown';
-      problems.push(`${id} (${script.name}): ${where}: ${why}, so it claims no line: ${JSON.stringify(a.text)}`);
-    }
+  // 3. every ability must CARRY BEHAVIOUR and stay inside its LINE BUDGET: an ability with no substantive effect
+  //    claims no line (it would otherwise be a card with the right texts and nothing behind them), and an ability
+  //    may name at most one line per substantive effect, so a single `draw` cannot finish a three-line spell. The
+  //    same pass reports a line two declarations both claim. `faceClaimProblems` owns the rule; `applyScript`
+  //    enforces the identical one at runtime through `abilityClaimLines`.
+  const faceNames = [
+    ['abilities', script as ScriptFace, def.name],
+    ['backFace', script.backFace, def.backFace?.name ?? def.name],
+    ['secondFace', script.secondFace, secondFaceOf(def)?.name ?? def.name],
+  ] as const;
+  for (const [where, face, cardName] of faceNames) {
+    for (const why of faceClaimProblems(face, cardName)) problems.push(`${id} (${script.name}): ${where}: ${why}`);
   }
 
   // 4. covers / ignore must name real oracle lines OF THE FACE THAT CLAIMS THEM (or a fragment the parser itself

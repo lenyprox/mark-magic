@@ -7,12 +7,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { CardDB } from '../src/cards/db.js';
 import {
-  applyScript, COVER_KINDS, coverProblem, IGNORE_REASONS, ignoreLineProblem, normalizeOracleLines, oracleHash, scriptableLines,
-  scriptHash, secondFaceLines, secondFaceUnclaimed, shardOf, ScriptStore, unmatchedAbilityTexts, useScriptStore,
+  abilityClaimProblem, applyScript, COVER_KINDS, COVER_LINE_RE, coverProblem, faceClaimProblems, IGNORE_REASONS,
+  ignoreLineProblem, keywordLineClaimed, keywordPartProblem, MARKER_OPS, normalizeOracleLines, oracleHash,
+  scriptableLines, scriptHash, secondFaceLines, secondFaceUnclaimed, shardOf, ScriptStore, substantiveCount,
+  unmatchedAbilityTexts, useScriptStore,
   type CardScript, type CoverKind, type ScriptFace, type ScriptSource, type Verification,
 } from '../src/cards/scripts.js';
 import { CardScriptChecked } from '../src/cards/schema.js';
-import type { CardDef } from '../src/cards/types.js';
+import type { CardDef, Effect, ManaCost } from '../src/cards/types.js';
 import { db } from './helpers.js';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'scripts-'));
@@ -118,29 +120,37 @@ const faceFrom = (def: CardDef, keys: (keyof ScriptFace)[]): ScriptFace => {
   return out as ScriptFace;
 };
 
-/** One real card per cover kind: the oracle line, the kind that covers it, and the declarations that back it. */
-const COVER_CASES: [card: string, line: string, by: CoverKind, decls: (keyof ScriptFace)[]][] = [
-  ['Serra Angel', 'Flying', 'keywords', ['keywords']],
-  ['Faithless Looting', 'Flashback {2}{R}', 'altCosts', ['altCosts']],
-  ['Steam Vents', "As ~ enters, you may pay 2 life. If you don't, it enters tapped.", 'asEnters', ['asEnters']],
-  ['Treasure Cruise', 'Delve', 'costModifiers', ['costModifiers']],
-  ['Rite of Replication', 'Kicker {5}', 'kicker', ['kicker']],
-  ['Eternal Dragon', 'Plainscycling {2}', 'cycling', ['cycling', 'cyclingSearch']],
-  ['Thornwood Falls', '~ enters tapped.', 'entersTapped', ['entersTapped']],
-  ['Rattleclaw Mystic', 'Morph {2}', 'morph', ['morph']],
-  ['Bloodbraid Elf', 'Cascade', 'cascade', ['cascade']],
-  ['Grapeshot', 'Storm', 'storm', ['storm']],
-  ['Distortion Strike', 'Rebound', 'rebound', ['rebound']],
-  ['Stinkweed Imp', 'Dredge 5', 'dredge', ['dredge']],
-  ['Progenitus', "If ~ would be put into a graveyard from anywhere, reveal ~ and shuffle it into its owner's library instead.", 'graveyardReplacement', ['graveyardReplacement']],
-  ['Progenitus', 'Protection from everything', 'protection', ['protectionFrom']],
-  ['Dreadlight Monstrosity', 'Ward {2}', 'ward', ['wardCost']],
-  ['Bone Splinters', 'As an additional cost to cast ~, sacrifice a creature.', 'additionalCosts', ['additionalCosts']],
-  ['Pestilent Syphoner', 'Toxic 1', 'toxic', ['toxic']],
-  ['Devoted Retainer', 'Bushido 1', 'bushido', ['bushido']],
-  ['Craw Giant', 'Rampage 2', 'rampage', ['rampage']],
-  ['Street Wraith', 'Swampwalk', 'landwalk', ['landwalk']],
-  ['Fire Sages', 'Firebending 1', 'firebending', ['firebending']],
+/** A ManaCost that only has to compare equal by `raw` — the only field the cover table reads. */
+const mana = (raw: string): ManaCost => ({ generic: 0, x: 0, pips: [], hybrid: [], phyrexian: [], raw });
+
+/**
+ * One real card per cover kind: the oracle line, the kind that covers it, the declarations that back it, and a
+ * MUTATION of those declarations that keeps the same kind but states a different value — a different mana cost,
+ * number, counter or quality. `wrong` must be rejected: rule (iii) matches the declared value to the printed line,
+ * not only the line's shape.
+ */
+const COVER_CASES: [card: string, line: string, by: CoverKind, decls: (keyof ScriptFace)[], wrong: Partial<ScriptFace>][] = [
+  ['Serra Angel', 'Flying', 'keywords', ['keywords'], { keywords: ['vigilance'] }],
+  ['Faithless Looting', 'Flashback {2}{R}', 'altCosts', ['altCosts'], { altCosts: [{ id: 'flashback', label: 'flashback {3}{R}', cost: { mana: mana('{3}{R}') }, from: 'graveyard', exileAfter: true }] }],
+  ['Steam Vents', "As ~ enters, you may pay 2 life. If you don't, it enters tapped.", 'asEnters', ['asEnters'], { asEnters: [{ kind: 'pay-life-or-tapped', life: 3 }] }],
+  ['Treasure Cruise', 'Delve', 'costModifiers', ['costModifiers'], { costModifiers: [{ kind: 'convoke' }] }],
+  ['Rite of Replication', 'Kicker {5}', 'kicker', ['kicker'], { kicker: mana('{4}') }],
+  ['Eternal Dragon', 'Plainscycling {2}', 'cycling', ['cycling', 'cyclingSearch'], { cycling: mana('{3}') }],
+  ['Thornwood Falls', '~ enters tapped.', 'entersTapped', ['entersTapped'], { entersTapped: { unless: { kind: 'your-turn' } } }],
+  ['Rattleclaw Mystic', 'Morph {2}', 'morph', ['morph'], { morph: { cost: mana('{3}') } }],
+  ['Bloodbraid Elf', 'Cascade', 'cascade', ['cascade'], { cascade: false }],
+  ['Grapeshot', 'Storm', 'storm', ['storm'], { storm: false }],
+  ['Distortion Strike', 'Rebound', 'rebound', ['rebound'], { rebound: false }],
+  ['Stinkweed Imp', 'Dredge 5', 'dredge', ['dredge'], { dredge: 4 }],
+  ['Progenitus', "If ~ would be put into a graveyard from anywhere, reveal ~ and shuffle it into its owner's library instead.", 'graveyardReplacement', ['graveyardReplacement'], { graveyardReplacement: 'exile' }],
+  ['Progenitus', 'Protection from everything', 'protection', ['protectionFrom'], { protectionFrom: ['red'] }],
+  ['Dreadlight Monstrosity', 'Ward {2}', 'ward', ['wardCost'], { wardCost: 3 }],
+  ['Bone Splinters', 'As an additional cost to cast ~, sacrifice a creature.', 'additionalCosts', ['additionalCosts'], { additionalCosts: [{ discard: 1 }] }],
+  ['Pestilent Syphoner', 'Toxic 1', 'toxic', ['toxic'], { toxic: 2 }],
+  ['Devoted Retainer', 'Bushido 1', 'bushido', ['bushido'], { bushido: 2 }],
+  ['Craw Giant', 'Rampage 2', 'rampage', ['rampage'], { rampage: 3 }],
+  ['Street Wraith', 'Swampwalk', 'landwalk', ['landwalk'], { landwalk: ['Island'] }],
+  ['Fire Sages', 'Firebending 1', 'firebending', ['firebending'], { firebending: 2 }],
 ];
 
 test('covers: every cover kind is backed by a real declaration on a real card, and claims that line', () => {
@@ -160,6 +170,179 @@ test('covers: every cover kind is backed by a real declaration on a real card, a
     // and the declaration alone is not enough: drop it and the entry is rejected
     assert.ok(coverProblem({}, { line, by }), `${card} / ${by}: an undeclared ${by} must not cover anything`);
   }
+});
+
+test('covers: rule (iii) matches the declared VALUE to the line, not only its shape', () => {
+  // THE ROUND-3 MAJOR: the cover table used to check the line's shape and never look at what was declared, so
+  // `cycling: {3}` covered "Plainscycling {2}" and `dredge: 4` covered "Dredge 5".
+  for (const [card, line, by, decls, wrong] of COVER_CASES) {
+    const def = db.get(card)!;
+    const face = { ...faceFrom(def, decls), ...wrong } as ScriptFace;
+    const why = coverProblem(face, { line, by });
+    assert.ok(why, `${card} / ${by}: ${JSON.stringify(wrong)} must not cover ${JSON.stringify(line)}`);
+    assert.match(why!, new RegExp(`^names by '${by}' but `), `${card} / ${by}: ${why}`);
+  }
+
+  // a few more value mismatches the table has to catch, spelled out
+  const eternal = faceFrom(db.get('Eternal Dragon')!, ['cycling', 'cyclingSearch']);
+  assert.match(coverProblem({ ...eternal, cyclingSearch: undefined }, { line: 'Plainscycling {2}', by: 'cycling' })!, /typecycling/);
+  const rattle = faceFrom(db.get('Rattleclaw Mystic')!, ['morph']);
+  assert.match(coverProblem({ morph: { ...rattle.morph!, megamorph: true } }, { line: 'Morph {2}', by: 'morph' })!, /megamorph/);
+  const steam = faceFrom(db.get('Steam Vents')!, ['asEnters']);
+  assert.match(coverProblem({ ...steam, asEnters: [{ kind: 'tapped' }] }, { line: "As ~ enters, you may pay 2 life. If you don't, it enters tapped.", by: 'asEnters' })!, /pay-life-or-tapped/);
+  assert.match(coverProblem({ asEnters: [{ kind: 'counters', counter: 'charge', amount: 3 }] }, { line: '~ enters with three +1/+1 counters on it.', by: 'asEnters' })!, /counter "\+1\/\+1"/);
+  assert.equal(coverProblem({ asEnters: [{ kind: 'counters', counter: '+1/+1', amount: 3 }] }, { line: '~ enters with three +1/+1 counters on it.', by: 'asEnters' }), null);
+  const bone = faceFrom(db.get('Bone Splinters')!, ['additionalCosts']);
+  assert.equal(coverProblem(bone, { line: 'As an additional cost to cast ~, sacrifice a creature.', by: 'additionalCosts' }), null);
+  assert.match(coverProblem(bone, { line: 'As an additional cost to cast ~, discard a card.', by: 'additionalCosts' })!, /discard/);
+
+  // the schema carries `coverProblem`'s own reason, one issue per bad entry: it fires before every other check, so a
+  // generic "a covers entry is invalid" would be the only thing the author ever saw
+  const wrongCycling = scriptFor('Eternal Dragon', {
+    ...faceFrom(db.get('Eternal Dragon')!, ['cyclingSearch']),
+    cycling: mana('{3}'),
+    covers: [{ line: 'Plainscycling {2}', by: 'cycling' }],
+  });
+  const res = CardScriptChecked.safeParse(wrongCycling);
+  assert.ok(!res.success);
+  assert.match(res.error!.issues.map(i => i.message).join('\n'), /names by 'cycling' but the line prints cycling \{2\} but this face declares "\{3\}"/);
+});
+
+test('covers: every line shape in the table is anchored at both ends', () => {
+  // an unanchored shape ("cycling " was one) lets a covers entry claim any line that merely CONTAINS the keyword
+  for (const kind of COVER_KINDS) {
+    const shapes = COVER_LINE_RE[kind];
+    assert.ok(shapes.length, `${kind}: no line shape at all`);
+    for (const re of shapes) {
+      assert.ok(re.source.startsWith('^'), `${kind}: /${re.source}/ is not anchored at the start`);
+      assert.ok(re.source.endsWith('$'), `${kind}: /${re.source}/ is not anchored at the end`);
+    }
+  }
+  // the concrete regression: "cycling " used to match anywhere in the line
+  const eternal = faceFrom(db.get('Eternal Dragon')!, ['cycling', 'cyclingSearch']);
+  assert.ok(coverProblem(eternal, { line: 'When ~ enters, you may pay {2} to start cycling {2} early.', by: 'cycling' }));
+});
+
+const DRAW: Effect = { op: 'draw', amount: 1, who: 'you' };
+const UNTAP: Effect = { op: 'untap', target: { kind: 'creature' } };
+
+test('substantiveCount: parser-internal fold markers are not behaviour, and a container counts what it holds', () => {
+  // THE ROUND-3 BLOCKER: these ops are folded into the effect before them and never reach the engine, so an
+  // ability made of them alone does nothing at all — yet it used to pass as "declares at least one effect".
+  assert.deepEqual([...MARKER_OPS].sort(), [
+    'alt-if-target', 'alt-kicked-amount', 'alt-take', 'fold-alt-mana', 'fold-counter-if-yours', 'fold-new-targets',
+    'fold-restriction', 'unknown',
+  ]);
+  for (const op of MARKER_OPS) assert.equal(substantiveCount([{ op } as unknown as Effect]), 0, op);
+  assert.equal(substantiveCount([DRAW]), 1);
+  assert.equal(substantiveCount([DRAW, { op: 'fold-new-targets' }, UNTAP]), 2, 'markers are skipped, not counted');
+  assert.equal(substantiveCount([]), 0);
+  assert.equal(substantiveCount(undefined), 0);
+
+  // an activated mana ability is substantive on its `add-mana` alone
+  assert.equal(substantiveCount([{ op: 'add-mana', mana: ['G'] }]), 1);
+
+  // containers count 1 only when something inside them does something — walked generically, at any depth
+  const cond = (then: Effect[]): Effect => ({ op: 'conditional', condition: { kind: 'your-turn' }, then });
+  assert.equal(substantiveCount([cond([])]), 0);
+  assert.equal(substantiveCount([cond([{ op: 'fold-new-targets' }])]), 0);
+  assert.equal(substantiveCount([cond([DRAW])]), 1);
+  assert.equal(substantiveCount([cond([cond([cond([DRAW])])])]), 1, 'and the whole nest still counts once');
+  assert.equal(substantiveCount([{ op: 'optional-then', first: [{ op: 'unknown', text: 'x' }], then: [] }]), 0);
+  assert.equal(substantiveCount([{ op: 'delayed-trigger', at: 'next-end-step', effects: [DRAW] }]), 1);
+
+  // choose-mode counts once per SUBSTANTIVE mode: a two-mode spell printed as two lines needs both
+  assert.equal(substantiveCount([{ op: 'choose-mode', count: 1, modes: [[DRAW], [UNTAP]] }]), 2);
+  assert.equal(substantiveCount([{ op: 'choose-mode', count: 1, modes: [[DRAW], [{ op: 'fold-new-targets' }]] }]), 1);
+  assert.equal(substantiveCount([{ op: 'choose-mode', count: 1, modes: [] }]), 0);
+
+  // gain-ability follows the ability it grants
+  assert.equal(substantiveCount([{ op: 'gain-ability', ability: { kind: 'spell', effects: [DRAW], text: 'x' } }]), 1);
+  assert.equal(substantiveCount([{ op: 'gain-ability', ability: { kind: 'spell', effects: [], text: 'x' } }]), 0);
+  assert.equal(substantiveCount([{ op: 'gain-ability', ability: { kind: 'static', effect: { kind: 'self-keywords', keywords: ['flying'] }, text: 'x' } }]), 1);
+});
+
+test('applyScript: an ability of nothing but fold markers claims no line', () => {
+  const elves = db.get('Llanowar Elves')!;
+  const markerOnly = scriptFor('Llanowar Elves', {
+    abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'fold-new-targets' }], text: ELVES }],
+  });
+  assert.deepEqual(applyScript(elves, markerOnly).unparsed, [ELVES]);
+  assert.equal(applyScript(elves, markerOnly).fullyParsed, false);
+  assert.match(faceClaimProblems(markerOnly, 'Llanowar Elves')[0], /every effect it declares is a parser-internal fold marker/);
+  // the file-level schema cannot see it (the array is not empty), so scripts:check is the one that reports it
+  assert.ok(CardScriptChecked.safeParse(markerOnly).success);
+
+  // the same ability with a real effect claims its line again
+  const real = scriptFor('Llanowar Elves', {
+    abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'add-mana', mana: ['G'] }, { op: 'fold-new-targets' }], text: ELVES, manaAbility: true }],
+  });
+  assert.deepEqual(applyScript(elves, real).unparsed, []);
+  assert.deepEqual(faceClaimProblems(real, 'Llanowar Elves'), []);
+});
+
+test('applyScript: an ability may claim at most one line per substantive effect', () => {
+  // THE ROUND-3 BLOCKER: an instant/sorcery's single `spell` ability carries the WHOLE face text (parse.ts:1358),
+  // so without a budget one `draw` would finish every line of a card.
+  const refocus = db.get('Refocus')!;
+  const lines = normalizeOracleLines(refocus);
+  assert.deepEqual(lines, ['Untap target creature.', 'Draw a card.']);
+  const text = lines.join('\n');
+  const spell = (effects: Effect[], t = text): CardScript['abilities'] => [{ kind: 'spell', effects, text: t }];
+
+  const thin = scriptFor('Refocus', { abilities: spell([UNTAP]) });
+  assert.match(abilityClaimProblem(thin.abilities![0], 'Refocus')!, /^ability names 2 lines but declares only 1 substantive effect$/);
+  assert.deepEqual(applyScript(refocus, thin).unparsed, lines, 'one effect claims neither line');
+  assert.equal(applyScript(refocus, thin).fullyParsed, false);
+
+  // a fold marker does not top the budget up either
+  const padded = scriptFor('Refocus', { abilities: spell([UNTAP, { op: 'fold-new-targets' }]) });
+  assert.deepEqual(applyScript(refocus, padded).unparsed, lines);
+
+  // two substantive effects for two lines: accepted
+  const full = scriptFor('Refocus', { abilities: spell([UNTAP, DRAW]) });
+  assert.deepEqual(abilityClaimProblem(full.abilities![0], 'Refocus'), null);
+  assert.deepEqual(applyScript(refocus, full).unparsed, []);
+  assert.equal(applyScript(refocus, full).fullyParsed, true);
+  assert.ok(CardScriptChecked.safeParse(full).success);
+
+  // …and so is one ability per line, which is the form to prefer
+  const perLine = scriptFor('Refocus', { abilities: [...spell([UNTAP], lines[0])!, ...spell([DRAW], lines[1])!] });
+  assert.equal(applyScript(refocus, perLine).fullyParsed, true);
+  assert.deepEqual(faceClaimProblems(perLine, 'Refocus'), []);
+
+  // a static / triggered / activated ability is printed as ONE line and may name only one, however many effects it has
+  const triggered = { kind: 'triggered', event: { on: 'etb', self: true }, effects: [UNTAP, DRAW], text } as NonNullable<CardScript['abilities']>[number];
+  assert.match(abilityClaimProblem(triggered, 'Refocus')!, /a 'triggered' ability is printed as one line/);
+
+  // …unless Scryfall split ONE sentence across two lines, which a lower-case continuation marks
+  const joined = { kind: 'triggered', event: { on: 'etb', self: true }, effects: [DRAW], text: 'When ~ enters, draw a card,\nthen untap it.' } as NonNullable<CardScript['abilities']>[number];
+  assert.equal(abilityClaimProblem(joined, 'Refocus'), null);
+  const split = { ...joined, text: 'When ~ enters, draw a card.\nUntap it.' } as NonNullable<CardScript['abilities']>[number];
+  assert.ok(abilityClaimProblem(split, 'Refocus'));
+});
+
+test('claims: no line may be claimed twice', () => {
+  const refocus = db.get('Refocus')!;
+  const line = 'Draw a card.';
+  const twice = scriptFor('Refocus', {
+    abilities: [
+      { kind: 'spell', effects: [DRAW], text: line },
+      { kind: 'spell', effects: [DRAW], text: line },
+    ],
+  });
+  assert.deepEqual(faceClaimProblems(twice, 'Refocus'), [`line claimed twice: ${JSON.stringify(line)}`]);
+
+  // an ability and a covers entry claiming the same line count as two claims as well
+  const angel = db.get('Serra Angel')!;
+  const both = scriptFor('Serra Angel', {
+    keywords: ['flying', 'vigilance'],
+    abilities: [{ kind: 'static', effect: { kind: 'self-keywords', keywords: ['flying'] }, text: 'Flying' }],
+    covers: [{ line: 'Flying', by: 'keywords' }],
+  });
+  assert.deepEqual(faceClaimProblems(both, 'Serra Angel'), ['line claimed twice: "Flying"']);
+  assert.equal(applyScript(angel, both).fullyParsed, true, 'the card is still finished — the duplicate is a scripts:check problem');
+  assert.deepEqual(faceClaimProblems({ ...both, covers: undefined }, 'Serra Angel'), []);
 });
 
 test('covers: a throwaway declaration buys nothing, and the schema rejects an invalid entry', () => {
@@ -207,13 +390,31 @@ test('applyScript: a line made only of keywords the face has is claimed by them'
   assert.deepEqual(half.unparsed, ['Vigilance']);
   assert.equal(half.fullyParsed, false);
 
-  // a parameterised keyword line counts when the bare keyword is present ("Toxic 1" -> 'toxic', "Ward {2}" -> 'ward')
+  // a PARAMETERISED keyword line needs the parameter as well as the keyword: "Toxic 1" is not implemented by a bare
+  // `toxic`, because the engine poisons for the number, and "Ward {2}" is not implemented by a bare `ward`.
   const syphoner = db.get('Pestilent Syphoner')!;
   assert.deepEqual(normalizeOracleLines(syphoner), ['Flying', 'Toxic 1']);
-  assert.equal(applyScript(syphoner, scriptFor('Pestilent Syphoner', { keywords: ['flying', 'toxic'] })).fullyParsed, true);
+  assert.equal(applyScript(syphoner, scriptFor('Pestilent Syphoner', { keywords: ['flying', 'toxic'], toxic: 1 })).fullyParsed, true);
+  const bareToxic = applyScript(syphoner, scriptFor('Pestilent Syphoner', { keywords: ['flying', 'toxic'] }));
+  assert.deepEqual(bareToxic.unparsed, ['Toxic 1'], 'the bare keyword does not implement the number');
+  const wrongToxic = applyScript(syphoner, scriptFor('Pestilent Syphoner', { keywords: ['flying', 'toxic'], toxic: 2 }));
+  assert.deepEqual(wrongToxic.unparsed, ['Toxic 1'], 'and the wrong number does not either');
+
   const ward = db.get('Dreadlight Monstrosity')!;
   assert.ok(normalizeOracleLines(ward).includes('Ward {2}'));
-  assert.ok(!applyScript(ward, scriptFor('Dreadlight Monstrosity', { mode: 'extend', keywords: ['ward'] })).unparsed.includes('Ward {2}'));
+  assert.equal(keywordLineClaimed('Ward {2}', { keywords: ['ward'], wardCost: 2 }), true);
+  assert.equal(keywordLineClaimed('Ward {2}', { keywords: ['ward'], wardCost: 3 }), false);
+  assert.equal(keywordLineClaimed('Ward {2}', { keywords: ['ward'] }), false);
+  assert.ok(!applyScript(ward, scriptFor('Dreadlight Monstrosity', { mode: 'extend', keywords: ['ward'], wardCost: 2 })).unparsed.includes('Ward {2}'));
+
+  // …and so do the other parameterised keyword lines
+  assert.equal(keywordLineClaimed('Protection from red', { keywords: ['protection'], protectionFrom: ['red'] }), true);
+  assert.equal(keywordLineClaimed('Protection from red', { keywords: ['protection'], protectionFrom: ['blue'] }), false);
+  assert.equal(keywordLineClaimed('Swampwalk', { keywords: ['landwalk'], landwalk: ['Swamp'] }), true);
+  assert.equal(keywordLineClaimed('Swampwalk', { keywords: ['landwalk'], landwalk: ['Island'] }), false);
+  assert.equal(keywordLineClaimed('Flying, first strike', { keywords: ['flying', 'first strike'] }), true);
+  assert.equal(keywordLineClaimed('Flying, first strike', { keywords: ['flying'] }), false);
+  assert.match(keywordPartProblem('Bushido 1', { keywords: ['bushido'], bushido: 2 })!, /needs bushido 1/);
 });
 
 test('applyScript: an ignored line counts as claimed and stops blocking fullyParsed', () => {

@@ -11,13 +11,26 @@
 // declaration that implements the line, or by an `ignore` entry the whitelist accepts — and `applyScript` re-derives
 // `unparsed` from what is left over. `fullyParsed` is "nothing unclaimed AND nothing `unknown` anywhere in the face",
 // for EVERY face that has playable text (front, `backFace`, and `secondFace` for split / adventure / flip) and in
-// both modes. See `abilityIsSubstantive`, `coverProblem`, `claimedLines` and `secondFaceUnclaimed`.
+// both modes.
+//
+// Every claim is BUDGETED, so that a claim always costs the author real behaviour:
+//
+//   * an ability claims a line only when it has a SUBSTANTIVE effect (`substantiveCount`: parser-internal fold
+//     markers and `unknown` count 0), and only one line per substantive effect (`abilityClaimProblem`);
+//   * a keyword claims a line only when the face declares that keyword's PARAMETER too (`Ward {2}` needs
+//     `wardCost: 2`, not just `ward` — `keywordLineProblem`);
+//   * a `covers` entry claims a line only when the declaration it names exists on the face, the line matches an
+//     ANCHORED shape that declaration prints, and the declared VALUE is the one the line prints (`COVER_RULES`);
+//   * no line may be claimed twice (`faceClaimProblems`).
+//
+// See `substantiveCount`, `abilityClaimProblem`, `keywordLineProblem`, `coverProblem`, `claimedLines` and
+// `secondFaceUnclaimed`.
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot } from '../config/paths.js';
 import { keywordFromText } from './parse.js';
 import type { PoolTier } from './pool.js';
-import type { Ability, AbilityCost, AltCost, AsEnters, CardDef, Condition, CostModifier, Filter, Keyword, ManaCost } from './types.js';
+import type { Ability, AbilityCost, AltCost, AsEnters, CardDef, Condition, CostModifier, Effect, Filter, Keyword, ManaCost } from './types.js';
 
 /** Where a script came from. Precedence for `put()`: hand > reviewed > llm > generated. */
 export type ScriptSource = 'generated' | 'llm' | 'reviewed' | 'hand';
@@ -453,43 +466,210 @@ function faceHasUnknown(def: CardDef): boolean {
     || hasUnknown(def.costModifiers) || hasUnknown(def.additionalCosts) || hasUnknown(def.entersTapped);
 }
 
-/** Parameterised keyword lines the parser recognises ("Ward {2}", "Toxic 1", "Islandwalk", "Protection from red"). */
-const PARAMETERISED_KEYWORD: [RegExp, Keyword][] = [
-  [/^protection from .+$/i, 'protection'],
-  [/^ward\b.*$/i, 'ward'],
-  [/^toxic \d+$/i, 'toxic'],
-  [/^bushido \d+$/i, 'bushido'],
-  [/^rampage \d+$/i, 'rampage'],
-  [/^firebending \d+$/i, 'firebending'],
-  [/^(plains|island|swamp|mountain|forest|desert)walk$/i, 'landwalk'],
+// ---------------------------------------------------------------------------
+// Substantive effects
+//
+// "Does this ability DO anything?" is asked twice: once to decide whether it may claim its oracle line at all, and
+// once as a BUDGET — an ability may claim at most one line per thing it does.
+// ---------------------------------------------------------------------------
+
+/**
+ * The `Effect` ops that carry no behaviour of their own: the parser-internal markers `types.ts` lists under
+ * "parser-internal markers folded into the previous effect (never reach the engine)", plus `unknown`. `parse.ts`
+ * emits them so a later pass can fold them into the effect before them; the engine never executes one. An ability
+ * built out of nothing but markers therefore implements no oracle line, and claims none.
+ */
+export const MARKER_OPS = [
+  'alt-if-target', 'alt-take', 'fold-counter-if-yours', 'alt-kicked-amount', 'fold-restriction', 'fold-alt-mana',
+  'fold-new-targets', 'unknown',
+] as const;
+
+const MARKER_OP_SET: ReadonlySet<string> = new Set<string>(MARKER_OPS);
+
+/** Ops whose whole content is other effects: substantive only when something inside them is. */
+const CONTAINER_OPS: ReadonlySet<string> = new Set<string>([
+  'conditional', 'optional-then', 'optional-pay', 'choose-mode', 'delayed-trigger', 'gain-ability',
+]);
+
+/**
+ * Every `Effect[]` nested anywhere inside ONE effect's own fields, found generically — an array whose every element
+ * is an object with an `op`. `conditional.then` / `.else`, `optional-then.first` / `.then`, `optional-pay.then`,
+ * `delayed-trigger.effects` and `choose-mode.modes[i]` are all covered without a hand-written list, and so is any
+ * container added to `types.ts` later.
+ */
+function nestedEffectArrays(effect: Effect): Effect[][] {
+  const out: Effect[][] = [];
+  const walk = (v: unknown) => {
+    if (Array.isArray(v)) {
+      if (v.length && v.every(x => !!x && typeof x === 'object' && !Array.isArray(x) && 'op' in (x as object))) { out.push(v as Effect[]); return; }
+      for (const x of v) walk(x);
+      return;
+    }
+    if (!v || typeof v !== 'object') return;
+    for (const x of Object.values(v as Record<string, unknown>)) walk(x);
+  };
+  for (const v of Object.values(effect as unknown as Record<string, unknown>)) walk(v);
+  return out;
+}
+
+/**
+ * How many of these effects DO something.
+ *
+ *   * a `MARKER_OPS` op counts 0 — it is a parser-internal fold marker, not behaviour;
+ *   * a CONTAINER (`conditional`, `optional-then`, `optional-pay`, `delayed-trigger`, plus any op the generic walk
+ *     finds a nested `Effect[]` in) counts 1 only when it holds at least one substantive effect, recursively;
+ *   * `choose-mode` counts once per SUBSTANTIVE MODE: each mode is a separate thing the card can do, and a two-mode
+ *     spell printed as two lines needs both;
+ *   * `gain-ability` counts 1 when the ability it grants is itself substantive;
+ *   * everything else counts 1.
+ *
+ * This is the budget `abilityClaimProblem` spends: one line per substantive effect, so a single `draw` cannot buy a
+ * three-line card. An activated mana ability whose only effect is `add-mana` counts 1 — `add-mana` is not a marker.
+ */
+export function substantiveCount(effects: readonly Effect[] | undefined): number {
+  let n = 0;
+  for (const e of effects ?? []) {
+    if (!e || typeof e !== 'object') continue;
+    const op = (e as { op?: string }).op;
+    if (!op || MARKER_OP_SET.has(op)) continue;
+    if (op === 'choose-mode') {
+      for (const mode of (e as Extract<Effect, { op: 'choose-mode' }>).modes ?? []) if (substantiveCount(mode) > 0) n++;
+      continue;
+    }
+    if (op === 'gain-ability') {
+      const granted = (e as Extract<Effect, { op: 'gain-ability' }>).ability;
+      if (granted && abilityIsSubstantive(granted)) n++;
+      continue;
+    }
+    const nested = nestedEffectArrays(e);
+    if (CONTAINER_OPS.has(op) || nested.length) { if (nested.some(arr => substantiveCount(arr) > 0)) n++; continue; }
+    n++;
+  }
+  return n;
+}
+
+/**
+ * Whether an ability CARRIES BEHAVIOUR, and so may claim an oracle line at all. Without this a script of empty
+ * abilities — one per line, each with the right `text` — would read as fully simulated while doing nothing in the
+ * engine, and a script of fold markers would do the same one level down.
+ *
+ *   * `spell` / `triggered` / `activated`: `substantiveCount(effects) >= 1`;
+ *   * `static`: an `effect` whose `kind` is not `unknown`.
+ *
+ * An `unknown` anywhere inside the ability disqualifies it too, so the line it was meant to cover is reported as
+ * unclaimed rather than silently swallowed.
+ *
+ * The parser's own output contains 56 empty-effect abilities across the 34,513-card pool (Populate, Manifest dread,
+ * Amass, "The Ring tempts you", …), so the PARSER-output schema (`AbilitySchema`) stays lenient and only the
+ * SCRIPT-level schema requires an effect. Those 56 cards are already not `fullyParsed`.
+ */
+export function abilityIsSubstantive(ability: Ability): boolean {
+  if (!ability || hasUnknown(ability)) return false;
+  if (ability.kind === 'static') return !!ability.effect && ability.effect.kind !== 'unknown';
+  return substantiveCount(ability.effects) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Keyword lines
+// ---------------------------------------------------------------------------
+
+/**
+ * The face fields a keyword line's PARAMETER is checked against. `Ward {2}` is not implemented by the bare `ward`
+ * keyword — the engine needs `wardCost: 2` — so a keyword claim compares the printed number to the declared one.
+ */
+export type KeywordParams = Pick<ScriptFace, 'keywords' | 'protectionFrom' | 'wardCost' | 'toxic' | 'bushido' | 'rampage' | 'landwalk' | 'firebending'>;
+
+/** Numeric keyword lines: the printed shape, the keyword it needs, and the field that must carry the number. */
+const PARAM_KEYWORD: [re: RegExp, keyword: Keyword, field: 'toxic' | 'bushido' | 'rampage' | 'firebending'][] = [
+  [/^toxic (\d+)$/i, 'toxic', 'toxic'],
+  [/^bushido (\d+)$/i, 'bushido', 'bushido'],
+  [/^rampage (\d+)$/i, 'rampage', 'rampage'],
+  [/^firebending (\d+|x)$/i, 'firebending', 'firebending'],
 ];
 
-/** The keyword one comma-separated part of a keyword line names, or null when the part is not a keyword at all. */
+const LANDWALK_RE = /^(plains|island|swamp|mountain|forest|desert)walk$/i;
+const PROTECTION_RE = /^protection from (.+)$/i;
+const WARD_LINE_RE = /^ward (\{(\d+)\}|[—-].+)$/i;
+
+/** The qualities a "Protection from X" line lists, split the way `parse.ts` splits them (parse.ts:1214, :1226). */
+function protectionQualities(rest: string): string[] {
+  return rest.toLowerCase().replace(/\.$/, '').split(/ and from | and | or |, /).map(s => s.trim()).filter(Boolean);
+}
+
+/** The keyword one part of a keyword line names, ignoring its parameter, or null when the part is not a keyword. */
 export function keywordOfLinePart(part: string): Keyword | null {
   const p = part.trim().replace(/\.$/, '');
   if (!p) return null;
-  for (const [re, kw] of PARAMETERISED_KEYWORD) if (re.test(p)) return kw;
+  if (PROTECTION_RE.test(p)) return 'protection';
+  if (WARD_LINE_RE.test(p)) return 'ward';
+  if (LANDWALK_RE.test(p)) return 'landwalk';
+  for (const [re, kw] of PARAM_KEYWORD) if (re.test(p)) return kw;
   return keywordFromText(p);
 }
 
 /**
- * Whether a whole oracle line is nothing but keywords the face has. The parser splits keyword lines on commas
- * (parse.ts:1212), so "Flying, first strike" is claimed by `['flying', 'first strike']` and a parameterised keyword
- * ("Ward {2}", "Toxic 1") is claimed by the bare keyword the parser records for it.
+ * Why one comma-separated part of a keyword line is not implemented by this face, or `null` when it is. The part
+ * must name a keyword the face declares AND, for a parameterised keyword, the face must carry the same parameter:
+ * `Ward {2}` needs `wardCost: 2`, `Toxic 1` needs `toxic: 1`, `Protection from red` needs `red` in `protectionFrom`,
+ * `Swampwalk` needs `Swamp` in `landwalk`. The bare keyword alone never claims a parameterised line.
  */
-export function keywordLineClaimed(line: string, keywords: readonly Keyword[]): boolean {
-  const parts = line.trim().replace(/\.$/, '').split(/,\s*/).map(p => p.trim()).filter(Boolean);
-  if (!parts.length) return false;
-  return parts.every(p => { const k = keywordOfLinePart(p); return !!k && keywords.includes(k); });
+export function keywordPartProblem(part: string, face: KeywordParams): string | null {
+  const p = part.trim().replace(/\.$/, '');
+  if (!p) return 'is empty';
+  const kws = face.keywords ?? [];
+  const needs = (kw: Keyword) => kws.includes(kw) ? null : `${JSON.stringify(p)} needs the '${kw}' keyword (declared ${JSON.stringify(kws)})`;
+  let m: RegExpExecArray | null;
+  if ((m = PROTECTION_RE.exec(p))) {
+    const why = needs('protection'); if (why) return why;
+    const have = (face.protectionFrom ?? []).map(s => s.toLowerCase());
+    const missing = protectionQualities(m[1]).filter(q => !have.includes(q));
+    return missing.length ? `${JSON.stringify(p)} needs protectionFrom to list ${JSON.stringify(missing)} (declared ${JSON.stringify(face.protectionFrom ?? [])})` : null;
+  }
+  if ((m = WARD_LINE_RE.exec(p))) {
+    const why = needs('ward'); if (why) return why;
+    if (m[2] !== undefined && face.wardCost !== Number(m[2])) return `${JSON.stringify(p)} needs wardCost ${m[2]} (declared ${String(face.wardCost)})`;
+    return null;
+  }
+  if ((m = LANDWALK_RE.exec(p))) {
+    const why = needs('landwalk'); if (why) return why;
+    const type = m[1].toLowerCase();
+    return (face.landwalk ?? []).some(t => t.toLowerCase() === type) ? null
+      : `${JSON.stringify(p)} needs landwalk to list ${JSON.stringify(m[1])} (declared ${JSON.stringify(face.landwalk ?? [])})`;
+  }
+  for (const [re, kw, field] of PARAM_KEYWORD) {
+    if (!(m = re.exec(p))) continue;
+    const why = needs(kw); if (why) return why;
+    const declared = face[field];
+    return String(declared).toLowerCase() === m[1].toLowerCase() ? null
+      : `${JSON.stringify(p)} needs ${field} ${m[1]} (declared ${String(declared)})`;
+  }
+  const k = keywordFromText(p);
+  if (!k) return `${JSON.stringify(p)} is not a keyword`;
+  return kws.includes(k) ? null : `${JSON.stringify(p)} is not a keyword this face declares (declared ${JSON.stringify(kws)})`;
 }
 
 /**
- * The oracle lines an ability's `text` claims. Usually one — the parser writes the normalised line it came from —
- * but an instant/sorcery's single `spell` ability carries the WHOLE face text (parse.ts:1358), so each of its lines
- * is claimed. That is safe: a line the parser did not understand leaves an `unknown` effect behind, and `unknown`
- * fails the face independently of who claimed the line.
+ * Why a whole oracle line is not claimed by this face's keywords, or `null` when it is. The parser splits keyword
+ * lines on commas (parse.ts:1212), so "Flying, first strike" needs both keywords and "Ward {2}" needs `wardCost`.
  */
-export function abilityClaimLines(text: string, cardName: string): string[] {
+export function keywordLineProblem(line: string, face: KeywordParams): string | null {
+  const parts = line.trim().replace(/\.$/, '').split(/,\s*/).map(p => p.trim()).filter(Boolean);
+  if (!parts.length) return 'is empty';
+  for (const p of parts) { const why = keywordPartProblem(p, face); if (why) return why; }
+  return null;
+}
+
+/** Whether a whole oracle line is nothing but keywords this face has, parameters included. */
+export function keywordLineClaimed(line: string, face: KeywordParams): boolean {
+  return keywordLineProblem(line, face) === null;
+}
+
+// ---------------------------------------------------------------------------
+// What an ability claims
+// ---------------------------------------------------------------------------
+
+/** The oracle lines an ability's `text` NAMES, normalised the way the parser normalises the card's own text. */
+export function abilityNamedLines(text: string, cardName: string): string[] {
   const out: string[] = [];
   for (const raw of normalizeOracleText(text, cardName).split('\n')) {
     const l = normalizeOracleLine(raw);
@@ -499,126 +679,369 @@ export function abilityClaimLines(text: string, cardName: string): string[] {
 }
 
 /**
- * The lines of ONE face that a script must account for: `normalizeOracleLines` without the back face's `// …`
- * entries and without modal bullets. A `• …` bullet is not an independent line — it is part of the "Choose one —"
- * clause above it, and the parser folds it into that line's `choose-mode` effect (parse.ts:1199-1208), so the
- * ability that claims the parent claims the bullets with it. A bullet the parser did not understand still leaves an
- * `unknown` inside `choose-mode`, which fails the face on its own. `scriptableLines` keeps the bullets, so a
- * `covers` / `ignore` entry may still name one.
+ * The same lines, with a Scryfall MID-SENTENCE BREAK healed: Scryfall sometimes splits one printed sentence across
+ * two oracle lines, and such a continuation always starts with a LOWER-CASE letter ("…, then" / "and that creature
+ * …"). Those two physical lines are one thing the card says, so they cost one effect from the budget rather than
+ * two. A part that starts with a capital, a `{`, a digit or a bullet is a line of its own and is never joined.
  */
-export function faceLines(def: Pick<CardDef, 'name' | 'oracleText' | 'layout' | 'faces' | 'backFace'>): string[] {
-  return normalizeOracleLines({ ...def, backFace: undefined }).filter(l => !l.startsWith('• '));
+export function abilityLogicalLines(text: string, cardName: string): string[] {
+  const out: string[] = [];
+  for (const l of abilityNamedLines(text, cardName)) {
+    if (out.length && /^[a-z]/.test(l)) out[out.length - 1] += ' ' + l;
+    else out.push(l);
+  }
+  return out;
 }
 
 /**
- * Whether an ability CARRIES BEHAVIOUR, and so may claim its oracle line. An ability that declares no effect claims
- * nothing: without this a script of empty abilities — one per line, each with the right `text` — would read as fully
- * simulated while doing nothing at all in the engine. An `unknown` anywhere inside it disqualifies it too, so the
- * line it was meant to cover is reported as unclaimed rather than silently swallowed.
+ * Why this ability claims NO line, or `null` when it claims the lines its text names. Two rules, both budgets:
  *
- *   * `spell` / `triggered` / `activated`: at least one effect, and no `unknown` at any depth;
- *   * `static`: an `effect` that is not `unknown` at any depth.
+ *   1. the ability must carry behaviour at all (`abilityIsSubstantive`);
+ *   2. it may name at most one line per SUBSTANTIVE EFFECT (`substantiveCount`). Without this one ability could
+ *      name a card's whole text — the parser writes an instant/sorcery's entire face text into its single `spell`
+ *      ability (parse.ts:1358) — and finish every line of it with a single `draw`.
  *
- * The parser's own output contains 56 empty-effect abilities across the 34,513-card pool (Populate, Manifest dread,
- * Amass, "The Ring tempts you", …), so the PARSER-output schema (`AbilitySchema`) stays lenient and only the
- * SCRIPT-level schema requires an effect. Those 56 cards are already not `fullyParsed`.
+ * A `static` / `triggered` / `activated` ability is printed as ONE line, so it may name only one (after the
+ * mid-sentence join above); only a `spell` ability may name several, and only as many as it has effects.
  */
-export function abilityIsSubstantive(ability: Ability): boolean {
-  if (hasUnknown(ability)) return false;
-  if (ability.kind === 'static') return !!ability.effect;
-  return (ability.effects?.length ?? 0) > 0;
+export function abilityClaimProblem(ability: Ability, cardName: string): string | null {
+  if (!abilityIsSubstantive(ability)) {
+    if (hasUnknown(ability)) return 'ability has no substantive effect: it is nothing but an unknown';
+    if (ability.kind === 'static') return 'ability has no substantive effect: its static effect is unknown or missing';
+    return (ability.effects?.length ?? 0) === 0
+      ? 'ability has no substantive effect: it declares no effect'
+      : 'ability has no substantive effect: every effect it declares is a parser-internal fold marker';
+  }
+  const lines = abilityLogicalLines(ability.text, cardName);
+  if (lines.length <= 1) return null;
+  if (ability.kind !== 'spell') return `ability names ${lines.length} lines but a '${ability.kind}' ability is printed as one line and may name only the one that contains it`;
+  const have = substantiveCount(ability.effects);
+  return have < lines.length ? `ability names ${lines.length} lines but declares only ${have} substantive effect${have === 1 ? '' : 's'}` : null;
 }
 
-/** Per-kind shape of the oracle line a declaration produces. `keywords` and `altCosts` need the face itself. */
-const COVER_LINE_RE: Record<Exclude<CoverKind, 'keywords' | 'altCosts'>, RegExp> = {
-  asEnters: /^(as ~ enters|~ enters (the battlefield )?(tapped|with))/i,
-  costModifiers: /^(delve|convoke|improvise|affinity for|~ costs \{.*\} less)/i,
-  kicker: /^(multi)?kicker /i,
-  cycling: /cycling /i,
-  entersTapped: /^~ enters (the battlefield )?tapped/i,
-  morph: /^(morph|megamorph|disguise) /i,
-  cascade: /^cascade$/i,
-  storm: /^storm$/i,
-  rebound: /^rebound$/i,
-  dredge: /^dredge \d/i,
-  graveyardReplacement: /^if ~ would be put into a graveyard from anywhere/i,
-  protection: /^protection from/i,
-  ward: /^ward/i,
-  additionalCosts: /^as an additional cost to cast ~/i,
-  toxic: /^toxic \d+\.?$/i,
-  bushido: /^bushido \d+\.?$/i,
-  rampage: /^rampage \d+\.?$/i,
-  landwalk: /^(plains|island|swamp|mountain|forest|desert)walk\.?$/i,
-  firebending: /^firebending (\d+|x\b)/i,
-};
-
-/** Whether the face really declares the thing a `covers` entry names. */
-const COVER_DECLARED: Record<CoverKind, (f: ScriptFace) => boolean> = {
-  keywords: f => !!f.keywords?.length,
-  altCosts: f => !!f.altCosts?.length,
-  asEnters: f => !!f.asEnters?.length,
-  costModifiers: f => !!f.costModifiers?.length,
-  additionalCosts: f => !!f.additionalCosts?.length,
-  kicker: f => f.kicker !== undefined,
-  cycling: f => f.cycling !== undefined,
-  entersTapped: f => f.entersTapped !== undefined,
-  morph: f => f.morph !== undefined,
-  cascade: f => f.cascade === true,
-  storm: f => f.storm === true,
-  rebound: f => f.rebound === true,
-  dredge: f => f.dredge !== undefined,
-  graveyardReplacement: f => f.graveyardReplacement !== undefined,
-  protection: f => !!f.protectionFrom?.length,
-  ward: f => f.wardCost !== undefined,
-  toxic: f => f.toxic !== undefined,
-  bushido: f => f.bushido !== undefined,
-  rampage: f => f.rampage !== undefined,
-  landwalk: f => !!f.landwalk?.length,
-  firebending: f => f.firebending !== undefined,
-};
-
-/** The keyword word an alternative-cost line starts with, and the `AltCost.id`s the pitch phrasing stands for. */
-const ALT_COST_WORD_RE = /^(flashback|escape|evoke|warp|impending|buyback|dash|jump-start)\b/i;
-const ALT_COST_PITCH_RE = /^you may pay\b[\s\S]*\brather than pay\b/i;
-
-function altCostCovers(face: ScriptFace, line: string): boolean {
-  const alts = face.altCosts ?? [];
-  const m = ALT_COST_WORD_RE.exec(line);
-  if (m) { const w = m[1].toLowerCase(); return alts.some(a => a.id.toLowerCase() === w || a.label.toLowerCase().startsWith(w)); }
-  if (ALT_COST_PITCH_RE.test(line)) return alts.some(a => a.id === 'pitch' || a.id === 'life');
-  return false;
+/** The oracle lines this ability really claims: the lines its text names, or none when `abilityClaimProblem` fails. */
+export function abilityClaimLines(ability: Ability, cardName: string): string[] {
+  return abilityClaimProblem(ability, cardName) === null ? abilityNamedLines(ability.text, cardName) : [];
 }
 
 /**
- * Why this `covers` entry does not claim its line, or `null` when it does. Two of the three rules live here:
+ * Every reason this face's abilities and `covers` entries do not claim what they say they do: each ability's
+ * `abilityClaimProblem` first, then any line two of them claim. A line claimed twice means one of the two
+ * declarations is wrong or redundant, and it hides a line nothing implements behind one that two things do.
+ */
+export function faceClaimProblems(face: ScriptFace | null | undefined, cardName: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const twice = new Set<string>();
+  const take = (line: string) => { if (seen.has(line)) twice.add(line); else seen.add(line); };
+  for (const a of face?.abilities ?? []) {
+    const why = abilityClaimProblem(a, cardName);
+    if (why) { out.push(`${why}: ${JSON.stringify(a.text)}`); continue; }
+    for (const l of abilityNamedLines(a.text, cardName)) take(l);
+  }
+  for (const l of validCovers(face)) take(l.replace(/^\/\/ /, ''));
+  for (const l of twice) out.push(`line claimed twice: ${JSON.stringify(l)}`);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// `covers`: one line, one named declaration, one matched value
+// ---------------------------------------------------------------------------
+
+/** Mana symbols as one comparable string: `"{2} {R}"`, `"{2}{R}"` and `"{2}{r}"` are the same cost. */
+const manaKey = (s: string | undefined) => (s ?? '').replace(/\s+/g, '').toLowerCase();
+/** The run of mana symbols a line prints, in order. */
+const manaIn = (s: string) => (s.match(/\{[^}]*\}/g) ?? []).join('');
+
+const NUM_WORD: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+};
+
+/** "four" / "4" / "any number of" as the AST writes such a count, or null when the word is not a number at all. */
+function countWord(s: string): number | 'any' | null {
+  const t = s.trim().toLowerCase();
+  if (t === 'any number of') return 'any';
+  if (/^\d+$/.test(t)) return Number(t);
+  return t in NUM_WORD ? NUM_WORD[t] : null;
+}
+
+/**
+ * One `CoverKind`'s rule: the ANCHORED line shapes it may claim, whether the face declares it at all, and — rule
+ * (iii), which was shape-only until now — whether the DECLARED VALUE is the one the line prints. `value` is handed
+ * the index of the shape that matched and its capture groups, so `~ enters tapped.` and `~ enters tapped unless …`
+ * can demand different declarations from the same kind.
+ */
+interface CoverRule {
+  lines: RegExp[];
+  declared: (f: ScriptFace) => boolean;
+  value: (f: ScriptFace, m: RegExpExecArray, idx: number) => string | null;
+}
+
+/** The `AbilityCost` fields the leading verb of an "additional cost" clause stands for. */
+const ADDITIONAL_COST_VERB: [re: RegExp, has: (c: AbilityCost) => boolean, fields: string][] = [
+  [/^sacrifice\b/i, c => c.sacrifice !== undefined || c.sacrificeSelf === true, 'sacrifice / sacrificeSelf'],
+  [/^discard\b/i, c => c.discard !== undefined || c.discardSelf === true || c.discardHand === true, 'discard / discardSelf / discardHand'],
+  [/^pay\b.*\blife\b/i, c => c.payLife !== undefined, 'payLife'],
+  [/^exile\b/i, c => c.exileFromHand !== undefined || c.exileFromGraveyard !== undefined || c.exileOtherFromGraveyard !== undefined, 'exileFromHand / exileFromGraveyard / exileOtherFromGraveyard'],
+  [/^tap\b/i, c => c.tap === true || c.tapUntappedCreature !== undefined || c.tapCreaturesTotalPower !== undefined, 'tap / tapUntappedCreature / tapCreaturesTotalPower'],
+  [/^return\b/i, c => c.returnToHand !== undefined, 'returnToHand'],
+];
+
+/** A kind whose declaration carries no value to match: existing at all is the whole of rule (iii). */
+const noValue = (): string | null => null;
+
+/** An `AsEnters` of the kind and parameters the line printed, or a description of what is missing. */
+function asEntersProblem(f: ScriptFace, want: (a: AsEnters) => boolean, describe: string): string | null {
+  return (f.asEnters ?? []).some(want) ? null
+    : `the line needs an asEnters entry ${describe}, and this face declares ${JSON.stringify(f.asEnters ?? [])}`;
+}
+
+/** An `AltCost` matching the line's keyword and cost, or a description of what is missing. */
+function altCostProblem(f: ScriptFace, want: (a: AltCost) => boolean, describe: string): string | null {
+  return (f.altCosts ?? []).some(want) ? null
+    : `the line needs an altCost ${describe}, and this face declares ${JSON.stringify((f.altCosts ?? []).map(a => ({ id: a.id, mana: a.cost.mana?.raw })))}`;
+}
+
+/**
+ * THE cover table — every anchored line shape and every value check, in ONE place. `applyScript` (through
+ * `validCovers`) and `scripts:check` / `CardScriptChecked` (through `coverProblems`) both read it, so a `covers`
+ * entry the tool rejects claims nothing at runtime either.
  *
- *   (ii) the named declaration really exists on this face, and
- *   (iii) the line has the shape that declaration produces.
+ * Every regex here is anchored at both ends, and `test/scripts.test.ts` asserts it: an unanchored shape lets a
+ * `covers` entry claim any line that merely CONTAINS the keyword.
+ */
+export const COVER_RULES: Record<CoverKind, CoverRule> = {
+  // the whole line must be keywords this face declares, parameters and all — see `keywordLineProblem`
+  keywords: {
+    lines: [/^.+$/],
+    declared: f => !!f.keywords?.length,
+    value: (f, m) => keywordLineProblem(m[0], f),
+  },
+  altCosts: {
+    lines: [
+      /^(flashback|evoke|warp|buyback|dash)(?:[—-] ?| )(.+?)\.?$/i,
+      /^jump-start$/i,
+      /^impending (\d+)[—-] ?(\{.+\})$/i,
+      /^escape[—-] ?(\{.+\}), exile (.+?)\.?$/i,
+      /^(?:if .+?, )?you may (.+?) rather than pay ~'s mana cost\.?$/i,
+    ],
+    declared: f => !!f.altCosts?.length,
+    value: (f, m, idx) => {
+      if (idx === 0) {
+        const id = m[1].toLowerCase() as AltCost['id'];
+        const symbols = manaIn(m[2]);
+        // buyback is the one keyword whose altCost holds the TOTAL cost (parse.ts adds the increment to the card's
+        // own mana cost), so the printed increment is the tail of the declared raw rather than the whole of it
+        const costOk = (a: AltCost) => !symbols || manaKey(a.cost.mana?.raw) === manaKey(symbols)
+          || (id === 'buyback' && manaKey(a.cost.mana?.raw).endsWith(manaKey(symbols)));
+        return altCostProblem(f, a => a.id === id && costOk(a), `with id '${id}'${symbols ? ` and cost ${symbols}` : ''}`);
+      }
+      if (idx === 1) return altCostProblem(f, a => a.id === 'jump-start', "with id 'jump-start'");
+      if (idx === 2) {
+        return altCostProblem(f, a => a.id === 'impending' && manaKey(a.cost.mana?.raw) === manaKey(m[2]) && a.timeCounters === Number(m[1]),
+          `with id 'impending', cost ${m[2]} and timeCounters ${m[1]}`);
+      }
+      if (idx === 3) {
+        const want = countWord(m[2].replace(/^(.+?) other cards?\b[\s\S]*$/i, '$1'));
+        return altCostProblem(f, a => a.id === 'escape' && manaKey(a.cost.mana?.raw) === manaKey(m[1])
+          && (want === null || a.cost.exileOtherFromGraveyard?.count === want),
+        `with id 'escape', cost ${m[1]} and exileOtherFromGraveyard.count ${String(want)}`);
+      }
+      // the pitch clauses: "You may pay 1 life and exile a blue card from your hand rather than pay ~'s mana cost."
+      let life: number | undefined; let exile = false;
+      for (const part of m[1].split(/ and /i)) {
+        const pm = /^pay (\d+) life$/i.exec(part.trim());
+        if (pm) { life = Number(pm[1]); continue; }
+        if (/^exile .*from your hand$/i.test(part.trim())) exile = true;
+      }
+      if (life === undefined && !exile) return `the pitch clause ${JSON.stringify(m[1])} names neither "pay N life" nor "exile … from your hand"`;
+      return altCostProblem(f, a => (a.id === 'pitch' || a.id === 'life')
+        && (life === undefined || a.cost.payLife === life)
+        && (!exile || a.cost.exileFromHand !== undefined),
+      `with id 'pitch' or 'life'${life === undefined ? '' : `, payLife ${life}`}${exile ? ', exileFromHand' : ''}`);
+    },
+  },
+  asEnters: {
+    lines: [
+      /^~ enters (?:the battlefield )?tapped\.?$/i,
+      /^~ enters (?:the battlefield )?tapped unless (.+?)\.?$/i,
+      /^as ~ enters, you may pay (\d+) life\. if you don't, it enters tapped\.?$/i,
+      /^(?:if ~ was kicked, it|~) enters with ([a-z]+|\d+) ([+-]1\/[+-]1|[a-z]+) counters? on it(?: (?:if|for each) .+?)?\.?$/i,
+      /^as ~ enters, choose a (creature type|color)\.?$/i,
+      /^if ~ would enter, you may discard an? (.+?) card instead\. if you do, put ~ onto the battlefield\. if you don't, put it into its owner's graveyard\.?$/i,
+    ],
+    declared: f => !!f.asEnters?.length,
+    value: (f, m, idx) => {
+      if (idx === 0) return asEntersProblem(f, a => a.kind === 'tapped', "of kind 'tapped'");
+      if (idx === 1) return asEntersProblem(f, a => a.kind === 'tapped-unless', "of kind 'tapped-unless'");
+      if (idx === 2) return asEntersProblem(f, a => a.kind === 'pay-life-or-tapped' && a.life === Number(m[1]), `of kind 'pay-life-or-tapped' with life ${m[1]}`);
+      if (idx === 3) {
+        const counter = m[2].toLowerCase();
+        const amount = countWord(m[1]);
+        return asEntersProblem(f, a => a.kind === 'counters' && a.counter === counter && (typeof amount !== 'number' || a.amount === amount),
+          `of kind 'counters' with counter ${JSON.stringify(counter)}${typeof amount === 'number' ? ` and amount ${amount}` : ''}`);
+      }
+      if (idx === 4) {
+        const what = m[1].toLowerCase() === 'color' ? 'color' : 'creature-type';
+        return asEntersProblem(f, a => a.kind === 'choose' && a.what === what, `of kind 'choose' with what '${what}'`);
+      }
+      return asEntersProblem(f, a => a.kind === 'discard-or-graveyard', "of kind 'discard-or-graveyard'");
+    },
+  },
+  costModifiers: {
+    lines: [
+      /^(delve|convoke|improvise)$/i,
+      /^affinity for (.+?)\.?$/i,
+      /^~ costs \{.+\} less to cast(?: .+?)?\.?$/i,
+    ],
+    declared: f => !!f.costModifiers?.length,
+    value: (f, m, idx) => {
+      const want = idx === 0 ? m[1].toLowerCase() : 'reduce';
+      return (f.costModifiers ?? []).some(c => c.kind === want) ? null
+        : `the line needs a costModifier of kind '${want}', and this face declares ${JSON.stringify((f.costModifiers ?? []).map(c => c.kind))}`;
+    },
+  },
+  kicker: {
+    lines: [/^(multi)?kicker (\{.+\})$/i],
+    declared: f => f.kicker !== undefined,
+    value: (f, m) => manaKey(f.kicker?.raw) === manaKey(m[2]) ? null
+      : `the line prints kicker ${m[2]} but this face declares ${JSON.stringify(f.kicker?.raw)}`,
+  },
+  // "Cycling {2}", "Plainscycling {2}", "Basic landcycling {1}{G}" (parse.ts:1296)
+  cycling: {
+    lines: [/^((?:[a-z]+ )?[a-z]+cycling|cycling) (\{.+\})$/i],
+    declared: f => f.cycling !== undefined,
+    value: (f, m) => {
+      if (manaKey(f.cycling?.raw) !== manaKey(m[2])) return `the line prints cycling ${m[2]} but this face declares ${JSON.stringify(f.cycling?.raw)}`;
+      const typed = m[1].toLowerCase() !== 'cycling';
+      return typed && f.cyclingSearch === undefined ? `${JSON.stringify(m[1])} is typecycling and needs a cyclingSearch filter` : null;
+    },
+  },
+  entersTapped: {
+    lines: [/^~ enters (?:the battlefield )?tapped\.?$/i, /^~ enters (?:the battlefield )?tapped unless (.+?)\.?$/i],
+    declared: f => f.entersTapped !== undefined,
+    value: (f, _m, idx) => {
+      const unless = typeof f.entersTapped === 'object' && f.entersTapped !== null;
+      if (idx === 1) return unless ? null : "the line is the 'unless' form, so entersTapped must be { unless: <condition> }";
+      if (unless) return 'the line is the unconditional form, so entersTapped must be true';
+      return f.entersTapped === true ? null : 'entersTapped is false, so it claims no line';
+    },
+  },
+  morph: {
+    lines: [/^(morph|megamorph|disguise) (\{.+\})$/i],
+    declared: f => f.morph !== undefined,
+    value: (f, m) => {
+      const word = m[1].toLowerCase();
+      if (manaKey(f.morph?.cost.raw) !== manaKey(m[2])) return `the line prints ${word} ${m[2]} but this face declares ${JSON.stringify(f.morph?.cost.raw)}`;
+      if (!!f.morph?.megamorph !== (word === 'megamorph')) return `the line prints '${word}' but megamorph is ${String(!!f.morph?.megamorph)}`;
+      if (!!f.morph?.disguise !== (word === 'disguise')) return `the line prints '${word}' but disguise is ${String(!!f.morph?.disguise)}`;
+      return null;
+    },
+  },
+  cascade: { lines: [/^cascade$/i], declared: f => f.cascade === true, value: noValue },
+  storm: { lines: [/^storm$/i], declared: f => f.storm === true, value: noValue },
+  rebound: { lines: [/^rebound$/i], declared: f => f.rebound === true, value: noValue },
+  dredge: {
+    lines: [/^dredge (\d+)$/i],
+    declared: f => f.dredge !== undefined,
+    value: (f, m) => f.dredge === Number(m[1]) ? null : `the line prints dredge ${m[1]} but this face declares ${String(f.dredge)}`,
+  },
+  graveyardReplacement: {
+    lines: [
+      /^if ~ would be put into a graveyard from anywhere, exile it instead\.?$/i,
+      /^if ~ would be put into a graveyard from anywhere, (?:reveal ~ and )?shuffle it into its owner's library instead\.?$/i,
+    ],
+    declared: f => f.graveyardReplacement !== undefined,
+    value: (f, _m, idx) => {
+      const want = idx === 0 ? 'exile' : 'shuffle';
+      return f.graveyardReplacement === want ? null : `the line says '${want}' but this face declares ${JSON.stringify(f.graveyardReplacement)}`;
+    },
+  },
+  protection: {
+    lines: [/^protection from (.+?)\.?$/i],
+    declared: f => !!f.protectionFrom?.length,
+    value: (f, m) => {
+      const have = (f.protectionFrom ?? []).map(s => s.toLowerCase());
+      const missing = protectionQualities(m[1]).filter(q => !have.includes(q));
+      return missing.length ? `the line names ${JSON.stringify(missing)}, which protectionFrom does not list (declared ${JSON.stringify(f.protectionFrom ?? [])})` : null;
+    },
+  },
+  ward: {
+    lines: [WARD_LINE_RE],
+    declared: f => f.wardCost !== undefined,
+    value: (f, m) => m[2] === undefined || f.wardCost === Number(m[2]) ? null
+      : `the line prints ward ${m[1]} but this face declares wardCost ${String(f.wardCost)}`,
+  },
+  additionalCosts: {
+    lines: [/^as an additional cost to cast ~, (.+?)\.?$/i],
+    declared: f => !!f.additionalCosts?.length,
+    value: (f, m) => {
+      const clause = m[1].trim();
+      const verb = ADDITIONAL_COST_VERB.find(([re]) => re.test(clause));
+      if (!verb) return `the clause ${JSON.stringify(clause)} starts with no verb this format can match (sacrifice / discard / pay … life / exile / tap / return)`;
+      return (f.additionalCosts ?? []).some(c => verb[1](c)) ? null
+        : `the clause ${JSON.stringify(clause)} needs an additionalCosts entry with ${verb[2]}, and this face declares ${JSON.stringify(f.additionalCosts ?? [])}`;
+    },
+  },
+  toxic: {
+    lines: [/^toxic (\d+)$/i],
+    declared: f => f.toxic !== undefined,
+    value: (f, m) => f.toxic === Number(m[1]) ? null : `the line prints toxic ${m[1]} but this face declares ${String(f.toxic)}`,
+  },
+  bushido: {
+    lines: [/^bushido (\d+)$/i],
+    declared: f => f.bushido !== undefined,
+    value: (f, m) => f.bushido === Number(m[1]) ? null : `the line prints bushido ${m[1]} but this face declares ${String(f.bushido)}`,
+  },
+  rampage: {
+    lines: [/^rampage (\d+)$/i],
+    declared: f => f.rampage !== undefined,
+    value: (f, m) => f.rampage === Number(m[1]) ? null : `the line prints rampage ${m[1]} but this face declares ${String(f.rampage)}`,
+  },
+  landwalk: {
+    lines: [/^(plains|island|swamp|mountain|forest|desert)walk\.?$/i],
+    declared: f => !!f.landwalk?.length,
+    value: (f, m) => (f.landwalk ?? []).some(t => t.toLowerCase() === m[1].toLowerCase()) ? null
+      : `the line prints ${JSON.stringify(m[1])} but landwalk declares ${JSON.stringify(f.landwalk ?? [])}`,
+  },
+  firebending: {
+    lines: [/^firebending (\d+|x)$/i],
+    declared: f => f.firebending !== undefined,
+    value: (f, m) => String(f.firebending).toLowerCase() === m[1].toLowerCase() ? null
+      : `the line prints firebending ${m[1]} but this face declares ${String(f.firebending)}`,
+  },
+};
+
+/** Every line shape in the table, one entry per kind — read by the anchoring test and by the README table. */
+export const COVER_LINE_RE: Record<CoverKind, readonly RegExp[]> =
+  Object.fromEntries(COVER_KINDS.map(k => [k, COVER_RULES[k].lines])) as unknown as Record<CoverKind, readonly RegExp[]>;
+
+/**
+ * Why this `covers` entry does not claim its line, or `null` when it does. Three rules, and all three must hold:
  *
- * Rule (i) — the line is a real oracle line of that face — needs the card and is checked by `scripts:check`; a
- * `covers` entry naming a line the face does not have simply claims nothing here.
+ *   (i)   the line is a real oracle line of that face — that needs the card, so `scripts:check` checks it; an entry
+ *         naming a line the face does not have simply claims nothing here;
+ *   (ii)  the named declaration really exists on this face;
+ *   (iii) the line has a shape that declaration prints AND the declared VALUE is the one the line prints — the mana
+ *         cost of the flashback, the number after `dredge`, the counter named in the as-enters clause.
  */
 export function coverProblem(face: ScriptFace | null | undefined, entry: CoverEntry): string | null {
   const line = normalizeOracleLine(entry.line.trim().replace(/^\/\/ /, ''));
   const by = entry.by;
   if (!COVER_KINDS.includes(by)) return `'${by}' is not a cover kind`;
   const f = face ?? {};
-  if (!COVER_DECLARED[by](f)) return `names by '${by}' but this face declares no ${by}`;
-  if (by === 'keywords') {
-    return keywordLineClaimed(line, f.keywords ?? [])
-      ? null
-      : `names by 'keywords' but the line is not made only of keywords this face declares (${JSON.stringify(f.keywords ?? [])})`;
+  const rule = COVER_RULES[by];
+  if (!rule.declared(f)) return `names by '${by}' but this face declares no ${by}`;
+  for (let i = 0; i < rule.lines.length; i++) {
+    const m = rule.lines[i].exec(line);
+    if (!m) continue;
+    const why = rule.value(f, m, i);
+    return why === null ? null : `names by '${by}' but ${why}`;
   }
-  if (by === 'altCosts') {
-    return altCostCovers(f, line)
-      ? null
-      : `names by 'altCosts' but the line does not start with the keyword word of an alternative cost this face declares`;
-  }
-  const re = COVER_LINE_RE[by];
-  return re.test(line) ? null : `names by '${by}' but the line does not match ${re.source}`;
+  return `names by '${by}' but the line matches none of the shapes that declaration prints (${rule.lines.map(r => r.source).join(' | ')})`;
 }
 
-/** Every `covers` entry of this face that is invalid, as `"<line>: <why>"`. Empty when the face's covers are sound. */
+/** Every `covers` entry of this face that is invalid, as `"<line> <why>"`. Empty when the face's covers are sound. */
 export function coverProblems(face: ScriptFace | null | undefined): string[] {
   const out: string[] = [];
   for (const c of face?.covers ?? []) { const why = coverProblem(face, c); if (why) out.push(`${JSON.stringify(c.line)} ${why}`); }
@@ -636,17 +1059,29 @@ export function coversValid(face: ScriptFace | null | undefined): boolean {
 }
 
 /**
- * Every line the resulting face claims: the normalised `text` of each of its SUBSTANTIVE abilities (see
- * `abilityIsSubstantive` — an empty-effect or unknown-bearing ability claims nothing), each line that is wholly made
- * of keywords it has, the face's valid `covers` entries and the script's honoured `ignore` lines. In mode 'replace'
- * `def` holds only the script's declarations, so only the script claims; in mode 'extend' it holds the parser's plus
- * the script's, so both do. An invalid `covers` entry claims nothing here as well as failing the schema.
+ * Every line the resulting face claims: the lines each of its abilities really claims (see `abilityClaimLines` — an
+ * ability with no substantive effect, or one naming more lines than it has effects, claims nothing), the face's
+ * valid `covers` entries and the script's honoured `ignore` lines. Lines made only of keywords the face has are
+ * claimed separately, by `keywordLineClaimed`, because they need the face's keyword PARAMETERS too. In mode
+ * 'replace' `def` holds only the script's declarations, so only the script claims; in mode 'extend' it holds the
+ * parser's plus the script's, so both do.
  */
 export function claimedLines(def: CardDef, face: ScriptFace | null | undefined, ignored: Set<string>): Set<string> {
   const claimed = new Set<string>(ignored);
-  for (const a of def.abilities) if (abilityIsSubstantive(a)) for (const l of abilityClaimLines(a.text, def.name)) claimed.add(l);
+  for (const a of def.abilities) for (const l of abilityClaimLines(a, def.name)) claimed.add(l);
   for (const c of validCovers(face)) claimed.add(c);
   return claimed;
+}
+/**
+ * The lines of ONE face that a script must account for: `normalizeOracleLines` without the back face's `// …`
+ * entries and without modal bullets. A `• …` bullet is not an independent line — it is part of the "Choose one —"
+ * clause above it, and the parser folds it into that line's `choose-mode` effect (parse.ts:1199-1208), so the
+ * ability that claims the parent claims the bullets with it. A bullet the parser did not understand still leaves an
+ * `unknown` inside `choose-mode`, which fails the face on its own. `scriptableLines` keeps the bullets, so a
+ * `covers` / `ignore` entry may still name one.
+ */
+export function faceLines(def: Pick<CardDef, 'name' | 'oracleText' | 'layout' | 'faces' | 'backFace'>): string[] {
+  return normalizeOracleLines({ ...def, backFace: undefined }).filter(l => !l.startsWith('• '));
 }
 
 // ---------------------------------------------------------------------------
@@ -697,9 +1132,9 @@ export function secondFaceUnclaimed(def: Pick<CardDef, 'layout' | 'faces'>, scri
   const face = script.secondFace;
   const name = def.faces![1].name;
   const claimed = new Set<string>(ignored);
-  for (const a of face?.abilities ?? []) if (abilityIsSubstantive(a)) for (const l of abilityClaimLines(a.text, name)) claimed.add(l);
+  for (const a of face?.abilities ?? []) for (const l of abilityClaimLines(a, name)) claimed.add(l);
   for (const c of validCovers(face)) claimed.add(c);
-  return lines.filter(l => !claimed.has(l) && !keywordLineClaimed(l, face?.keywords ?? []));
+  return lines.filter(l => !claimed.has(l) && !keywordLineClaimed(l, face ?? {}));
 }
 
 /**
@@ -739,7 +1174,7 @@ function applyFace(def: CardDef, face: ScriptFace | null | undefined, mode: 'rep
     for (const k of SCALARS) if (face?.[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = face[k];
   }
   const claimed = claimedLines(out, face, ignored);
-  out.unparsed = faceLines(out).filter(l => !claimed.has(l) && !keywordLineClaimed(l, out.keywords));
+  out.unparsed = faceLines(out).filter(l => !claimed.has(l) && !keywordLineClaimed(l, out));
   out.fullyParsed = out.unparsed.length === 0 && !faceHasUnknown(out);
   // producesMana follows mana abilities the script may have added
   for (const a of out.abilities) if (a.kind === 'activated' && a.manaAbility) for (const e of a.effects) if (e.op === 'add-mana' && Array.isArray(e.mana)) for (const m of e.mana) if (!out.producesMana.includes(m)) out.producesMana.push(m);
@@ -799,7 +1234,7 @@ export function unmatchedAbilityTexts(def: Pick<CardDef, 'name' | 'oracleText' |
   const out: string[] = [];
   const check = (abilities: Ability[] | undefined, name: string, prefix: string) => {
     for (const a of abilities ?? []) {
-      const claims = abilityClaimLines(a.text, name);
+      const claims = abilityNamedLines(a.text, name);
       if (!claims.some(c => lines.has(c) || lines.has(prefix + c))) out.push(prefix + a.text);
     }
   };

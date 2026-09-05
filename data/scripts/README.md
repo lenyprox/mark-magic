@@ -39,7 +39,7 @@ Sibling directories under `data/scripts/`:
 | `confidence` | 0..1 for `generated` / `llm`; reviewed and hand scripts are 1 |
 | `mode` | `replace` (default): the script's declarations stand in for the parser's on that face. `extend`: they are added to the parser's, and both sets of claims count. Neither mode "clears" anything — see **Claiming lines**. |
 | `keywords`, `abilities`, `altCosts`, `asEnters`, `costModifiers`, `additionalCosts`, `kicker`, `cycling`, `cyclingSearch`, `entersTapped`, `morph`, `cascade`, `storm`, `rebound`, `dredge`, `graveyardReplacement`, `protectionFrom`, `wardCost`, `toxic`, `bushido`, `rampage`, `landwalk`, `firebending` | the front face's declarations — every non-ability field `CardDef` carries, so the format can express everything the parser can and every `covers` kind has a field to name. `applyScript` applies them all (`replace`: set; `extend`: merge/append). |
-| `covers` | `[{ line, by }]` — oracle lines (see **Normalisation**) this face claims **without an ability of its own**, each naming the declaration that implements it. There is no wildcard (`"*"` is rejected) and **no budget**: an entry counts only when the declaration `by` names is really on this face *and* the line has the shape that declaration produces (see **`covers` kinds**). A plain string is not a `covers` entry. |
+| `covers` | `[{ line, by }]` — oracle lines (see **Normalisation**) this face claims **without an ability of its own**, each naming the declaration that implements it. There is no wildcard (`"*"` is rejected) and **no budget**: an entry counts only when the declaration `by` names is really on this face, the line matches an **anchored** shape that declaration prints, *and* the declared **value** is the one the line prints (see **`covers` kinds**). A plain string is not a `covers` entry. |
 | `backFace` | the same fields for the back face of a **transform / modal_dfc** card; applied to `def.backFace` with the same replace/extend semantics. A card counts as fully simulated only when **every** face does, so a script that finishes the front face and says nothing about the back leaves it unfinished — `scripts:check` reports the remaining lines. |
 | `secondFace` | the same fields for the second half of a **split / adventure / flip** card. `parse.ts` parses `faces[0]` only (parse.ts:1146) and builds a `backFace` for transform / modal_dfc alone (parse.ts:1362), so `faces[1]` of these three layouts is playable text no `CardDef` holds — and it is still text a script must claim. `secondFaceLines(def)` returns the exact list, normalised against the **second face's own name** (Ice's text uses `~` for Ice, not for Fire). |
 | `ignore` | `[{ line, reason }]` — oracle lines that are deliberately not simulated. An ignored line counts as claimed and stops blocking `fullyParsed`. The line must be one `scriptableLines(def)` names, and it must match the **whitelist** of the reason it claims (below). It never hides an `unknown`: a face with an `unknown` anywhere in it fails whatever its lines say. |
@@ -61,52 +61,92 @@ face's in `def.backFace.unparsed`. Neither mode ever *clears* it: `mode: "replac
 for the parser's", not "everything is accounted for". A script that declares nothing therefore finishes nothing (a
 vanilla card with no oracle text is the one exception: it has no line to claim, so an empty script finishes it).
 
-There are exactly four ways to claim a line:
+There are exactly four ways to claim a line, and **every one of them is budgeted** — a claim always costs real
+behaviour:
 
 | Claimed by | How |
 |---|---|
-| an **ability** | its `text`, normalised, is that line — **and the ability carries behaviour**: a `spell` / `triggered` / `activated` ability with an empty `effects` array claims nothing and is rejected by the schema (`ability declares no effect`), and so does an ability with an `unknown` anywhere inside it. Write the oracle line into `text` verbatim (after **Normalisation**). An instant/sorcery ability whose `text` is the whole face text claims every line of it. |
-| a **keyword** | the line is nothing but keywords the face has, comma-separated — `"Flying, vigilance"` is claimed by `["flying", "vigilance"]`. A parameterised keyword line (`"Ward {2}"`, `"Toxic 1"`, `"Islandwalk"`, `"Protection from red"`) is claimed by the bare keyword the parser records for it (`ward`, `toxic`, `landwalk`, `protection`). |
+| an **ability** | its `text`, normalised, is that line — **and the ability carries behaviour**, and **stays inside its line budget**. See **The ability budget** below. |
+| a **keyword** | the line is nothing but keywords the face has, comma-separated — `"Flying, vigilance"` is claimed by `["flying", "vigilance"]`. A **parameterised** keyword line needs the parameter too, not just the keyword: `"Ward {2}"` needs `wardCost: 2`, `"Toxic 1"` needs `toxic: 1`, `"Swampwalk"` needs `"Swamp"` in `landwalk`, `"Protection from red"` needs `"red"` in `protectionFrom`. A bare `["ward"]` claims nothing. |
 | a **`covers`** entry | for a line a non-ability declaration accounts for. Each entry names both the line and the declaration that implements it (`by`) — see **`covers` kinds**. |
 | an **`ignore`** entry | for a line that cannot matter inside a game (below). |
 
-The empty-effect rule is the one that makes the rest hold: without it a file of abilities with the right `text` and no
-`effects` would read as a fully simulated card that does nothing at all in the engine. (The **parser's** own schema
-stays lenient — it emits 56 empty-effect abilities over the 34,513-card pool, on Populate / Manifest dread / Amass /
-"The Ring tempts you" cards, all of which are already not `fullyParsed`. Only the SCRIPT schema is strict.)
+**No line may be claimed twice.** Two abilities with the same `text`, or an ability and a `covers` entry naming the
+same line, is a `scripts:check` problem (`line claimed twice`): one of the two is wrong or redundant, and the pair
+hides a line nothing implements behind one that two things do.
+
+### The ability budget
+
+An ability claims the lines its `text` names only when both hold:
+
+1. **it does something.** `substantiveCount(effects) >= 1` for a `spell` / `triggered` / `activated` ability, and a
+   non-`unknown` `effect` for a `static` one. An effect counts as substantive unless it is a **parser-internal fold
+   marker** — `alt-if-target`, `alt-take`, `fold-counter-if-yours`, `alt-kicked-amount`, `fold-restriction`,
+   `fold-alt-mana`, `fold-new-targets` — or `unknown`. Those ops are folded into the effect before them by the parser
+   and **never reach the engine**, so an ability made of them alone does nothing at all. A *container*
+   (`conditional`, `optional-then`, `optional-pay`, `delayed-trigger`, `gain-ability`, and any op with a nested
+   `Effect[]`) counts 1 only when something inside it is substantive; `choose-mode` counts **once per substantive
+   mode**. An `unknown` anywhere inside the ability disqualifies it outright.
+2. **it names no more lines than it has effects.** An ability may claim at most **one line per substantive effect**.
+   The parser writes an instant/sorcery's *whole face text* into its single `spell` ability (parse.ts:1358), so
+   without this one `draw` would finish every line of a card. A `static` / `triggered` / `activated` ability is
+   printed as **one** line and may name only the one that contains it.
+
+   The exception is a sentence Scryfall split across two oracle lines: a continuation starts with a **lower-case**
+   letter (`"…, then"`, `"and that creature…"`), and the two physical lines are joined into one logical line for the
+   budget. A part starting with a capital, a `{`, a digit or a bullet is always a line of its own.
+
+`scripts:check` reports `ability has no substantive effect: …` and
+`ability names N lines but declares only M substantive effects`, naming the ability's `text`. The empty-effect case
+is also a schema error (`ability declares no effect`); the marker-only and over-budget cases are not — the array is
+not empty, so only `scripts:check` and `applyScript` can see them.
+
+Prefer **one ability per oracle line**: it is always in budget, and it says which effect implements which line.
+
+(The **parser's** own schema stays lenient — it emits 56 empty-effect abilities over the 34,513-card pool, on
+Populate / Manifest dread / Amass / "The Ring tempts you" cards, all of which are already not `fullyParsed`. Only
+the SCRIPT schema is strict.)
 
 ### `covers` kinds
 
-A `covers` entry is `{ "line": "...", "by": "<kind>" }` and is valid only when all three hold: the line is a real
-oracle line **of that face**, the declaration `by` names is really on that face, and the line matches that kind's
-shape. There is no budget, so a throwaway keyword buys nothing.
+A `covers` entry is `{ "line": "...", "by": "<kind>" }` and is valid only when **all three** hold:
 
-| `by` | Declaration | The line must look like | Example |
-|---|---|---|---|
-| `keywords` | `keywords` | every comma-separated part is a keyword this face declares | `Flying` |
-| `altCosts` | `altCosts` | start with that alternative cost's keyword word — `flashback` / `escape` / `evoke` / `warp` / `impending` / `buyback` / `dash` / `jump-start` — or be a `You may pay ... rather than pay ...` pitch clause | `Flashback {2}{R}` |
-| `asEnters` | `asEnters` | `^(as ~ enters\|~ enters (the battlefield )?(tapped\|with))` | `As ~ enters, you may pay 2 life. ...` |
-| `costModifiers` | `costModifiers` | `^(delve\|convoke\|improvise\|affinity for\|~ costs \{.*\} less)` | `Delve` |
-| `kicker` | `kicker` | `^(multi)?kicker ` | `Kicker {5}` |
-| `cycling` | `cycling` | `cycling ` | `Plainscycling {2}` |
-| `entersTapped` | `entersTapped` | `^~ enters (the battlefield )?tapped` | `~ enters tapped.` |
-| `morph` | `morph` | `^(morph\|megamorph\|disguise) ` | `Morph {2}` |
-| `cascade` | `cascade: true` | `^cascade$` | `Cascade` |
-| `storm` | `storm: true` | `^storm$` | `Storm` |
-| `rebound` | `rebound: true` | `^rebound$` | `Rebound` |
-| `dredge` | `dredge` | `^dredge \d` | `Dredge 5` |
-| `graveyardReplacement` | `graveyardReplacement` | `^if ~ would be put into a graveyard from anywhere` | Progenitus's shuffle clause |
-| `protection` | `protectionFrom` | `^protection from` | `Protection from everything` |
-| `ward` | `wardCost` | `^ward` | `Ward {2}` |
-| `additionalCosts` | `additionalCosts` | `^as an additional cost to cast ~` | `As an additional cost to cast ~, sacrifice a creature.` |
-| `toxic` | `toxic` | `^toxic \d+` | `Toxic 1` |
-| `bushido` | `bushido` | `^bushido \d+` | `Bushido 1` |
-| `rampage` | `rampage` | `^rampage \d+` | `Rampage 2` |
-| `landwalk` | `landwalk` | `^(plains\|island\|swamp\|mountain\|forest\|desert)walk$` | `Swampwalk` |
-| `firebending` | `firebending` | `^firebending (\d+\|x)` | `Firebending 1` |
+* **(i)** the line is a real oracle line **of that face**;
+* **(ii)** the declaration `by` names is really on that face;
+* **(iii)** the line matches an **anchored** shape that declaration prints **and the declared VALUE is the one the
+  line prints**. `cycling: {3}` does not cover `Plainscycling {2}`; `dredge: 4` does not cover `Dredge 5`.
 
-`coverProblem(face, entry)` in `src/cards/scripts.ts` owns the rule and prints the reason an entry was rejected;
-`test/scripts.test.ts` pins one real card per kind.
+There is no budget, so a throwaway keyword buys nothing, and every shape below is anchored at both ends — an
+unanchored one would let an entry claim any line that merely *contains* the keyword.
+
+| `by` | Declaration | Anchored line shape | The value that must match | Example |
+|---|---|---|---|---|
+| `keywords` | `keywords` (+ parameters) | every comma-separated part is a keyword line | each part's keyword **and its parameter** — `wardCost`, `toxic`, `bushido`, `rampage`, `firebending`, `landwalk`, `protectionFrom` | `Flying` |
+| `altCosts` | `altCosts` | `^(flashback\|evoke\|warp\|buyback\|dash)(?:[—-] ?\| )(.+?)\.?$` · `^jump-start$` · `^impending (\d+)[—-] ?(\{.+\})$` · `^escape[—-] ?(\{.+\}), exile (.+?)\.?$` · `^(?:if .+?, )?you may (.+?) rather than pay ~'s mana cost\.?$` | an `altCost` with that `id` **and** `cost.mana.raw` equal to the line's mana symbols (buyback's altCost holds the *total*, so the increment is its tail); `escape` also `exileOtherFromGraveyard.count`; `impending` also `timeCounters`; a pitch clause also `payLife` / `exileFromHand` | `Flashback {2}{R}` |
+| `asEnters` | `asEnters` | `^~ enters (the battlefield )?tapped\.?$` · `…tapped unless (.+?)\.?$` · `^as ~ enters, you may pay (\d+) life\. if you don't, it enters tapped\.?$` · `^(if ~ was kicked, it\|~) enters with ([a-z]+\|\d+) ([+-]1/[+-]1\|[a-z]+) counters? on it…$` · `^as ~ enters, choose a (creature type\|color)\.?$` · Mox Diamond's discard-or-graveyard wording | an entry of the matching `kind`, with the same `life`, the same `counter` (and `amount` when the line prints a number), the same `what` | `As ~ enters, you may pay 2 life. ...` |
+| `costModifiers` | `costModifiers` | `^(delve\|convoke\|improvise)$` · `^affinity for (.+?)\.?$` · `^~ costs \{.+\} less to cast(?: .+?)?\.?$` | that exact `kind` (`delve` / `convoke` / `improvise`), or `reduce` for the two reduction shapes | `Delve` |
+| `kicker` | `kicker` | `^(multi)?kicker (\{.+\})$` | `kicker.raw` equals the printed cost | `Kicker {5}` |
+| `cycling` | `cycling` (+ `cyclingSearch`) | `^((?:[a-z]+ )?[a-z]+cycling\|cycling) (\{.+\})$` | `cycling.raw` equals the printed cost; **typecycling** (any prefix) also needs `cyclingSearch` | `Plainscycling {2}` |
+| `entersTapped` | `entersTapped` | `^~ enters (the battlefield )?tapped\.?$` · `…tapped unless (.+?)\.?$` | `true` for the plain form, `{ unless: … }` for the `unless` form — never the other way round | `~ enters tapped.` |
+| `morph` | `morph` | `^(morph\|megamorph\|disguise) (\{.+\})$` | `morph.cost.raw`, and the `megamorph` / `disguise` flags matching the printed word | `Morph {2}` |
+| `cascade` | `cascade: true` | `^cascade$` | — | `Cascade` |
+| `storm` | `storm: true` | `^storm$` | — | `Storm` |
+| `rebound` | `rebound: true` | `^rebound$` | — | `Rebound` |
+| `dredge` | `dredge` | `^dredge (\d+)$` | `dredge` equals the printed number | `Dredge 5` |
+| `graveyardReplacement` | `graveyardReplacement` | `^if ~ would be put into a graveyard from anywhere, exile it instead\.?$` · `…, (reveal ~ and )?shuffle it into its owner's library instead\.?$` | `"exile"` for the first, `"shuffle"` for the second | Progenitus's shuffle clause |
+| `protection` | `protectionFrom` | `^protection from (.+?)\.?$` | **every** quality the line lists is in `protectionFrom` | `Protection from everything` |
+| `ward` | `wardCost` | `^ward (\{(\d+)\}\|[—-].+)$` | `wardCost` equals the printed number (the non-numeric `Ward—…` form has no number to match) | `Ward {2}` |
+| `additionalCosts` | `additionalCosts` | `^as an additional cost to cast ~, (.+?)\.?$` | the clause's leading verb (`sacrifice` / `discard` / `pay … life` / `exile` / `tap` / `return`) matches a field on one declared entry | `As an additional cost to cast ~, sacrifice a creature.` |
+| `toxic` | `toxic` | `^toxic (\d+)$` | `toxic` equals the printed number | `Toxic 1` |
+| `bushido` | `bushido` | `^bushido (\d+)$` | `bushido` equals the printed number | `Bushido 1` |
+| `rampage` | `rampage` | `^rampage (\d+)$` | `rampage` equals the printed number | `Rampage 2` |
+| `landwalk` | `landwalk` | `^(plains\|island\|swamp\|mountain\|forest\|desert)walk\.?$` | `landwalk` lists that land type | `Swampwalk` |
+| `firebending` | `firebending` | `^firebending (\d+\|x)$` | `firebending` equals the printed number | `Firebending 1` |
+
+`COVER_RULES` in `src/cards/scripts.ts` is the single table both `applyScript` (through `validCovers`) and
+`scripts:check` / `CardScriptChecked` (through `coverProblems`) read, so an entry the tool rejects claims nothing at
+runtime either. `coverProblem(face, entry)` prints the reason an entry was rejected; `test/scripts.test.ts` pins one
+real card per kind **and** a value mismatch per kind, and asserts every shape in the table is anchored.
 
 A modal `"• …"` bullet is **not** a line of its own: it belongs to the `"Choose one —"` line above it, and the ability
 that claims that line claims its bullets too. (A bullet the parser did not understand leaves an `unknown` inside the
@@ -168,10 +208,13 @@ validates every script against `CardScriptChecked` before anything else, and `np
 
 `schema.json` carries every rule JSON Schema can state — including "a claimed line is a non-empty string that is not
 `"*"`", the `covers` `by` enum, and "a `spell` / `triggered` / `activated` ability declares at least one effect".
-Three rules it cannot state are enforced elsewhere: `covers` validity (`CardScriptChecked`'s refinement, because it
-relates two fields of the same object), that every `covers` / `ignore` line is one `scriptableLines(def)` names and
-belongs to the face that claims it, and that an `ignore` reason matches its whitelist for the card's pool tier — the
-last two need the card, so they live in `scripts:check`.
+The rules it cannot state are enforced elsewhere: `covers` validity (`CardScriptChecked`'s refinement, because it
+relates two fields of the same object); the ability budget — a substantive effect per named line — and the
+no-line-twice rule (`faceClaimProblems`, which needs the card's *name* to normalise an ability's `text`, so
+`scripts:check`); that every `covers` / `ignore` line is one `scriptableLines(def)` names and belongs to the face
+that claims it; and that an `ignore` reason matches its whitelist for the card's pool tier. The last three need the
+card, so they live in `scripts:check` — and `applyScript` enforces the budget and `covers` validity at runtime too,
+so a script the tool rejects also leaves its lines unparsed in the engine.
 
 `scripts:check` applies the same rules to EVERY source, `generated` included. Drafts live in the gitignored
 `drafts/`, which is never indexed, so the only generated script it can reach is one that was promoted into a shard —

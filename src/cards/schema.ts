@@ -15,7 +15,7 @@
 // Amount.count, AltCost.id, AltCost.from) lives in exactly one named constant, so merging is a one-line edit.
 import { z } from 'zod';
 import type { Ability, Amount, Condition, Effect, Filter, StaticAbility, StaticEffect, TriggerEvent } from './types.js';
-import { COVER_KINDS, coversValid, IGNORE_REASONS } from './scripts.js';
+import { COVER_KINDS, coverProblems, coversValid, IGNORE_REASONS } from './scripts.js';
 
 // ---------------------------------------------------------------------------
 // What the parser really emits
@@ -679,27 +679,29 @@ export const CardScriptSchema = z.strictObject({
 
 /**
  * `CardScriptSchema` plus the cross-field rules JSON Schema cannot state: every `covers` entry must be VALID — the
- * declaration it names (`by`) is really on that face, and the line has the shape that declaration produces. Both are
- * checks across two fields of the same object, which JSON Schema cannot express; `coverProblem` in scripts.ts owns
- * the policy and `scripts:check` prints its reason.
+ * declaration it names (`by`) is really on that face, the line matches an anchored shape that declaration prints,
+ * and the declared VALUE is the one the line prints. All three relate two fields of the same object, which JSON
+ * Schema cannot express; `coverProblem` in scripts.ts owns the policy.
+ *
+ * The issue carries `coverProblem`'s own reason, one per bad entry, so `scripts:check` prints "…names by 'cycling'
+ * but the line prints cycling {2} but this face declares "{3}"" rather than a generic "a covers entry is invalid" —
+ * the schema fires before any other check, so a vague message here would be the only thing the author ever sees.
  *
  * Two further rules need the CARD and so live in `scripts:check`, not here: every `covers` / `ignore` line must be
  * one `scriptableLines(def)` names (and belong to the face that claims it), and an `ignore` reason must match its
- * whitelist entry for the card's pool tier (`ignoreLineProblem`).
+ * whitelist entry for the card's pool tier (`ignoreLineProblem`). So does the ability line budget
+ * (`faceClaimProblems`), which needs the card's name to normalise an ability's `text`.
  *
  * Use this in tooling; `CardScriptSchema` is the plain object schema used for type pinning.
  */
-const COVERS_INVALID = 'a covers entry names a declaration this face does not have, or a line that declaration does not produce';
-export const CardScriptChecked = CardScriptSchema.refine(
-  s => coversValid(s),
-  { message: COVERS_INVALID, path: ['covers'] },
-).refine(
-  s => coversValid(s.backFace),
-  { message: `backFace: ${COVERS_INVALID}`, path: ['backFace', 'covers'] },
-).refine(
-  s => coversValid(s.secondFace),
-  { message: `secondFace: ${COVERS_INVALID}`, path: ['secondFace', 'covers'] },
-);
+export const CardScriptChecked = CardScriptSchema.superRefine((s, ctx) => {
+  const faces = [['covers', s as { covers?: unknown[] }], ['backFace', s.backFace], ['secondFace', s.secondFace]] as const;
+  for (const [where, face] of faces) {
+    if (coversValid(face as never)) continue;
+    const path = where === 'covers' ? ['covers'] : [where, 'covers'];
+    for (const why of coverProblems(face as never)) ctx.addIssue({ code: 'custom', message: `a covers entry ${why}`, path });
+  }
+});
 
 // Convenience aliases for the tooling (test/schema-types.test.ts pins each of these to its types.ts counterpart).
 export type SchemaEffect = z.infer<typeof EffectSchema>;
