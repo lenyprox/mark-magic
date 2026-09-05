@@ -25,6 +25,7 @@
     "meta:sync": "node --env-file-if-exists=.env.local --import tsx scripts/meta-sync.ts",
     "coverage:pool": "tsx scripts/parser-coverage.ts",
     "coverage:meta": "tsx scripts/meta-coverage.ts",
+    "coverage:ops": "tsx scripts/coverage-ops.ts",
     "analysis:selftest": "tsx scripts/analysis-selftest.ts",
     "sim:batch": "tsx scripts/sim-batch.ts",
     "bench:games": "tsx scripts/bench-games.ts",

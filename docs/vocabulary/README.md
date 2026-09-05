@@ -157,8 +157,40 @@ actions and lists expectations, each pinned to a CR number.
 ```
 
 Add a file per family, export its array, and run `npm run verify:scenarios`. Use real cards — the scenario runner
-looks names up in `master.db`. Every op, condition, trigger, static and amount a family registers must be exercised by
-at least one scenario or unit test (`test/lint-op-coverage.test.ts`, phase 8e).
+looks names up in `master.db`.
+
+---
+
+## Op coverage ratchet
+
+**Every op, condition, trigger, static, amount, as-enters kind and cost part a family registers must be exercised by at
+least one scenario or unit test.** `test/lint-op-coverage.test.ts` enforces it, and it is not a grep for op names:
+
+* the **vocabulary** is read out of the engine itself — the `case` labels of the switches that dispatch on each
+  discriminator (`Game.applyEffect`, `conditionHolds`, `evalAmount`, `Game.queueTriggers`, the as-enters switch), the
+  `kind === '…'` tests that apply static effects, and the live registry lookups in `src/engine/ops/_registry.ts`;
+* the **exercised** set is the union of the discriminators in the *parsed `CardDef`s* of every card the harness names:
+  every seat zone, counter bag and script step of every scenario (`test/scenarios/*.ts` and `data/scenarios/**`) plus
+  every `C('Name')` / `db.get('Name')` and `setup({ bf: [...] })` name in `test/*.ts`.
+
+`uncovered = vocabulary \ exercised` must be a subset of `test/fixtures/op-allowlist.json`, the baseline generated once
+in phase 8h. **That list may only shrink**: the lint also fails when an allowlisted name has become covered and is
+still listed, or when it names something the engine no longer executes. Never regenerate it to make the lint pass —
+`npm run coverage:ops -- --write-allowlist` exists for a reviewed reset, nothing else.
+
+A key a family registers is by definition not in the allowlist, so **a family that lands without a scenario fails the
+lint**. To find out what to write the scenario with, run `npm run coverage:ops`: it prints the per-category counts and,
+for every uncovered op, up to five real cards from the whole pool that use it, and writes the same thing to
+`data/master/op-coverage.json`.
+
+```
+$ npm run coverage:ops
+category        vocab  exercised  uncovered
+effects            93         43         50
+...
+uncovered statics:
+  tokens-replacement — e.g. Doubling Season, Adrix and Nev, Twincasters, Anointed Procession
+```
 
 ---
 
@@ -179,5 +211,6 @@ which emit its ops directly, and `npm run coverage:pool` does not move when a fa
 | `npm run typecheck:example` | typecheck `_example.ts` on its own (it is excluded from the main program) |
 | `npm run verify:quick` | typecheck + `lint-*` + `registry` + `scripts` tests + `scripts:check` |
 | `npm run verify:scenarios` | the behavioural scenario suite |
+| `npm run coverage:ops` | the op-coverage ratchet report: uncovered ops with exemplar cards to write scenarios with |
 | `npm run verify:all` | typecheck:all, full test suite, scripts check, `coverage:pool`, `verify:pool`, `bench:games` |
 | `npm run bench:games` | the performance gate: ≥ 45 games/s 60-card, ≥ 4.8 games/s Commander |
