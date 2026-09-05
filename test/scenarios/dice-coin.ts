@@ -334,6 +334,20 @@ export const diceCoin: Scenario[] = [
     script: [{ activate: 'Orcish Captain', targets: [['Orcish Captain']] }, { resolve: true }],
     expect: [{ events: { type: 'coin-flip', min: 1, max: 1 } }, { unsimulated: 1 }],
   },
+  {
+    // The same discipline for the OTHER frame. "Choose target spell, then flip a coin. If you win the flip, gain
+    // control of that spell ... If you lose the flip, counter that spell." — "counter that spell" parses to
+    // `counter-triggering`, which reads `item.triggeringId`, and only a TRIGGERED ability's stack item ever carries
+    // one (game.ts sets it at the trigger → stack site). Invert Polarity is an instant, so the op could only ever be
+    // a silent no-op; the family therefore refuses the branch and all three of the card's clauses are unsimulated.
+    // The assertion that matters is the count: while the branch was claimed it was 2, and the opposing spell resolved
+    // exactly as it does here — the wrong parse and the right one were indistinguishable from the outside.
+    name: "Invert Polarity's losing branch is reported unsimulated, not a countering that never happens", cr: '701.5a',
+    ruling: 'To counter a spell is to move it from the stack to its graveyard; a rules text that identifies no spell counters nothing.',
+    seats: [{ bf: ['Island', 'Island', 'Mountain'], hand: ['Invert Polarity'] }, { bf: ['Mountain'], hand: ['Lightning Bolt'] }],
+    script: [{ cast: 'Lightning Bolt', targets: [['P0']], by: 1 }, { cast: 'Invert Polarity' }, { resolve: true }],
+    expect: [{ life: [0, 17] }, { events: { type: 'coin-flip', max: 0 } }, { events: { type: 'countered', max: 0 } }, { unsimulated: 3 }],
+  },
 
   // ------------------------------------------------------------------ a results-table striation actually applies
   {

@@ -153,6 +153,40 @@ function readsFrame(v: unknown): boolean {
   if (o.op === 'bind') return false;
   return Object.keys(o).some(k => k !== 'op' && k !== 'text' && k !== 'prompt' && readsFrame(o[k]));
 }
+
+/**
+ * THE OTHER FRAME, and why `readsFrame` above cannot see it. `readsFrame` looks for the Ref *strings* of FRAME_WORDS,
+ * so it only sees an op that carries its pronoun in a FIELD. Four ops carry theirs in the op NAME and have no fields
+ * at all, and they read two DIFFERENT frames:
+ *
+ *   * `remove-those` / `attach-to-that` / `no-untap-that` read `item.affected` — the same frame `that` reads, which a
+ *     `bind` writes and which parse.ts's antecedent repair supplies from the item's earlier effects or its trigger.
+ *     Those are NOT listed here on purpose: they are repairable, and both cards in the pool that use one inside a
+ *     family branch are correct (Goblin Morningstar's striation creates the token it then attaches to; Goblin Kites'
+ *     branch sacrifices the creature the same ability's `grant-keyword` already bound). Adding them would make the
+ *     sibling veto below fire off `branches`, which a card whose flip sentence does not parse never opens — a parse
+ *     that depends on which card was read last.
+ *   * `counter-triggering` reads `item.triggeringId`, which is a different frame entirely: game.ts sets it at exactly
+ *     one site (the trigger → stack site, `if (t.triggerCtx?.obj) item.triggeringId = ...`), so only a TRIGGERED
+ *     ability's stack item ever carries it, and no `bind` writes it — parse.ts cannot repair it either. In a spell or
+ *     an activated ability the op is a guaranteed no-op: `s.stack.find(...)` finds nothing and the branch silently does
+ *     nothing (CR 701.5a — countering a spell is an action a rules text either takes or does not).
+ *
+ * An EffectRule is handed nothing but the clause text (EffectCtx has no `def` and no `row`), so this family cannot tell
+ * a triggered host from a spell and refuses the branch outright. The cost is measured, not guessed: `counter that
+ * spell` appears under a family branch on exactly one card in the pool (Invert Polarity, an instant, where the parse
+ * was wrong), and the one card where it would be right — Planar Chaos, "Whenever a player casts a spell, that player
+ * flips a coin. If they lose the flip, counter that spell." — is not reached at all, because "they lose the flip" is
+ * not a wording `familyCondition` knows. See coreChangeNeeded: the right fix is a host-frame flag on EffectCtx.
+ */
+const TRIGGER_FRAME_OPS = new Set(['counter-triggering']);
+function readsTriggerFrame(v: unknown): boolean {
+  if (Array.isArray(v)) return v.some(readsTriggerFrame);
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  if (typeof o.op === 'string' && TRIGGER_FRAME_OPS.has(o.op)) return true;
+  return Object.keys(o).some(k => k !== 'op' && k !== 'text' && k !== 'prompt' && readsTriggerFrame(o[k]));
+}
 /** Does the clause choose an object target of its own — the thing a later "it" in the same ability is about? */
 function declaresObjectTarget(v: unknown): boolean {
   if (Array.isArray(v)) return v.some(declaresObjectTarget);
@@ -180,6 +214,9 @@ function declaresObjectTarget(v: unknown): boolean {
  * If you win the flip, destroy that creature.") is untouched: its `that` is the TRIGGER's frame, which parse.ts binds
  * for it, and no sibling branch claimed the antecedent.
  *
+ * The SECOND veto needs none of that bookkeeping: a branch that reads the triggering frame (`readsTriggerFrame`) is
+ * refused whatever the siblings did, because nothing this family can see or write ever fills that frame.
+ *
  * The rule never claims a sentence — it returns null either way and lets parse.ts's own "If <c>, <e>" split build the
  * `conditional`, so nothing that parses correctly today moves.
  */
@@ -192,28 +229,37 @@ let inBranch = false;
 /** Called by the roll / flip sentence rules: a new roll or flip instruction, whose branches have said nothing yet. */
 function openInstruction<T>(e: T): T { branches = { targeted: false }; vetoed = null; return e; }
 
+/**
+ * One family branch, in either of the two shapes parse.ts splits a `conditional` out of ("If <c>, <e>" and
+ * "<e> if <c>"). Decides whether the branch may be claimed, and always returns null: the rule claims nothing, and the
+ * built-in split then either builds the `conditional` (condition rule answers) or leaves the sentence `unknown`
+ * (condition rule declines the vetoed clause). `familyCondition` is tested before anything is sub-parsed, so a
+ * sentence that is not one of this family's branches costs one regex and never touches `vetoed`.
+ */
+function guardBranch(cond: string, tail: string, ctx: EffectCtx): null {
+  if (inBranch) return null;                                     // a sub-parse of our own; the outer call decides
+  const head = cond.trim().toLowerCase().replace(/\.$/, '');
+  if (!familyCondition(head)) return null;                       // not one of this family's branches
+  vetoed = null;
+  let effs: Effect[];
+  inBranch = true;
+  try { effs = ctx.parseEffects(tail); } finally { inBranch = false; }
+  if (!effs.length || effs.some(e => e.op === 'unknown')) return null;   // the split will not build a conditional anyway
+  if (readsTriggerFrame(effs)) vetoed = head;                     // no host this family can see supplies that frame
+  else if (readsFrame(effs)) { if (branches?.targeted) vetoed = head; } // a sibling branch claimed the antecedent
+  else if (branches && declaresObjectTarget(effs)) branches.targeted = true;
+  return null;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Sentence rules
 // ---------------------------------------------------------------------------------------------------------------
 
 const effects: EffectRule[] = [
   // ---- The dangling-pronoun veto (see `branches` above). Claims nothing; runs first so it sees every branch.
-  {
-    re: /^if (.+?), (.+)$/i,
-    make: (m, ctx) => {
-      if (inBranch) return null;
-      vetoed = null;
-      const head = m[1].trim().toLowerCase();
-      if (!familyCondition(head)) return null;                    // not one of this family's branches
-      inBranch = true;
-      let effs: Effect[];
-      try { effs = ctx.parseEffects(m[2]); } finally { inBranch = false; }
-      if (!effs.length || effs.some(e => e.op === 'unknown')) return null;
-      if (readsFrame(effs)) { if (branches?.targeted) vetoed = head; }
-      else if (branches && declaresObjectTarget(effs)) branches.targeted = true;
-      return null;
-    },
-  },
+  //      Both shapes, because parse.ts splits a conditional out of both and either can carry a frame-reading tail.
+  { re: /^if (.+?), (.+)$/i, make: (m, ctx) => guardBranch(m[1], m[2], ctx) },
+  { re: /^(.+?) if (.+)$/i, make: (m, ctx) => guardBranch(m[2], m[1], ctx) },
 
   // ---- "Roll a d20" / "Roll two six-sided dice" / "Roll X six-sided dice", with the modifiers printed in the same
   //      sentence (CR 706.1, 706.2). "and choose one result" / "and ignore the lower roll" say what several dice mean.
@@ -382,6 +428,11 @@ const lines: LineRule[] = [
       if (!parsed.length || parsed.some(e => e.op === 'unknown')) { ctx.markUnparsed(); return true; }
       const effs = flattenTrivialModes(parsed);
       if (!effs) { ctx.markUnparsed(); return true; }             // a real modal choice inside a striation is dead (see above)
+      // The same triggering-frame refusal as the branch guard (see TRIGGER_FRAME_OPS), except that a LINE rule *can*
+      // see its host: a striation is only allowed to read `item.triggeringId` when the ability it joins is a triggered
+      // one, which is the only stack item that carries it. No card in the pool prints such a striation today; the
+      // guard is here so the two halves of the family refuse the same shape.
+      if (readsTriggerFrame(effs) && host.kind !== 'triggered') { ctx.markUnparsed(); return true; }
       const least = Number(m[1]);
       const most = m[2] !== undefined ? Number(m[2]) : m[3] !== undefined ? undefined : least;   // "N+" is open-ended
       host.effects.push({
