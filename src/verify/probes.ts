@@ -17,8 +17,8 @@
 //   tapped           tap it (a KNOWN dead event — see docs/HANDOFF.md item 11 — so this probe reports unreachable)
 //   draw / discard / life-gain / life-loss-opponent / sacrifice / leaves-graveyard   do that thing
 //   activated        `performAction` on the legal action for that ability index, with its first legal targets
-//   static           compare a probe creature's P/T, keywords and flags — and the controller's legal actions — with
-//                    and without the permanent on the battlefield
+//   static           build the same board twice, the second time from a def with THAT ONE static ability removed,
+//                    and compare every permanent's P/T, keywords and flags and the controller's legal actions
 //
 // The probes SHARE their setups: a card with six triggered abilities does not cost six games, it costs one game per
 // distinct setup its abilities need (`scenariosFor`). Unreachable is never a failure — it is a WARNING that says
@@ -262,17 +262,25 @@ function snapshot(g: Game): string {
 }
 
 /**
- * Whether the permanent's presence changes anything a probe can see. Two identical boards are built, one with the
- * card on the battlefield and one without, and their snapshots are compared — which is the only probe that works for
- * a static effect, because a static never "runs".
+ * Whether THIS ONE static ability changes anything a probe can see — the only probe that works for a static, because
+ * a static never "runs".
+ *
+ * The comparison is with and WITHOUT THE ABILITY, not with and without the card. Comparing a board that has the card
+ * on the battlefield against one that does not is vacuous: the card's own row is on one board and not the other, so
+ * the two snapshots differ by construction and EVERY permanent reported a reached static whether or not its static
+ * did anything — a `Glorious Anthem` that pumped only Kavu (with no Kavu in the probe deck) read exactly like the
+ * real one. So the same board is built twice from the same base state, the second time from a def with this ability
+ * removed, and the card is put onto the battlefield in both. Every id, every other permanent and every trigger is
+ * identical between the two runs; the only difference left is what this static does — to another permanent, to the
+ * controller's legal actions, or to the card itself.
  */
-async function staticReached(base: Base): Promise<boolean> {
+async function staticReached(cards: CardDB, def: CardDef, base: Base, index: number): Promise<boolean> {
   const withIt = fresh(base);
   await land(withIt, base.cardId);
-  const without = fresh(base);
-  const o = findObject(without.state, base.cardId);
-  if (o) { const pl = without.state.players[o.controller]; const i = pl.hand.indexOf(o); if (i >= 0) pl.hand.splice(i, 1); }
-  without.checkSBA();
+  const stripped: CardDef = { ...def, abilities: (def.abilities ?? []).filter((_, i) => i !== index) };
+  const bare = baseState(cards, stripped, base.seats, base.maxTurns);
+  const without = fresh(bare);
+  await land(without, bare.cardId);
   return snapshot(withIt) !== snapshot(without);
 }
 
@@ -340,12 +348,11 @@ export async function probeAbilities(cards: CardDB, def: CardDef, opts: ProbeOpt
     } catch { /* the sandbox stage reports the throw */ }
   }
 
-  // --- statics: one with/without comparison for the whole face ------------------------------------------------
-  const staticIdx = abilities.flatMap((a, i) => (a.kind === 'static' ? [i] : []));
-  if (staticIdx.length) {
+  // --- statics: one with/without-THIS-ABILITY comparison per static --------------------------------------------
+  for (const i of abilities.flatMap((a, j) => (a.kind === 'static' ? [j] : []))) {
     let changed = false;
-    try { changed = await staticReached(base); } catch { changed = false; }
-    for (const i of staticIdx) if (changed) out[i] = { index: i, reached: true, how: 'static: the board differs with and without it' };
+    try { changed = await staticReached(cards, def, base, i); } catch { changed = false; }
+    if (changed) out[i] = { index: i, reached: true, how: 'static: the board differs with and without this ability' };
   }
 
   for (let i = 0; i < abilities.length; i++) {

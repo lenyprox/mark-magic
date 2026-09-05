@@ -25,7 +25,7 @@ import { tierOf, type PoolTier } from '../cards/pool.js';
 import { scoreCard, type LineScore } from '../cards/render.js';
 import { CardScriptChecked } from '../cards/schema.js';
 import {
-  applyScript, DEFAULT_SCRIPTS_DIR, hasUnknown, oracleHash, ScriptStore, scriptHash, secondFaceUnclaimed,
+  applyScript, DEFAULT_SCRIPTS_DIR, hasUnknown, oracleHash, ScriptStore, scriptHash, secondFaceOf, secondFaceUnclaimed,
   type CardScript, type ScriptFace, type Verification,
 } from '../cards/scripts.js';
 import { EFFECT_OP_VOCAB, TRIGGER_VOCAB, CONDITION_VOCAB, STATIC_VOCAB, AS_ENTERS_VOCAB, COST_MODIFIER_VOCAB, TARGET_KIND_VOCAB, AMOUNT_COUNT_VOCAB } from '../cards/lint.js';
@@ -46,7 +46,10 @@ export interface VerifyOptions {
   cards?: CardDB;
   /** Seat counts the sandbox trials, in order. Default [2, 4]. */
   seats?: Seats[];
-  /** Skip stage 5 entirely (the tests that only care about schema / round-trip). */
+  /**
+   * Skip stage 5 entirely (the tests that only care about schema / round-trip, and `--no-sandbox` on the CLI). The
+   * skip is RECORDED as a problem, so a card whose sandbox never ran can never come out `verified`.
+   */
   skipSandbox?: boolean;
   /** Write the `verification` block back into the script file. Default true. */
   write?: boolean;
@@ -220,6 +223,15 @@ export async function verifyCards(ids: string[], opts: VerifyOptions = {}): Prom
     for (const w of lint.warnings) warnings.push(`lint: ${w}`);
 
     // ---- 5. sandbox and per-ability reachability -----------------------------------------------------------
+    // A SKIPPED trial is recorded as a PROBLEM, not passed over. `verification.sandbox` has one enum for "the trial
+    // ran and reached nothing" and for "no trial ran" (`unreachable`; the enum lives in the schema this slice does
+    // not own — see openIssues), and `staleIds` compares only the parser version, the registry hash and the script
+    // hash, all of which a `--no-sandbox` run leaves matching. So without this a `--no-sandbox` run minted
+    // `status: "verified"` for a card stage 5 never touched and `--stale` never looked at it again.
+    if (opts.skipSandbox) problems.push('the sandbox stage was skipped (--no-sandbox): no seat trial and no reachability probe ran, so this card is not verified');
+    else for (const n of ([2, 4] as Seats[])) {
+      if (!seats.includes(n)) problems.push(`the ${n}-seat sandbox trial was not run (--seats ${seats.join(',')}): 'unreachable' here means "not tried", not "tried and nothing happened"`);
+    }
     if (!opts.skipSandbox) {
       const verdicts: Partial<Record<Seats, Verification['sandbox']['seats2']>> = {};
       for (const n of seats) {
@@ -241,7 +253,15 @@ export async function verifyCards(ids: string[], opts: VerifyOptions = {}): Prom
     }
 
     // ---- 6. round trip -------------------------------------------------------------------------------------
-    const scored = scoreCard({ ...applied, covers: script.covers });
+    // EVERY face, `secondFace` included. A split / adventure / flip card's second half has no `CardDef` (the parser
+    // records its lines as unparsed and only `script.secondFace` claims them), so it reaches the renderer from the
+    // script; without it the numbers hard-gate — the whole point of stage 6 — never saw half of those cards, and a
+    // `secondFace` that drew 9 cards for a line printing "Draw a card." verified at 1.00.
+    const second = secondFaceOf(def);
+    const scored = scoreCard(
+      { ...applied, covers: script.covers },
+      second && script.secondFace ? { face: script.secondFace, name: second.name } : null,
+    );
     row.roundTrip = { score: scored.score, lowest: scored.lines.filter(l => l.score < ROUND_TRIP_LOW).sort((a, b) => a.score - b.score) };
     row.rendererGaps = scored.gaps;
     if (scored.score < ROUND_TRIP_PASS) problems.push(`round trip ${scored.score.toFixed(2)} < ${ROUND_TRIP_PASS}: ${scored.lines.filter(l => l.score === scored.score).slice(0, 2).map(l => `${JSON.stringify(l.text)} rendered as ${JSON.stringify(l.rendered)}`).join('; ')}`);
@@ -259,7 +279,7 @@ export async function verifyCards(ids: string[], opts: VerifyOptions = {}): Prom
       status: passed && !stale ? 'verified' : 'scripted',
       problems,
     };
-    if (opts.write !== false) writeVerification(store, script, verification);
+    if (opts.write !== false) writeVerification(store, file, verification);
     finish();
   }
 
@@ -279,12 +299,18 @@ export async function verifyCards(ids: string[], opts: VerifyOptions = {}): Prom
 }
 
 /**
- * Write the `verification` block back into the script file, LF, keys in a stable order, `verification` last — and
- * NEVER through `ScriptStore.put`, whose source precedence would refuse to overwrite a `hand` script with itself.
+ * Write the `verification` block back into THE FILE THAT WAS READ, LF, keys in a stable order, `verification` last —
+ * and NEVER through `ScriptStore.put`, whose source precedence would refuse to overwrite a `hand` script with itself.
  * `scriptHash` excludes `verification`, so this write does not invalidate what it just recorded.
+ *
+ * The caller passes the path. Addressing the destination by the script's own `oracleId` FIELD instead — which is what
+ * this did — is wrong whenever the field and the file name disagree, and they disagree exactly when the author made
+ * the copy-paste mistake stage 1 reports: the run either died on an ENOENT for a file that was never opened (taking
+ * the whole batch's report with it) or, when a script for the id in the field did exist, wrote THIS card's
+ * verification block over THAT card's — silently demoting a verified script to `scripted` with a stranger's
+ * problems. Plan 2.4 derives promotion state from these files, so that write is not recoverable by re-running.
  */
-export function writeVerification(store: ScriptStore, script: CardScript, verification: Verification): void {
-  const file = store.fileOf(script.oracleId) ?? store.pathFor(script.oracleId);
+export function writeVerification(store: ScriptStore, file: string, verification: Verification): void {
   const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
   delete raw.verification;
   const next = { ...raw, verification };

@@ -11,8 +11,8 @@
 import { CardDB } from '../src/cards/db.js';
 import { parseCard } from '../src/cards/parse.js';
 import { ROUND_TRIP_LOW, ROUND_TRIP_PASS } from '../src/verify/scriptVerify.js';
-import { renderAbility, scorableClaims, scoreRendering } from '../src/cards/render.js';
-import { scriptStore } from '../src/cards/scripts.js';
+import { scorableClaims, scoreClaimedLine } from '../src/cards/render.js';
+import { scriptStore, secondFaceOf } from '../src/cards/scripts.js';
 import type { CardDef } from '../src/cards/types.js';
 
 const args = process.argv.slice(2);
@@ -51,14 +51,19 @@ for (const oracleId of targets) {
     ['', { ...def, covers: script?.covers }, def.abilities, def.name],
   ];
   if (def.backFace) faces.push(['// ', { ...def.backFace, covers: script?.backFace?.covers }, def.backFace.abilities, def.backFace.name]);
+  // the SECOND face of a split / adventure / flip card has no `CardDef`; only `script.secondFace` claims its lines,
+  // and stage 6 scores it, so this tool has to show it too
+  const second = secondFaceOf(def);
+  if (second && script?.secondFace) faces.push(['/ ', script.secondFace, script.secondFace.abilities ?? [], second.name]);
   let worst = 1;
   for (const [prefix, face, abilities, cardName] of faces) {
     for (const [ability, lines] of scorableClaims(face, abilities, cardName)) {
-      const whole = renderAbility(ability);
-      const parts = ability.kind === 'static' ? [] : (ability.effects ?? []).map(e => renderAbility({ ...ability, effects: [e] } as typeof ability));
+      // `scoreClaimedLine` is the SAME function stage 6 of `scripts:verify` scores with. This tool exists to explain
+      // that gate's number, so it may not compute one of its own: scoring each effect through
+      // `renderAbility({ ...ability, effects: [e] })` (which re-prints the trigger or the cost in front of every
+      // part) disagreed with the gate on 2.6% of the pool and printed "FAILS the 0.55 gate" for cards it passes.
       for (const line of lines) {
-        let best = scoreRendering(line, whole);
-        for (const p of parts) { const s = scoreRendering(line, p); if (s.score > best.score) best = s; }
+        const best = scoreClaimedLine(ability, line);
         worst = Math.min(worst, best.score);
         const mark = best.score < ROUND_TRIP_LOW ? 'LOW ' : best.score < ROUND_TRIP_PASS ? 'weak' : '    ';
         console.log(`  ${mark} ${best.score.toFixed(2)}  ${prefix}${line}`);

@@ -5,11 +5,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { verifyCards } from '../scripts/scripts-verify.js';
 import { idsInBatch, batchNameOf, ROUND_TRIP_PASS, staleIds } from '../src/verify/scriptVerify.js';
-import { ScriptStore, type CardScript } from '../src/cards/scripts.js';
+import { oracleHash, ScriptStore, shardOf, type CardScript } from '../src/cards/scripts.js';
+import { scoreCard } from '../src/cards/render.js';
+import { probeAbilities } from '../src/verify/probes.js';
 import type { Row } from '../src/verify/sandbox.js';
-import { freshDir, goodFixtures, parsedDef, writeScript } from './scripts-verify-fixtures.js';
+import { freshDir, goodFixtures, head, parsedDef, writeScript } from './scripts-verify-fixtures.js';
 import { db } from './helpers.js';
 
 const fixtures = goodFixtures(db);
@@ -154,4 +157,96 @@ test('--batch accepts the 8k queue format and anything else that carries oracle 
   assert.deepEqual(idsInBatch({ cards: [{ oracleId: id }, { oracleId: id }] }), [id], 'ids are deduplicated');
   assert.equal(batchNameOf({ manifest: { wave: 'S1', batch: 3 } }, '/tmp/x.json'), 'S1-3');
   assert.equal(batchNameOf({ cards: [] }, '/tmp/wave-2.json'), 'wave-2');
+});
+
+// ---------------------------------------------------------------------------
+// Review fixes 1
+// ---------------------------------------------------------------------------
+
+/** Write a script into the shard of `underId` whatever its own `oracleId` field says — the author's copy-paste slip. */
+function writeAs(dir: string, underId: string, script: CardScript): string {
+  const file = path.join(dir, shardOf(underId), `${underId}.json`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(script, null, 2) + '\n');
+  return file;
+}
+
+test('stage 7 writes back into the file it READ, never into the file the oracleId field names', async () => {
+  const dir = freshDir();
+  const bolt = fixtures['Lightning Bolt'];
+  const shock = { ...head(parsedDef(db, 'Shock')), abilities: [{ kind: 'spell' as const, effects: [{ op: 'damage' as const, amount: 2, target: { kind: 'any' as const } }], text: '~ deals 2 damage to any target.' }] };
+  writeScript(dir, shock);                                   // a correct, verifiable script for Shock
+  writeAs(dir, bolt.oracleId, { ...bolt, oracleId: shock.oracleId });   // Bolt's file, carrying SHOCK's oracle id
+  const report = await verifyCards([shock.oracleId, bolt.oracleId], { dir, cards: db });
+  const store = new ScriptStore(dir);
+
+  // 1: the run does not die, so the rest of the batch is still verified
+  assert.equal(report.cards.length, 2);
+  assert.equal(report.cards[0].name, 'Shock');
+  assert.deepEqual(report.cards[0].problems, [], report.cards[0].problems.join('\n'));
+  assert.equal(report.cards[0].status, 'verified');
+  // 2: Shock's own file still holds Shock's verification, not the mislabelled card's
+  const onDisk = store.get(shock.oracleId)!;
+  assert.equal(onDisk.verification?.status, 'verified');
+  assert.deepEqual(onDisk.verification?.problems, [], "a stranger's problems must never land in this file");
+  // 3: the mislabelled file got its OWN verification, reporting the mismatch
+  const mislabelled = JSON.parse(fs.readFileSync(path.join(dir, shardOf(bolt.oracleId), `${bolt.oracleId}.json`), 'utf8')) as CardScript;
+  assert.equal(mislabelled.verification?.status, 'scripted');
+  assert.ok(mislabelled.verification?.problems.some(p => p.includes('does not match the file name')), JSON.stringify(mislabelled.verification?.problems));
+});
+
+test('a skipped or partial sandbox is RECORDED and cannot mint `verified`', async () => {
+  const skipped = await verifyOne(fixtures['Lightning Bolt'], { skipSandbox: true });
+  assert.equal(skipped.row.status, 'scripted', 'stage 5 never ran, so the card is not verified');
+  assert.ok(skipped.row.problems.some(p => p.includes('--no-sandbox')), skipped.row.problems.join('\n'));
+  assert.equal(new ScriptStore(skipped.dir).get(skipped.row.oracleId)!.verification!.status, 'scripted');
+
+  const partial = await verifyOne(fixtures['Lightning Bolt'], { seats: [4] });
+  assert.equal(partial.row.sandbox.seats2, 'unreachable');
+  assert.ok(partial.row.problems.some(p => p.includes('2-seat sandbox trial was not run')), partial.row.problems.join('\n'));
+  assert.equal(partial.row.status, 'scripted');
+});
+
+test('stage 6 scores the SECOND face of a split / adventure card', async () => {
+  const def = parsedDef(db, 'Midgar, City of Mako // Reactor Raid');
+  const script: CardScript = {
+    oracleId: def.oracleId, name: def.name, oracleHash: oracleHash(def.oracleText), source: 'hand', mode: 'extend',
+    secondFace: {
+      abilities: [{
+        kind: 'spell',
+        effects: [
+          { op: 'may', effects: [{ op: 'sacrifice', who: 'you', what: { types: ['Artifact'] }, amount: 1 }] },
+          { op: 'draw', amount: 9, who: 'you' },
+        ],
+        text: 'You may sacrifice an artifact or creature. If you do, draw two cards.',
+      }],
+    },
+  };
+  const { row } = await verifyOne(script);
+  assert.equal(row.schema, 'ok');
+  assert.equal(row.roundTrip.score, 0, `"draw 9" for a line that prints "draw two cards" must be a hard zero, got ${row.roundTrip.score}`);
+  assert.ok(row.problems.some(p => p.startsWith('round trip')), row.problems.join('\n'));
+  assert.ok(row.roundTrip.lowest.some(l => l.text.includes('draw two cards')), JSON.stringify(row.roundTrip.lowest));
+});
+
+test('the static reachability probe reports a static that does nothing on the probe board', async () => {
+  const anthem = parsedDef(db, 'Glorious Anthem');
+  const real = await probeAbilities(db, anthem);
+  assert.deepEqual(real.map(p => p.reached), [true], 'the real Glorious Anthem pumps the probe creature');
+
+  // the same card with a filter nothing on the probe board matches: the static is REACHABLE code that never fires
+  const kavuOnly = { ...anthem, abilities: [{ ...anthem.abilities[0], effect: { ...(anthem.abilities[0] as { effect: object }).effect, filter: { types: ['Creature'], subtypes: ['Kavu'] } } }] };
+  const inert = await probeAbilities(db, kavuOnly as never);
+  assert.deepEqual(inert, [{ index: 0, reached: false }], 'no Kavu is on the probe board, so nothing about it changes');
+});
+
+test('scripts:render reports the number scripts:verify gated on', () => {
+  const names = ['Outland Colossus', 'Aethersnipe', 'Kami of the Palace Fields'];
+  const out = execFileSync(process.execPath, ['--import', 'tsx', 'scripts/scripts-render.ts', '--names', names.join(','), '--parsed'], { encoding: 'utf8' });
+  const printed = [...out.matchAll(/card score (\d\.\d\d)/g)].map(m => Number(m[1]));
+  assert.equal(printed.length, names.length, out);
+  for (let i = 0; i < names.length; i++) {
+    const gate = scoreCard(parsedDef(db, names[i])).score;
+    assert.equal(printed[i], Math.round(gate * 100) / 100, `${names[i]}: scripts:render says ${printed[i]}, the gate scores ${gate}`);
+  }
 });

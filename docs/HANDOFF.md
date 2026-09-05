@@ -242,14 +242,13 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     through a family op that throws. The fix is plan 1.5's generated `_schemas.ts`
     (`EffectSchema = z.discriminatedUnion('op', [...core, ...families])`, one `<family>.schema.ts` per family), which
     no slice has built; it belongs with 8k's `gen:registry` extension. Until then every op a script uses must be core.
-25. **8c's round trip is weak on printed keyword lines that the parser expands into abilities** — `Persist`,
-    `Fading 5`, `Crew 3`, `Soulshift 3`, `Devoid`, `Investigate.`, `Unleash`. The line is one word; the ability that
-    implements it is a paragraph, so the token Jaccard is near zero and the card fails the 0.55 gate on that line
-    alone. Today's answer is the `covers` table, but those keywords have no `CoverKind` (data/scripts/README.md says
-    so explicitly: claim them with an ability whose `text` is the line). Two ways out, both cheap and both deferred:
-    add the missing `CoverKind`s so the declaration claims the line and the renderer never scores it, or give
-    `render.ts` a keyword-line table (`persist` -> its reminder text) so the rendering looks like the printed
-    reminder. Measured impact: 5 of the 8 worst cards in the 400-card calibration sample.
+25. ~~**8c's round trip is weak on printed keyword lines that the parser expands into abilities**~~ — **closed by
+    review fixes 1**: `printedKeywordLine` in `src/cards/render.ts` recognises such a line (a capitalised name of at
+    most three words, an optional number or mana-cost parameter, no sentence punctuation) and `scoreKeywordLine`
+    scores it on its MAGNITUDE alone, so "Crew 3" against the crew expansion is 1.00 while an ability that crews for
+    2 is still 0. What is left of the class is four cards whose magnitude lives on a different declaration than the
+    ability that claims the line — `Fading 2` / `Vanishing 4` / `Modular 3` put their count in `asEnters`, which the
+    renderer does not see from the ability. Adding the missing `CoverKind`s would still be the tidier fix.
 26. **The reachability probes cannot reach `tapped` or `turned-face-up`** — not a probe defect, item 11: the engine
     raises `tapped` from nowhere and dispatches `turned-face-up` from nowhere, so a script with either trigger is
     reported "never reached" forever. `test/scripts-verify.test.ts`'s Ainok Survivalist fixture pins exactly that.
@@ -261,8 +260,10 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
   --changed | --stale [--dir --report --json --no-write --no-sandbox --seats]`) around `verifyCards` in
   `src/verify/scriptVerify.ts`, the seven stages in order; `src/cards/lint.ts` (stage 4, every vocabulary derived at
   run time — item 12), `src/verify/probes.ts` (stage 5, per-ability reachability by making the event happen; shared
-  setups, ~10 ms a card), `src/cards/render.ts` (stage 6, a template per core op + the registry's `RENDERERS`, the
-  score calibrated by `test/render.test.ts` over 400 parser-finished cards: median 0.875, 1.8% zeros),
+  setups, ~10 ms a card; a static is probed by rebuilding the same board from a def with THAT ability removed),
+  `src/cards/render.ts` (stage 6, a template per core op + the registry's `RENDERERS`, every face scored including
+  `secondFace`, the score calibrated by `test/render.test.ts` over a seeded sample of parser-finished cards: median
+  0.917, 1.6% zeros, 7.1% below the gate),
   `scripts/scripts-render.ts` (`npm run scripts:render -- --ids … [--parsed]`) for the judge and for humans, the
   `verification` block written back and the batch report at `data/scripts/reports/<batch>.json` (gitignored).
   Documented in `data/scripts/README.md` § Verification. Measured: a 30-card batch is 0.5 s of work, 2.5 s wall

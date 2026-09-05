@@ -284,18 +284,29 @@ Per oracle line, against the rendering of the ability whose `text` claims it. A 
 `covers` entry or by an `ignore` entry is not scored — a declaration implements it, and `scripts:check` already
 compares the declared value with the printed one.
 
-1. Every **number** the line prints (`\d+`, `X`) must appear in the rendering, or the line scores **0**. This is the
-   rule that catches "the script says 2 and the card says 3", and every zero-magnitude, `times: 0` and empty-body
-   bypass with it. One exception: a **count expression** is printed either as "1 … for each …" or as "+X/+X, where X
-   is …", so when the rendering carries one the tokens `1` and `X` alone are not gated.
+1. Every **number** the line prints (`\d+`, `X`, and a spelled-out number: "Draw **two** cards.", "**twice** the
+   number of …") must appear in the rendering, or the line scores **0**. This is the rule that catches "the script
+   says 2 and the card says 3", and every zero-magnitude, `times: 0` and empty-body bypass with it. Two exceptions:
+   a **count expression** is printed either as "1 … for each …" or as "+X/+X, where X is …", so when the rendering
+   carries one the tokens `1` and `X` alone are not gated; and "**one or more**" is an English idiom for "any", not
+   a magnitude, so its `1` is not gated either.
 2. Every **keyword, zone and counter name** the line prints must appear too, or the score is halved per miss.
 3. Otherwise the **Jaccard overlap** of the two lemmatised word sets (reminder text, punctuation and `the`/`a`/`an`
-   dropped; `enters the battlefield` and `enters` are the same event, CR 603.6a).
+   dropped; spelled-out numbers written as digits; `enters the battlefield` and `enters` are the same event,
+   CR 603.6a, and so are "is put into a graveyard from the battlefield" and "dies", CR 700.4).
 
-The **card score is the minimum over its lines**; >= 0.55 is `verified`, and every line under 0.4 is listed in
-`verification.roundTrip.lowest` for the judge. `test/render.test.ts` calibrates the gate against a seeded sample of
-400 cards the parser alone finishes: the median must stay >= 0.55 and fewer than 5% may score 0 (measured on
-`main`: median 0.875, 1.8% zeros).
+A **printed keyword line** — a capitalised name of at most three words with an optional number or mana-cost
+parameter and no sentence punctuation: `Persist`, `Crew 3`, `Cumulative upkeep {U}`, `Enchant creature` — is scored
+on rule 1 alone. The rendering it faces is the keyword's reminder-text expansion ("Crew 3" -> "tap any number of
+creatures you control with total power 3 or greater: crew ~"), which shares almost no words with the line; the
+magnitude is still cross-checked, so an ability that crews for 2 still scores 0 against a line that prints 3.
+
+The **card score is the minimum over its lines**, on **every** face — front, `backFace` and `secondFace`. >= 0.55 is
+`verified`, and every line under 0.4 is listed in `verification.roundTrip.lowest` for the judge.
+`test/render.test.ts` calibrates the gate against a seeded sample of cards the parser alone finishes: the median
+must stay >= 0.55, fewer than 5% may score 0, and — the number a median cannot see — fewer than **10%** may fall
+BELOW the gate, because every card that does is a script an agent is told to fix and cannot. Measured after the
+review fixes: median 0.917, 1.6% zeros, 7.1% below the gate (was 0.864 / 2.8% / 17.8%).
 
 **`npm run scripts:render -- --ids a,b,c`** prints, per card, each claimed line, the rendering it was scored against
 and the score — the tool to reach for when a card scores 0.31 and you want to know why. `--parsed` renders the
@@ -310,6 +321,13 @@ npm run scripts:verify -- --changed                # scripts git reports as modi
 npm run scripts:verify -- --stale                  # scripts whose verification block is missing or out of date
 npm run scripts:verify -- --ids … --report <path> --json --no-write --no-sandbox --seats 2 --dir <scripts dir>
 ```
+
+`--no-sandbox` and a partial `--seats` are **debugging flags, not shortcuts**: stage 5 not running is recorded as a
+problem on every card of the run, so those cards come out `scripted`, the run exits 1, and nothing they touch can be
+promoted. (`verification.sandbox` has one word, `unreachable`, for "the trial ran and reached nothing" and for "no
+trial ran", and `--stale` compares only the parser version, the registry hash and the script hash — so without the
+recorded problem a `--no-sandbox` run would mint `verified` for a card nothing ever simulated and `--stale` would
+never look at it again.)
 
 Exit 1 when any card has a problem, 2 when the arguments are wrong. A 30-card batch costs about 0.5 s of work
 (2.5 s wall clock including the `tsx` start-up), well inside the 15 s target.

@@ -6,12 +6,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCard } from '../src/cards/parse.js';
 import {
-  CORE_OPS, lemmas, numbersIn, renderAbility, renderAmount, renderCondition, renderCost, renderEffect, renderFilter,
-  renderStatic, renderTarget, renderTrigger, scoreCard, scoreRendering, vocabularyIn,
+  CORE_OPS, lemmas, numbersIn, printedKeywordLine, renderAbility, renderAmount, renderCondition, renderCost,
+  renderEffect, renderFilter, renderStatic, renderTarget, renderTrigger, scoreCard, scoreClaimedLine, scoreRendering,
+  vocabularyIn,
 } from '../src/cards/render.js';
 import { EFFECT_VARIANTS } from '../src/cards/schema.js';
 import { discriminators } from '../src/cards/lint.js';
-import type { CardDef } from '../src/cards/types.js';
+import type { Ability, CardDef } from '../src/cards/types.js';
 import { db } from './helpers.js';
 
 test('every core op has a template: CORE_OPS is exactly the schema union', () => {
@@ -39,7 +40,7 @@ test('the composition ops render, and `scoped` rebinds "you" for everything unde
   assert.equal(
     renderEffect({ op: 'scoped', who: 'each-opponent', do: [{ op: 'draw', amount: 1, who: 'you' }] }),
     'each opponent draws a card', 'the inner `who: you` is the scoped player, not the controller');
-  assert.equal(renderEffect({ op: 'may', effects: [{ op: 'draw', amount: 1, who: 'you' }] }), 'you may you draw a card');
+  assert.equal(renderEffect({ op: 'may', effects: [{ op: 'draw', amount: 1, who: 'you' }] }), 'you may draw a card', 'the subject is printed once, not twice');
   assert.equal(
     renderEffect({ op: 'unless-pays', who: 'target-player', cost: { payLife: 3 }, otherwise: [{ op: 'discard', amount: 1, who: 'you' }] }),
     'target player discards a card unless target player pays pay 3 life');
@@ -60,7 +61,7 @@ test('triggers, statics, conditions, amounts, targets and costs render', () => {
   assert.equal(renderStatic({ kind: 'anthem', power: 1, toughness: 1, filter: { types: ['Creature'] }, scope: 'you-control' }), 'creature you control get +1/+1');
   assert.equal(renderStatic({ kind: 'self-keywords', keywords: ['flying'] }), '~ has flying');
   assert.equal(renderCondition({ kind: 'metalcraft' }), 'you control three or more artifacts');
-  assert.equal(renderCondition({ kind: 'controls', who: 'you', filter: { types: ['Creature'] }, atLeast: 2 }), 'you controls 2 or more creatures');
+  assert.equal(renderCondition({ kind: 'controls', who: 'you', filter: { types: ['Creature'] }, atLeast: 2 }), 'you control 2 or more creatures');
   assert.equal(renderAmount({ count: 'creatures-you-control' }), 'the number of creatures you control');
   assert.equal(renderAmount({ count: 'creatures-you-control', times: 2 }), 'twice the number of creatures you control');
   assert.equal(renderAmount('X'), 'X');
@@ -88,6 +89,68 @@ test('the score: numbers are a hard gate, missing vocabulary halves, otherwise J
   assert.deepEqual(lemmas('Destroy the creatures, and an artifact.'), ['destroy', 'creature', 'and', 'artifact']);
   // "enters the battlefield" and "enters" are the same event (CR 603.6a templating change), on both sides
   assert.equal(scoreRendering('When ~ enters the battlefield, draw a card.', 'when ~ enters, you draw a card').score, scoreRendering('When ~ enters, draw a card.', 'when ~ enters, you draw a card').score);
+});
+
+// ---------------------------------------------------------------------------
+// The classes of FALSE FAIL a review found in the 0.55 gate (review fixes 1)
+// ---------------------------------------------------------------------------
+
+test('a spelled-out number is a number: on both sides of the comparison AND in the hard gate', () => {
+  // the repro: a minimal, behaviourally exact, hand-written script for Divination used to score 0.40 and fail
+  const divination: Ability = { kind: 'spell', effects: [{ op: 'draw', amount: 2, who: 'you' }], text: 'Draw two cards.' };
+  const good = scoreClaimedLine(divination, 'Draw two cards.');
+  assert.ok(good.score >= 0.55, `a correct script for Divination must pass the gate, got ${good.score}`);
+  // and the gate now FIRES on the same line, which it could not before: no digit meant no number to miss
+  assert.deepEqual(numbersIn('Draw two cards.'), ['2']);
+  const wrong: Ability = { kind: 'spell', effects: [{ op: 'draw', amount: 5, who: 'you' }], text: 'Draw two cards.' };
+  assert.equal(scoreClaimedLine(wrong, 'Draw two cards.').score, 0, 'draw 5 for "Draw two cards." is a hard zero');
+  // "twice the number of" carries the 2 a "+2/+2 for each" line prints
+  assert.deepEqual(numbersIn('twice the number of creatures blocking it'), ['2']);
+  // "one or more" is an idiom for "any", not a magnitude, and does not gate
+  assert.deepEqual(numbersIn('Whenever one or more creatures you control deal combat damage to a player, draw a card.'), []);
+});
+
+test('"is put into a graveyard from the battlefield" is "dies" (CR 700.4), on both sides', () => {
+  const a: Ability = { kind: 'triggered', event: { on: 'dies', self: true }, effects: [{ op: 'draw', amount: 1, who: 'you' }], text: '' };
+  const old = scoreClaimedLine(a, 'When ~ is put into a graveyard from the battlefield, draw a card.');
+  const now = scoreClaimedLine(a, 'When ~ dies, draw a card.');
+  assert.equal(old.score, now.score, 'the two printed forms of one event must score the same');
+  assert.ok(old.score >= 0.55, `expected the old wording to pass the gate, got ${old.score}`);
+});
+
+test('a printed keyword line is scored on its magnitude, not on word overlap', () => {
+  assert.ok(printedKeywordLine('Persist'));
+  assert.ok(printedKeywordLine('Crew 3'));
+  assert.ok(printedKeywordLine('Cumulative upkeep {U}'));
+  assert.ok(printedKeywordLine('Enchant creature'));
+  assert.equal(printedKeywordLine('Destroy all creatures.'), false);
+  assert.equal(printedKeywordLine('When ~ enters, choose one —'), false, 'a comma makes it a sentence');
+  assert.equal(printedKeywordLine('All Slivers have "{2}, Sacrifice ~: Draw a card."'), false);
+  // the expansion the parser writes for "Crew 3" shares almost no words with the line, and used to score 0.13
+  const crew: Ability = { kind: 'activated', cost: { tapCreaturesTotalPower: { power: 3, other: false } }, effects: [{ op: 'crew-self' }], text: 'Crew 3' } as never;
+  assert.equal(scoreClaimedLine(crew, 'Crew 3').score, 1);
+  // but the MAGNITUDE is still cross-checked: an ability that crews for 2 fails the line that prints 3
+  const wrong = { ...crew, cost: { tapCreaturesTotalPower: { power: 2, other: false } } } as Ability;
+  assert.equal(scoreClaimedLine(wrong, 'Crew 3').score, 0);
+});
+
+test('a loyalty ability prints no activation boilerplate (CR 606.3), and a subject is printed once', () => {
+  const karn: Ability = { kind: 'activated', cost: {}, loyalty: -3, sorcerySpeed: true, oncePerTurn: true, effects: [{ op: 'exile', target: { kind: 'permanent' } }], text: '-3: Exile target permanent.' } as never;
+  assert.equal(renderAbility(karn), '-3: exile target permanent');
+  assert.equal(scoreClaimedLine(karn, '-3: Exile target permanent.').score, 1);
+  const optional: Ability = { kind: 'triggered', optional: true, event: { on: 'etb', self: true }, effects: [{ op: 'may', effects: [{ op: 'draw', amount: 1, who: 'you' }] }], text: '' };
+  assert.equal(renderAbility(optional), 'when ~ enters, you may draw a card');
+});
+
+test('no zeroes the oracle does not print: a keyword-only Aura, a noncreature token, an empty fold marker', () => {
+  assert.equal(renderStatic({ kind: 'aura', power: 0, toughness: 0, keywords: ['flying'], enchant: { kind: 'creature' } } as never),
+    'enchant creature. enchanted creature has flying');
+  assert.equal(renderStatic({ kind: 'anthem', power: 0, toughness: 0, keywords: ['hexproof'], filter: { types: ['Permanent'] }, scope: 'you-control' } as never),
+    'permanent you control have hexproof');
+  assert.equal(renderEffect({ op: 'token', count: 1, power: 0, toughness: 0, colors: [], types: ['Artifact'], subtypes: ['Clue'], keywords: [], clue: true } as never),
+    'create a Clue artifact token');
+  // `modes: [[]]` is the parser's fold marker for "It can't be regenerated." — a bullet with nothing in it
+  assert.equal(renderEffect({ op: 'choose-mode', count: 1, modes: [[]] } as never), '');
 });
 
 test('renderer gaps are reported rather than silently scored down', () => {
@@ -138,4 +201,32 @@ test('calibration: 400 parser-finished cards render back at a median of at least
   }).join('');
   assert.ok(median >= 0.55, `median round-trip score ${median.toFixed(3)} over ${sorted.length} cards is below the 0.55 gate. Worst:${worst}`);
   assert.ok(zeros / sorted.length < 0.05, `${zeros}/${sorted.length} (${(100 * zeros / sorted.length).toFixed(1)}%) of the sample scored 0, which must stay under 5%. Worst:${worst}`);
+});
+
+/**
+ * The FALSE-FAIL RATE, which the median cannot see. A review measured 17.7% of the parser-finished pool below the
+ * 0.55 gate while the median sat at 0.864 and this file was green — every one of those cards is a script the agent
+ * would be told to fix three times and could not, because the AST was already right and the RENDERER was wrong
+ * (spelled-out numbers, the pre-2010 "put into a graveyard from the battlefield" wording, planeswalker activation
+ * boilerplate, "+0/+0" on a keyword-only Aura, a 0/0 Clue token, the reminder-text expansion of a printed keyword
+ * line, a doubled "you may", `self-pt` printed as a set rather than the bonus the engine applies).
+ *
+ * With those fixed the rate is 7.1% over the same seeded shuffle, and what is left is the gate doing its job: an AST
+ * that really has dropped what the line says (Psionic Blast's second damage clause, Mutant's Prey's fight target,
+ * "up to one" printed as "target"). The bound is deliberately close to the measurement — a renderer change that
+ * pushes a whole class back under the gate has to be seen here, not discovered by an agent burning its fix budget.
+ */
+test('calibration: the false-fail rate — cards BELOW the gate — stays under 10% of 1500 parser-finished cards', () => {
+  const scored = sample(1500).map(def => scoreCard(def)).filter(s => s.lines.length);
+  assert.ok(scored.length >= 1200, `only ${scored.length} of the sample had an ability-claimed line`);
+  const below = scored.filter(s => s.score < 0.55);
+  const worst = [...below].sort((a, b) => a.score - b.score).slice(0, 10).map(s => {
+    const l = s.lines.reduce((m, y) => (y.score < m.score ? y : m), s.lines[0]);
+    return `
+    ${s.score.toFixed(2)} ${JSON.stringify(l.text)}
+      -> ${JSON.stringify(l.rendered)}${l.why ? `
+      why: ${l.why}` : ''}`;
+  }).join('');
+  const rate = below.length / scored.length;
+  assert.ok(rate < 0.10, `${below.length}/${scored.length} (${(100 * rate).toFixed(1)}%) of parser-finished cards fall below the 0.55 gate, which must stay under 10%. Worst:${worst}`);
 });
