@@ -21,15 +21,26 @@ The core already flips a permanent (`{ op: 'transform-self' }`, `game.ts:applyEf
 only as a `transform` **event** — no trigger event is queued, so before this family "Whenever this creature
 transforms into …" could never fire on any card.
 
-Routing every flip through this family's own op would not have fixed that: a card that already parses into
-`transform-self` would still be silent. So the family **watches** instead. An `sba` hook compares every
-double-faced permanent's `activeFace` with the last face it reported and queues a `transforms` event when they
-differ. `checkSBA` runs at the top of every priority round and after every resolution (`game.ts:priorityRound`,
-`resolveStackFully`), which is exactly where triggers wait to be put on the stack (CR 603.3), so the watcher catches
+The family observes it twice over, and the two halves cover different flips.
 
-* the core `transform-self` op,
-* this family's `transform` op,
-* the automatic daybound / nightbound flips of a day/night change.
+**`flip` announces its own transformation** (`src/engine/ops/transform.ts`). Every face change the family performs —
+this family's `transform` op, and the automatic daybound / nightbound flips of a day/night change — queues the
+`transforms` event at the instant the face changes, and marks the face as already reported. CR 603.2 makes an ability
+trigger when the **event** happens, and nothing requires the object to still be there afterwards (CR 603.10a's
+look-back covers leaves-the-battlefield triggers only). That matters constantly, because **a transformation can kill
+the permanent that transformed**: every werewolf shrinks when it flips back at dawn (Graveyard Glutton 4/4 →
+Graveyard Trespasser 3/3, Tovolar's Packleader 6/6 → 4/4, Ulrich 6/6 → 4/4), so a damaged one is destroyed by the
+state-based-action pass that follows the flip. `SBA_HOOKS` run *after* the lethal-damage loop of the same `checkSBA`
+pass, so a watcher scanning the battlefield afterwards would find the permanent already in the graveyard and lose the
+trigger — which is exactly what happened before this half existed. The scenario *a transforms trigger fires even when
+the transformation kills the permanent that transformed* pins the werewolf case and *a self transforms trigger fires
+when the flip shrinks the permanent to lethal damage* pins the op's own.
+
+**An `sba` hook is the backstop** for the one flip the family cannot reach: the core `{ op: 'transform-self' }`, which
+`game.ts:applyEffect` performs without going through `flip`. It compares every double-faced permanent's `activeFace`
+with the last face reported and queues a `transforms` event when they differ. `checkSBA` runs at the top of every
+priority round and after every resolution (`game.ts:priorityRound`, `resolveStackFully`), which is where triggers wait
+to be put on the stack (CR 603.3).
 
 Two consequences worth knowing before you write a script:
 
@@ -37,9 +48,10 @@ Two consequences worth knowing before you write a script:
   face up is not a transformation: CR 712.14a ("put onto the battlefield transformed" — it *enters* with its back
   face up) and CR 702.145b ("if it is night … it enters transformed") are replacement effects, and CR 701.27a only
   ever transforms a double-faced permanent that is already on the battlefield.
-* **Two flips inside one resolution are one net change.** "Transform it, then transform it again" leaves the face
-  where it started and raises nothing, which is what a state-based observation can see. No printed card does this;
-  a script that wants both halves observed must split them across two abilities.
+* **Two `transform-self` flips inside one resolution are one net change.** Only the backstop half is a state-based
+  observation, so "`transform-self`, then `transform-self` again" leaves the face where it started and raises
+  nothing. This family's own op does not have that limit — each of its flips announces itself, so two of them raise
+  two events, which is what CR 603.2 asks for. No printed card does either.
 
 The ability that triggers is the one on the face **that is now up** (CR 701.27a). A "Whenever this creature
 transforms into Ulrich, Uncontested Alpha" printed on the back face fires when the permanent turns *into* the back
@@ -229,17 +241,22 @@ the handler, so the entry is gone from that list.
 
 `first-main-phase` is the only head this family adds that fires **every turn, on every permanent that carries it**,
 and the parser contract cannot gate it: `TriggerRule.make` is handed the trigger head alone, never the body. Across
-the pool the head sits on 56 abilities — 23 whose body parses completely and 33 (Ripples of Undeath, Advanced
-Reconstruction, Sab-Sunen, Coalition Relic, …) that still hold an `unknown` clause. Claiming the head on those 33
-would put an ability on the stack once a turn for the rest of the game whose only observable effect is an
-`unsimulated` event: strictly worse than the pre-9.1 reading, where the head parsed as `{ on: 'unknown' }` and the
-ability never fired at all. Two of the four `fidelity:check` pairings failed exactly that way.
+the pool the head sits on 56 abilities, and only 19 of them have a body the engine can actually play.
+
+* **33 hold an `unknown` clause** (Ripples of Undeath, Advanced Reconstruction, Sab-Sunen, Coalition Relic, …).
+  Claiming the head on those would put an ability on the stack once a turn for the rest of the game whose only
+  observable effect is an `unsimulated` event: strictly worse than the pre-9.1 reading, where the head parsed as
+  `{ on: 'unknown' }` and the ability never fired at all. Two of the four `fidelity:check` pairings failed that way.
+* **4 hold no `unknown` at all and still parse to something the engine reads wrong** — Static Prison, Electrozoa,
+  Black Market, Altar of Shadows. See "Open issues": both root causes are core defects, and both existed before this
+  family. `unknown` cannot find them, so a second predicate (`misparsed`) names the two shapes explicitly.
 
 So the family's discipline — *decline rather than claim what you cannot express* — is applied one hop later, in the
 engine: **the trigger fires only for an ability whose whole body (and intervening-if) the engine can play**
-(`bodySimulable`, `src/engine/ops/transform.ts`). The 23 complete cards behave as written; the other 33 keep exactly
-their pre-9.1 behaviour and come alive by themselves the moment a later family parses the missing clause. A script
-you write by hand is never affected: it may not contain an `unknown` at all.
+(`bodySimulable`, `src/engine/ops/transform.ts`). The 19 complete cards behave as written; the other 37 keep exactly
+their pre-9.1 behaviour and come alive by themselves the moment the missing clause or the core fix lands. A script
+you write by hand is never affected by the first gate (it may not contain an `unknown` at all) and is affected by the
+second only if it writes one of the two broken shapes, which it should not.
 
 ---
 
@@ -374,8 +391,9 @@ The four object keys are deleted when the permanent leaves the battlefield (CR 4
 The `first-main-phase` head is deliberately the widest rule here: it is the head of this family's own "At the
 beginning of your first main phase, you may pay {R}. If you do, transform ~." clauses and of ~50 more cards across
 the pool. Those cards keep the unparsed lines they had — only the trigger event changed shape — and
-`npm run parse:diff` groups them under "(same unparsed lines)". A card whose body is still partly `unknown` also
-keeps its *behaviour*: the engine-side gate in §5 stops the ability firing until the body is complete.
+`npm run parse:diff` groups them under "(same unparsed lines)". A card whose body is still partly `unknown`, or whose
+body parses into one of the two shapes the engine reads wrong, also keeps its *behaviour*: the engine-side gate in §5
+stops the ability firing until the body is complete and playable.
 
 ---
 
@@ -409,6 +427,27 @@ keeps its *behaviour*: the engine-side gate in §5 stops the ability firing unti
   kills nothing. **Do not count Wolf Strike as a coverage gain**: the pump half works and is what the family's own
   scenario asserts, the damage half needs the core parser fix reported with the 9.1 review. Nothing in this family
   can reach it — a built-in sentence rule claims that clause before any registry rule is offered it.
+* **`{E}` in a printed cost parses as a free MANA cost, so "unless you pay {E}" is auto-paid.** Energy is CR 118.12:
+  an energy counter is paid from the player's own pool, not with mana. The mana-cost parser drops the symbol and
+  leaves `{ generic: 0, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{E}' }` — a cost of nothing — which the
+  engine pays for free and logs as "pays {E}". Under this family's `first-main-phase` head that hits **Static
+  Prison** (never sacrificed) and **Electrozoa** (never tapped), and it is *not* new: **Lathnu Hellion** carries the
+  same shape under the core `end-step` head and is already live at base, and three such abilities exist in the pool.
+  The engine gate in §5 now declines the two under this family's head, restoring the pre-9.1 silence, but the parse
+  itself is still wrong, so **do not count Static Prison or Electrozoa as a coverage gain**. The fix is in
+  `src/cards/cost.ts` / the mana-cost parser and is reported in the 9.1 review's `coreChangeNeeded`.
+* **`{ op: 'add-mana' }`'s `perEach` is never read.** `game.ts`'s `case 'add-mana'` looks at `e.mana` and `e.amount`
+  only, so `{ op: 'add-mana', mana: ['B'], perEach: { count: 'counters-on-source', counter: 'charge' } }` adds
+  exactly one {B} however many charge counters are on the permanent. Under this family's head that is **Black
+  Market** and **Altar of Shadows**; a CardDB sweep finds **51 more** abilities with the same unread field outside it
+  (Everflowing Chalice, Rofellos, Magus of the Coffers, …), so it is a pre-existing core defect, not a 9.1 one. As
+  above, the §5 gate declines the two in reach and **neither card counts as a coverage gain**; the patch is in the
+  9.1 review's `coreChangeNeeded`.
+* **`bodySimulable` can only decline shapes it is told about.** The `unknown` half of the gate is general; the
+  `misparsed` half is a hand-written list of two known-wrong shapes, found by sweeping every `first-main-phase` body
+  in the CardDB. A third mis-parse of the same kind would slip through until someone adds it. There is no general
+  test for "this AST is well-formed but semantically wrong", which is why the two entries above are also filed as
+  core fixes rather than left to the gate.
 * **The family's zod variants reach no schema.** `src/engine/ops/transform.schema.ts` exports the `FamilySchema` the
   §1.5 schema composer is meant to fold into `EffectSchema` / `ConditionSchema` / `TriggerEventSchema` /
   `AsEntersSchema` / `StaticEffectSchema` and the `TARGET_KINDS` / `AMOUNT_COUNTS` enums, but that composer does not

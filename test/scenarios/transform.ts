@@ -456,10 +456,82 @@ export const transform: Scenario[] = [
     expect: [{ unsimulated: 0 }, { graveyardCount: [0, 0] }],     // no mill, and no inert-text hit either
   },
   {
+    // The second half of the same gate (9.1 review 2). These bodies carry no `unknown` at all - they parse into
+    // well-formed AST the ENGINE reads wrong. "unless you pay {E}" is energy (CR 118.12: energy counters are paid
+    // from the player's pool, not with mana), and the mana-cost parser drops the symbol, leaving a cost of
+    // `{ generic: 0, pips: [], raw: '{E}' }` that the engine auto-pays for free - so Static Prison would be kept
+    // forever by a player with no energy at all. `misparsed` declines it, which is exactly the pre-9.1 reading.
+    name: 'Static Prison\'s first-main-phase trigger does not fire while its {E} cost parses as a free mana cost', cr: '118.12',
+    seats: [{ bf: ['Static Prison'] }, {}],
+    script: [{ turns: 2 }],
+    expect: [
+      { zone: ['Static Prison', 'battlefield'] },                 // unchanged from base: it is never sacrificed
+      { noLog: 'pays \\{E\\}' },                                  // and no longer claims a payment that never happened
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    // The other misparse: `game.ts`'s `case 'add-mana'` reads `e.mana` / `e.amount` and never `e.perEach`, so
+    // "add {B} for each charge counter on ~" added exactly one {B} however many counters were on it. 51 more
+    // abilities across the pool carry the same unread field; only the four under this family's own head are in
+    // reach, and the fix is a core one (see the doc's Open issues).
+    name: 'Black Market\'s first-main-phase trigger does not fire while its per-counter mana is unread', cr: '505.1',
+    seats: [{ bf: ['Black Market'], counters: { 'Black Market': { charge: 3 } } }, {}],
+    script: [{ turns: 2 }],
+    expect: [
+      { counters: ['Black Market', { charge: 3 }] },
+      { events: { type: 'mana', min: 0, max: 0 } },               // not the one stray {B} the unread perEach produced
+      { unsimulated: 0 },
+    ],
+  },
+  {
     name: 'a first-main-phase trigger with whose: each fires in every player\'s precombat main phase', cr: '505.1',
     seats: [{ bf: ['Grizzly Bears'] }, {}],
     scripts: { 'Grizzly Bears': { abilities: [{ kind: 'triggered', event: { on: 'first-main-phase', whose: 'each' }, effects: [{ op: 'gain-life', amount: 1, who: 'you' }], text: 'each main phase' }] } },
     script: [{ turns: 2 }],
     expect: [{ life: [0, 22] }],
+  },
+
+  // ---------------------------------------------------------------- a transformation that kills the permanent (9.1 review 2)
+  {
+    // CR 603.2: the ability triggers when the event happens; nothing requires the object to survive it (CR 603.10a's
+    // look-back applies to leaves-the-battlefield triggers, not to this). Every werewolf SHRINKS when it flips back
+    // at dawn - Graveyard Glutton 4/4 -> Graveyard Trespasser 3/3 - so a damaged one dies to the very state-based
+    // action pass that follows the flip. While `transforms` was raised by the `sba` watcher alone, the permanent was
+    // already in the graveyard (SBA_HOOKS run after the lethal-damage loop of the same checkSBA pass) and the trigger
+    // was silently lost. `flip` now announces the transformation itself, so the death cannot swallow it.
+    name: 'a transforms trigger fires even when the transformation kills the permanent that transformed', cr: '603.2',
+    seats: [{ bf: [TRESPASSER, 'Grizzly Bears', 'Mountain', 'Mountain', 'Forest'], hand: ['Lightning Bolt', 'Shock', 'Giant Growth'] }, {}],
+    scripts: {
+      ...spell('Lightning Bolt', [{ op: 'set-day-night', to: 'night' }]),
+      ...spell('Shock', [{ op: 'damage', amount: 3, target: { kind: 'creature', controller: 'you' } }]),
+      ...spell('Giant Growth', [{ op: 'set-day-night', to: 'day' }]),
+      'Grizzly Bears': { abilities: [{ kind: 'triggered', event: { on: 'transforms', self: false, filter: { types: ['Creature'], other: true }, controller: 'you' }, effects: [{ op: 'gain-life', amount: 5, who: 'you' }], text: 'another creature transforms' }] },
+    },
+    script: [{ cast: 'Lightning Bolt' }, { resolve: true }, { cast: 'Shock', targets: [[TRESPASSER]] }, { resolve: true }, { cast: 'Giant Growth' }, { resolve: true }],
+    expect: [
+      { zone: [TRESPASSER, 'graveyard'] },                        // 3 damage on the 3/3 front face it flipped back to
+      { log: 'transforms into Graveyard Trespasser' },
+      { life: [0, 30] },                                          // +5 at dusk AND +5 at dawn, not just the first
+    ],
+  },
+  {
+    // The same rule through the family's own `transform` op rather than the daybound machinery, and on the permanent's
+    // OWN trigger: the ability that fires is the one on the face that is now up (CR 701.27a), and it fires even though
+    // that face - Delver of Secrets, 1/1 - dies immediately to the 1 damage Insectile Aberration was carrying.
+    name: 'a self transforms trigger fires when the flip shrinks the permanent to lethal damage', cr: '603.2',
+    seats: [{ bf: [DELVER, 'Mountain', 'Mountain', 'Forest'], hand: ['Lightning Bolt', 'Shock', 'Giant Growth'] }, {}],
+    scripts: {
+      ...toBack('Lightning Bolt'),
+      ...spell('Shock', [{ op: 'damage', amount: 1, target: { kind: 'creature', controller: 'you' } }]),
+      ...toFront('Giant Growth'),
+      [DELVER]: { mode: 'replace', abilities: [{ kind: 'triggered', event: { on: 'transforms', self: true }, effects: [{ op: 'gain-life', amount: 3, who: 'you' }], text: 'transform trigger' }] },
+    },
+    script: [{ cast: 'Lightning Bolt', targets: [[DELVER]] }, { resolve: true }, { cast: 'Shock', targets: [[DELVER]] }, { resolve: true }, { cast: 'Giant Growth', targets: [[DELVER]] }, { resolve: true }],
+    expect: [
+      { zone: [DELVER, 'graveyard'] },
+      { life: [0, 23] },                                          // the front face's trigger still resolved
+      { events: { type: 'transform', min: 2, max: 2 } },
+    ],
   },
 ];

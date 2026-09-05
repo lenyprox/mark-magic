@@ -6,12 +6,14 @@
 // *Disturb* and 701.51 is *Open an Attraction*, so none of those is this family's rule.
 //
 // The core already flips a double-faced permanent (`transform-self`, game.ts:applyEffect) but nothing ever *observes*
-// the flip: no event is queued, so "Whenever this transforms into …" can never fire. Rather than route every flip
-// through this family's own op (a card that already parses into `transform-self` would stay silent), the family
-// WATCHES: an `sba` hook compares each double-faced permanent's `activeFace` with the last face it saw and queues a
-// `transforms` event when they differ. checkSBA runs at the top of every priority round and after every resolution
-// (game.ts:priorityRound / resolveTop), i.e. exactly where triggers wait to be put on the stack (CR 603.3), so every
-// flip is caught — the core op's, this family's op's, and the automatic daybound / nightbound flips alike. The same
+// the flip: no event is queued, so "Whenever this transforms into …" can never fire. This family observes it twice
+// over. Every flip it performs itself — its own op, and the automatic daybound / nightbound flips — queues the
+// `transforms` event from `flip` below, at the instant the face changes, because CR 603.2 makes the ability trigger
+// on the EVENT and a transformation that kills the permanent (a werewolf shrinking back at dawn) must still be seen.
+// A flip the family cannot reach — the core `transform-self` op — is caught by an `sba` hook that compares each
+// double-faced permanent's `activeFace` with the last face reported and queues the event when they differ. checkSBA
+// runs at the top of every priority round and after every resolution (game.ts:priorityRound / resolveTop), i.e.
+// exactly where triggers wait to be put on the stack (CR 603.3). The same
 // hook is where CR 702.145c / 702.145f live: those two are explicitly *not* state-based actions ("this happens
 // immediately"), but the SBA loop is the only continuous check the engine has, so they are enforced there and the
 // hook returns true when it corrected a face, which makes checkSBA run its loop again.
@@ -140,6 +142,16 @@ function flip(g: Game, o: GameObject, to?: 'front' | 'back', why: 'effect' | 'da
   const d = faceDef(o, next);
   g.emit({ type: 'transform', id: o.id, name: o.def.name, into: d.name, face: next });
   if (d.types.includes('Planeswalker') && d.loyalty != null) g.setCounters(o, 'loyalty', d.loyalty);
+  // CR 603.2: the ability triggers when the EVENT happens, and nothing requires the object to still be there
+  // afterwards (CR 603.10a's look-back is for leaves-the-battlefield triggers only). The `sba` watcher below cannot
+  // give that guarantee on its own: SBA_HOOKS run *after* the lethal-damage loop of the same `checkSBA` pass
+  // (game.ts), so a permanent the transformation itself killed — every werewolf shrinks when it flips back at dawn,
+  // Graveyard Glutton 4/4 → Graveyard Trespasser 3/3 — was already in the graveyard and out of `allPermanents` by
+  // the time the watcher looked. So the flip announces itself here, at the instant it happens, and marks the face as
+  // reported so the watcher does not raise it a second time. The watcher stays for the one flip that does not come
+  // through this function: the core `{ op: 'transform-self' }` op.
+  extSet(o, FACE_SEEN, next);
+  g.queueTriggers('transforms', { obj: o, player: o.controller });
   return true;
 }
 
@@ -202,6 +214,41 @@ function hasUnknown(v: unknown): boolean {
 }
 
 /**
+ * Does this value hold a clause that parsed into something the engine reads WRONG? `hasUnknown` cannot see these:
+ * they are well-formed AST that no `unknown` marks, and the engine runs them to a silently incorrect outcome. Two
+ * shapes, both found by a CardDB sweep of every `first-main-phase` body (the sweep declines exactly four abilities —
+ * Static Prison, Electrozoa, Black Market, Altar of Shadows — and leaves the other 19 simulable ones alone):
+ *
+ *   * a MANA COST that costs nothing but was printed as something. `{E}` is energy (CR 118.12: an energy counter is
+ *     paid from the player's pool, not from mana), and the mana-cost parser drops it: the cost lands as
+ *     `{ generic: 0, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{E}' }`. The engine then auto-pays a free cost
+ *     and logs "pays {E}", so "sacrifice ~ unless you pay {E}" never sacrifices and "tap ~ unless you pay {E}" never
+ *     taps, whatever the controller's energy. A genuinely free printed cost writes `raw` as `{0}` (or empty), which
+ *     is why that spelling is excluded rather than the whole shape.
+ *   * an `add-mana` carrying `perEach`. `game.ts`'s `case 'add-mana'` reads only `e.mana` / `e.amount`, never
+ *     `e.perEach`, so "add {B} for each charge counter on ~" adds exactly one {B} whatever the counters say.
+ *
+ * Both are pre-existing CORE defects — Lathnu Hellion carries the same `{E}` cost under a core `end-step` head at
+ * base, and 51 more abilities emit an unread `add-mana.perEach` — so neither can be repaired from this family; the
+ * patches are in the 9.1 review's `coreChangeNeeded`. What the family CAN do is not put its own head in front of
+ * them: declining here restores exactly the pre-9.1 reading (the head parsed as `{on:'unknown'}` and the ability
+ * never fired), which is the family's standing discipline and the honest state until the core fix lands. See
+ * docs/vocabulary/transform.md, "Open issues".
+ */
+function misparsed(v: unknown): boolean {
+  if (Array.isArray(v)) return v.some(misparsed);
+  if (v !== null && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    if (o.op === 'add-mana' && o.perEach !== undefined) return true;
+    if (typeof o.raw === 'string' && Array.isArray(o.pips) && o.generic === 0 && o.x === 0 && o.pips.length === 0
+      && (o.hybrid as unknown[] | undefined)?.length === 0 && (o.phyrexian as unknown[] | undefined)?.length === 0
+      && !/^(?:\{0\})*$/.test(o.raw)) return true;
+    for (const k in o) if (misparsed(o[k])) return true;
+  }
+  return false;
+}
+
+/**
  * Is the whole triggered ability whose event object is `ev` something the engine can actually play?
  *
  * Only `first-main-phase` asks. It is the one head this family adds that fires EVERY turn on EVERY permanent carrying
@@ -211,16 +258,18 @@ function hasUnknown(v: unknown): boolean {
  * stack once a turn, forever, whose only observable effect is an `unsimulated` event — strictly worse than the
  * pre-9.1 reading, where the head parsed as `{on:'unknown'}` and the ability simply never fired. So the family's
  * discipline ("decline rather than claim what you cannot express") is applied one hop later, here: the trigger fires
- * only for an ability the engine can run end to end. The 23 cards whose body parses completely are unaffected; the
- * other 33 keep exactly their pre-9.1 behaviour, which is why `npm run fidelity:check` does not regress. See
- * docs/vocabulary/transform.md, "first-main-phase and inert bodies".
+ * only for an ability the engine can run end to end. That is two questions, not one — `hasUnknown` for a body the
+ * parser openly gave up on (33 abilities), and `misparsed` for a body that parsed into well-formed AST the engine
+ * reads WRONG (4 more: Static Prison, Electrozoa, Black Market, Altar of Shadows). 19 of the 56 abilities carrying
+ * this head pass both gates; the other 37 keep exactly their pre-9.1 behaviour, which is why `npm run fidelity:check`
+ * does not regress. See docs/vocabulary/transform.md, "Open issues".
  */
 function bodySimulable(perm: GameObject, ev: object): boolean {
   for (const ab of chars.abilitiesOf(perm)) {
     if (ab.kind !== 'triggered') continue;
     const evs: object[] = ab.event.on === 'or' ? ab.event.events : [ab.event];
     if (!evs.includes(ev)) continue;
-    return !hasUnknown(ab.effects) && !hasUnknown(ab.intervening);
+    return !hasUnknown(ab.effects) && !hasUnknown(ab.intervening) && !misparsed(ab.effects) && !misparsed(ab.intervening);
   }
   return true;                                        // not found: a delayed / synthesised trigger, nothing to check
 }
@@ -407,10 +456,13 @@ const TRANSFORM: FamilyModule = {
    * after every resolution — so "immediately" is as close as the engine gets. Returning true when it corrected a face
    * makes checkSBA loop again, which is what a state change owes the loop.
    *
-   * Then the watcher: nothing in the core announces a face change, so this compares each double-faced permanent's face
-   * with the last one reported and raises `transforms` when they differ. A permanent seen for the first time is only
-   * recorded — entering with its back face up (a disturb arrival, or the CR 702.145b / 712.14a "enters transformed"
-   * replacement) is not a transformation and must raise nothing.
+   * Then the watcher, which is now the BACKSTOP only: `flip` above announces its own transformation the instant it
+   * happens (CR 603.2), so the only face change that reaches here unreported is the core `{ op: 'transform-self' }`
+   * op's, which no family can intercept. This compares each double-faced permanent's face with the last one reported
+   * and raises `transforms` when they differ. A permanent seen for the first time is only recorded — entering with
+   * its back face up (a disturb arrival, or the CR 702.145b / 712.14a "enters transformed" replacement) is not a
+   * transformation and must raise nothing. A `transform-self` flip that is undone inside the same resolution is still
+   * invisible to it, which is the one case §1 of the doc still lists.
    */
   sba: (g) => {
     const s = g.state;
