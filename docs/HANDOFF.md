@@ -224,7 +224,7 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     test/parser-composition.test.ts and test/scenarios/composition-cards.ts). `those` / player / count words after
     a source-only sentence still fall back to the frame rules.
 
-## 4. Remaining Phase 8 slices (not started)
+## 4. Remaining Phase 8 slices (8k done; the rest not started)
 
 - **8c `scripts:verify`** — the mechanical gate for a batch of scripts: strict schema → freshness (`oracleHash`,
   `PARSER_VERSION`, `registryHash`, `scriptHash`) → registry → lint → 2p/4p sandbox with per-ability reachability
@@ -235,10 +235,26 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
   (fuzz + goldens + fidelity + Playwright against `next build --webpack` + `next start -p 3199`); the parse cache
   `data/master/parse-cache.sqlite` keyed by `(oracleId, oracleHash, scriptHash, PARSER_VERSION, registryHash)`;
   `MTG_PARSE_CACHE=0` escape hatch. Touches `src/cards/db.ts` (merge after 8a-3).
-- **8k fan-out tooling** — `scripts:queue` (batches of 30 by family/type/EDHREC with parser drafts, nearest judged
-  scripts, vocabulary excerpt; blind copies without ASTs), `scripts:promote` (refuses on a dirty
-  `src/test/apps/scripts` tree), `scripts:quarantine`, `scripts:needs`, `scripts:render`, `vocab:doc` →
-  `data/scripts/VOCABULARY.md`, `src/cards/scriptState.ts` (state derived from files only).
+- ~~**8k fan-out tooling**~~ — **done**. `src/cards/scriptState.ts` (nine states derived from files only: master row,
+  script, blocked note, scenario shard, live registry — `SCRIPT_STATE_TABLE` says which count as simulated /
+  covered / queueable, and a blocked note auto-clears when every family it names exists); `src/cards/taxonomy.ts`
+  (the plan Part 3 families as one ordered rule table, replacing the `owner-decks-needs.md` regex heuristic and its
+  two known over-tags — "creatures you control gain …" is generic, "return … under its owner's control" is a zone
+  move — pinned on 68 real cards in `test/taxonomy.test.ts`); `scripts:queue` (selection language
+  `decks:owner | pool:<tier> | commander:legal | edhrec<=N`, family/type/EDHREC ordering, parser draft, nearest
+  judged scripts, vocabulary excerpt, DSL cheat sheet, plus the blind copy with the ASTs stripped and the rulings
+  added); `scripts:promote` (writes `verification.scenarios` / `.judge` / `.status` and the blocked notes; refuses
+  on a dirty `src test apps scripts package.json` tree, with `--allow-dirty <prefix>` for another session's known
+  files); `scripts:quarantine` (`_quarantine/`, which `ScriptStore` ignores; `--restore`); `scripts:needs`
+  (`needs.json` ranked by cards blocked, and `--taxonomy` for the pool-wide family histogram); `vocab:doc` →
+  `data/scripts/VOCABULARY.md` (generated from the zod barrel + registry + `docs/vocabulary/`, idempotent, pinned
+  by `test/lint-vocab-doc.test.ts`). `data/scripts/README.md` § "Queue, promotion and needs" documents the loop.
+  **Deferred from 8k:** `scripts:render` and `scripts:shard` belong to the 8c slice, so they are not here; the
+  batch `examples` list is empty until a wave is judged (the code is live, there is simply nothing judged yet);
+  `vocab:doc` has no per-op example section for the same reason and falls back to the two `_example` files;
+  `scripts:promote` cannot itself re-run `scripts:verify`, so a wave must run 8c's gate before promotion; and
+  `scripts/` is still outside every `tsconfig` (item 10), so the new CLIs are type-checked only by an explicit
+  `tsc` invocation, not by `npm run typecheck:all`.
 - **8j dashboard v2** — `verification.json` with pool tiers, slices (Commander-legal, owner's decks, EDHREC top-1k/5k,
   by type), script statuses, fidelity, fuzz, goldens, blocked families; `apps/web/components/coverage/CoveragePage.tsx`.
 - **Phase 8 gate** — `verify:all` and `verify:deep` green on a quiet machine; goldens/fidelity/parse-snapshot
