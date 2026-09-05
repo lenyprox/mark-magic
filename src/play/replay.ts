@@ -213,8 +213,10 @@ export function applyEvent(view: ViewState, ev: GameEvent): ReplayView {
       for (const b of ev.blocks) { const bl = findPerm(v, b.blocker); const at = findPerm(v, b.attacker); if (bl && !bl.blocking.includes(b.attacker)) bl.blocking.push(b.attacker); if (at && !at.blockedBy.includes(b.blocker)) at.blockedBy.push(b.blocker); }
       break;
     }
-    case 'player-eliminated': { const p = v.players[ev.player]; if (p) { p.lost = true; p.lossReason = ev.reason; } break; }
-    case 'game-over': v.winner = ev.winner; break;
+    // the engine drops every combat reference the moment the game ends (Game.endGame: no end-of-combat wipe will run),
+    // which is when an elimination leaves at most one player, or the game-over event itself
+    case 'player-eliminated': { const p = v.players[ev.player]; if (p) { p.lost = true; p.lossReason = ev.reason; } if (v.players.filter(q => !q.lost).length <= 1) clearCombat(v); break; }
+    case 'game-over': v.winner = ev.winner; clearCombat(v); break;
     case 'turn': {
       v.turn = ev.number; v.activePlayer = ev.player;
       for (const p of v.players) { p.landsPlayedThisTurn = 0; for (const o of p.battlefield) refresh(o, v.turn); }

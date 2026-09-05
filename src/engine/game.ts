@@ -2012,20 +2012,26 @@ export class Game {
     pl.lost = true; pl.lossReason = reason;
     this.emit({ type: 'player-eliminated', player: p, reason }, text);
     const live = alive(s);
-    if (live.length === 1) { s.winner = live[0]; return; }
-    if (live.length === 0) { s.winner = null; return; }
+    if (live.length === 1) { this.endGame(live[0]); return; }
+    if (live.length === 0) { this.endGame(null); return; }
     this.leaveGame(p);
+  }
+  /** The game is over: no end-of-combat wipe will run, so the combat references go here (a blocker of an attacker that died in the same damage step would otherwise point at nothing — fuzz bucket 71eb97bd). */
+  private endGame(winner: PlayerId | null) {
+    const s = this.state; s.winner = winner;
+    for (const o of allPermanents(s)) { o.attacking = null; o.blocking = []; o.blockedBy = []; }
+    s.attackers = [];
   }
   /** Players who just lost through state-based actions; returns true when the game is over. */
   private settleEliminations(lost: Player[]): boolean {
     const s = this.state; const live = alive(s);
     if (live.length === 0) {
       for (const p of lost) this.emit({ type: 'player-eliminated', player: p.id, reason: p.lossReason ?? 'lost' }, '');
-      s.winner = null; this.emit({ type: 'game-over', winner: null, reason: s.players.length === 2 ? 'Both players lose: draw.' : 'Every remaining player loses: draw.' });
+      this.endGame(null); this.emit({ type: 'game-over', winner: null, reason: s.players.length === 2 ? 'Both players lose: draw.' : 'Every remaining player loses: draw.' });
       return true;
     }
     for (const p of lost) this.emit({ type: 'player-eliminated', player: p.id, reason: p.lossReason ?? 'lost' });
-    if (live.length === 1) { s.winner = live[0]; return true; }
+    if (live.length === 1) { this.endGame(live[0]); return true; }
     for (const p of lost) this.leaveGame(p.id);
     return false;
   }

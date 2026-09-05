@@ -382,6 +382,11 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     raises `tapped` from nowhere and dispatches `turned-face-up` from nowhere, so a script with either trigger is
     reported "never reached" forever. `test/scripts-verify.test.ts`'s Ainok Survivalist fixture pins exactly that.
     Fixing item 11 in `game.ts` makes both probes start working with no change here.
+29. **Combat references survived the end of the game** (fuzz bucket 71eb97bd, 1,000 × 2-player on the merged main):
+    when the defending player lost during combat damage, no end-of-combat wipe ran, so a blocker of an attacker that
+    died in the same damage step kept its `blocking` link and the after-turn invariant fired. Fixed: `Game.endGame`
+    (every `winner` write) drops `attacking` / `blocking` / `blockedBy` / `attackers`, and `src/play/replay.ts`
+    mirrors it on the elimination that leaves at most one player and on `game-over`. Goldens unchanged.
 
 ## 4. Remaining Phase 8 slices
 
