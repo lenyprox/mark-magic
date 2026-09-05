@@ -42,8 +42,13 @@ pass, and it works in that order:
    pulled off another attacker only when nothing idle can meet the requirement, and nothing is pulled at all when
    the requirement cannot be met legally.
 3. **"blocks this turn if able"** — an idle creature carrying the marker is given the first attacker it can block
-   **alone**: an attacker whose count restriction one more blocker would still not satisfy is skipped, so the marked
-   creature blocks something it may legally block rather than nothing at all.
+   **alone**; when there is no such attacker it is paired up on one it can block **together with partners**, and the
+   partners (idle creatures first, one pulled off another attacker only when nothing idle is left) are added with it.
+   CR 509.1c judges "able" over the whole declaration, not over one creature: "Grizzly Bears and Walking Corpse both
+   block the menace attacker" meets one requirement and breaks no restriction, so it beats "nobody blocks", which
+   meets none — even though neither creature could have done it on its own. Nothing is forced when the count cannot
+   be reached at all. The partners are not themselves required to block, so their log line says
+   `joins the forced block` rather than `blocks if able`.
 4. **"except by N or more creatures"** — an attacker blocked by fewer than N creatures loses every block.
 5. **"can't block alone"** — a creature that ended up as its controller's only blocker loses its block.
 
@@ -60,9 +65,12 @@ which is the larger of
 * the largest `least` among this family's own `cant-be-blocked-except-by` statics on that attacker,
 
 and a requirement that cannot reach that count is left unmet (CR 509.1c: a requirement is never met by violating a
-restriction). Lure on a menace creature with one able blocker is therefore no block at all rather than an illegal
-one; with two able blockers, both block. The six scenarios under "requirements weighed against menace" in
-`test/scenarios/combat-restr.ts` pin both directions for all three requirement passes.
+restriction) — while a requirement that CAN reach it is met with as many creatures as the restriction demands, which
+for pass 3 means recruiting partners the requirement does not itself name. Lure on a menace creature with one able
+blocker is therefore no block at all rather than an illegal one; with two able blockers, both block; and a
+"blocks this turn if able" creature facing nothing but a menace attacker brings a partner along or blocks nothing.
+The nine scenarios under "requirements weighed against menace" in `test/scenarios/combat-restr.ts` pin both
+directions for all three requirement passes.
 
 Every block the pass adds is a real declaration: it fires `blocks` and `becomes-blocked` triggers, because
 `combatFrom` queues those *after* `applyBlockFixups`.
@@ -193,9 +201,21 @@ A restriction carried by the **blocker**, read against each attacker it is offer
 the declared attackers, so `canAttack` forbids the attack only in the case it can decide alone: no other creature its
 controller controls could possibly attack. When another creature *could* have attacked but did not, the declaration
 stands even though CR 506.4 makes it illegal: seat 0 with Mogg Flunkies and an untapped Hill Giant may attack with
-the Flunkies alone. Read `attack: true` as "enforced whenever the answer is knowable from this creature alone". The
-`attackFixup` hook that closes it is a core change: written, verified in this worktree against exactly that board,
-and handed over in `coreChangeNeeded` (see Declines).
+the Flunkies alone (still true at this commit — a scratch scenario declaring exactly that deals 3 to the defending
+player). Read `attack: true` as "enforced whenever the answer is knowable from this creature alone". The
+`attackFixup` hook that closes it is a core change, handed over as a unified diff in `coreChangeNeeded` (see
+Declines); it is not applied on this branch, which touches no file outside the family.
+
+**The over-claim this leaves.** The clause parses, so the line counts as understood on 11 printed cards while only
+half of its rule is enforced. All 11 are named here so a reader can check them by hand: *can't attack or block
+alone* — Loyal Pegasus, Ember Beast, Wojek Bodyguard, Mogg Flunkies, Bonded Horncrest, Jackal Familiar (exact on
+the block half, partial on the attack half); *can't attack alone* — Sightless Brawler, Trusty Companion, Raging
+Kronch, Bonded Construct, Militia Rallier (partial, full stop). Nine of them are whole cards `applyScript` reports
+as fully parsed; Wojek Bodyguard still has `Mentor` unparsed and Sightless Brawler `Bestow {4}{W}` and its
+"Enchanted creature gets +3/+2 and can't attack alone" line, so they are not fully-parsed cards for other reasons.
+The clause is kept parsed rather than dropped because the half that IS enforced is the half that decides the game
+most often — a lone creature that would attack into an empty board never attacks — and an unparsed line enforces
+nothing at all; the count is honest only as long as this paragraph is here.
 
 ```json
 { "kind": "static", "effect": { "kind": "cant-act-alone", "scope": "self", "attack": true, "block": true }, "text": "~ can't attack or block alone." }
@@ -275,7 +295,10 @@ from the core's blanket `cant-block`.
 ```
 
 A requirement on the blocker: if it is untapped and can legally block something when blockers are declared, it must.
-The engine gives it the first attacker it can legally block.
+The engine gives it the first attacker it can legally block on its own, and failing that the first one it can block
+with partners recruited to satisfy that attacker's "except by N or more" restriction (menace included) — "able" is a
+property of the whole declaration, not of the creature (CR 509.1c). It blocks nothing only when no declaration
+containing a block by it is legal.
 
 ```json
 { "op": "blocks-if-able", "target": { "kind": "creature" }, "duration": "eot" }
@@ -391,12 +414,14 @@ Each of these needs a core change; none was made in the family's worktree.
   in the wave's `coreChangeNeeded`. Until it lands there is no `must-attack` op here, because an op nothing enforces
   is worse than a clause a script author can see is missing.
 * **"can't attack alone" in the partial case.** See `cant-act-alone` above: the declaration is only refused when no
-  other creature could have attacked. The `attackFixup` patch in `coreChangeNeeded` closes it: a `keywordHooks` seat
-  called on the finished declaration, before the attack event and the `attacks` triggers, from both `combatFrom` and
-  `simulateCombat`, with `Game` undoing the attack tap for whatever a family removes. It was applied in this
-  worktree — `typecheck:all`, `npm test` (954 tests, 0 fail) and `scripts:check` were green with it, and the Mogg
-  Flunkies board then logs "Mogg Flunkies can't attack alone." and deals no damage. It is not in this commit because
-  the family contract forbids editing `src/engine/game.ts`.
+  other creature could have attacked. The `attackFixup` patch handed over in `coreChangeNeeded` closes it — a
+  `keywordHooks` seat handed the CHOSEN ATTACKER IDS (`Set<number>`) to mutate, called from `combatFrom` between the
+  `attackers` decision and the loop that applies it, and from `simulateCombat` between its argument and the same
+  loop. Both call sites run **before** anything is tapped, before the attack event is emitted and before an
+  `attacks` trigger is queued, so a creature the hook removes leaves no trace at all and `Game` has nothing to undo.
+  The family half is five lines (`chosen.size !== 1` is every legal declaration; otherwise drop the lone attacker
+  and note it), and the scenario that pins it is in the patch. It is not in this commit, and no part of it is: the
+  family contract forbids editing `src/engine/game.ts`, `types.ts` and the generated registry.
 * **A family's zod variants reaching `CardScriptChecked`.** `src/engine/ops/combat-restr.schema.ts` is written and
   imported by nothing: `src/cards/schema.ts` has no composer yet, so `npm run typecheck:schema` fails on the
   `Equals<>` pins (declaration merging widened `Effect` and `StaticEffect`; the zod side could not follow) and the

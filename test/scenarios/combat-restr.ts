@@ -89,9 +89,11 @@ export const combatRestr: Scenario[] = [
 
   // ------------------------------------------------- requirements weighed against menace (CR 509.1c + 702.110b)
   // A requirement is never met by breaking a restriction, and `menace` is a restriction the CORE keyword table owns
-  // (CR 702.110b), not this family — so every pass that forces a block has to count it. Each of the six below is a
-  // requirement this family adds meeting a menace attacker; three can be met (enough creatures are able) and three
-  // cannot, and the ones that cannot end with no block at all rather than with an illegal single blocker.
+  // (CR 702.110b), not this family — so every pass that forces a block has to count it. Eight of the nine below are
+  // a requirement this family adds meeting a menace attacker (the ninth is the same weighing without one): the ones
+  // that CAN be met legally are met with as many creatures as the restriction demands — CR 509.1c is about the
+  // declaration, not about one creature, so a marked creature is "able" whenever partners can come along — and the
+  // ones that cannot end with no block at all rather than with an illegal single blocker.
   {
     name: 'Alluring Scent cannot force a lone creature to block a creature with menace', cr: '702.110b',
     ruling: 'CR 509.1c: a blocking requirement is obeyed only as far as the restrictions allow, and menace forbids a single blocker — so the lured creature is not blocked at all.',
@@ -159,6 +161,55 @@ export const combatRestr: Scenario[] = [
       { log: 'Grizzly Bears blocks Bog Rats \\(blocks if able\\)' },
       { noLog: 'Grizzly Bears blocks Boggart Brute' },
       { zone: ['Bog Rats', 'graveyard'] },
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'Culling Mark brings a second blocker along so the marked creature can block a menace attacker', cr: '509.1c',
+    ruling: 'CR 509.1c weighs whole declarations: "Grizzly Bears and Walking Corpse both block" obeys menace AND meets the requirement, so it beats "nobody blocks", which meets none. The partner is not itself required to block.',
+    seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Boggart Brute'], hand: ['Culling Mark'] }, { bf: ['Grizzly Bears', 'Walking Corpse'] }],
+    script: [{ cast: 'Culling Mark', targets: [['Grizzly Bears']] }, { resolve: true }, { attack: ['Boggart Brute'] }],
+    expect: [
+      { life: [1, 20] },                                          // nothing got through: the paired block really happened
+      { log: 'Grizzly Bears blocks Boggart Brute \\(blocks if able\\)' },
+      { log: 'Walking Corpse blocks Boggart Brute \\(joins the forced block\\)' },
+      { zone: ['Boggart Brute', 'graveyard'] },                   // 2 + 2 damage against toughness 2
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'Culling Mark forces no block at all when the menace attacker cannot be paired up on', cr: '702.110b',
+    ruling: 'The negative control for the pairing above: with one able creature the requirement cannot be met without breaking menace, so it goes unmet.',
+    seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Boggart Brute'], hand: ['Culling Mark'] }, { bf: ['Grizzly Bears'] }],
+    script: [
+      { cast: 'Culling Mark', targets: [['Grizzly Bears']] }, { resolve: true },
+      { attack: ['Boggart Brute'], refused: [['Grizzly Bears', 'Boggart Brute']] },
+    ],
+    expect: [
+      { life: [1, 17] },                                          // 3 power got through, unblocked
+      { noLog: 'Grizzly Bears blocks Boggart Brute' },
+      { zone: ['Grizzly Bears', 'battlefield'] },                 // it never blocked, so it was never dealt damage
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'Nacatl Hunt-Pride\'s requirement pulls the partner off the attacker it had declared a block on', cr: '509.1c',
+    ruling: 'Grizzly Bears cannot block Dread Warlock at all, so the only declaration that meets the requirement is the one where Walking Corpse leaves the Warlock and pairs up on the menace attacker.',
+    seats: [
+      { bf: ['Forest', 'Nacatl Hunt-Pride', 'Boggart Brute', 'Dread Warlock'] },
+      { bf: ['Grizzly Bears', 'Walking Corpse'] },
+    ],
+    // ability 1 is "{G}, {T}: Target creature blocks this turn if able" (ability 0 is the {R} "can't block this turn")
+    script: [
+      { activate: 'Nacatl Hunt-Pride', ability: 1, targets: [['Grizzly Bears']] }, { resolve: true },
+      { attack: ['Boggart Brute', 'Dread Warlock'], refused: [['Walking Corpse', 'Dread Warlock']] },
+    ],
+    expect: [
+      { life: [1, 18] },                                          // only the unblockable-by-green Warlock got through
+      { log: 'Grizzly Bears blocks Boggart Brute \\(blocks if able\\)' },
+      { log: 'Walking Corpse blocks Boggart Brute \\(joins the forced block\\)' },
+      { zone: ['Boggart Brute', 'graveyard'] },                   // 2 + 2 damage against toughness 2
+      { zone: ['Grizzly Bears', 'graveyard'] },                   // the Brute put its 3 damage on the blockers
       { unsimulated: 0 },
     ],
   },

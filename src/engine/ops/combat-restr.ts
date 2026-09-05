@@ -386,16 +386,30 @@ const COMBAT_RESTR: FamilyModule = {
         for (const b of pool) { if (a.blockedBy.length >= need) break; attach(g, s, b, a, 'must be blocked'); }
       }
 
-      // ---- requirement 3: "Target creature blocks this turn if able" — it blocks an attacker it can legally block
-      //      ALONE (one more blocker has to finish the "N or more" count, or the block is no block at all).
+      // ---- requirement 3: "Target creature blocks this turn if able" — CR 509.1c judges "able" over the WHOLE
+      //      declaration, not over this creature on its own: a marked creature is able to block a menace attacker
+      //      exactly when enough other creatures can come along, and the declaration that puts them there meets one
+      //      more requirement than the declaration that blocks nothing, so it is the one the defender must make.
+      //      An attacker the marked creature can block by itself is preferred; a partner is recruited only when no
+      //      such attacker exists, idle creatures first (a creature is pulled off another attacker last, exactly as
+      //      in pass 2). Nothing is forced when the count cannot be reached at all — the requirement is then unmet.
       for (const b of candidates) {
         if (extGet<number>(b, E.mustBlock) !== s.turn || b.blocking.length) continue;
+        let pick: { a: GameObject; help: GameObject[] } | undefined;
         for (const a of attackers) {
           if (!canAdd(s, b, a)) continue;
-          const need = leastBlockers(s, a);
-          if (need && a.blockedBy.length + 1 < need) continue;   // menace and friends: this creature is not "able"
-          addBlock(g, b, a, 'blocks if able'); break;
+          const short = leastBlockers(s, a) - (a.blockedBy.length + 1);   // partners still needed after this one
+          if (short <= 0) { pick = { a, help: [] }; break; }              // blockable alone: no recruiting needed
+          if (pick) continue;                                            // keep the first attacker that needs help
+          const helpers = candidates.filter(x => x.id !== b.id && !x.blocking.includes(a.id) && canAdd(s, x, a, true))
+            .sort((x, y) => x.blocking.length - y.blocking.length);
+          if (helpers.length >= short) pick = { a, help: helpers.slice(0, short) };
         }
+        if (!pick) continue;
+        addBlock(g, b, pick.a, 'blocks if able');
+        // The partners are not themselves required to block, so they get their own reason in the log. If one of them
+        // turns out to be unattachable after all, the "N or more" pass below throws the whole illegal block out.
+        for (const h of pick.help) attach(g, s, h, pick.a, 'joins the forced block');
       }
 
       // ---- restriction: "can't be blocked except by N or more creatures" (CR 509.1b, menace N)
