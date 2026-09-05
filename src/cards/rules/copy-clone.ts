@@ -68,8 +68,19 @@ function copySource(phrase: string, ctx: EffectCtx): TargetSpec | Ref | null {
 }
 
 /**
- * The stack object a copy / retarget effect names. `spell-or-ability` and `single-target-spell-or-ability` are this
- * family's target kinds; "instant or sorcery spell" is the core `spell` kind with a type filter.
+ * The stack object a copy / retarget effect names.
+ *
+ * Every wording goes to one of this family's OWN target kinds, never to the core `spell` / `ability` kinds, because
+ * those two drop what these cards print (src/engine/legal.ts:targetOptionsFor):
+ *
+ *   * neither consults `spec.controller`, so "Copy target instant or sorcery spell **you control**" would have
+ *     offered an opponent's spell — eight fully-parsed cards print exactly that (CR 115.4: "you control" is part of
+ *     the targeting restriction, and a spell that cannot be targeted cannot be copied this way);
+ *   * `ability` is every non-spell item on the stack, so "Copy target **triggered** ability you control" (Strionic
+ *     Resonator) would have copied an activated one too, and vice versa (CR 113.3a-c).
+ *
+ * `stack-spell` / `stack-ability` / `stack-activated-ability` / `stack-triggered-ability` ask those questions
+ * properly; a filter still narrows a spell by type the way the core kind did.
  */
 function stackSource(phrase: string, single = false): TargetSpec | Ref | null {
   let t = phrase.trim().replace(/\.$/, '').toLowerCase();
@@ -80,18 +91,20 @@ function stackSource(phrase: string, single = false): TargetSpec | Ref | null {
   if (!t.startsWith('target ')) return null;
   const body = t.slice('target '.length);
   const kind = single ? 'single-target-spell-or-ability' : 'spell-or-ability';
-  if (/^(activated or triggered ability|activated ability|triggered ability|ability)$/.test(body)) return single ? null : { kind: 'ability', ...ctl };
+  if (/^(activated or triggered ability|ability)$/.test(body)) return single ? null : { kind: 'stack-ability', ...ctl };
+  if (/^activated ability$/.test(body)) return single ? null : { kind: 'stack-activated-ability', ...ctl };
+  if (/^triggered ability$/.test(body)) return single ? null : { kind: 'stack-triggered-ability', ...ctl };
   if (body === 'spell or ability') return { kind, ...ctl };
   // "instant spell, sorcery spell, activated ability, or triggered ability" (Return the Favor, Gogo)
   if (/^instant spell, sorcery spell, activated ability, or triggered ability$/.test(body)) return { kind, filter: { types: ['Instant', 'Sorcery'] }, ...ctl };
   if (single) return /^spell$/.test(body) ? { kind: 'single-target-spell', ...ctl } : null;
-  if (/^instant or sorcery spell$/.test(body)) return { kind: 'spell', filter: { types: ['Instant', 'Sorcery'] }, ...ctl };
-  if (/^instant spell$/.test(body)) return { kind: 'spell', filter: { types: ['Instant'] }, ...ctl };
-  if (/^sorcery spell$/.test(body)) return { kind: 'spell', filter: { types: ['Sorcery'] }, ...ctl };
-  if (/^creature spell$/.test(body)) return { kind: 'creature-spell', ...ctl };
-  if (/^noncreature spell$/.test(body)) return { kind: 'noncreature-spell', ...ctl };
-  if (/^spell$/.test(body)) return { kind: 'spell', ...ctl };
-  if (/^permanent spell$/.test(body)) return { kind: 'spell', filter: { notTypes: ['Instant', 'Sorcery'] }, ...ctl };
+  if (/^instant or sorcery spell$/.test(body)) return { kind: 'stack-spell', filter: { types: ['Instant', 'Sorcery'] }, ...ctl };
+  if (/^instant spell$/.test(body)) return { kind: 'stack-spell', filter: { types: ['Instant'] }, ...ctl };
+  if (/^sorcery spell$/.test(body)) return { kind: 'stack-spell', filter: { types: ['Sorcery'] }, ...ctl };
+  if (/^creature spell$/.test(body)) return { kind: 'stack-spell', filter: { types: ['Creature'] }, ...ctl };
+  if (/^noncreature spell$/.test(body)) return { kind: 'stack-spell', filter: { notTypes: ['Creature'] }, ...ctl };
+  if (/^spell$/.test(body)) return { kind: 'stack-spell', ...ctl };
+  if (/^permanent spell$/.test(body)) return { kind: 'stack-spell', filter: { notTypes: ['Instant', 'Sorcery'] }, ...ctl };
   return null;
 }
 

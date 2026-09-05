@@ -125,7 +125,13 @@ declare module '../../cards/types.js' {
   }
   interface AsEntersRegistry { enterAsCopy: EnterAsCopyAsEnters }
   interface StaticRegistry { cantBeCopied: CantBeCopiedStatic }
-  interface TargetKindRegistry { 'spell-or-ability': true; 'single-target-spell-or-ability': true; 'single-target-spell': true }
+  interface TargetKindRegistry {
+    'spell-or-ability': true; 'single-target-spell-or-ability': true; 'single-target-spell': true;
+    // CR 115.4: "target instant or sorcery spell YOU CONTROL" is a targeting restriction the core `spell` / `ability`
+    // kinds do not carry (src/engine/legal.ts ignores `spec.controller` for both), and the core `ability` kind cannot
+    // tell an activated ability from a triggered one. These four are the same questions asked properly.
+    'stack-spell': true; 'stack-ability': true; 'stack-activated-ability': true; 'stack-triggered-ability': true;
+  }
 }
 
 // ------------------------------------------------------------------ 3. copiable values (CR 707.2) and exceptions
@@ -167,6 +173,25 @@ function withException(d: CardDef, ex: CopyException | undefined): CardDef {
   // the type line is cosmetic but is what the UI prints, so keep it honest
   out.typeLine = [...out.supertypes, ...out.types].join(' ') + (out.subtypes.length ? ` — ${out.subtypes.join(' ')}` : '');
   return out;
+}
+
+/**
+ * A derived def needs a key of its own. `src/engine/serialize.ts` keys CardDefs by `name@printingId` and `collectDefs`
+ * keeps the FIRST def it sees for a key, so a token copy whose derived def kept the printed card's key came back from
+ * a round trip linked to the PRINTED def — silently losing everything the "except ..." clause expressed only on the
+ * def (`supertypes` for "except it isn't legendary", `abilities`, `toxic`, the type line). `serializeState` is on the
+ * live path for the Monte-Carlo rollouts of src/analysis/pool.ts and for apps/web's game worker, so that loss was a
+ * rollout scoring a board the game never had. The suffix is a digest of the derived values, so the key is
+ * deterministic: two identical copies still share one def entry, and a snapshot round-trips to the same table.
+ * Nothing else reads it — src/play/view.ts reports `printingId: null` for every token, and these defs only ever sit on
+ * tokens (a token permanent copy, or the token object CR 707.10a gives a copy of a spell).
+ */
+function derivedDef(d: CardDef): CardDef {
+  const seed = JSON.stringify([d.name, d.power, d.toughness, d.colors, d.types, d.subtypes, d.supertypes, d.keywords,
+    d.toxic ?? null, d.typeLine, (d.abilities ?? []).map(a => a.text ?? a.kind)]);
+  let h = 0x811c9dc5;                                              // FNV-1a: short, stable and dependency-free
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return { ...d, printingId: `cc-copy-${h.toString(16).padStart(8, '0')}` };
 }
 
 /** The `TokenSpec` mirroring a derived def — what every characteristic reader consults for a token. */
@@ -229,16 +254,30 @@ function refLabel(g: Game, r: TargetRef): string {
  * (115.7b), and within one requirement the same object is never chosen twice (115.3). The option list is ordered
  * with the *different* targets first, so an agent that takes the first option actually redirects — the whole point
  * of every card that prints this clause. Returns true when at least one target really moved.
+ *
+ * An AURA spell's "enchant" choice is a target too (CR 115.2b / 303.4c), and CR 115.7b says every target of the spell
+ * may be changed — so it is offered like any other. The core keeps it apart from the effect targets: at index -1 of
+ * `targetsByEffect`, with its spec on the item as `auraSpec` rather than in `targetingEffects` (src/engine/game.ts,
+ * the cast path and the CR 608.2b re-check). Skipping it left every card in this family — Deflecting Swat, Bolt Bend,
+ * Willbender, Imp's Mischief, Untimely Malfunction — silently doing nothing to a Pacifism or a Song of the Dryads,
+ * the removal Auras those cards are actually held for, while `stackTargets` cheerfully offered the Aura spell.
  */
 async function retarget(g: Game, item: StackItem, chooser: PlayerId, how: 'choose-new' | 'change-one'): Promise<boolean> {
   const { targetingEffects, targetOptionsFor } = await import('../legal.js');
   const reqs = targetingEffects(g.effectiveEffects(item));
+  const auraSpec = (item as StackItem & { auraSpec?: TargetSpec }).auraSpec;
   let moved = false;
   for (const [index, refs] of [...item.targetsByEffect.entries()]) {
-    if (index < 0 || !refs.length) continue;                       // -1 is the aura's enchant spec, not a target of an effect
-    const req = reqs.find(r => r.index === index); if (!req) continue;
-    if ((item.targetParts?.[index]?.length ?? 1) > 1) continue;    // a `multi` requirement: its parts are not interchangeable
-    const opts = targetOptionsFor(g, item.controller, req.spec, item.source);
+    if (!refs.length) continue;
+    let spec: TargetSpec | undefined;
+    if (index < 0) spec = auraSpec;                                // -1 is the Aura's enchant choice (CR 115.2b)
+    else {
+      const req = reqs.find(r => r.index === index); if (!req) continue;
+      if ((item.targetParts?.[index]?.length ?? 1) > 1) continue;  // a `multi` requirement: its parts are not interchangeable
+      spec = req.spec;
+    }
+    if (!spec) continue;
+    const opts = targetOptionsFor(g, item.controller, spec, item.source);
     const next: TargetRef[] = [];
     for (const cur of refs) {
       const free = opts.filter(o => !next.some(x => sameRef(x, o)));
@@ -257,6 +296,27 @@ async function retarget(g: Game, item: StackItem, chooser: PlayerId, how: 'choos
     item.targetsByEffect.set(index, next);
   }
   return moved;
+}
+
+/**
+ * "You may choose new targets for the copy" when the copy sentence beside it was NOT this family's `copy-stack`.
+ *
+ * That sentence is its own printed sentence on ~90 cards, and on most of them the copy itself is made by the CORE
+ * `copy-spell` / `storm-copies` op (Fork, Geistblast, Sea Gate Stormcaller, Fury Storm, Howl of the Horde, Izzet
+ * Guildmage, ...), which records nothing — so `ccCopies` is empty and CR 707.10c would be a silent no-op inside a
+ * `may` that still asked the player. The core does mark its copies (`isCopy`), and a copy has the *same source
+ * object* as what it copied, so the copies this resolution just made are exactly the marked items this player
+ * controls whose source is either this ability's own source (storm: it copies itself) or one of the stack objects
+ * this item targeted (fork: it copies its target). Nothing else pushes onto the stack during a resolution — no player
+ * gets priority in the middle of one, and triggers only queue — so the set cannot pick up a stranger.
+ */
+function coreCopies(c: OpCtx): StackItem[] {
+  const from = new Set<number>([c.src.id]);
+  for (const refs of c.item.targetsByEffect.values()) for (const r of refs) {
+    if (r.kind !== 'stack') continue;
+    const it = c.s.stack.find(x => x.id === r.id); if (it) from.add(it.source.id);
+  }
+  return c.s.stack.filter(it => (it as StackItem & { isCopy?: boolean }).isCopy === true && it.controller === c.p && from.has(it.source.id));
 }
 
 /** The stack item a copy / retarget op is about: a `stack` target ref, or a Ref resolving to a spell's card. */
@@ -284,7 +344,7 @@ const COPY_CLONE: FamilyModule = {
       const made: GameObject[] = [];
       for (const orig of await copySources(c, e.target)) {
         if (cantCopy(s, orig)) { g.note(`${chars.name(orig)} can't be copied.`); continue; }
-        const d = withException(copiableDef(orig), e.except);
+        const d = derivedDef(withException(copiableDef(orig), e.except));   // a key of its own, so it round-trips
         for (let i = 0; i < n; i++) {
           const tok = makeObject(s.nextId++, d, p, 'battlefield', s.turn);
           tok.controller = p; tok.owner = p;
@@ -318,7 +378,7 @@ const COPY_CLONE: FamilyModule = {
         if (orig.kind === 'spell') {
           // CR 707.10a: the copy of a spell is a new object with the copiable values of the original, and it is a
           // TOKEN — so it ceases to exist when it leaves the stack, and a permanent-spell copy enters as a token.
-          const d = copiableDef(orig.source);
+          const d = derivedDef(copiableDef(orig.source));
           source = makeObject(s.nextId++, d, p, 'stack', s.turn);
           source.controller = p;
           source.token = tokenSpecOf(d);
@@ -357,9 +417,10 @@ const COPY_CLONE: FamilyModule = {
       const items: StackItem[] = [];
       if (e.target === 'the-copies') {
         const rec = extGet<{ item: number; ids: number[] }>(c.src, 'ccCopies');
-        if (!rec || rec.item !== c.item.id) return;
-        extDel(c.src, 'ccCopies');
-        for (const id of rec.ids) { const it = s.stack.find(x => x.id === id); if (it) items.push(it); }
+        if (rec && rec.item === c.item.id) {
+          extDel(c.src, 'ccCopies');
+          for (const id of rec.ids) { const it = s.stack.find(x => x.id === id); if (it) items.push(it); }
+        } else for (const it of coreCopies(c)) items.push(it);
       } else {
         const it = await stackItemFor(c, e.target);
         if (it) items.push(it);
@@ -417,12 +478,52 @@ const COPY_CLONE: FamilyModule = {
     },
   },
 
-  // CR 115.7 target kinds. A spell is matched against `spec.filter` ("target instant or sorcery spell"); an ability
-  // on the stack has no card characteristics of its own, so a filter never excludes one.
+  // CR 115.4 / 115.7 target kinds. A spell is matched against `spec.filter` ("target instant or sorcery spell"); an
+  // ability on the stack has no card characteristics of its own, so a filter never excludes one.
+  //
+  // The last four exist because the CORE kinds drop half of what the cards print (src/engine/legal.ts): `case 'spell'`
+  // and `case 'ability'` never consult `spec.controller`, so "Copy target instant or sorcery spell YOU CONTROL"
+  // (Lithoform Engine, Nivix Guildmage, Mirrorpool, Stella Lee, Peter Parker's Camera) would copy an opponent's
+  // spell, and `case 'ability'` offers every non-spell item, so "Copy target TRIGGERED ability you control"
+  // (Strionic Resonator, Lithoform Engine's first mode) would copy an activated one. Every wording this family parses
+  // routes here instead.
   targetKinds: {
-    'spell-or-ability': (g, controller, _src, spec) => stackTargets(g.state, controller, spec, false, false),
-    'single-target-spell-or-ability': (g, controller, _src, spec) => stackTargets(g.state, controller, spec, true, false),
-    'single-target-spell': (g, controller, _src, spec) => stackTargets(g.state, controller, spec, true, true),
+    'spell-or-ability': (g, controller, _src, spec) => stackTargets(g.state, controller, spec, 'any', false),
+    'single-target-spell-or-ability': (g, controller, _src, spec) => stackTargets(g.state, controller, spec, 'any', true),
+    'single-target-spell': (g, controller, _src, spec) => stackTargets(g.state, controller, spec, 'spell', true),
+    'stack-spell': (g, controller, _src, spec) => stackTargets(g.state, controller, spec, 'spell', false),
+    'stack-ability': (g, controller, _src, spec) => stackTargets(g.state, controller, spec, 'ability', false),
+    'stack-activated-ability': (g, controller, _src, spec) => stackTargets(g.state, controller, spec, 'activated', false),
+    'stack-triggered-ability': (g, controller, _src, spec) => stackTargets(g.state, controller, spec, 'triggered', false),
+  },
+
+  /**
+   * The legend rule over the def a copy effect gave a permanent (CR 704.5j + CR 707.2).
+   *
+   * `checkSBA`'s own legend pass filters on `o.def.supertypes` — the PRINTED def — but `become-copy` and the
+   * `enter-as-copy` as-enters put the copy on `o.copyDef`, which is what `chars.defOf` (and therefore CR 704.5j's
+   * "legendary permanents with the same name") actually answers about. A Clone copying a legend you already control
+   * was invisible to that pass and two of them coexisted. `copy-permanent` was never affected — it mints a real
+   * derived `def` on the token — which is why the family's own "except it isn't legendary" scenario passed.
+   *
+   * SBA hooks run BEFORE that core pass inside the same loop, and the set here is a superset of the set it sees, so
+   * this settles every pair and the core pass then finds nothing left to do. The survivor is the last in battlefield
+   * order, exactly as the core pass chooses it.
+   */
+  sba: (g) => {
+    const s = g.state;
+    let again = false;
+    for (const p of s.players) {
+      const legends = chars.battlefieldOf(s, p.id).filter(o => chars.defOf(o).supertypes.includes('Legendary'));
+      if (legends.length < 2) continue;
+      const seen = new Map<string, GameObject>();
+      for (const o of legends) {
+        const n = chars.name(o); const older = seen.get(n);
+        if (older) { g.emit({ type: 'sba', kind: 'legend-rule', id: older.id, name: n }); g.moveTo(older, 'graveyard', 'top', 'sba'); again = true; }
+        seen.set(n, o);
+      }
+    }
+    return again;
   },
 
   // A copy that lasts until end of turn ends in the cleanup step (CR 514.2); every copy ends when the permanent
@@ -453,16 +554,25 @@ const COPY_CLONE: FamilyModule = {
 
 // ------------------------------------------------------------------ 6. small helpers used above
 
+/** What a stack target kind accepts: 'ability' is CR 113's "activated or triggered", the two below it are one each. */
+type StackWant = 'any' | 'spell' | 'ability' | 'activated' | 'triggered';
+
 /**
- * The stack objects one of this family's target kinds offers. `single` keeps only items with exactly one target
- * ("... with a single target", CR 115.7); `spellsOnly` drops abilities ("target spell with a single target").
- * `spec.filter` is matched against a spell's card ("target instant or sorcery spell"); an ability on the stack has
- * no card characteristics of its own, so a filter never rejects one - the phrase names it explicitly instead.
+ * The stack objects one of this family's target kinds offers. `want` says which kinds of stack object the printed
+ * phrase names ('spell' drops abilities, 'triggered' drops activated ones, ...); `single` keeps only items with
+ * exactly one target ("... with a single target", CR 115.7) — an Aura spell's enchant choice counts, because CR
+ * 115.2b makes it a target. `spec.controller` is honoured here ("... you control" is a targeting restriction, CR
+ * 115.4). `spec.filter` is matched against a spell's card ("target instant or sorcery spell"); an ability on the
+ * stack has no card characteristics of its own, so a filter never rejects one - the phrase names it explicitly
+ * instead.
  */
-function stackTargets(s: GameState, controller: PlayerId, spec: TargetSpec, single: boolean, spellsOnly: boolean): TargetRef[] {
+function stackTargets(s: GameState, controller: PlayerId, spec: TargetSpec, want: StackWant, single: boolean): TargetRef[] {
   const out: TargetRef[] = [];
   for (const it of s.stack) {
-    if (spellsOnly && it.kind !== 'spell') continue;
+    if (want === 'spell' && it.kind !== 'spell') continue;
+    if (want === 'ability' && it.kind === 'spell') continue;
+    if (want === 'activated' && it.kind !== 'ability') continue;
+    if (want === 'triggered' && it.kind !== 'trigger') continue;
     if (spec.controller === 'you' && it.controller !== controller) continue;
     if (spec.controller === 'opponent' && it.controller === controller) continue;
     if (it.kind === 'spell' && spec.filter && !chars.matchesFilter(s, it.source, spec.filter)) continue;
@@ -476,9 +586,15 @@ function stackTargets(s: GameState, controller: PlayerId, spec: TargetSpec, sing
 function renderSource(t: TargetSpec | Ref | 'the-copies'): string {
   if (t === 'the-copies') return 'the copy';
   if (typeof t !== 'object') return t === 'self' ? '~' : t === 'those' ? 'them' : t === 'triggering' ? 'that spell' : 'it';
+  // the type filter is what tells "target instant or sorcery spell" from "target spell" on the `stack-spell` kind
+  const types = (t.filter?.types ?? []).join(' or ').toLowerCase();
   const base = t.kind === 'spell-or-ability' ? 'spell or ability'
     : t.kind === 'single-target-spell-or-ability' ? 'spell or ability with a single target'
-    : t.kind === 'single-target-spell' ? 'spell with a single target' : t.kind.replace(/-/g, ' ');
+    : t.kind === 'single-target-spell' ? 'spell with a single target'
+    : t.kind === 'stack-spell' ? `${types ? types + ' ' : ''}spell`
+    : t.kind === 'stack-ability' ? 'activated or triggered ability'
+    : t.kind === 'stack-activated-ability' ? 'activated ability'
+    : t.kind === 'stack-triggered-ability' ? 'triggered ability' : t.kind.replace(/-/g, ' ');
   const ctl = t.controller === 'you' ? ' you control' : t.controller === 'opponent' ? ' an opponent controls' : '';
   return `target ${base}${ctl}`;
 }

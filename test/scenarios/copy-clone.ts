@@ -11,9 +11,11 @@
 import type { Effect, TargetSpec } from '../../src/cards/types.js';
 import type { Scenario, ScenarioScript } from './dsl.js';
 
-/** Grizzly Bears gains "{T}: <effects>" (the printed 2/2 body stays). */
-const bears = (effects: Effect[], text = 'copy-clone'): Record<string, ScenarioScript> =>
-  ({ 'Grizzly Bears': { abilities: [{ kind: 'activated', cost: { tap: true }, effects, text }] } });
+/** Grizzly Bears gains "{T}: <effects>", or an end-step trigger with them (the printed 2/2 body stays). */
+const bears = (effects: Effect[], text = 'copy-clone', kind: 'activated' | 'triggered' = 'activated'): Record<string, ScenarioScript> =>
+  ({ 'Grizzly Bears': { abilities: [kind === 'activated'
+    ? { kind: 'activated', cost: { tap: true }, effects, text }
+    : { kind: 'triggered', event: { on: 'end-step', whose: 'your' }, effects, text }] } });
 
 const creature: TargetSpec = { kind: 'creature' };
 
@@ -128,6 +130,48 @@ export const copyClone: Scenario[] = [
   },
 
   {
+    name: 'Strionic Resonator copies a TRIGGERED ability you control and nothing else', cr: '113.3c',
+    ruling: "CR 113.3b-c: an activated ability and a triggered ability are different kinds of object on the stack, and \"target triggered ability you control\" names one of them. The core `ability` target kind offers every non-spell item of every player, so routing this wording there would have let Strionic Resonator copy an activated ability, and an opponent's at that (CR 115.4).",
+    seats: [
+      { bf: ['Island', 'Island', 'Island', 'Strionic Resonator', 'Grizzly Bears'] },
+      { bf: ['Mountain'] },
+    ],
+    scripts: bears([{ op: 'draw', amount: 1, who: 'you' }], 'end-step draw', 'triggered'),
+    // `passUntil` stops at the first decision of the end step, which is after that step's triggers reached the stack
+    script: [
+      { passUntil: 'end' },
+      { activate: 'Strionic Resonator', targets: [['Grizzly Bears']] },
+      { resolve: true },
+    ],
+    expect: [
+      { handCount: [0, 2] },                               // 1 would mean the trigger was never copied
+      { log: 'copies' },
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'the activated-ability target kind copies an activated ability and leaves the opponent\'s alone', cr: '113.3b',
+    ruling: 'CR 707.10: the copy of an ability has the same source and the same choices; both resolve. "Target activated ability you control" is narrower than the core `ability` kind in both directions - kind and controller.',
+    seats: [
+      { bf: ['Grizzly Bears', 'Hill Giant'] },
+      { bf: ['Mountain'] },
+    ],
+    scripts: {
+      'Grizzly Bears': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'damage', amount: 1, target: { kind: 'player', controller: 'opponent' } as TargetSpec }], text: 'pinger' }] },
+      'Hill Giant': { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [{ op: 'copy-stack', target: { kind: 'stack-activated-ability', controller: 'you' } as TargetSpec }], text: 'copy an activated ability you control' }] },
+    },
+    script: [
+      { activate: 'Grizzly Bears', targets: [['P1']] },
+      { activate: 'Hill Giant', targets: [['Grizzly Bears']] },
+      { resolve: true },
+    ],
+    expect: [
+      { life: [1, 18] },                                   // 19 would mean the ability was never copied
+      { events: { type: 'damage', min: 2, max: 2 } },
+      { unsimulated: 0 },
+    ],
+  },
+  {
     name: 'a copy of a permanent spell becomes a token as it resolves', cr: '707.10a',
     ruling: 'CR 707.10a: the copy is not a card, so a permanent-spell copy enters the battlefield as a token.',
     seats: [
@@ -201,6 +245,27 @@ export const copyClone: Scenario[] = [
       { zone: ['Grizzly Bears', 'battlefield'] },
       { life: [1, 17] },
       { unsimulated: 0 },
+    ],
+  },
+  {
+    name: "Deflecting Swat moves an Aura spell's enchant choice, which is a target too", cr: '115.7b',
+    ruling: "CR 115.2b: an Aura spell targets the permanent its enchant ability names, and CR 115.7b lets a \"choose new targets\" effect change every target of the spell — including that one. The core keeps the enchant choice at index -1 of the item's target map, outside the effect requirements, so a retarget that only walked the effects left removal Auras (Pacifism, Song of the Dryads, Darksteel Mutation) untouched.",
+    active: 1,
+    seats: [
+      { bf: ['Mountain', 'Mountain', 'Mountain', 'Grizzly Bears'], hand: ['Deflecting Swat'] },
+      { bf: ['Plains', 'Plains', 'Hill Giant'], hand: ['Pacifism'] },
+    ],
+    script: [
+      { cast: 'Pacifism', by: 1, targets: [['Grizzly Bears']] },
+      { cast: 'Deflecting Swat', by: 0, targets: [['Pacifism']] },
+      { resolve: true },
+    ],
+    expect: [
+      { attachedTo: ['Pacifism', 'Hill Giant'] },          // 'Grizzly Bears' would mean the enchant target never moved
+      { zone: ['Pacifism', 'battlefield'] },
+      { log: 'chooses new targets for Pacifism' },
+      { noLog: 'Pacifism keeps its targets' },
+      { unsimulated: 1 },                                  // Deflecting Swat's commander cost line (the cost-alter family)
     ],
   },
   {
@@ -321,6 +386,48 @@ export const copyClone: Scenario[] = [
     expect: [
       { life: [1, 18] },                                   // 20 would mean the copy still pointed at Hill Giant
       { zone: ['Hill Giant', 'battlefield'] },             // 2 damage from the original is not lethal to a 3/3
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'a Clone that entered as a copy of a legend you control is caught by the legend rule', cr: '704.5j',
+    ruling: "CR 704.5j names \"legendary permanents with the same name\", and CR 707.2 says a copy has the copied permanent's name and supertypes — so the Clone IS a second Isamaru and one of them is put into its owner's graveyard. `checkSBA`'s own legend pass reads the PRINTED def, which for a permanent that entered as a copy still says \"Clone\"; this family's SBA hook asks the same question of the def the copy effect gave it.",
+    seats: [
+      { bf: ['Island', 'Island', 'Island', 'Island', 'Isamaru, Hound of Konda'], hand: ['Clone'] },
+      { bf: ['Mountain'] },
+    ],
+    script: [{ cast: 'Clone' }, { resolve: true }, { sba: true }],
+    expect: [
+      // four Islands + exactly one hound; 6 would mean the two copies coexisted
+      { zoneCount: [0, 'battlefield', 5] },
+      { graveyardCount: [0, 1] },
+      { zone: ['Clone', 'battlefield'] },                  // the newest of the pair is the one kept
+      { zone: ['Isamaru, Hound of Konda', 'graveyard'] },
+      { log: 'enters the battlefield as a copy of Isamaru, Hound of Konda' },
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: 'a copy made by the core copy-spell op is still what "you may choose new targets for the copy" moves', cr: '707.10c',
+    ruling: "CR 707.10c: the copy's controller may choose new targets for it. The copy sentence and the retarget sentence are two printed sentences, and on most cards (Fork, Geistblast, Sea Gate Stormcaller, Fury Storm) the copy is made by the core `copy-spell` op — which leaves no record of what it made. Without the fallback the second sentence asked the player and then did nothing.",
+    seats: [
+      { bf: ['Mountain', 'Hill Giant'], hand: ['Lightning Bolt'] },
+      { bf: ['Mountain'], hand: ['Shock'] },
+    ],
+    // the core op, deliberately: this scenario is about the sentence NEXT to a copy this family did not make
+    scripts: { 'Lightning Bolt': { mode: 'replace', abilities: [{ kind: 'spell', effects: [
+      { op: 'copy-spell', target: { kind: 'spell', filter: { types: ['Instant', 'Sorcery'] } } },
+      { op: 'may', effects: [{ op: 'change-targets', target: 'the-copies', how: 'choose-new' }] },
+    ], text: 'core copy, then new targets' }] } },
+    script: [
+      { cast: 'Shock', by: 1, targets: [['Hill Giant']] },
+      { cast: 'Lightning Bolt', by: 0, targets: [['Shock']] },
+      { resolve: true },
+    ],
+    expect: [
+      { life: [1, 18] },                                   // 20 would mean the copy still pointed at Hill Giant
+      { zone: ['Hill Giant', 'battlefield'] },             // 2 damage from the original is not lethal to a 3/3
+      { log: 'chooses new targets for Shock' },
       { unsimulated: 0 },
     ],
   },

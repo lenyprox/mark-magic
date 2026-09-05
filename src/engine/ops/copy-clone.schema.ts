@@ -97,5 +97,10 @@ export const schema: FamilySchema = {
       except: CopyExceptionSchema.optional(),
     }),
   ],
-  targetKinds: ['spell-or-ability', 'single-target-spell-or-ability', 'single-target-spell'],
+  // CR 115.7's two stack kinds, plus the four that ask what the core `spell` / `ability` kinds do not: whose spell it
+  // is (CR 115.4 "you control") and whether an ability on the stack is activated or triggered (CR 113.3a-c).
+  targetKinds: [
+    'spell-or-ability', 'single-target-spell-or-ability', 'single-target-spell',
+    'stack-spell', 'stack-ability', 'stack-activated-ability', 'stack-triggered-ability',
+  ],
 };

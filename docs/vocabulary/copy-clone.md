@@ -104,8 +104,7 @@ than guessed at, because an effect rule is handed no trigger parser (see §6).
   newTargets?: 'may' }                      // "You may choose new targets for the copy" in the SAME sentence
 ```
 
-* `target` may be a stack target spec (`spell`, `creature-spell`, `ability`, or this family's `spell-or-ability`) or
-  a `Ref` that resolves to a spell's card — `'triggering'` for "Whenever you cast a spell …, copy that spell",
+* `target` may be one of this family's stack target specs (§8) or a `Ref` that resolves to a spell's card — `'triggering'` for "Whenever you cast a spell …, copy that spell",
   `'that'` for a bound one.
 * The copy is **created on the stack and is not cast** (CR 707.10): no cast triggers, no cost, no storm count. It
   keeps the original's targets, modes, X, kicker and `castFrom`, and its controller is the copy effect's controller.
@@ -229,9 +228,30 @@ because the layer pass only scans the battlefield.
 | `spell-or-ability` | every spell and every activated / triggered ability on the stack. `filter` is matched against a **spell's** card ("instant spell, sorcery spell, activated ability, or triggered ability"); an ability has no card characteristics, so a filter never rejects one |
 | `single-target-spell-or-ability` | the same, restricted to objects with exactly **one** target (CR 115.7) |
 | `single-target-spell` | "target spell with a single target": spells only |
+| `stack-spell` | a spell; `filter` narrows it by type ("target instant or sorcery spell", "target creature spell", "target permanent spell") |
+| `stack-ability` | "target activated or triggered ability": abilities on the stack, of either kind |
+| `stack-activated-ability` | "target activated ability" only (CR 113.3b) |
+| `stack-triggered-ability` | "target triggered ability" only (CR 113.3c) |
 
-`controller: 'you'` / `'opponent'` restrict by the stack object's controller. A spell never offers *itself*: targets
-are chosen before it is put on the stack (CR 601.2a-c), and at resolution it has already been popped.
+`controller: 'you'` / `'opponent'` restrict by the stack object's controller (CR 115.4: "you control" is part of the
+targeting restriction, so a spell you do not control cannot be chosen and therefore cannot be copied). A spell never
+offers *itself*: targets are chosen before it is put on the stack (CR 601.2a-c), and at resolution it has already
+been popped.
+
+**Why the last four exist.** The core kinds `spell` / `creature-spell` / `noncreature-spell` / `ability`
+(`src/engine/legal.ts:targetOptionsFor`) never consult `spec.controller`, and `ability` offers every non-spell item
+on the stack without telling an activated ability from a triggered one. Routing "Copy target instant or sorcery
+spell **you control**" (Lithoform Engine, Nivix Guildmage, Mirrorpool, Stella Lee, Peter Parker's Camera) or "Copy
+target **triggered** ability you control" (Strionic Resonator) at those kinds asserted a restriction the engine did
+not enforce, so the family asks the question itself. Every wording `src/cards/rules/copy-clone.ts` claims routes to
+a kind in this table - never to a core stack kind.
+
+**An Aura spell's enchant choice is a target** (CR 115.2b / 303.4c), so `single-target-*` counts it and
+`change-targets` offers it. The core keeps it apart from the effect targets - at index `-1` of `targetsByEffect`,
+with its spec on the item as `auraSpec` rather than in `targetingEffects` - and the family's `retarget` reads it
+from there. Without that, "You may choose new targets for target spell or ability" did nothing at all to a Pacifism
+or a Song of the Dryads, which is most of what Deflecting Swat, Bolt Bend, Willbender and Imp's Mischief are held
+for.
 
 ---
 
@@ -243,7 +263,7 @@ Consulted only after every built-in stage of `parse.ts` declined the text, so th
 | wording | op |
 |---|---|
 | "Create a token that's a copy of *target …*[, except *…*]" (also "N tokens", "a tapped token", and "a copy of it / that creature / those creatures / ~ / the exiled card") | `copy-permanent` |
-| "Copy *target instant or sorcery spell* / *target spell* / *target creature spell* / *target permanent spell* / *target activated or triggered ability* / *target spell or ability*[ you control]", "copy it", "copy that spell" | `copy-stack` |
+| "Copy *target instant or sorcery spell* / *target spell* / *target creature spell* / *target permanent spell* / *target activated or triggered ability* / *target activated ability* / *target triggered ability* / *target spell or ability*[ you control]", "copy it", "copy that spell" | `copy-stack` |
 | "Change the target of *target spell / target spell or ability* with a single target" | `change-targets`, `how: 'change-one'` |
 | "You may choose new targets for *target spell / target spell or ability*" | `may` around `change-targets`, `how: 'choose-new'` |
 | "You may choose new targets for the copy / the copies / that copy" | `change-targets` on `'the-copies'` |
@@ -273,10 +293,45 @@ silently plays a different card. Specifically declined:
 
 ---
 
-## 10. Scenarios
+## 10. Interactions the family owns outside its ops
 
-`test/scenarios/copy-clone.ts` — one per op, per as-enters kind, per static, per target kind and per exception
+* **The legend rule over a copy (CR 704.5j).** `checkSBA`'s own legend pass filters on `o.def.supertypes` - the
+  *printed* def - but `become-copy` and `enter-as-copy` put the copy on `o.copyDef`, which is what `chars.defOf`
+  answers with. A Clone copying a legend you already control was invisible to it. The family registers an `sba` hook
+  that runs the same rule over `defOf`; SBA hooks run before the core pass inside the same loop and see a superset
+  of its permanents, so the core pass then finds nothing left. `copy-permanent` was never affected - a token copy
+  carries a real derived `def`.
+* **A derived def needs a key of its own (CR 707.9a).** `src/engine/serialize.ts` keys CardDefs by
+  `name@printingId`, and `collectDefs` keeps the *first* def it sees for a key. A token copy whose derived def kept
+  the printed card's key came back from a round trip linked to the printed def, losing everything the "except ..."
+  clause expressed only there (`supertypes` for "except it isn't legendary", `abilities`, `toxic`, the type line) -
+  P/T and keywords survived only because `TokenSpec` mirrors them. `derivedDef` stamps a `cc-copy-<digest>`
+  `printingId`, deterministic in the derived values, so identical copies still share one entry. Nothing reads it:
+  `src/play/view.ts` reports `printingId: null` for every token, and these defs only ever sit on tokens (a token
+  permanent copy, or the token object CR 707.10a gives a copy of a spell). `serializeState` is on the live path for
+  `src/analysis/pool.ts`'s rollouts and for apps/web's game worker, so this is not a save-file nicety.
+* **"You may choose new targets for the copy" next to a copy this family did not make (CR 707.10c).** That sentence
+  is its own printed sentence on ~90 cards. When the `copy-stack` beside it is this family's, the op leaves a
+  `ccCopies` record keyed by the resolving item. When it is not - the core `copy-spell` / `storm-copies` op, reached
+  from a per-card script or from a future family - `coreCopies` finds the copies instead: the `isCopy` items this
+  player controls whose source is either this ability's own source (storm copies the spell itself) or one of the
+  stack objects this item targeted (fork copies its target). Nothing else pushes onto the stack during a resolution
+  - no player gets priority in the middle of one and triggers only queue - so the set cannot pick up a stranger.
+  Pool scan: 137 `'the-copies'` retargets, 53 beside a `copy-stack`, 82 beside a copy sentence that is still
+  `unknown` (no card among them is fully parsed, so none is simulated today) and 2 with no copy sentence at all -
+  for those the op finds nothing and does nothing, exactly as before.
+
+---
+
+## 11. Tests
+
+`test/scenarios/copy-clone.ts` - one per op, per as-enters kind, per static, per target kind and per exception
 field, each written so that it fails if the op did nothing. Real printed cards where the parser rules of this slice
 make them parse (Cackling Counterpart, The Scarab God, Reverberate, Lithoform Engine, Swerve, Redirect, Untimely
-Malfunction, Deflecting Swat, Clone); a scripted ability on Grizzly Bears for `become-copy` and `cant-be-copied`,
-which no printed card parses into yet.
+Malfunction, Deflecting Swat, Pacifism, Clone, Isamaru); a scripted ability on Grizzly Bears for `become-copy` and
+`cant-be-copied`, which no printed card parses into yet.
+
+`test/copy-clone.test.ts` - the two things a scenario cannot say: a **targeting restriction** is a negative (an
+option the engine must never offer, so it is asserted against `targetOptionsFor` directly), and a **serialize round
+trip** is not a game state (asserted against `serializeState` / `collectDefs` / `deserializeState`). The same split
+`test/composition.test.ts` makes against `test/scenarios/composition.ts`.
