@@ -7,15 +7,17 @@
 // the directory stays usable at ~34k files. Flat files at the root are still read (and `scripts:shard` migrates them).
 //
 // A script never asserts that a card is finished. It CLAIMS the card's oracle lines one at a time — by an ability
-// whose `text` is the line, by the face's keywords, by a justified `covers` entry or by an `ignore` entry — and
-// `applyScript` re-derives `unparsed` from what is left over. `fullyParsed` is "nothing unclaimed AND nothing
-// `unknown` anywhere in the face", for both faces of a double-faced card and in both modes. See `claimedLines`.
+// that carries behaviour and whose `text` is the line, by the face's keywords, by a typed `covers` entry naming the
+// declaration that implements the line, or by an `ignore` entry the whitelist accepts — and `applyScript` re-derives
+// `unparsed` from what is left over. `fullyParsed` is "nothing unclaimed AND nothing `unknown` anywhere in the face",
+// for EVERY face that has playable text (front, `backFace`, and `secondFace` for split / adventure / flip) and in
+// both modes. See `abilityIsSubstantive`, `coverProblem`, `claimedLines` and `secondFaceUnclaimed`.
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot } from '../config/paths.js';
 import { keywordFromText } from './parse.js';
 import type { PoolTier } from './pool.js';
-import type { Ability, AltCost, AsEnters, CardDef, CostModifier, Keyword } from './types.js';
+import type { Ability, AbilityCost, AltCost, AsEnters, CardDef, Condition, CostModifier, Filter, Keyword, ManaCost } from './types.js';
 
 /** Where a script came from. Precedence for `put()`: hand > reviewed > llm > generated. */
 export type ScriptSource = 'generated' | 'llm' | 'reviewed' | 'hand';
@@ -29,7 +31,6 @@ export const IGNORE_REASONS = [
   'ante',                 // playing for ante (CR 104.3a; ante cards are banned in every sanctioned format)
   'outside-the-game',     // wishes, sideboard, "from outside the game"
   'deck-construction',    // "A deck can have any number of cards named ~", companion-style build rules
-  'reminder-only',        // reminder text the parser kept as a line
   'un-physical',          // physical-world un-set mechanics (dexterity, assembling contraptions)
   'digital-only',         // Arena/Alchemy-only mechanics (conjure, perpetually, seek)
 ] as const;
@@ -52,18 +53,23 @@ export interface IgnoredLine {
  *
  * `un-physical` and `digital-only` additionally require the card's pool tier (`tierOf(row)`): un-set physical
  * mechanics are ignorable only on an `un` card, Alchemy keywords only on a `digital` one, so a paper card can never
- * be waved through by claiming its text is an un-card's.
+ * be waved through by claiming its text is an un-card's. Neither is a blanket exemption for its tier: an un-card's
+ * line must ALSO name a physical-world marker, because most of an un-card's text is ordinary Magic that the engine
+ * has to run.
  */
-const REASON_RULE: Record<IgnoreReason, RegExp | null> = {
+const REASON_RULE: Record<IgnoreReason, RegExp> = {
   // "Draft ~ face up.", "Reveal ~ as you draft it.", conspiracies and the "as you draft a card" clauses
   'draft-matters': /^(draft ~ face up|reveal ~ as you draft|.*\byou drafted\b|.*\bdraft(ed)? (a |this )?card\b|.*\bconspiracy\b)/i,
   'ante': /\bante\b/i,
   'outside-the-game': /\bfrom outside the game\b/i,
   // whole-line phrases only: these are the printed deck-building keywords, never a clause inside game text
   'deck-construction': /^(partner(\b.*)?|choose a background|doctor's companion|friends forever|companion — .*|a deck can have any number of cards named ~\.?|commander enchantment|spell commander|legendary landwalk)$/i,
-  // the parser strips parentheses, so a line that is nothing but a parenthetical almost never survives to a script
-  'reminder-only': /^\([^)]*\)$/,
-  'un-physical': null,      // gated on tier === 'un' alone
+  // A CONSERVATIVE APPROXIMATION of "this clause happens outside the game state": the physical-world verbs and nouns
+  // un-set text uses (dexterity, speech, the artwork, the sticker sheet, the shop). It is deliberately broader than
+  // the true set — `word`, `name a card` and `vote` also occur in ordinary Magic — and is only reachable at all on a
+  // card whose pool tier is `un`, where the surrounding rules are already outside the engine's contract. Un-card text
+  // that is ordinary Magic ("Draw a card.") matches nothing here and must be scripted like any other line.
+  'un-physical': /\b(flip ~ onto|physically|dexterity|toss|touch|say|speak|sing|whisper|shout|clap|name a (card|word)|letters?|word|art(ist|work)?|flavor|watermark|border|silver|rules text|hidden|game store|judge|outside the game|host|augment|contraption|attraction|sticker|vote)\b/i,
   'digital-only': /\b(conjure|seek|perpetual|spellbook|draft a card from)/i,
 };
 
@@ -72,7 +78,9 @@ const REASON_TIER: Partial<Record<IgnoreReason, PoolTier>> = { 'un-physical': 'u
 
 /**
  * Whether a line may be ignored for the reason given: `null` when it may, otherwise why it may not.
- * `scripts:check` turns a non-null result into a problem and passes the card's pool tier.
+ * `scripts:check` turns a non-null result into a problem, and `applyScript` honours an `ignore` entry ONLY when this
+ * returns `null` — so an invalid ignore leaves its line unparsed at runtime instead of being caught by the tool
+ * alone. Both pass the card's pool tier (`tierOf(row)`); `applyScript` defaults it to `'paper'`, the strictest tier.
  */
 export function ignoreLineProblem(line: string, reason: IgnoreReason, tier?: PoolTier): string | null {
   const norm = normalizeOracleLine(line.trim().replace(/^\/\/ /, ''));
@@ -81,7 +89,8 @@ export function ignoreLineProblem(line: string, reason: IgnoreReason, tier?: Poo
     return `is only available to a card in the '${needTier}' pool tier (this card is ${tier ? `'${tier}'` : 'of an unknown tier'})`;
   }
   const rule = REASON_RULE[reason];
-  if (!rule || rule.test(norm)) return null;
+  if (!rule) return `is not a known ignore reason`;
+  if (rule.test(norm)) return null;
   return `does not match the '${reason}' rule ${rule.source} — script the line instead of ignoring it`;
 }
 
@@ -110,20 +119,64 @@ export interface Verification {
   problems: string[];
 }
 
-/** The scriptable part of one card face. `CardScript` carries these for the front face and `backFace` for the back. */
+/**
+ * The DECLARATION a `covers` entry points at. Every non-ability field a face can declare has a kind here, so a
+ * covered line always names the thing that implements it — `covers` is never an anonymous budget.
+ */
+export const COVER_KINDS = [
+  'keywords', 'altCosts', 'asEnters', 'costModifiers', 'kicker', 'cycling', 'entersTapped', 'morph', 'cascade',
+  'storm', 'rebound', 'dredge', 'graveyardReplacement', 'protection', 'ward', 'additionalCosts', 'toxic', 'bushido',
+  'rampage', 'landwalk', 'firebending',
+] as const;
+
+export type CoverKind = typeof COVER_KINDS[number];
+
+/** One oracle line claimed by a named declaration rather than by an ability of its own. */
+export interface CoverEntry {
+  /** The line exactly as `scriptableLines(def)` names it. */
+  line: string;
+  /** Which declaration on this face accounts for it. */
+  by: CoverKind;
+}
+
+/**
+ * The scriptable part of one card face. `CardScript` carries these for the front face, `backFace` for the back face
+ * of a transforming / modal DFC, and `secondFace` for the second half of a split / adventure / flip card.
+ *
+ * Every non-ability declaration the parser can put on a `CardDef` is here, so the format can express everything the
+ * parser can — and so every `covers` entry has a real declaration to name.
+ */
 export interface ScriptFace {
   keywords?: Keyword[];
   abilities?: Ability[];
   altCosts?: AltCost[];
   asEnters?: AsEnters[];
   costModifiers?: CostModifier[];
+  additionalCosts?: AbilityCost[];
+  kicker?: ManaCost;
+  cycling?: ManaCost;
+  cyclingSearch?: Filter;
+  entersTapped?: boolean | { unless: Condition };
+  morph?: { cost: ManaCost; megamorph?: boolean; disguise?: boolean };
+  cascade?: boolean;
+  storm?: boolean;
+  rebound?: boolean;
+  dredge?: number;
+  graveyardReplacement?: 'exile' | 'shuffle';
+  protectionFrom?: string[];
+  wardCost?: number;
+  toxic?: number;
+  bushido?: number;
+  rampage?: number;
+  landwalk?: string[];
+  firebending?: number;
   /**
    * Oracle lines (as `scriptableLines(def)` names them) this face claims WITHOUT an ability of its own — the only way
-   * a `keywords` / `altCosts` / `asEnters` / `costModifiers` declaration can account for a line. There is no wildcard:
-   * every claimed line is written out, and `CardScriptChecked` caps the number of covers entries that are not simply
-   * an ability's own text at the number of such declarations on the face.
+   * a non-ability declaration can account for a line. There is no wildcard and no budget: each entry names the
+   * declaration that covers it (`by`), and `coverProblem` checks that the declaration is really on this face AND that
+   * the line has the shape that declaration produces. A throwaway keyword therefore buys nothing.
    */
-  covers?: string[];
+  covers?: CoverEntry[];
 }
 
 export interface CardScript extends ScriptFace {
@@ -138,6 +191,13 @@ export interface CardScript extends ScriptFace {
   mode?: 'replace' | 'extend';
   /** Back face of a transforming / modal double-faced card; applied to `def.backFace` with the same semantics. */
   backFace?: ScriptFace;
+  /**
+   * Second half of a `split` / `adventure` / `flip` card — the face whose `faces[1].oracle_text` the PARSER never
+   * looks at (parse.ts:1146 parses `faces[0]` only, and builds a `backFace` for `transform` / `modal_dfc` alone).
+   * Its lines are lines a script must claim all the same: a script that finishes only the first half is not
+   * `fullyParsed`. See `secondFaceLines`.
+   */
+  secondFace?: ScriptFace;
   /** Oracle lines that are deliberately not simulated. They are dropped from `unparsed` and do not block `fullyParsed`. */
   ignore?: IgnoredLine[];
   /** Scenario names in test/scenarios/ that verify this script. */
@@ -246,6 +306,22 @@ export function scriptableLines(def: Pick<CardDef, 'name' | 'oracleText' | 'layo
   for (const l of normalizeOracleLines(def)) push(l);
   for (const u of def.unparsed) push(u);
   if (def.backFace) for (const u of def.backFace.unparsed) push('// ' + u.trim());
+  // the second half of a split / adventure / flip card: real lines a script must claim, which the parser never sees
+  for (const l of secondFaceLines(def)) push(l);
+  return out;
+}
+
+/**
+ * The lines ONE face's own `covers` entries may name — its normalised oracle lines (modal bullets included) plus the
+ * entries the parser itself reported unparsed for that face. `scriptableLines` is the whole card; this is the per-face
+ * split `scripts:check` needs so a front-face `covers` entry cannot claim a back-face line. Call it on `def` for the
+ * front face and on `def.backFace` for the back; the second face has no `CardDef`, so use `secondFaceLines`.
+ */
+export function faceScriptableLines(def: Pick<CardDef, 'name' | 'oracleText' | 'layout' | 'faces' | 'backFace' | 'unparsed'>): string[] {
+  const out: string[] = [];
+  const push = (l: string) => { const t = l.trim(); if (t && !out.includes(t)) out.push(t); };
+  for (const l of normalizeOracleLines({ ...def, backFace: undefined })) push(l);
+  for (const u of def.unparsed) push(u);
   return out;
 }
 
@@ -434,52 +510,196 @@ export function faceLines(def: Pick<CardDef, 'name' | 'oracleText' | 'layout' | 
   return normalizeOracleLines({ ...def, backFace: undefined }).filter(l => !l.startsWith('• '));
 }
 
-/** The structural part of a script face the `covers` budget is computed from (also used by `CardScriptChecked`). */
-export interface CoverableFace {
-  covers?: string[];
-  abilities?: { text: string }[];
-  keywords?: unknown[];
-  altCosts?: unknown[];
-  asEnters?: unknown[];
-  costModifiers?: unknown[];
-}
-
 /**
- * How many lines a face may claim through `covers` alone: one per keyword / altCost / asEnters / costModifier
- * declaration, because `covers` is the only way those declarations can account for a line. A `covers` entry that
- * simply repeats one of the face's own ability texts is free — the ability already claims that line.
+ * Whether an ability CARRIES BEHAVIOUR, and so may claim its oracle line. An ability that declares no effect claims
+ * nothing: without this a script of empty abilities — one per line, each with the right `text` — would read as fully
+ * simulated while doing nothing at all in the engine. An `unknown` anywhere inside it disqualifies it too, so the
+ * line it was meant to cover is reported as unclaimed rather than silently swallowed.
+ *
+ *   * `spell` / `triggered` / `activated`: at least one effect, and no `unknown` at any depth;
+ *   * `static`: an `effect` that is not `unknown` at any depth.
+ *
+ * The parser's own output contains 56 empty-effect abilities across the 34,513-card pool (Populate, Manifest dread,
+ * Amass, "The Ring tempts you", …), so the PARSER-output schema (`AbilitySchema`) stays lenient and only the
+ * SCRIPT-level schema requires an effect. Those 56 cards are already not `fullyParsed`.
  */
-export function coversBudget(face: CoverableFace | null | undefined): number {
-  return (face?.keywords?.length ?? 0) + (face?.altCosts?.length ?? 0) + (face?.asEnters?.length ?? 0) + (face?.costModifiers?.length ?? 0);
+export function abilityIsSubstantive(ability: Ability): boolean {
+  if (hasUnknown(ability)) return false;
+  if (ability.kind === 'static') return !!ability.effect;
+  return (ability.effects?.length ?? 0) > 0;
 }
 
-/** The `covers` entries that are backed by a declaration — the only ones that claim a line. */
-export function justifiedCovers(face: CoverableFace | null | undefined): string[] {
-  const covers = (face?.covers ?? []).map(c => c.trim());
-  if (!covers.length) return [];
-  const abilityTexts = new Set((face?.abilities ?? []).map(a => a.text.trim()));
-  const budget = coversBudget(face);
-  let spent = 0;
-  return covers.filter(c => abilityTexts.has(c) || spent++ < budget);
-}
+/** Per-kind shape of the oracle line a declaration produces. `keywords` and `altCosts` need the face itself. */
+const COVER_LINE_RE: Record<Exclude<CoverKind, 'keywords' | 'altCosts'>, RegExp> = {
+  asEnters: /^(as ~ enters|~ enters (the battlefield )?(tapped|with))/i,
+  costModifiers: /^(delve|convoke|improvise|affinity for|~ costs \{.*\} less)/i,
+  kicker: /^(multi)?kicker /i,
+  cycling: /cycling /i,
+  entersTapped: /^~ enters (the battlefield )?tapped/i,
+  morph: /^(morph|megamorph|disguise) /i,
+  cascade: /^cascade$/i,
+  storm: /^storm$/i,
+  rebound: /^rebound$/i,
+  dredge: /^dredge \d/i,
+  graveyardReplacement: /^if ~ would be put into a graveyard from anywhere/i,
+  protection: /^protection from/i,
+  ward: /^ward/i,
+  additionalCosts: /^as an additional cost to cast ~/i,
+  toxic: /^toxic \d+\.?$/i,
+  bushido: /^bushido \d+\.?$/i,
+  rampage: /^rampage \d+\.?$/i,
+  landwalk: /^(plains|island|swamp|mountain|forest|desert)walk\.?$/i,
+  firebending: /^firebending (\d+|x\b)/i,
+};
 
-/** Whether every `covers` entry of this face is justified — the rule `CardScriptChecked` enforces on the file. */
-export function coversWithinBudget(face: CoverableFace | null | undefined): boolean {
-  return justifiedCovers(face).length === (face?.covers ?? []).length;
+/** Whether the face really declares the thing a `covers` entry names. */
+const COVER_DECLARED: Record<CoverKind, (f: ScriptFace) => boolean> = {
+  keywords: f => !!f.keywords?.length,
+  altCosts: f => !!f.altCosts?.length,
+  asEnters: f => !!f.asEnters?.length,
+  costModifiers: f => !!f.costModifiers?.length,
+  additionalCosts: f => !!f.additionalCosts?.length,
+  kicker: f => f.kicker !== undefined,
+  cycling: f => f.cycling !== undefined,
+  entersTapped: f => f.entersTapped !== undefined,
+  morph: f => f.morph !== undefined,
+  cascade: f => f.cascade === true,
+  storm: f => f.storm === true,
+  rebound: f => f.rebound === true,
+  dredge: f => f.dredge !== undefined,
+  graveyardReplacement: f => f.graveyardReplacement !== undefined,
+  protection: f => !!f.protectionFrom?.length,
+  ward: f => f.wardCost !== undefined,
+  toxic: f => f.toxic !== undefined,
+  bushido: f => f.bushido !== undefined,
+  rampage: f => f.rampage !== undefined,
+  landwalk: f => !!f.landwalk?.length,
+  firebending: f => f.firebending !== undefined,
+};
+
+/** The keyword word an alternative-cost line starts with, and the `AltCost.id`s the pitch phrasing stands for. */
+const ALT_COST_WORD_RE = /^(flashback|escape|evoke|warp|impending|buyback|dash|jump-start)\b/i;
+const ALT_COST_PITCH_RE = /^you may pay\b[\s\S]*\brather than pay\b/i;
+
+function altCostCovers(face: ScriptFace, line: string): boolean {
+  const alts = face.altCosts ?? [];
+  const m = ALT_COST_WORD_RE.exec(line);
+  if (m) { const w = m[1].toLowerCase(); return alts.some(a => a.id.toLowerCase() === w || a.label.toLowerCase().startsWith(w)); }
+  if (ALT_COST_PITCH_RE.test(line)) return alts.some(a => a.id === 'pitch' || a.id === 'life');
+  return false;
 }
 
 /**
- * Every line the resulting face claims: the normalised `text` of each of its abilities, each line that is wholly
- * made of keywords it has, the face's justified `covers` entries and the script's `ignore` lines. In mode 'replace'
+ * Why this `covers` entry does not claim its line, or `null` when it does. Two of the three rules live here:
+ *
+ *   (ii) the named declaration really exists on this face, and
+ *   (iii) the line has the shape that declaration produces.
+ *
+ * Rule (i) — the line is a real oracle line of that face — needs the card and is checked by `scripts:check`; a
+ * `covers` entry naming a line the face does not have simply claims nothing here.
+ */
+export function coverProblem(face: ScriptFace | null | undefined, entry: CoverEntry): string | null {
+  const line = normalizeOracleLine(entry.line.trim().replace(/^\/\/ /, ''));
+  const by = entry.by;
+  if (!COVER_KINDS.includes(by)) return `'${by}' is not a cover kind`;
+  const f = face ?? {};
+  if (!COVER_DECLARED[by](f)) return `names by '${by}' but this face declares no ${by}`;
+  if (by === 'keywords') {
+    return keywordLineClaimed(line, f.keywords ?? [])
+      ? null
+      : `names by 'keywords' but the line is not made only of keywords this face declares (${JSON.stringify(f.keywords ?? [])})`;
+  }
+  if (by === 'altCosts') {
+    return altCostCovers(f, line)
+      ? null
+      : `names by 'altCosts' but the line does not start with the keyword word of an alternative cost this face declares`;
+  }
+  const re = COVER_LINE_RE[by];
+  return re.test(line) ? null : `names by '${by}' but the line does not match ${re.source}`;
+}
+
+/** Every `covers` entry of this face that is invalid, as `"<line>: <why>"`. Empty when the face's covers are sound. */
+export function coverProblems(face: ScriptFace | null | undefined): string[] {
+  const out: string[] = [];
+  for (const c of face?.covers ?? []) { const why = coverProblem(face, c); if (why) out.push(`${JSON.stringify(c.line)} ${why}`); }
+  return out;
+}
+
+/** The lines the face's VALID `covers` entries claim — the only ones that count. */
+export function validCovers(face: ScriptFace | null | undefined): string[] {
+  return (face?.covers ?? []).filter(c => coverProblem(face, c) === null).map(c => c.line.trim());
+}
+
+/** Whether every `covers` entry of this face is valid — the rule `CardScriptChecked` enforces on the file. */
+export function coversValid(face: ScriptFace | null | undefined): boolean {
+  return coverProblems(face).length === 0;
+}
+
+/**
+ * Every line the resulting face claims: the normalised `text` of each of its SUBSTANTIVE abilities (see
+ * `abilityIsSubstantive` — an empty-effect or unknown-bearing ability claims nothing), each line that is wholly made
+ * of keywords it has, the face's valid `covers` entries and the script's honoured `ignore` lines. In mode 'replace'
  * `def` holds only the script's declarations, so only the script claims; in mode 'extend' it holds the parser's plus
- * the script's, so both do. An unjustified `covers` entry claims nothing here as well as failing the schema, so a
- * script that lists lines under `covers` without a declaration behind them can never read as fully simulated.
+ * the script's, so both do. An invalid `covers` entry claims nothing here as well as failing the schema.
  */
 export function claimedLines(def: CardDef, face: ScriptFace | null | undefined, ignored: Set<string>): Set<string> {
   const claimed = new Set<string>(ignored);
-  for (const a of def.abilities) for (const l of abilityClaimLines(a.text, def.name)) claimed.add(l);
-  for (const c of justifiedCovers(face)) claimed.add(c);
+  for (const a of def.abilities) if (abilityIsSubstantive(a)) for (const l of abilityClaimLines(a.text, def.name)) claimed.add(l);
+  for (const c of validCovers(face)) claimed.add(c);
   return claimed;
+}
+
+// ---------------------------------------------------------------------------
+// The second face of a split / adventure / flip card
+// ---------------------------------------------------------------------------
+
+/** Layouts whose `faces[1]` carries castable / playable text that `parse.ts` never parses (parse.ts:1146, :1362). */
+export const SECOND_FACE_LAYOUTS: readonly string[] = ['split', 'adventure', 'flip'];
+
+/** The second face of a split / adventure / flip card, or null when this card has none with text. */
+export function secondFaceOf(def: Pick<CardDef, 'layout' | 'faces'>): { name: string; oracleText: string } | null {
+  if (!SECOND_FACE_LAYOUTS.includes(def.layout)) return null;
+  const f = def.faces?.[1];
+  if (!f || !(f.oracleText ?? '').trim()) return null;
+  return { name: f.name, oracleText: f.oracleText };
+}
+
+/**
+ * The lines `script.secondFace` must claim: `faces[1].oracle_text` normalised against the SECOND face's own name, so
+ * "Stomp deals 2 damage to any target." reads as "~ deals 2 damage to any target." exactly as the parser would have
+ * written it. Empty for every other layout, so nothing changes for the rest of the pool.
+ */
+export function secondFaceLines(def: Pick<CardDef, 'layout' | 'faces'>): string[] {
+  const face = secondFaceOf(def);
+  if (!face) return [];
+  const out: string[] = [];
+  for (const raw of normalizeOracleText(face.oracleText, face.name).split('\n')) {
+    const l = normalizeOracleLine(raw);
+    if (l && !l.startsWith('• ') && !out.includes(l)) out.push(l);
+  }
+  return out;
+}
+
+/** Everything a script face declares that must be free of `unknown` for that face to count as simulated. */
+function scriptFaceHasUnknown(face: ScriptFace | null | undefined): boolean {
+  if (!face) return false;
+  return hasUnknown(face.abilities) || hasUnknown(face.altCosts) || hasUnknown(face.asEnters)
+    || hasUnknown(face.costModifiers) || hasUnknown(face.additionalCosts) || hasUnknown(face.entersTapped);
+}
+
+/**
+ * The second face's lines that `script.secondFace` leaves unclaimed. The parser contributed nothing to this face, so
+ * `mode` makes no difference here: only the script claims. Empty for every layout without a second face.
+ */
+export function secondFaceUnclaimed(def: Pick<CardDef, 'layout' | 'faces'>, script: CardScript, ignored: Set<string> = new Set()): string[] {
+  const lines = secondFaceLines(def);
+  if (!lines.length) return [];
+  const face = script.secondFace;
+  const name = def.faces![1].name;
+  const claimed = new Set<string>(ignored);
+  for (const a of face?.abilities ?? []) if (abilityIsSubstantive(a)) for (const l of abilityClaimLines(a.text, name)) claimed.add(l);
+  for (const c of validCovers(face)) claimed.add(c);
+  return lines.filter(l => !claimed.has(l) && !keywordLineClaimed(l, face?.keywords ?? []));
 }
 
 /**
@@ -493,18 +713,30 @@ export function claimedLines(def: CardDef, face: ScriptFace | null | undefined, 
  */
 function applyFace(def: CardDef, face: ScriptFace | null | undefined, mode: 'replace' | 'extend', ignored: Set<string>): CardDef {
   const out: CardDef = { ...def, keywords: [...def.keywords], abilities: [...def.abilities], unparsed: [], producesMana: [...def.producesMana] };
+  // Every scalar declaration a face can carry. 'replace' sets each from the script (dropping the parser's), 'extend'
+  // overrides only the ones the script states.
+  const SCALARS = ['kicker', 'cycling', 'cyclingSearch', 'entersTapped', 'morph', 'cascade', 'storm', 'rebound',
+    'dredge', 'graveyardReplacement', 'wardCost', 'toxic', 'bushido', 'rampage', 'firebending'] as const;
   if (mode === 'replace') {
     out.keywords = [...(face?.keywords ?? [])];
     out.abilities = [...(face?.abilities ?? [])];
     out.altCosts = face?.altCosts ? [...face.altCosts] : undefined;
     out.asEnters = face?.asEnters ? [...face.asEnters] : undefined;
     out.costModifiers = face?.costModifiers ? [...face.costModifiers] : undefined;
+    out.additionalCosts = face?.additionalCosts ? [...face.additionalCosts] : undefined;
+    out.protectionFrom = face?.protectionFrom ? [...face.protectionFrom] : undefined;
+    out.landwalk = face?.landwalk ? [...face.landwalk] : undefined;
+    for (const k of SCALARS) (out as unknown as Record<string, unknown>)[k] = face?.[k];
   } else {
     if (face?.keywords) for (const k of face.keywords) if (!out.keywords.includes(k)) out.keywords.push(k);
     if (face?.abilities) out.abilities.push(...face.abilities);
     if (face?.altCosts) out.altCosts = [...(out.altCosts ?? []), ...face.altCosts];
     if (face?.asEnters) out.asEnters = [...(out.asEnters ?? []), ...face.asEnters];
     if (face?.costModifiers) out.costModifiers = [...(out.costModifiers ?? []), ...face.costModifiers];
+    if (face?.additionalCosts) out.additionalCosts = [...(out.additionalCosts ?? []), ...face.additionalCosts];
+    if (face?.protectionFrom) out.protectionFrom = [...new Set([...(out.protectionFrom ?? []), ...face.protectionFrom])];
+    if (face?.landwalk) out.landwalk = [...new Set([...(out.landwalk ?? []), ...face.landwalk])];
+    for (const k of SCALARS) if (face?.[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = face[k];
   }
   const claimed = claimedLines(out, face, ignored);
   out.unparsed = faceLines(out).filter(l => !claimed.has(l) && !keywordLineClaimed(l, out.keywords));
@@ -527,14 +759,21 @@ function applyFace(def: CardDef, face: ScriptFace | null | undefined, mode: 'rep
  * replace/extend semantics, and the back face is applied WHETHER OR NOT the script declares one: a card is fully
  * simulated only when both of its faces are, so a script that finishes the front and says nothing about the back
  * leaves `fullyParsed` false. The back face's lines live in `def.backFace.unparsed`; the front face's `unparsed`
- * holds only its own lines. `verification` is tool-owned and ignored here.
+ * holds only its own lines. The SECOND face of a split / adventure / flip card is checked the same way through
+ * `secondFaceUnclaimed` — the parser never parses it, so there is no `CardDef` to hang it on, but its lines still
+ * have to be claimed for the card to be `fullyParsed`. `verification` is tool-owned and ignored here.
+ *
+ * `tier` is the card's pool tier (`tierOf(row)`): it gates the two tier-only `ignore` reasons. An `ignore` entry is
+ * HONOURED ONLY WHEN `ignoreLineProblem` passes it, so an ignore the tool would reject also fails at runtime instead
+ * of quietly finishing the card whenever `scripts:check` is not the one applying it. It defaults to `'paper'`, the
+ * tier that grants no exemption at all.
  */
-export function applyScript(def: CardDef, script: CardScript | null): CardDef {
+export function applyScript(def: CardDef, script: CardScript | null, tier: PoolTier = 'paper'): CardDef {
   if (!script) return def;
   const status: ScriptStatus = { applied: false, stale: false, source: script.source, confidence: script.confidence };
   if (script.oracleHash !== oracleHash(def.oracleText)) { status.stale = true; def.script = status; return def; }
   const mode = script.mode ?? 'replace';
-  const ignoreLines = (script.ignore ?? []).map(i => i.line.trim());
+  const ignoreLines = (script.ignore ?? []).filter(i => ignoreLineProblem(i.line, i.reason, tier) === null).map(i => i.line.trim());
   // a back-face line may be named either as the parser reports it on the front ("// X") or as the back face sees it ("X")
   const ignored = new Set([...ignoreLines, ...ignoreLines.map(l => l.replace(/^\/\/ /, ''))]);
   const out = applyFace(def, script, mode, ignored);
@@ -542,6 +781,9 @@ export function applyScript(def: CardDef, script: CardScript | null): CardDef {
     const back = applyFace(def.backFace, script.backFace, mode, ignored);
     out.backFace = back;
     out.fullyParsed = out.fullyParsed && back.fullyParsed;
+  }
+  if (secondFaceLines(def).length) {
+    out.fullyParsed = out.fullyParsed && secondFaceUnclaimed(def, script, ignored).length === 0 && !scriptFaceHasUnknown(script.secondFace);
   }
   status.applied = true; out.script = status;
   return out;
@@ -563,5 +805,6 @@ export function unmatchedAbilityTexts(def: Pick<CardDef, 'name' | 'oracleText' |
   };
   check(script.abilities, def.name, '');
   check(script.backFace?.abilities, def.backFace?.name ?? def.name, '// ');
+  check(script.secondFace?.abilities, secondFaceOf(def)?.name ?? def.name, '');
   return out;
 }

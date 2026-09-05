@@ -5,24 +5,91 @@
   "source": "hand",
   "confidence": 1,
   "mode": "replace",
-  "keywords": ["flying"],
+  "keywords": [
+    "flying"
+  ],
   "abilities": [
-    { "kind": "triggered", "event": { "on": "attacks", "self": true }, "effects": [{ "op": "gain-life", "amount": 1, "who": "you" }], "text": "Whenever ~ attacks, you gain 1 life." }
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "gain-life",
+          "amount": 1,
+          "who": "you"
+        }
+      ],
+      "text": "Whenever ~ attacks, you gain 1 life."
+    }
   ],
   "altCosts": [
-    { "id": "flashback", "label": "flashback", "cost": { "mana": { "generic": 2, "x": 0, "pips": ["R"], "hybrid": [], "phyrexian": [], "raw": "{2}{R}" } }, "from": "graveyard", "exileAfter": true }
+    {
+      "id": "flashback",
+      "label": "flashback",
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [
+            "R"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}{R}"
+        }
+      },
+      "from": "graveyard",
+      "exileAfter": true
+    }
   ],
-  "covers": ["Flashback {2}{R}"],
+  "wardCost": 2,
+  "covers": [
+    {
+      "line": "Flying",
+      "by": "keywords"
+    },
+    {
+      "line": "Flashback {2}{R}",
+      "by": "altCosts"
+    },
+    {
+      "line": "Ward {2}",
+      "by": "ward"
+    }
+  ],
   "ignore": [
-    { "line": "Draft ~ face up.", "reason": "draft-matters" }
+    {
+      "line": "Draft ~ face up.",
+      "reason": "draft-matters"
+    }
   ],
   "backFace": {
-    "keywords": ["trample"],
+    "keywords": [
+      "trample"
+    ],
     "abilities": [
-      { "kind": "static", "effect": { "kind": "self-keywords", "keywords": ["trample"] }, "text": "Trample" }
+      {
+        "kind": "static",
+        "effect": {
+          "kind": "self-keywords",
+          "keywords": [
+            "trample"
+          ]
+        },
+        "text": "Trample"
+      }
     ]
   },
-  "scenarios": ["Example Card gains life on attack"],
-  "aiHints": { "role": "creature", "value": 3, "timing": "main" },
-  "notes": "Every oracle line of each face must be CLAIMED: by an ability whose 'text' is that line, by the face's keywords (a line that is nothing but keywords it has), by a 'covers' entry, or by an 'ignore' entry. 'Flying' is claimed by keywords, the trigger line by its ability's text, 'Flashback {2}{R}' by covers (justified by the altCosts declaration), 'Draft ~ face up.' by ignore. There is no '*' wildcard. Rename to <2-hex>/<oracle_id>.json and set oracleHash to oracleHash(def.oracleText) to activate. The 'verification' block is written by scripts:verify — never by hand."
+  "scenarios": [
+    "Example Card gains life on attack"
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "Every oracle line of EVERY playable face must be CLAIMED. Four ways, and only four: (1) an ability that carries behaviour and whose 'text' is that line - an ability with an empty 'effects' array claims nothing and is rejected; (2) the face's keywords, when the line is nothing but keywords it has; (3) a 'covers' entry, which names both the line and the declaration that implements it ('by'), and is valid only when that declaration is really on this face AND the line has the shape it produces - so a throwaway keyword buys nothing; (4) an 'ignore' entry the whitelist accepts for this card's pool tier. Faces: the front face here, 'backFace' for a transform / modal DFC, and 'secondFace' for the second half of a split / adventure / flip card (see _example-split.json.txt). There is no '*' wildcard and no covers budget. Rename to <2-hex>/<oracle_id>.json and set oracleHash to oracleHash(def.oracleText) to activate. The 'verification' block is written by scripts:verify - never by hand."
 }

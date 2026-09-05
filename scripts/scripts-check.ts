@@ -1,7 +1,9 @@
-// Validate the scripts under data/scripts: schema (strict, including the `covers` budget), LF-only bytes,
-// oracle-hash freshness (stale after a Scryfall refresh), every `covers`/`ignore` line matching a line
+// Validate the scripts under data/scripts: schema (strict, including typed `covers` entries), LF-only bytes,
+// oracle-hash freshness (stale after a Scryfall refresh), every ability carrying behaviour, every `covers` entry
+// naming a declaration its face really has and a line of that face, every `ignore` line matching a line
 // `scriptableLines(def)` names, every `ignore` reason matching its whitelist entry for this card's pool tier, no
-// `unknown` anywhere, and that BOTH faces end up fully simulated — for EVERY source, `generated` included: the
+// `unknown` anywhere, and that EVERY face with playable text (front, `backFace` for a transform / modal DFC,
+// `secondFace` for a split / adventure / flip card) ends up fully simulated — for EVERY source, `generated` included: the
 // drafts directory is gitignored and unindexed, so the only generated script this can reach is one someone promoted
 // into a shard, which is exactly the case worth catching. A script that declares nothing and an ability whose text
 // names no oracle line are WARNings; verification staleness is INFO. Exit 1 on problems.
@@ -17,8 +19,9 @@ import { parseCard } from '../src/cards/parse.js';
 import { tierOf } from '../src/cards/pool.js';
 import { CardScriptChecked } from '../src/cards/schema.js';
 import {
-  applyScript, DEFAULT_SCRIPTS_DIR, hasUnknown, ignoreLineProblem, oracleHash, scriptableLines, scriptHash,
-  ScriptStore, unmatchedAbilityTexts, type CardScript, type ScriptFace,
+  abilityIsSubstantive, applyScript, coverProblems, DEFAULT_SCRIPTS_DIR, faceScriptableLines, hasUnknown,
+  ignoreLineProblem, oracleHash, scriptableLines, scriptHash, ScriptStore, secondFaceLines, secondFaceUnclaimed,
+  unmatchedAbilityTexts, type CardScript, type ScriptFace,
 } from '../src/cards/scripts.js';
 
 const args = process.argv.slice(2);
@@ -55,6 +58,13 @@ function walk(rel: string, into: Set<string>) {
     if (e.isDirectory()) walk(p, into); else if (e.name.endsWith('.json')) into.add(p);
   }
 }
+
+/** Every field a `ScriptFace` may declare — used to tell "this face says nothing" from "this face says something". */
+const FACE_FIELDS = [
+  'keywords', 'abilities', 'altCosts', 'asEnters', 'costModifiers', 'additionalCosts', 'kicker', 'cycling',
+  'cyclingSearch', 'entersTapped', 'morph', 'cascade', 'storm', 'rebound', 'dredge', 'graveyardReplacement',
+  'protectionFrom', 'wardCost', 'toxic', 'bushido', 'rampage', 'landwalk', 'firebending', 'covers',
+] as const satisfies readonly (keyof ScriptFace)[];
 
 const cards = CardDB.shared();
 const ids = selectIds();
@@ -94,43 +104,75 @@ for (const id of ids) {
   const fresh = oracleHash(def.oracleText);
   if (script.oracleHash !== fresh) problems.push(`${id} (${script.name}): stale — oracle text changed (hash ${fresh})`);
 
-  // 3. covers / ignore must name real oracle lines (or a fragment the parser itself reported — see scriptableLines)
-  const lines = new Set(scriptableLines(def));
-  const claimed = [
-    ...(script.covers ?? []).map(l => ['covers', l] as const),
-    ...(script.backFace?.covers ?? []).map(l => ['backFace.covers', l] as const),
-    ...(script.ignore ?? []).map(i => ['ignore', i.line] as const),
+  // 3. every ability must CARRY BEHAVIOUR: an ability with an empty `effects` array claims no line (it would
+  //    otherwise be a card with the right texts and nothing behind them). The schema rejects that too; this reports
+  //    it by name, and also catches an ability whose only content is an `unknown`.
+  for (const [where, face] of [['abilities', script as ScriptFace], ['backFace', script.backFace], ['secondFace', script.secondFace]] as const) {
+    for (const a of face?.abilities ?? []) {
+      if (abilityIsSubstantive(a)) continue;
+      const why = a.kind !== 'static' && (a.effects?.length ?? 0) === 0 ? 'ability declares no effect' : 'ability is nothing but an unknown';
+      problems.push(`${id} (${script.name}): ${where}: ${why}, so it claims no line: ${JSON.stringify(a.text)}`);
+    }
+  }
+
+  // 4. covers / ignore must name real oracle lines OF THE FACE THAT CLAIMS THEM (or a fragment the parser itself
+  //    reported — see scriptableLines), and every covers entry must name a declaration the face really has.
+  const frontLines = new Set(faceScriptableLines(def));
+  const backLines = new Set(def.backFace ? faceScriptableLines(def.backFace) : []);
+  const secondLines = new Set(secondFaceLines(def));
+  const allLines = new Set(scriptableLines(def));
+  const faces = [
+    ['covers', script.covers ?? [], frontLines] as const,
+    ['backFace.covers', script.backFace?.covers ?? [], backLines] as const,
+    ['secondFace.covers', script.secondFace?.covers ?? [], secondLines] as const,
   ];
-  for (const [where, line] of claimed) {
-    if (!lines.has(line.trim())) problems.push(`${id} (${script.name}): ${where} line does not match any oracle line: ${JSON.stringify(line)}`);
+  for (const [where, entries, own] of faces) {
+    for (const c of entries) {
+      const line = c.line.trim().replace(/^\/\/ /, '');
+      if (!own.has(line)) problems.push(`${id} (${script.name}): ${where} line is not a line of that face: ${JSON.stringify(c.line)}`);
+    }
+  }
+  for (const [where, face] of [['covers', script as ScriptFace], ['backFace.covers', script.backFace], ['secondFace.covers', script.secondFace]] as const) {
+    for (const why of coverProblems(face)) problems.push(`${id} (${script.name}): ${where} ${why}`);
+  }
+  for (const ig of script.ignore ?? []) {
+    if (!allLines.has(ig.line.trim())) problems.push(`${id} (${script.name}): ignore line does not match any oracle line: ${JSON.stringify(ig.line)}`);
   }
   const tier = tierOf(rawRow);
   for (const ig of script.ignore ?? []) {
     // ignoreLineProblem (src/cards/scripts.ts) owns the policy: a per-reason whitelist regex, plus the pool tier for
-    // the two reasons that are only available to un-set and Alchemy cards.
+    // the two reasons that are only available to un-set and Alchemy cards. applyScript enforces the same rule at
+    // runtime, so an ignore this rejects leaves its line unparsed rather than only failing here.
     const why = ignoreLineProblem(ig.line, ig.reason, tier);
     if (why) problems.push(`${id} (${script.name}): ignore[${ig.reason}] ${why}: ${JSON.stringify(ig.line)}`);
   }
 
-  // 4. the script must actually finish the card, BOTH faces — every source, `generated` included
-  const applied = applyScript(def, script);
-  if (hasUnknown(applied.abilities) || hasUnknown(applied.backFace?.abilities)) {
+  // 5. the script must actually finish the card — EVERY face with playable text, every source, `generated` included
+  const applied = applyScript(def, script, tier);
+  if (hasUnknown(applied.abilities) || hasUnknown(applied.backFace?.abilities) || hasUnknown(script.secondFace?.abilities)) {
     problems.push(`${id} (${script.name}): ${script.source} script still has an unknown effect / static / trigger / condition`);
+  }
+  // the same ignore set applyScript honours: an ignore the whitelist rejects claims nothing on the second face either
+  const honoured = (script.ignore ?? []).filter(i => ignoreLineProblem(i.line, i.reason, tier) === null).map(i => i.line.trim());
+  const secondUnclaimed = secondFaceUnclaimed(def, script, new Set([...honoured, ...honoured.map(l => l.replace(/^\/\/ /, ''))]));
+  if (secondUnclaimed.length) {
+    problems.push(`${id} (${script.name}): ${script.source} script leaves the second face (${def.faces?.[1]?.name}) unclaimed — declare it under "secondFace": ${secondUnclaimed.slice(0, 3).join(' | ')}`);
   }
   if (!applied.fullyParsed) {
     const back = applied.backFace && !applied.backFace.fullyParsed ? applied.backFace.unparsed : [];
     const where = applied.unparsed.length ? `unclaimed: ${applied.unparsed.slice(0, 3).join(' | ')}`
       : back.length ? `back face unclaimed: ${back.slice(0, 3).join(' | ')}`
+      : secondUnclaimed.length ? `second face unclaimed: ${secondUnclaimed.slice(0, 3).join(' | ')}`
       : 'nothing is unclaimed, but something in the card is still unknown';
     problems.push(`${id} (${script.name}): ${script.source} script does not make the card fully simulated (${where})`);
   }
-  const declares = (f: ScriptFace | undefined) => !!f && [f.abilities, f.keywords, f.altCosts, f.asEnters, f.costModifiers, f.covers].some(v => v?.length);
-  if (!declares(script) && !declares(script.backFace) && !script.ignore?.length)
+  const declares = (f: ScriptFace | undefined) => !!f && FACE_FIELDS.some(k => { const v = f[k]; return v !== undefined && (Array.isArray(v) ? v.length > 0 : true); });
+  if (!declares(script) && !declares(script.backFace) && !declares(script.secondFace) && !script.ignore?.length)
     warn.push(`${id} (${script.name}): ${script.source} script declares nothing — no abilities, keywords, costs, covers or ignore`);
   for (const text of unmatchedAbilityTexts(def, script))
     warn.push(`${id} (${script.name}): ability text names no oracle line, so it claims none: ${JSON.stringify(text)}`);
 
-  // 5. verification freshness — informational only
+  // 6. verification freshness — informational only
   if (script.verification) {
     const v = script.verification;
     if (v.scriptHash !== scriptHash(script)) info.push(`${id} (${script.name}): verification is stale — the script changed since it was verified`);

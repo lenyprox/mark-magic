@@ -11,16 +11,70 @@
       "$ref": "#/$defs/__schema2"
     },
     "altCosts": {
-      "$ref": "#/$defs/__schema22"
+      "$ref": "#/$defs/__schema37"
     },
     "asEnters": {
-      "$ref": "#/$defs/__schema23"
+      "$ref": "#/$defs/__schema38"
     },
     "costModifiers": {
-      "$ref": "#/$defs/__schema24"
+      "$ref": "#/$defs/__schema39"
+    },
+    "additionalCosts": {
+      "$ref": "#/$defs/__schema40"
+    },
+    "kicker": {
+      "$ref": "#/$defs/__schema41"
+    },
+    "cycling": {
+      "$ref": "#/$defs/__schema42"
+    },
+    "cyclingSearch": {
+      "$ref": "#/$defs/__schema43"
+    },
+    "entersTapped": {
+      "$ref": "#/$defs/__schema44"
+    },
+    "morph": {
+      "$ref": "#/$defs/__schema45"
+    },
+    "cascade": {
+      "$ref": "#/$defs/__schema46"
+    },
+    "storm": {
+      "$ref": "#/$defs/__schema47"
+    },
+    "rebound": {
+      "$ref": "#/$defs/__schema48"
+    },
+    "dredge": {
+      "$ref": "#/$defs/__schema49"
+    },
+    "graveyardReplacement": {
+      "$ref": "#/$defs/__schema50"
+    },
+    "protectionFrom": {
+      "$ref": "#/$defs/__schema51"
+    },
+    "wardCost": {
+      "$ref": "#/$defs/__schema52"
+    },
+    "toxic": {
+      "$ref": "#/$defs/__schema53"
+    },
+    "bushido": {
+      "$ref": "#/$defs/__schema54"
+    },
+    "rampage": {
+      "$ref": "#/$defs/__schema55"
+    },
+    "landwalk": {
+      "$ref": "#/$defs/__schema56"
+    },
+    "firebending": {
+      "$ref": "#/$defs/__schema57"
     },
     "covers": {
-      "$ref": "#/$defs/__schema25"
+      "$ref": "#/$defs/__schema58"
     },
     "oracleId": {
       "$ref": "#/$defs/__schema8"
@@ -32,31 +86,34 @@
       "$ref": "#/$defs/__schema8"
     },
     "source": {
-      "$ref": "#/$defs/__schema27"
+      "$ref": "#/$defs/__schema60"
     },
     "confidence": {
-      "$ref": "#/$defs/__schema28"
+      "$ref": "#/$defs/__schema61"
     },
     "mode": {
-      "$ref": "#/$defs/__schema29"
+      "$ref": "#/$defs/__schema62"
     },
     "backFace": {
-      "$ref": "#/$defs/__schema30"
+      "$ref": "#/$defs/__schema63"
+    },
+    "secondFace": {
+      "$ref": "#/$defs/__schema65"
     },
     "ignore": {
-      "$ref": "#/$defs/__schema31"
+      "$ref": "#/$defs/__schema66"
     },
     "scenarios": {
-      "$ref": "#/$defs/__schema32"
+      "$ref": "#/$defs/__schema67"
     },
     "aiHints": {
-      "$ref": "#/$defs/__schema33"
+      "$ref": "#/$defs/__schema68"
     },
     "notes": {
-      "$ref": "#/$defs/__schema34"
+      "$ref": "#/$defs/__schema69"
     },
     "verification": {
-      "$ref": "#/$defs/__schema35"
+      "$ref": "#/$defs/__schema70"
     }
   },
   "required": [
@@ -116,816 +173,129 @@
     "__schema2": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema3"
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "$ref": "#/$defs/__schema3"
+              },
+              "event": {
+                "$ref": "#/$defs/__schema4"
+              },
+              "effects": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema13"
+                }
+              },
+              "condition": {
+                "$ref": "#/$defs/__schema21"
+              },
+              "optional": {
+                "$ref": "#/$defs/__schema22"
+              },
+              "text": {
+                "$ref": "#/$defs/__schema8"
+              },
+              "intervening": {
+                "$ref": "#/$defs/__schema23"
+              },
+              "oncePerTurn": {
+                "$ref": "#/$defs/__schema24"
+              }
+            },
+            "required": [
+              "kind",
+              "event",
+              "effects",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "$ref": "#/$defs/__schema25"
+              },
+              "cost": {
+                "$ref": "#/$defs/__schema26"
+              },
+              "effects": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema13"
+                }
+              },
+              "text": {
+                "$ref": "#/$defs/__schema8"
+              },
+              "sorcerySpeed": {
+                "$ref": "#/$defs/__schema27"
+              },
+              "loyalty": {
+                "$ref": "#/$defs/__schema28"
+              },
+              "oncePerTurn": {
+                "$ref": "#/$defs/__schema29"
+              },
+              "manaAbility": {
+                "$ref": "#/$defs/__schema30"
+              },
+              "activateOnlyIf": {
+                "$ref": "#/$defs/__schema31"
+              },
+              "instantSpeed": {
+                "$ref": "#/$defs/__schema32"
+              },
+              "fromGraveyard": {
+                "$ref": "#/$defs/__schema33"
+              }
+            },
+            "required": [
+              "kind",
+              "cost",
+              "effects",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "$ref": "#/$defs/__schema34"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "$ref": "#/$defs/__schema35"
+              },
+              "effects": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema13"
+                }
+              },
+              "text": {
+                "$ref": "#/$defs/__schema8"
+              }
+            },
+            "required": [
+              "kind",
+              "effects",
+              "text"
+            ],
+            "additionalProperties": false
+          }
+        ]
       }
     },
     "__schema3": {
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "triggered"
-            },
-            "event": {
-              "$ref": "#/$defs/__schema4"
-            },
-            "effects": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/__schema13"
-              }
-            },
-            "condition": {
-              "$ref": "#/$defs/__schema15"
-            },
-            "optional": {
-              "$ref": "#/$defs/__schema5"
-            },
-            "text": {
-              "$ref": "#/$defs/__schema8"
-            },
-            "intervening": {
-              "$ref": "#/$defs/__schema15"
-            },
-            "oncePerTurn": {
-              "$ref": "#/$defs/__schema5"
-            }
-          },
-          "required": [
-            "kind",
-            "event",
-            "effects",
-            "text"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "activated"
-            },
-            "cost": {
-              "$ref": "#/$defs/__schema21"
-            },
-            "effects": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/__schema13"
-              }
-            },
-            "text": {
-              "$ref": "#/$defs/__schema8"
-            },
-            "sorcerySpeed": {
-              "$ref": "#/$defs/__schema5"
-            },
-            "loyalty": {
-              "$ref": "#/$defs/__schema10"
-            },
-            "oncePerTurn": {
-              "$ref": "#/$defs/__schema5"
-            },
-            "manaAbility": {
-              "$ref": "#/$defs/__schema5"
-            },
-            "activateOnlyIf": {
-              "$ref": "#/$defs/__schema15"
-            },
-            "instantSpeed": {
-              "$ref": "#/$defs/__schema5"
-            },
-            "fromGraveyard": {
-              "$ref": "#/$defs/__schema5"
-            }
-          },
-          "required": [
-            "kind",
-            "cost",
-            "effects",
-            "text"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "static"
-            },
-            "effect": {
-              "oneOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "anthem"
-                    },
-                    "power": {
-                      "$ref": "#/$defs/__schema10"
-                    },
-                    "toughness": {
-                      "$ref": "#/$defs/__schema10"
-                    },
-                    "filter": {
-                      "$ref": "#/$defs/__schema6"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "you-control",
-                        "all",
-                        "other-you-control"
-                      ]
-                    },
-                    "keywords": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/$defs/__schema1"
-                      }
-                    },
-                    "condition": {
-                      "$ref": "#/$defs/__schema15"
-                    },
-                    "anyPermanent": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "whileInGraveyard": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "landwalk": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/$defs/__schema8"
-                      }
-                    },
-                    "opponentsOnly": {
-                      "$ref": "#/$defs/__schema5"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "power",
-                    "toughness",
-                    "filter",
-                    "scope"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "damage-by-toughness"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "self",
-                        "you-control"
-                      ]
-                    },
-                    "onlyWhenGreater": {
-                      "$ref": "#/$defs/__schema5"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "scope"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "flash-for"
-                    },
-                    "filter": {
-                      "$ref": "#/$defs/__schema6"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "filter"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "trigger-twice"
-                    },
-                    "equipped": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "event": {
-                      "type": "string",
-                      "enum": [
-                        "etb",
-                        "dies",
-                        "land-etb",
-                        "cast"
-                      ]
-                    },
-                    "filter": {
-                      "$ref": "#/$defs/__schema6"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "counters-replacement"
-                    },
-                    "mode": {
-                      "type": "string",
-                      "enum": [
-                        "double",
-                        "plus-one"
-                      ]
-                    },
-                    "filter": {
-                      "$ref": "#/$defs/__schema6"
-                    },
-                    "counter": {
-                      "$ref": "#/$defs/__schema8"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "mode"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "tokens-replacement"
-                    },
-                    "mode": {
-                      "type": "string",
-                      "const": "double"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "mode"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "extra-mana-on-tap"
-                    },
-                    "filter": {
-                      "$ref": "#/$defs/__schema6"
-                    },
-                    "enchanted": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "mana": {
-                      "anyOf": [
-                        {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/$defs/__schema18"
-                          }
-                        },
-                        {
-                          "type": "string",
-                          "const": "chosen-color"
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "mana"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "grant-mana-ability"
-                    },
-                    "filter": {
-                      "$ref": "#/$defs/__schema6"
-                    },
-                    "enchanted": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "effect": {
-                      "$ref": "#/$defs/__schema13"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "effect"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "grant-ability"
-                    },
-                    "filter": {
-                      "$ref": "#/$defs/__schema6"
-                    },
-                    "enchanted": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "you-control",
-                        "all"
-                      ]
-                    },
-                    "ability": {
-                      "$ref": "#/$defs/__schema3"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "scope",
-                    "ability"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "opponents-cant-cast"
-                    },
-                    "during": {
-                      "type": "string",
-                      "const": "your-turn"
-                    },
-                    "filter": {
-                      "$ref": "#/$defs/__schema6"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "during"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "play-lands-from"
-                    },
-                    "zone": {
-                      "type": "string",
-                      "enum": [
-                        "graveyard",
-                        "library-top"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "zone"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "unspent-mana-becomes-red"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "self-pt"
-                    },
-                    "power": {
-                      "$ref": "#/$defs/__schema11"
-                    },
-                    "toughness": {
-                      "$ref": "#/$defs/__schema11"
-                    },
-                    "condition": {
-                      "$ref": "#/$defs/__schema15"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "power",
-                    "toughness"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "self-keywords"
-                    },
-                    "keywords": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/$defs/__schema1"
-                      }
-                    },
-                    "condition": {
-                      "$ref": "#/$defs/__schema15"
-                    },
-                    "cantBlock": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "mustAttack": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "doesntUntap": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "blockOnlyFlying": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "evasion": {
-                      "$ref": "#/$defs/__schema6"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "keywords"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "can-be-commander"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "look-top-anytime"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "may-not-untap"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "no-max-hand-size"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "cant-attack-unless-defender-controls"
-                    },
-                    "filter": {
-                      "$ref": "#/$defs/__schema6"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "filter"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "extra-blocks"
-                    },
-                    "amount": {
-                      "$ref": "#/$defs/__schema10"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "amount"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "cant-be-blocked-by-more-than-one"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "aura"
-                    },
-                    "power": {
-                      "$ref": "#/$defs/__schema10"
-                    },
-                    "toughness": {
-                      "$ref": "#/$defs/__schema10"
-                    },
-                    "keywords": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/$defs/__schema1"
-                      }
-                    },
-                    "cantAttackOrBlock": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "cantAttack": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "cantBlock": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "doesntUntap": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "enchant": {
-                      "$ref": "#/$defs/__schema14"
-                    },
-                    "controlEnchanted": {
-                      "$ref": "#/$defs/__schema5"
-                    },
-                    "text": {
-                      "$ref": "#/$defs/__schema8"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "power",
-                    "toughness",
-                    "enchant"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "equipment"
-                    },
-                    "power": {
-                      "$ref": "#/$defs/__schema10"
-                    },
-                    "toughness": {
-                      "$ref": "#/$defs/__schema10"
-                    },
-                    "keywords": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/$defs/__schema1"
-                      }
-                    },
-                    "equipCost": {
-                      "$ref": "#/$defs/__schema17"
-                    },
-                    "equipFilter": {
-                      "$ref": "#/$defs/__schema6"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "power",
-                    "toughness",
-                    "equipCost"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "cost-adjust"
-                    },
-                    "filter": {
-                      "$ref": "#/$defs/__schema6"
-                    },
-                    "amount": {
-                      "$ref": "#/$defs/__schema10"
-                    },
-                    "who": {
-                      "type": "string",
-                      "enum": [
-                        "you",
-                        "opponent",
-                        "any"
-                      ]
-                    },
-                    "from": {
-                      "type": "string",
-                      "const": "non-hand"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "filter",
-                    "amount",
-                    "who"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "opponent-creatures-etb-tapped"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "extra-land"
-                    },
-                    "amount": {
-                      "$ref": "#/$defs/__schema10"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "amount"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "cant-be-countered"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "lifegain-multiplier"
-                    },
-                    "plus": {
-                      "$ref": "#/$defs/__schema10"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "unknown"
-                    },
-                    "text": {
-                      "$ref": "#/$defs/__schema8"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "text"
-                  ],
-                  "additionalProperties": false
-                }
-              ]
-            },
-            "text": {
-              "$ref": "#/$defs/__schema8"
-            }
-          },
-          "required": [
-            "kind",
-            "effect",
-            "text"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "spell"
-            },
-            "effects": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/__schema13"
-              }
-            },
-            "text": {
-              "$ref": "#/$defs/__schema8"
-            }
-          },
-          "required": [
-            "kind",
-            "effects",
-            "text"
-          ],
-          "additionalProperties": false
-        }
-      ]
+      "type": "string",
+      "const": "triggered"
     },
     "__schema4": {
       "oneOf": [
@@ -2706,7 +2076,7 @@
               "const": "gain-ability"
             },
             "ability": {
-              "$ref": "#/$defs/__schema3"
+              "$ref": "#/$defs/__schema20"
             }
           },
           "required": [
@@ -3005,7 +2375,7 @@
               }
             },
             "duration": {
-              "$ref": "#/$defs/__schema20"
+              "$ref": "#/$defs/__schema36"
             }
           },
           "required": [
@@ -3046,7 +2416,7 @@
               }
             },
             "duration": {
-              "$ref": "#/$defs/__schema20"
+              "$ref": "#/$defs/__schema36"
             }
           },
           "required": [
@@ -3629,7 +2999,7 @@
               "$ref": "#/$defs/__schema14"
             },
             "duration": {
-              "$ref": "#/$defs/__schema20"
+              "$ref": "#/$defs/__schema36"
             },
             "untapHaste": {
               "$ref": "#/$defs/__schema5"
@@ -3973,7 +3343,7 @@
               }
             },
             "duration": {
-              "$ref": "#/$defs/__schema20"
+              "$ref": "#/$defs/__schema36"
             }
           },
           "required": [
@@ -5455,13 +4825,139 @@
       "description": "a number, or the parser literal \"X\""
     },
     "__schema20": {
-      "type": "string",
-      "enum": [
-        "eot",
-        "permanent"
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "$ref": "#/$defs/__schema3"
+            },
+            "event": {
+              "$ref": "#/$defs/__schema4"
+            },
+            "effects": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            },
+            "condition": {
+              "$ref": "#/$defs/__schema21"
+            },
+            "optional": {
+              "$ref": "#/$defs/__schema22"
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "intervening": {
+              "$ref": "#/$defs/__schema23"
+            },
+            "oncePerTurn": {
+              "$ref": "#/$defs/__schema24"
+            }
+          },
+          "required": [
+            "kind",
+            "event",
+            "effects",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "$ref": "#/$defs/__schema25"
+            },
+            "cost": {
+              "$ref": "#/$defs/__schema26"
+            },
+            "effects": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            },
+            "sorcerySpeed": {
+              "$ref": "#/$defs/__schema27"
+            },
+            "loyalty": {
+              "$ref": "#/$defs/__schema28"
+            },
+            "oncePerTurn": {
+              "$ref": "#/$defs/__schema29"
+            },
+            "manaAbility": {
+              "$ref": "#/$defs/__schema30"
+            },
+            "activateOnlyIf": {
+              "$ref": "#/$defs/__schema31"
+            },
+            "instantSpeed": {
+              "$ref": "#/$defs/__schema32"
+            },
+            "fromGraveyard": {
+              "$ref": "#/$defs/__schema33"
+            }
+          },
+          "required": [
+            "kind",
+            "cost",
+            "effects",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/__schema34"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "$ref": "#/$defs/__schema35"
+            },
+            "effects": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema13"
+              }
+            },
+            "text": {
+              "$ref": "#/$defs/__schema8"
+            }
+          },
+          "required": [
+            "kind",
+            "effects",
+            "text"
+          ],
+          "additionalProperties": false
+        }
       ]
     },
     "__schema21": {
+      "$ref": "#/$defs/__schema15"
+    },
+    "__schema22": {
+      "$ref": "#/$defs/__schema5"
+    },
+    "__schema23": {
+      "$ref": "#/$defs/__schema15"
+    },
+    "__schema24": {
+      "$ref": "#/$defs/__schema5"
+    },
+    "__schema25": {
+      "type": "string",
+      "const": "activated"
+    },
+    "__schema26": {
       "type": "object",
       "properties": {
         "mana": {
@@ -5576,7 +5072,730 @@
       },
       "additionalProperties": false
     },
-    "__schema22": {
+    "__schema27": {
+      "$ref": "#/$defs/__schema5"
+    },
+    "__schema28": {
+      "$ref": "#/$defs/__schema10"
+    },
+    "__schema29": {
+      "$ref": "#/$defs/__schema5"
+    },
+    "__schema30": {
+      "$ref": "#/$defs/__schema5"
+    },
+    "__schema31": {
+      "$ref": "#/$defs/__schema15"
+    },
+    "__schema32": {
+      "$ref": "#/$defs/__schema5"
+    },
+    "__schema33": {
+      "$ref": "#/$defs/__schema5"
+    },
+    "__schema34": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "static"
+        },
+        "effect": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "anthem"
+                },
+                "power": {
+                  "$ref": "#/$defs/__schema10"
+                },
+                "toughness": {
+                  "$ref": "#/$defs/__schema10"
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "you-control",
+                    "all",
+                    "other-you-control"
+                  ]
+                },
+                "keywords": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema1"
+                  }
+                },
+                "condition": {
+                  "$ref": "#/$defs/__schema15"
+                },
+                "anyPermanent": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "whileInGraveyard": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "landwalk": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema8"
+                  }
+                },
+                "opponentsOnly": {
+                  "$ref": "#/$defs/__schema5"
+                }
+              },
+              "required": [
+                "kind",
+                "power",
+                "toughness",
+                "filter",
+                "scope"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "damage-by-toughness"
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "self",
+                    "you-control"
+                  ]
+                },
+                "onlyWhenGreater": {
+                  "$ref": "#/$defs/__schema5"
+                }
+              },
+              "required": [
+                "kind",
+                "scope"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "flash-for"
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                }
+              },
+              "required": [
+                "kind",
+                "filter"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "trigger-twice"
+                },
+                "equipped": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "event": {
+                  "type": "string",
+                  "enum": [
+                    "etb",
+                    "dies",
+                    "land-etb",
+                    "cast"
+                  ]
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "counters-replacement"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "double",
+                    "plus-one"
+                  ]
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                },
+                "counter": {
+                  "$ref": "#/$defs/__schema8"
+                }
+              },
+              "required": [
+                "kind",
+                "mode"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "tokens-replacement"
+                },
+                "mode": {
+                  "type": "string",
+                  "const": "double"
+                }
+              },
+              "required": [
+                "kind",
+                "mode"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "extra-mana-on-tap"
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                },
+                "enchanted": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "mana": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema18"
+                      }
+                    },
+                    {
+                      "type": "string",
+                      "const": "chosen-color"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "mana"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "grant-mana-ability"
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                },
+                "enchanted": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "effect": {
+                  "$ref": "#/$defs/__schema13"
+                }
+              },
+              "required": [
+                "kind",
+                "effect"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "grant-ability"
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                },
+                "enchanted": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "you-control",
+                    "all"
+                  ]
+                },
+                "ability": {
+                  "$ref": "#/$defs/__schema20"
+                }
+              },
+              "required": [
+                "kind",
+                "scope",
+                "ability"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "opponents-cant-cast"
+                },
+                "during": {
+                  "type": "string",
+                  "const": "your-turn"
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                }
+              },
+              "required": [
+                "kind",
+                "during"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "play-lands-from"
+                },
+                "zone": {
+                  "type": "string",
+                  "enum": [
+                    "graveyard",
+                    "library-top"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "zone"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "unspent-mana-becomes-red"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "self-pt"
+                },
+                "power": {
+                  "$ref": "#/$defs/__schema11"
+                },
+                "toughness": {
+                  "$ref": "#/$defs/__schema11"
+                },
+                "condition": {
+                  "$ref": "#/$defs/__schema15"
+                }
+              },
+              "required": [
+                "kind",
+                "power",
+                "toughness"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "self-keywords"
+                },
+                "keywords": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema1"
+                  }
+                },
+                "condition": {
+                  "$ref": "#/$defs/__schema15"
+                },
+                "cantBlock": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "mustAttack": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "doesntUntap": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "blockOnlyFlying": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "evasion": {
+                  "$ref": "#/$defs/__schema6"
+                }
+              },
+              "required": [
+                "kind",
+                "keywords"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "can-be-commander"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "look-top-anytime"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "may-not-untap"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "no-max-hand-size"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "cant-attack-unless-defender-controls"
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                }
+              },
+              "required": [
+                "kind",
+                "filter"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "extra-blocks"
+                },
+                "amount": {
+                  "$ref": "#/$defs/__schema10"
+                }
+              },
+              "required": [
+                "kind",
+                "amount"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "cant-be-blocked-by-more-than-one"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "aura"
+                },
+                "power": {
+                  "$ref": "#/$defs/__schema10"
+                },
+                "toughness": {
+                  "$ref": "#/$defs/__schema10"
+                },
+                "keywords": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema1"
+                  }
+                },
+                "cantAttackOrBlock": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "cantAttack": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "cantBlock": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "doesntUntap": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "enchant": {
+                  "$ref": "#/$defs/__schema14"
+                },
+                "controlEnchanted": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "text": {
+                  "$ref": "#/$defs/__schema8"
+                }
+              },
+              "required": [
+                "kind",
+                "power",
+                "toughness",
+                "enchant"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "equipment"
+                },
+                "power": {
+                  "$ref": "#/$defs/__schema10"
+                },
+                "toughness": {
+                  "$ref": "#/$defs/__schema10"
+                },
+                "keywords": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema1"
+                  }
+                },
+                "equipCost": {
+                  "$ref": "#/$defs/__schema17"
+                },
+                "equipFilter": {
+                  "$ref": "#/$defs/__schema6"
+                }
+              },
+              "required": [
+                "kind",
+                "power",
+                "toughness",
+                "equipCost"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "cost-adjust"
+                },
+                "filter": {
+                  "$ref": "#/$defs/__schema6"
+                },
+                "amount": {
+                  "$ref": "#/$defs/__schema10"
+                },
+                "who": {
+                  "type": "string",
+                  "enum": [
+                    "you",
+                    "opponent",
+                    "any"
+                  ]
+                },
+                "from": {
+                  "type": "string",
+                  "const": "non-hand"
+                }
+              },
+              "required": [
+                "kind",
+                "filter",
+                "amount",
+                "who"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "opponent-creatures-etb-tapped"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "extra-land"
+                },
+                "amount": {
+                  "$ref": "#/$defs/__schema10"
+                }
+              },
+              "required": [
+                "kind",
+                "amount"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "cant-be-countered"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "lifegain-multiplier"
+                },
+                "plus": {
+                  "$ref": "#/$defs/__schema10"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "unknown"
+                },
+                "text": {
+                  "$ref": "#/$defs/__schema8"
+                }
+              },
+              "required": [
+                "kind",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "text": {
+          "$ref": "#/$defs/__schema8"
+        }
+      },
+      "required": [
+        "kind",
+        "effect",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "__schema35": {
+      "type": "string",
+      "const": "spell"
+    },
+    "__schema36": {
+      "type": "string",
+      "enum": [
+        "eot",
+        "permanent"
+      ]
+    },
+    "__schema37": {
       "type": "array",
       "items": {
         "type": "object",
@@ -5602,7 +5821,7 @@
             "$ref": "#/$defs/__schema8"
           },
           "cost": {
-            "$ref": "#/$defs/__schema21"
+            "$ref": "#/$defs/__schema26"
           },
           "condition": {
             "$ref": "#/$defs/__schema15"
@@ -5633,7 +5852,7 @@
         "additionalProperties": false
       }
     },
-    "__schema23": {
+    "__schema38": {
       "type": "array",
       "items": {
         "oneOf": [
@@ -5749,7 +5968,7 @@
         ]
       }
     },
-    "__schema24": {
+    "__schema39": {
       "type": "array",
       "items": {
         "oneOf": [
@@ -5812,18 +6031,152 @@
         ]
       }
     },
-    "__schema25": {
+    "__schema40": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema26"
       }
     },
-    "__schema26": {
+    "__schema41": {
+      "$ref": "#/$defs/__schema17"
+    },
+    "__schema42": {
+      "$ref": "#/$defs/__schema17"
+    },
+    "__schema43": {
+      "$ref": "#/$defs/__schema6"
+    },
+    "__schema44": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/__schema5"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "unless": {
+              "$ref": "#/$defs/__schema15"
+            }
+          },
+          "required": [
+            "unless"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema45": {
+      "type": "object",
+      "properties": {
+        "cost": {
+          "$ref": "#/$defs/__schema17"
+        },
+        "megamorph": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "disguise": {
+          "$ref": "#/$defs/__schema5"
+        }
+      },
+      "required": [
+        "cost"
+      ],
+      "additionalProperties": false
+    },
+    "__schema46": {
+      "$ref": "#/$defs/__schema5"
+    },
+    "__schema47": {
+      "$ref": "#/$defs/__schema5"
+    },
+    "__schema48": {
+      "$ref": "#/$defs/__schema5"
+    },
+    "__schema49": {
+      "$ref": "#/$defs/__schema10"
+    },
+    "__schema50": {
+      "type": "string",
+      "enum": [
+        "exile",
+        "shuffle"
+      ]
+    },
+    "__schema51": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema8"
+      }
+    },
+    "__schema52": {
+      "$ref": "#/$defs/__schema10"
+    },
+    "__schema53": {
+      "$ref": "#/$defs/__schema10"
+    },
+    "__schema54": {
+      "$ref": "#/$defs/__schema10"
+    },
+    "__schema55": {
+      "$ref": "#/$defs/__schema10"
+    },
+    "__schema56": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema8"
+      }
+    },
+    "__schema57": {
+      "$ref": "#/$defs/__schema10"
+    },
+    "__schema58": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "$ref": "#/$defs/__schema59"
+          },
+          "by": {
+            "type": "string",
+            "enum": [
+              "keywords",
+              "altCosts",
+              "asEnters",
+              "costModifiers",
+              "kicker",
+              "cycling",
+              "entersTapped",
+              "morph",
+              "cascade",
+              "storm",
+              "rebound",
+              "dredge",
+              "graveyardReplacement",
+              "protection",
+              "ward",
+              "additionalCosts",
+              "toxic",
+              "bushido",
+              "rampage",
+              "landwalk",
+              "firebending"
+            ]
+          }
+        },
+        "required": [
+          "line",
+          "by"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "__schema59": {
       "type": "string",
       "minLength": 1,
       "pattern": "^(?!\\*$)"
     },
-    "__schema27": {
+    "__schema60": {
       "type": "string",
       "enum": [
         "generated",
@@ -5832,17 +6185,20 @@
         "hand"
       ]
     },
-    "__schema28": {
+    "__schema61": {
       "$ref": "#/$defs/__schema10"
     },
-    "__schema29": {
+    "__schema62": {
       "type": "string",
       "enum": [
         "replace",
         "extend"
       ]
     },
-    "__schema30": {
+    "__schema63": {
+      "$ref": "#/$defs/__schema64"
+    },
+    "__schema64": {
       "type": "object",
       "properties": {
         "keywords": {
@@ -5852,27 +6208,84 @@
           "$ref": "#/$defs/__schema2"
         },
         "altCosts": {
-          "$ref": "#/$defs/__schema22"
+          "$ref": "#/$defs/__schema37"
         },
         "asEnters": {
-          "$ref": "#/$defs/__schema23"
+          "$ref": "#/$defs/__schema38"
         },
         "costModifiers": {
-          "$ref": "#/$defs/__schema24"
+          "$ref": "#/$defs/__schema39"
+        },
+        "additionalCosts": {
+          "$ref": "#/$defs/__schema40"
+        },
+        "kicker": {
+          "$ref": "#/$defs/__schema41"
+        },
+        "cycling": {
+          "$ref": "#/$defs/__schema42"
+        },
+        "cyclingSearch": {
+          "$ref": "#/$defs/__schema43"
+        },
+        "entersTapped": {
+          "$ref": "#/$defs/__schema44"
+        },
+        "morph": {
+          "$ref": "#/$defs/__schema45"
+        },
+        "cascade": {
+          "$ref": "#/$defs/__schema46"
+        },
+        "storm": {
+          "$ref": "#/$defs/__schema47"
+        },
+        "rebound": {
+          "$ref": "#/$defs/__schema48"
+        },
+        "dredge": {
+          "$ref": "#/$defs/__schema49"
+        },
+        "graveyardReplacement": {
+          "$ref": "#/$defs/__schema50"
+        },
+        "protectionFrom": {
+          "$ref": "#/$defs/__schema51"
+        },
+        "wardCost": {
+          "$ref": "#/$defs/__schema52"
+        },
+        "toxic": {
+          "$ref": "#/$defs/__schema53"
+        },
+        "bushido": {
+          "$ref": "#/$defs/__schema54"
+        },
+        "rampage": {
+          "$ref": "#/$defs/__schema55"
+        },
+        "landwalk": {
+          "$ref": "#/$defs/__schema56"
+        },
+        "firebending": {
+          "$ref": "#/$defs/__schema57"
         },
         "covers": {
-          "$ref": "#/$defs/__schema25"
+          "$ref": "#/$defs/__schema58"
         }
       },
       "additionalProperties": false
     },
-    "__schema31": {
+    "__schema65": {
+      "$ref": "#/$defs/__schema64"
+    },
+    "__schema66": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "line": {
-            "$ref": "#/$defs/__schema26"
+            "$ref": "#/$defs/__schema59"
           },
           "reason": {
             "type": "string",
@@ -5881,7 +6294,6 @@
               "ante",
               "outside-the-game",
               "deck-construction",
-              "reminder-only",
               "un-physical",
               "digital-only"
             ]
@@ -5894,13 +6306,13 @@
         "additionalProperties": false
       }
     },
-    "__schema32": {
+    "__schema67": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema8"
       }
     },
-    "__schema33": {
+    "__schema68": {
       "type": "object",
       "properties": {
         "role": {
@@ -5921,10 +6333,10 @@
       },
       "additionalProperties": false
     },
-    "__schema34": {
+    "__schema69": {
       "$ref": "#/$defs/__schema8"
     },
-    "__schema35": {
+    "__schema70": {
       "type": "object",
       "properties": {
         "at": {

@@ -7,10 +7,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { CardDB } from '../src/cards/db.js';
 import {
-  applyScript, ignoreLineProblem, normalizeOracleLines, oracleHash, scriptableLines, scriptHash, shardOf, ScriptStore,
-  unmatchedAbilityTexts, useScriptStore, type CardScript, type ScriptSource, type Verification,
+  applyScript, COVER_KINDS, coverProblem, IGNORE_REASONS, ignoreLineProblem, normalizeOracleLines, oracleHash, scriptableLines,
+  scriptHash, secondFaceLines, secondFaceUnclaimed, shardOf, ScriptStore, unmatchedAbilityTexts, useScriptStore,
+  type CardScript, type CoverKind, type ScriptFace, type ScriptSource, type Verification,
 } from '../src/cards/scripts.js';
 import { CardScriptChecked } from '../src/cards/schema.js';
+import type { CardDef } from '../src/cards/types.js';
 import { db } from './helpers.js';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'scripts-'));
@@ -65,11 +67,11 @@ test('applyScript: a spell ability claims every line of its text, and an unknown
   assert.deepEqual(ok.unparsed, []);
   assert.equal(ok.fullyParsed, true);
 
-  // …but a claimed line is not enough: an `unknown` anywhere in the face fails it
+  // …an `unknown` anywhere in the ability makes it insubstantial: it claims nothing AND fails the face
   const unknown = applyScript(shock, scriptFor('Shock', {
     abilities: [{ kind: 'spell', effects: [{ op: 'unknown', text: line }], text: line }],
   }));
-  assert.deepEqual(unknown.unparsed, [], 'the line itself is claimed');
+  assert.deepEqual(unknown.unparsed, [line], 'an ability whose effect is unknown claims no line');
   assert.equal(unknown.fullyParsed, false, 'a replace-mode script with an unknown op is never fully simulated');
 
   // nested just as deep: unknown inside conditional -> optional-then -> choose-mode
@@ -79,36 +81,122 @@ test('applyScript: a spell ability claims every line of its text, and an unknown
       effects: [{ op: 'conditional', condition: { kind: 'your-turn' }, then: [{ op: 'optional-then', first: [{ op: 'choose-mode', count: 1, modes: [[{ op: 'unknown', text: 'deep' }]] }], then: [] }] }],
     }],
   }));
-  assert.equal(nested.fullyParsed, false, 'the unknown walk descends through conditional / optional-then / choose-mode');
+  assert.deepEqual(nested.unparsed, [line], 'the unknown walk descends through conditional / optional-then / choose-mode');
+  assert.equal(nested.fullyParsed, false);
 });
 
-test('applyScript: covers claims a line only when a declaration justifies it', () => {
+test('applyScript: an ability that declares no effect claims nothing, and the script schema rejects it', () => {
   const elves = db.get('Llanowar Elves')!;
-  // THE BLOCKER: covers with no behaviour behind it must not finish a card
-  const bare = scriptFor('Llanowar Elves', { covers: [ELVES] });
+  // THE BLOCKER: a script of empty abilities would otherwise carry the right oracle texts and no behaviour at all
+  const empty = scriptFor('Llanowar Elves', { abilities: [{ kind: 'activated', cost: { tap: true }, effects: [], text: ELVES }] });
+  const applied = applyScript(elves, empty);
+  assert.deepEqual(applied.unparsed, [ELVES], 'an empty-effect ability claims no line');
+  assert.equal(applied.fullyParsed, false);
+
+  const res = CardScriptChecked.safeParse(empty);
+  assert.ok(!res.success, 'and the script schema rejects the file outright');
+  assert.ok(res.error!.issues.some(i => i.message === 'ability declares no effect'), JSON.stringify(res.error!.issues.map(i => i.message)));
+
+  // every ability kind with an `effects` array is covered
+  for (const ability of [
+    { kind: 'spell', effects: [], text: ELVES },
+    { kind: 'triggered', event: { on: 'etb', self: true }, effects: [], text: ELVES },
+  ] as NonNullable<CardScript['abilities']>) {
+    const s = scriptFor('Llanowar Elves', { abilities: [ability] });
+    assert.deepEqual(applyScript(elves, s).unparsed, [ELVES], `${ability.kind}: an empty-effect ability claims nothing`);
+    assert.ok(!CardScriptChecked.safeParse(s).success, `${ability.kind}: rejected by the script schema`);
+  }
+
+  // the PARSER's own schema stays lenient: 56 of its abilities over the 34,513-card pool have no effect
+  assert.equal(applyScript(elves, scriptFor('Llanowar Elves', { abilities: manaAbility(ELVES) })).fullyParsed, true);
+});
+
+/** Copy the named declarations off the parser's own def, so a test face declares exactly what the card really has. */
+const faceFrom = (def: CardDef, keys: (keyof ScriptFace)[]): ScriptFace => {
+  const out: Record<string, unknown> = {};
+  for (const k of keys) out[k] = (def as unknown as Record<string, unknown>)[k];
+  return out as ScriptFace;
+};
+
+/** One real card per cover kind: the oracle line, the kind that covers it, and the declarations that back it. */
+const COVER_CASES: [card: string, line: string, by: CoverKind, decls: (keyof ScriptFace)[]][] = [
+  ['Serra Angel', 'Flying', 'keywords', ['keywords']],
+  ['Faithless Looting', 'Flashback {2}{R}', 'altCosts', ['altCosts']],
+  ['Steam Vents', "As ~ enters, you may pay 2 life. If you don't, it enters tapped.", 'asEnters', ['asEnters']],
+  ['Treasure Cruise', 'Delve', 'costModifiers', ['costModifiers']],
+  ['Rite of Replication', 'Kicker {5}', 'kicker', ['kicker']],
+  ['Eternal Dragon', 'Plainscycling {2}', 'cycling', ['cycling', 'cyclingSearch']],
+  ['Thornwood Falls', '~ enters tapped.', 'entersTapped', ['entersTapped']],
+  ['Rattleclaw Mystic', 'Morph {2}', 'morph', ['morph']],
+  ['Bloodbraid Elf', 'Cascade', 'cascade', ['cascade']],
+  ['Grapeshot', 'Storm', 'storm', ['storm']],
+  ['Distortion Strike', 'Rebound', 'rebound', ['rebound']],
+  ['Stinkweed Imp', 'Dredge 5', 'dredge', ['dredge']],
+  ['Progenitus', "If ~ would be put into a graveyard from anywhere, reveal ~ and shuffle it into its owner's library instead.", 'graveyardReplacement', ['graveyardReplacement']],
+  ['Progenitus', 'Protection from everything', 'protection', ['protectionFrom']],
+  ['Dreadlight Monstrosity', 'Ward {2}', 'ward', ['wardCost']],
+  ['Bone Splinters', 'As an additional cost to cast ~, sacrifice a creature.', 'additionalCosts', ['additionalCosts']],
+  ['Pestilent Syphoner', 'Toxic 1', 'toxic', ['toxic']],
+  ['Devoted Retainer', 'Bushido 1', 'bushido', ['bushido']],
+  ['Craw Giant', 'Rampage 2', 'rampage', ['rampage']],
+  ['Street Wraith', 'Swampwalk', 'landwalk', ['landwalk']],
+  ['Fire Sages', 'Firebending 1', 'firebending', ['firebending']],
+];
+
+test('covers: every cover kind is backed by a real declaration on a real card, and claims that line', () => {
+  assert.deepEqual([...new Set(COVER_CASES.map(c => c[2]))].sort(), [...COVER_KINDS].sort(), 'every cover kind needs a case');
+
+  for (const [card, line, by, decls] of COVER_CASES) {
+    const def = db.get(card)!;
+    assert.ok(normalizeOracleLines(def).includes(line), `${card}: ${JSON.stringify(line)} is not an oracle line of the card`);
+    const face = faceFrom(def, decls);
+    assert.equal(coverProblem(face, { line, by }), null, `${card} / ${by}`);
+
+    // the same line covered by any OTHER kind is rejected — either the declaration is missing or the shape is wrong
+    for (const other of COVER_KINDS) {
+      if (other === by) continue;
+      assert.ok(coverProblem(face, { line, by: other }), `${card}: ${JSON.stringify(line)} must not be coverable by '${other}'`);
+    }
+    // and the declaration alone is not enough: drop it and the entry is rejected
+    assert.ok(coverProblem({}, { line, by }), `${card} / ${by}: an undeclared ${by} must not cover anything`);
+  }
+});
+
+test('covers: a throwaway declaration buys nothing, and the schema rejects an invalid entry', () => {
+  const elves = db.get('Llanowar Elves')!;
+  // THE OLD BLOCKER: covers with no declaration behind it must not finish a card
+  const bare = scriptFor('Llanowar Elves', { covers: [{ line: ELVES, by: 'keywords' }] });
   const applied = applyScript(elves, bare);
-  assert.deepEqual(applied.unparsed, [ELVES], 'an unjustified covers entry claims nothing');
+  assert.deepEqual(applied.unparsed, [ELVES], 'an invalid covers entry claims nothing');
   assert.equal(applied.fullyParsed, false);
   assert.ok(!CardScriptChecked.safeParse(bare).success, 'and the schema rejects the file outright');
 
-  // one declaration buys one covered line
-  const justified = scriptFor('Llanowar Elves', { keywords: ['flying'], covers: [ELVES] });
-  assert.ok(CardScriptChecked.safeParse(justified).success);
-  assert.equal(applyScript(elves, justified).fullyParsed, true);
+  // THE ROUND-2 BLOCKER: N throwaway keywords used to buy N arbitrary lines. Now each entry must match its kind.
+  const throwaway = scriptFor('Llanowar Elves', { keywords: ['flying', 'haste', 'trample'], covers: [{ line: ELVES, by: 'keywords' }] });
+  assert.ok(!CardScriptChecked.safeParse(throwaway).success, 'three keywords do not buy an unrelated line');
+  assert.deepEqual(applyScript(elves, throwaway).unparsed, [ELVES]);
 
-  // a covers entry that repeats an ability's own text is free, so it never eats the budget
-  const free = scriptFor('Llanowar Elves', { abilities: manaAbility(ELVES), covers: [ELVES] });
-  assert.ok(CardScriptChecked.safeParse(free).success);
-  assert.equal(applyScript(elves, free).fullyParsed, true);
+  // a keyword line IS claimed by the keywords it names — with or without a covers entry
+  const angel = db.get('Serra Angel')!;
+  const kw = scriptFor('Serra Angel', { keywords: ['flying', 'vigilance'], covers: [{ line: 'Flying', by: 'keywords' }, { line: 'Vigilance', by: 'keywords' }] });
+  assert.ok(CardScriptChecked.safeParse(kw).success);
+  assert.equal(applyScript(angel, kw).fullyParsed, true);
 
-  // …but two unbacked covers against one declaration is over budget
-  const over = scriptFor('Llanowar Elves', { keywords: ['flying'], covers: [ELVES, 'Flying'] });
-  assert.ok(!CardScriptChecked.safeParse(over).success);
+  // a declaration of the wrong kind for the line
+  const looting = db.get('Faithless Looting')!;
+  const wrongKind = scriptFor('Faithless Looting', {
+    abilities: looting.abilities, altCosts: looting.altCosts,
+    cycling: { generic: 2, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{2}' },
+    covers: [{ line: 'Flashback {2}{R}', by: 'cycling' }],
+  });
+  assert.ok(!CardScriptChecked.safeParse(wrongKind).success, "a flashback line is not covered by 'cycling'");
 
   // the '*' wildcard is gone from the format, in covers and in ignore
-  assert.ok(!CardScriptChecked.safeParse(scriptFor('Llanowar Elves', { mode: 'extend', covers: ['*'] })).success);
-  assert.ok(!CardScriptChecked.safeParse(scriptFor('Llanowar Elves', { mode: 'extend', backFace: { covers: ['*'] } })).success);
+  assert.ok(!CardScriptChecked.safeParse(scriptFor('Llanowar Elves', { mode: 'extend', covers: [{ line: '*', by: 'keywords' }] })).success);
+  assert.ok(!CardScriptChecked.safeParse(scriptFor('Llanowar Elves', { mode: 'extend', backFace: { covers: [{ line: '*', by: 'keywords' }] } })).success);
   assert.ok(!CardScriptChecked.safeParse(scriptFor('Llanowar Elves', { ignore: [{ line: '*', reason: 'ante' }] })).success);
+  // a plain-string covers entry is not the format: there is no legacy form to accept
+  assert.ok(!CardScriptChecked.safeParse({ ...scriptFor('Llanowar Elves'), covers: [ELVES] }).success);
 });
 
 test('applyScript: a line made only of keywords the face has is claimed by them', () => {
@@ -190,6 +278,42 @@ test('applyScript: backFace is applied to def.backFace and a card is finished on
   assert.notEqual(hunt.backFace!.abilities[0], both.backFace!.abilities[0], 'the input def is untouched');
 });
 
+test('applyScript: split / adventure / flip cards must claim their SECOND face too', () => {
+  // parse.ts parses faces[0] only (parse.ts:1146) and builds a `backFace` for transform / modal_dfc alone
+  // (parse.ts:1362), so the second half of these three layouts is text no CardDef ever holds. A script must claim it.
+  const spell = (text: string): CardScript['abilities'] => [{ kind: 'spell', effects: [{ op: 'gain-life', amount: 1, who: 'you' }], text }];
+
+  for (const [name, expected] of [
+    ['Fire // Ice', ['Tap target permanent.', 'Draw a card.']],
+    ['Bonecrusher Giant', ["Damage can't be prevented this turn. ~ deals 2 damage to any target."]],
+    ['Akki Lavarunner', ['Protection from red', 'If a red source would deal damage to a player, it deals that much damage plus 1 to that player instead.']],
+  ] as [string, string[]][]) {
+    const def = db.get(name)!;
+    assert.deepEqual(secondFaceLines(def), expected, `${name}: second-face lines`);
+    for (const l of expected) assert.ok(scriptableLines(def).includes(l), `${name}: a script must be able to name ${JSON.stringify(l)}`);
+
+    // a script that finishes only the first half is NOT fully simulated
+    const frontOnly = scriptFor(name, {
+      keywords: def.keywords,
+      abilities: normalizeOracleLines(def).filter(l => !l.startsWith('// ')).flatMap(l => spell(l)!),
+    });
+    assert.deepEqual(secondFaceUnclaimed(def, frontOnly), expected, `${name}: the second face is unclaimed`);
+    const half = applyScript(def, frontOnly);
+    assert.deepEqual(half.unparsed, [], `${name}: the first half itself is finished`);
+    assert.equal(half.fullyParsed, false, `${name}: a half-declared split card is not fully simulated`);
+
+    // …and declaring the second face finishes it
+    const both = applyScript(def, { ...frontOnly, secondFace: { keywords: ['protection'], abilities: expected.flatMap(l => spell(l)!) } });
+    assert.deepEqual(secondFaceUnclaimed(def, { ...frontOnly, secondFace: { abilities: expected.flatMap(l => spell(l)!) } }), []);
+    assert.equal(both.fullyParsed, true, `${name}: both halves declared`);
+  }
+
+  // nothing changes for every other layout: there is no second face to claim
+  for (const name of ['Llanowar Elves', 'Serra Angel', 'Huntmaster of the Fells']) {
+    assert.deepEqual(secondFaceLines(db.get(name)!), [], `${name} has no second face`);
+  }
+});
+
 test('unmatchedAbilityTexts: an ability whose text names no oracle line claims nothing (scripts:check warns)', () => {
   const elves = db.get('Llanowar Elves')!;
   assert.deepEqual(unmatchedAbilityTexts(elves, scriptFor('Llanowar Elves', { abilities: manaAbility(ELVES) })), []);
@@ -211,23 +335,50 @@ test('ignoreLineProblem: a line must match the whitelist regex of the reason it 
   assert.equal(ignoreLineProblem(line('Cunning Wish', 0), 'outside-the-game'), null);
   assert.equal(ignoreLineProblem('A deck can have any number of cards named ~.', 'deck-construction'), null);
   assert.equal(ignoreLineProblem('Partner', 'deck-construction'), null);
-  assert.equal(ignoreLineProblem('(This is reminder text.)', 'reminder-only'), null);
 
   // an ante card is not a deck-construction card, and ordinary game text is no reason's business
   assert.ok(ignoreLineProblem(line('Contract from Below', 0), 'deck-construction'));
   assert.ok(ignoreLineProblem('Destroy target creature.', 'draft-matters'));
   assert.ok(ignoreLineProblem('Draw a card.', 'ante'));
-  assert.ok(ignoreLineProblem('You gain 3 life.', 'reminder-only'));
   assert.ok(ignoreLineProblem('Search your library for any number of cards named ~.', 'deck-construction'));
   assert.ok(ignoreLineProblem('You may reveal a card you own from your sideboard.', 'outside-the-game'));
 
-  // the two tier-gated reasons
+  // 'reminder-only' is gone: the parser strips parentheses, so no such line ever reaches a script
+  assert.ok(!(IGNORE_REASONS as readonly string[]).includes('reminder-only'));
+
+  // the two tier-gated reasons: the tier is necessary but NOT sufficient — the line needs a marker too
   assert.equal(ignoreLineProblem('Assemble a Contraption.', 'un-physical', 'un'), null);
+  assert.equal(ignoreLineProblem('Roll a six-sided die. Physically flip ~ onto the table.', 'un-physical', 'un'), null);
+  assert.ok(ignoreLineProblem('Draw a card.', 'un-physical', 'un'), 'an un-card may not ignore ordinary game text');
+  assert.ok(ignoreLineProblem('Destroy target creature.', 'un-physical', 'un'));
   assert.ok(ignoreLineProblem('Assemble a Contraption.', 'un-physical', 'paper')?.includes("'un'"));
   assert.ok(ignoreLineProblem('Assemble a Contraption.', 'un-physical')?.includes('unknown tier'));
   assert.equal(ignoreLineProblem('Conjure a card named Mox Jet into your hand.', 'digital-only', 'digital'), null);
   assert.ok(ignoreLineProblem('Conjure a card named Mox Jet into your hand.', 'digital-only', 'paper'));
   assert.ok(ignoreLineProblem('Draw a card.', 'digital-only', 'digital'), 'a digital card may not ignore ordinary text');
+});
+
+test('applyScript enforces the ignore whitelist at RUNTIME, not only in scripts:check', () => {
+  const contract = db.get('Contract from Below')!;
+  const [remove, discard] = normalizeOracleLines(contract);
+
+  // the right reason on the right card, with the card's tier: honoured
+  const ok = applyScript(contract, scriptFor('Contract from Below', {
+    ignore: [{ line: remove, reason: 'ante' }, { line: discard, reason: 'ante' }],
+  }), 'paper');
+  assert.deepEqual(ok.unparsed, []);
+
+  // the wrong reason: applyScript ignores the ignore, so the lines stay unparsed instead of quietly finishing the card
+  const wrong = applyScript(contract, scriptFor('Contract from Below', {
+    ignore: [{ line: remove, reason: 'draft-matters' }, { line: discard, reason: 'outside-the-game' }],
+  }), 'paper');
+  assert.deepEqual(wrong.unparsed, [remove, discard], 'an ignore the whitelist rejects claims nothing at runtime');
+  assert.equal(wrong.fullyParsed, false);
+
+  // a tier-gated reason on a paper card: rejected, and `paper` is also the default when no tier is passed
+  const tiered = scriptFor('Contract from Below', { ignore: [{ line: remove, reason: 'un-physical' }, { line: discard, reason: 'un-physical' }] });
+  assert.deepEqual(applyScript(contract, tiered, 'paper').unparsed, [remove, discard]);
+  assert.deepEqual(applyScript(contract, tiered).unparsed, [remove, discard], "applyScript defaults to the 'paper' tier");
 });
 
 test('normalizeOracleLines: whole lines, back-face lines as "// …", no duplicate entries anywhere in the pool', () => {
@@ -359,14 +510,14 @@ function verifiedBlock(status: Verification['status'] = 'verified'): Verificatio
 }
 
 test('scriptHash: stable across key order, and unchanged by the verification block', () => {
-  const a: CardScript = { oracleId: 'a', name: 'A', oracleHash: 'h', source: 'llm', mode: 'extend', covers: ['one', 'two'], keywords: ['flying'] };
+  const a: CardScript = { oracleId: 'a', name: 'A', oracleHash: 'h', source: 'llm', mode: 'extend', covers: [{ line: 'one', by: 'keywords' }, { line: 'two', by: 'keywords' }], keywords: ['flying'] };
   const reordered = JSON.parse(JSON.stringify({ keywords: a.keywords, covers: a.covers, mode: a.mode, source: a.source, oracleHash: a.oracleHash, name: a.name, oracleId: a.oracleId })) as CardScript;
   assert.equal(scriptHash(reordered), scriptHash(a), 'key order must not change the hash');
 
   assert.equal(scriptHash({ ...a, verification: verifiedBlock() }), scriptHash(a), 'the verification block is excluded');
   assert.equal(scriptHash({ ...a, verification: verifiedBlock('judged') }), scriptHash(a));
 
-  assert.notEqual(scriptHash({ ...a, covers: ['one'] }), scriptHash(a), 'a real change moves the hash');
+  assert.notEqual(scriptHash({ ...a, covers: [{ line: 'one', by: 'keywords' }] }), scriptHash(a), 'a real change moves the hash');
   assert.notEqual(scriptHash({ ...a, notes: 'x' }), scriptHash(a));
   assert.equal(scriptHash({ ...a, confidence: undefined }), scriptHash(a), 'explicit undefined is not a change');
 });

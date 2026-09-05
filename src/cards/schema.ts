@@ -15,7 +15,7 @@
 // Amount.count, AltCost.id, AltCost.from) lives in exactly one named constant, so merging is a one-line edit.
 import { z } from 'zod';
 import type { Ability, Amount, Condition, Effect, Filter, StaticAbility, StaticEffect, TriggerEvent } from './types.js';
-import { coversWithinBudget, IGNORE_REASONS } from './scripts.js';
+import { COVER_KINDS, coversValid, IGNORE_REASONS } from './scripts.js';
 
 // ---------------------------------------------------------------------------
 // What the parser really emits
@@ -562,6 +562,26 @@ export const SpellAbilitySchema = z.strictObject({ kind: z.literal('spell'), eff
 export const ABILITY_VARIANTS = [TriggeredAbilitySchema, ActivatedAbilitySchema, StaticAbilitySchema, SpellAbilitySchema] as const;
 export const AbilitySchema = z.discriminatedUnion('kind', ABILITY_VARIANTS);
 
+/**
+ * The ability schema a SCRIPT is held to: identical to `AbilitySchema` except that a `spell` / `triggered` /
+ * `activated` ability must declare at least one effect. An ability with an empty `effects` array claims no oracle
+ * line (`abilityIsSubstantive` in scripts.ts), so a file full of them would otherwise be a card with the right texts
+ * and no behaviour at all.
+ *
+ * `AbilitySchema` itself stays LENIENT because it also validates the PARSER's output, and the parser emits 56
+ * empty-effect abilities over the 34,513-card pool (Populate, Manifest dread, Amass, "The Ring tempts you", …).
+ * `.min(1)` does not change the inferred type, so both schemas stay pinned to `ParsedAbility` / `Ability`.
+ */
+const NEEDS_EFFECT = 'ability declares no effect';
+export const SCRIPT_ABILITY_VARIANTS = [
+  TriggeredAbilitySchema.extend({ effects: z.array(EffectRef).min(1, NEEDS_EFFECT) }),
+  ActivatedAbilitySchema.extend({ effects: z.array(EffectRef).min(1, NEEDS_EFFECT) }),
+  StaticAbilitySchema,
+  SpellAbilitySchema.extend({ effects: z.array(EffectRef).min(1, NEEDS_EFFECT) }),
+] as const;
+export const ScriptAbilitySchema = z.discriminatedUnion('kind', SCRIPT_ABILITY_VARIANTS);
+const ScriptAbilityRef: z.ZodType<Ability> = z.lazy(() => ScriptAbilitySchema);
+
 // ---------------------------------------------------------------------------
 // Card script v2
 // ---------------------------------------------------------------------------
@@ -576,14 +596,44 @@ export const IgnoreReasonSchema = z.enum(IGNORE_REASONS);
  */
 const CLAIMED_LINE = z.string().min(1).regex(/^(?!\*$)/, "'*' is not a line: list the oracle lines this face claims");
 
-/** The shared shape of the front face and `backFace`. */
+/**
+ * A `covers` entry: the line, plus the NAME of the declaration on this face that accounts for it. There is no
+ * anonymous budget — `coverProblem` (scripts.ts) checks that the named declaration is really on the face and that the
+ * line has the shape that declaration produces, so N throwaway keywords buy nothing.
+ */
+export const CoverKindSchema = z.enum(COVER_KINDS);
+export const CoverEntrySchema = z.strictObject({ line: CLAIMED_LINE, by: CoverKindSchema });
+
+/**
+ * The shared shape of the front face, `backFace` and `secondFace`. It carries every non-ability declaration
+ * `CardDef` does (kicker, cycling, morph, cascade, …), so the script format can express everything the parser can
+ * and every `covers` kind has a field to name.
+ */
 const faceShape = {
   keywords: z.array(KeywordSchema).optional(),
-  abilities: z.array(AbilityRef).optional(),
+  abilities: z.array(ScriptAbilityRef).optional(),
   altCosts: z.array(AltCostSchema).optional(),
   asEnters: z.array(AsEntersSchema).optional(),
   costModifiers: z.array(CostModifierSchema).optional(),
-  covers: z.array(CLAIMED_LINE).optional(),
+  additionalCosts: z.array(AbilityCostSchema).optional(),
+  kicker: ManaCostSchema.optional(),
+  cycling: ManaCostSchema.optional(),
+  cyclingSearch: FilterRef.optional(),
+  entersTapped: z.union([B, z.strictObject({ unless: ConditionRef })]).optional(),
+  morph: z.strictObject({ cost: ManaCostSchema, megamorph: B.optional(), disguise: B.optional() }).optional(),
+  cascade: B.optional(),
+  storm: B.optional(),
+  rebound: B.optional(),
+  dredge: N.optional(),
+  graveyardReplacement: z.enum(['exile', 'shuffle']).optional(),
+  protectionFrom: z.array(S).optional(),
+  wardCost: N.optional(),
+  toxic: N.optional(),
+  bushido: N.optional(),
+  rampage: N.optional(),
+  landwalk: z.array(S).optional(),
+  firebending: N.optional(),
+  covers: z.array(CoverEntrySchema).optional(),
 };
 
 export const ScriptFaceSchema = z.strictObject(faceShape);
@@ -619,6 +669,7 @@ export const CardScriptSchema = z.strictObject({
   confidence: N.optional(),
   mode: z.enum(['replace', 'extend']).optional(),
   backFace: ScriptFaceSchema.optional(),
+  secondFace: ScriptFaceSchema.optional(),
   ignore: z.array(IgnoredLineSchema).optional(),
   scenarios: z.array(S).optional(),
   aiHints: z.strictObject({ role: S.optional(), value: N.optional(), timing: z.enum(['main', 'instant', 'end-step', 'response']).optional() }).optional(),
@@ -627,24 +678,27 @@ export const CardScriptSchema = z.strictObject({
 });
 
 /**
- * `CardScriptSchema` plus the cross-field rule JSON Schema cannot state: every `covers` entry must be JUSTIFIED.
- * `covers` is the only way a non-ability declaration claims a line, so a face may claim at most as many lines that
- * way as it has keyword / altCost / asEnters / costModifier declarations. Entries that merely repeat an ability's own
- * `text` are free (the ability already claims that line) and do not count against the budget. Without the cap a
- * script could list every line of a card under `covers`, declare nothing, and read as fully simulated.
+ * `CardScriptSchema` plus the cross-field rules JSON Schema cannot state: every `covers` entry must be VALID — the
+ * declaration it names (`by`) is really on that face, and the line has the shape that declaration produces. Both are
+ * checks across two fields of the same object, which JSON Schema cannot express; `coverProblem` in scripts.ts owns
+ * the policy and `scripts:check` prints its reason.
  *
  * Two further rules need the CARD and so live in `scripts:check`, not here: every `covers` / `ignore` line must be
- * one `scriptableLines(def)` names, and an `ignore` reason must match its whitelist entry (`ignoreLineProblem`).
+ * one `scriptableLines(def)` names (and belong to the face that claims it), and an `ignore` reason must match its
+ * whitelist entry for the card's pool tier (`ignoreLineProblem`).
  *
  * Use this in tooling; `CardScriptSchema` is the plain object schema used for type pinning.
  */
-const COVERS_BUDGET = 'covers claims more lines than this face has keyword / altCost / asEnters / costModifier declarations to justify them (a covers entry that repeats an ability text is free)';
+const COVERS_INVALID = 'a covers entry names a declaration this face does not have, or a line that declaration does not produce';
 export const CardScriptChecked = CardScriptSchema.refine(
-  s => coversWithinBudget(s),
-  { message: COVERS_BUDGET, path: ['covers'] },
+  s => coversValid(s),
+  { message: COVERS_INVALID, path: ['covers'] },
 ).refine(
-  s => coversWithinBudget(s.backFace),
-  { message: `backFace.${COVERS_BUDGET}`, path: ['backFace', 'covers'] },
+  s => coversValid(s.backFace),
+  { message: `backFace: ${COVERS_INVALID}`, path: ['backFace', 'covers'] },
+).refine(
+  s => coversValid(s.secondFace),
+  { message: `secondFace: ${COVERS_INVALID}`, path: ['secondFace', 'covers'] },
 );
 
 // Convenience aliases for the tooling (test/schema-types.test.ts pins each of these to its types.ts counterpart).

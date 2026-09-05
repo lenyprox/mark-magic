@@ -58,7 +58,7 @@ export class CardDB {
 
 
   /** Parse a row and apply its script (data/scripts/<oracle_id>.json) when one exists and is not stale. */
-  private parse(o: OracleRow): CardDef { const def = parseCard(o); return applyScript(def, scriptStore().get(o.oracle_id)); }
+  private parse(o: OracleRow): CardDef { const def = parseCard(o); const s = scriptStore().get(o.oracle_id); return s ? applyScript(def, s, this.tierOf(o.oracle_id) ?? 'paper') : def; }
 
   /** Lookup by oracle id. */
   getByOracleId(oracleId: string): CardDef | null {

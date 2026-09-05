@@ -1,11 +1,15 @@
 // Emit data/scripts/schema.json — the JSON Schema for a card script v2, generated from `CardScriptChecked`, the
 // schema `scripts:check` really validates against, so every rule JSON Schema can carry is in the file an editor
-// sees (notably: a claimed line is a non-empty string that is not the old `'*'` wildcard, emitted as a `pattern`).
+// sees: a claimed line is a non-empty string that is not the old `'*'` wildcard (emitted as a `pattern`), a `covers`
+// entry is `{ line, by }` with `by` from the `CoverKind` enum, and a `spell` / `triggered` / `activated` ability
+// declares at least one effect (`minItems: 1`).
 //
-// Three rules cannot be expressed in JSON Schema and are enforced only by `scripts:check`:
-//   1. the `covers` budget — a face may claim at most as many lines without an ability as it has keyword / altCost /
-//      asEnters / costModifier declarations (JSON Schema cannot compare two array lengths);
-//   2. every `covers` / `ignore` line must be one `scriptableLines(def)` names (needs the card);
+// Three rules cannot be expressed in JSON Schema:
+//   1. `covers` VALIDITY — the declaration `by` names must really be on that face and the line must have the shape
+//      that declaration produces (JSON Schema cannot relate two fields of the same object). `CardScriptChecked`
+//      enforces it with a refinement, so it is caught by every consumer, not only by the tool;
+//   2. every `covers` / `ignore` line must be one `scriptableLines(def)` names, and belong to the face that claims
+//      it (needs the card, so `scripts:check`);
 //   3. an `ignore` reason must match its whitelist regex and the card's pool tier (needs the card).
 //
 // It is committed: editors validate scripts against it and the script-authoring prompts embed it.
