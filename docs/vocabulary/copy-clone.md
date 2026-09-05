@@ -298,9 +298,26 @@ silently plays a different card. Specifically declined:
 * **The legend rule over a copy (CR 704.5j).** `checkSBA`'s own legend pass filters on `o.def.supertypes` - the
   *printed* def - but `become-copy` and `enter-as-copy` put the copy on `o.copyDef`, which is what `chars.defOf`
   answers with. A Clone copying a legend you already control was invisible to it. The family registers an `sba` hook
-  that runs the same rule over `defOf`; SBA hooks run before the core pass inside the same loop and see a superset
-  of its permanents, so the core pass then finds nothing left. `copy-permanent` was never affected - a token copy
-  carries a real derived `def`.
+  that runs the same rule over `defOf`; SBA hooks run before the core pass inside the same loop, so every pair the
+  hook settles is gone before that pass looks. `copy-permanent` was never affected - a token copy carries a real
+  derived `def`. **The hook only adds kills; it cannot take one back**, so the core pass's mirror-image mistake is
+  still there and is *not* cured here: it filters on the printed `o.def.supertypes` but compares `name(o)` (=
+  `defOf`), so two printed legends that both became copies of the same *nonlegendary* creature are deduplicated even
+  though CR 707.2 copied the empty supertypes and neither is legendary any more. One token in `src/engine/game.ts`
+  fixes it (`o.def.supertypes` -> `defOf(o).supertypes`, already imported there); this family may not edit that
+  file, so it is carried as a core change the wave owes. Once it lands the hook is redundant and should be deleted.
+* **"Then copy that spell." after a sentence the player may decline (CR 707.10).** Wild Ricochet prints "You may
+  choose new targets for target instant or sorcery spell. / Then copy that spell. / You may choose new targets for
+  the copy." Only the outer two are optional; the copy is mandatory. parse.ts's `bindAntecedent` puts the `bind that
+  from targets` *inside* the `may` that wraps the first sentence, so declining it - a normal line of play, casting
+  this on your own spell to copy it without moving the original - left `'that'` unbound and `copy-stack` returned
+  silently: a fully-parsed card with a mandatory sentence that did nothing. `stackItemFor` therefore falls back, for
+  an anaphoric Ref that resolved to nothing, to the item's *single* stack target - the same object the bind would
+  have named, since "that spell" only ever follows a sentence that named the spell this ability targets. Narrow on
+  purpose: a Ref that resolved to something which simply is not on the stack still answers nothing, as before. Pool
+  scan: exactly one fully-parsed card has a `may` swallowing a bind a later sibling reads (Wild Ricochet, none
+  partially parsed), and of the ten fully-parsed cards whose `copy-stack` names an anaphoric Ref it is the only one
+  whose ability also targets a stack object - so it is the only card the fallback can reach at all.
 * **A derived def needs a key of its own (CR 707.9a).** `src/engine/serialize.ts` keys CardDefs by
   `name@printingId`, and `collectDefs` keeps the *first* def it sees for a key. A token copy whose derived def kept
   the printed card's key came back from a round trip linked to the printed def, losing everything the "except ..."
@@ -328,8 +345,8 @@ silently plays a different card. Specifically declined:
 `test/scenarios/copy-clone.ts` - one per op, per as-enters kind, per static, per target kind and per exception
 field, each written so that it fails if the op did nothing. Real printed cards where the parser rules of this slice
 make them parse (Cackling Counterpart, The Scarab God, Reverberate, Lithoform Engine, Swerve, Redirect, Untimely
-Malfunction, Deflecting Swat, Pacifism, Clone, Isamaru); a scripted ability on Grizzly Bears for `become-copy` and
-`cant-be-copied`, which no printed card parses into yet.
+Malfunction, Deflecting Swat, Pacifism, Clone, Isamaru, Wild Ricochet); a scripted ability on Grizzly Bears for
+`become-copy` and `cant-be-copied`, which no printed card parses into yet.
 
 `test/copy-clone.test.ts` - the two things a scenario cannot say: a **targeting restriction** is a negative (an
 option the engine must never offer, so it is asserted against `targetOptionsFor` directly), and a **serialize round

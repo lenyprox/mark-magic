@@ -190,6 +190,48 @@ export const copyClone: Scenario[] = [
       { unsimulated: 0 },
     ],
   },
+  {
+    name: 'Wild Ricochet still copies the spell when its optional first sentence is declined', cr: '707.10',
+    ruling: "Wild Ricochet prints three sentences: \"You may choose new targets for target instant or sorcery spell. Then copy that spell. You may choose new targets for the copy.\" Only the first and third are optional - CR 707.10 makes the middle one mandatory. parse.ts's `bindAntecedent` puts the `bind that from targets` INSIDE the `may` that wraps the first sentence, so declining it left 'that' unbound and `copy-stack` copied nothing at all. Declining is a normal line of play: you cast this on your OWN spell to copy it without moving the original off its target. `stackItemFor` falls back to the item's single stack target - the same object the bind would have named.",
+    seats: [
+      { bf: ['Mountain', 'Mountain', 'Mountain', 'Mountain'], hand: ['Wild Ricochet'] },
+      { bf: ['Mountain'], hand: ['Shock'] },
+    ],
+    script: [
+      { cast: 'Shock', by: 1, targets: [['P0']] },
+      // queued on the seat holding priority (P0): the first decision P0 is asked for is that first "You may ..."
+      { answer: false },
+      { cast: 'Wild Ricochet', by: 0, targets: [['Shock']] },
+      { resolve: true },
+    ],
+    expect: [
+      { log: 'copies Shock' },                             // no line at all before the fix: the copy was a silent no-op
+      { life: [0, 18] },                                   // the ORIGINAL still hits P0: sentence one really was declined
+      { life: [1, 18] },                                   // 20 would mean no copy was ever made
+      { events: { type: 'damage', min: 2, max: 2 } },
+      { unsimulated: 0 },
+    ],
+  },
+  {
+    name: "Wild Ricochet's first sentence, accepted, moves the original and copies it anyway", cr: '115.7b',
+    ruling: 'The control for the scenario above: with the optional retarget taken, the original Shock is moved off its caster\'s opponent and the copy is made all the same, so both hit P1.',
+    seats: [
+      { bf: ['Mountain', 'Mountain', 'Mountain', 'Mountain'], hand: ['Wild Ricochet'] },
+      { bf: ['Mountain'], hand: ['Shock'] },
+    ],
+    script: [
+      { cast: 'Shock', by: 1, targets: [['P0']] },
+      { cast: 'Wild Ricochet', by: 0, targets: [['Shock']] },
+      { resolve: true },
+    ],
+    expect: [
+      { life: [0, 20] },                                   // 18 would mean the original was never moved
+      { life: [1, 16] },                                   // both the original and the copy
+      { log: 'chooses new targets for Shock' },
+      { log: 'copies Shock' },
+      { unsimulated: 0 },
+    ],
+  },
 
   // ------------------------------------------------------------------ change-targets
   {

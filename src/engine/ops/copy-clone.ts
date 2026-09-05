@@ -319,14 +319,30 @@ function coreCopies(c: OpCtx): StackItem[] {
   return c.s.stack.filter(it => (it as StackItem & { isCopy?: boolean }).isCopy === true && it.controller === c.p && from.has(it.source.id));
 }
 
-/** The stack item a copy / retarget op is about: a `stack` target ref, or a Ref resolving to a spell's card. */
+/**
+ * The stack item a copy / retarget op is about: a `stack` target ref, or a Ref resolving to a spell's card.
+ *
+ * When an anaphoric Ref ('that' / 'those') resolves to NOTHING, the item's own single stack target answers instead.
+ * That is not a guess: "Then copy that spell." only ever follows a sentence that named a spell, and on every card
+ * printing it the spell named is the one the ability targets. It matters because of the shape parse.ts builds for
+ * Wild Ricochet — "You may choose new targets for target instant or sorcery spell. / Then copy that spell. / You may
+ * choose new targets for the copy." — where `bindAntecedent` puts the `bind that from targets` INSIDE the `may` that
+ * wraps the first sentence. Declining that sentence (casting Wild Ricochet on your OWN spell, to copy it without
+ * moving the original off its target — a normal line of play) left 'that' unbound, and the mandatory middle sentence
+ * then copied nothing at all. CR 707.10: that copy is not optional. The fallback is deliberately narrow — one stack
+ * target, and only when the binding frame is empty — so a Ref that resolved to something which simply is not on the
+ * stack still answers `undefined`, exactly as before.
+ */
 async function stackItemFor(c: OpCtx, t: TargetSpec | Ref | 'the-copies'): Promise<StackItem | undefined> {
   const s = c.s;
   if (t === 'the-copies') return undefined;
   if (typeof t === 'object') { const r = c.T[0]; return r && r.kind === 'stack' ? s.stack.find(x => x.id === r.id) : undefined; }
   const { resolveRef } = await import('../refs.js');
   const o = resolveRef({ s, item: c.item, p: c.p, src: c.src }, t)[0];
-  return o ? s.stack.find(x => x.source.id === o.id) : undefined;
+  if (o) return s.stack.find(x => x.source.id === o.id);
+  if (t !== 'that' && t !== 'those') return undefined;
+  const onStack = [...c.item.targetsByEffect.values()].flat().filter(r => r.kind === 'stack');
+  return onStack.length === 1 ? s.stack.find(x => x.id === onStack[0].id) : undefined;
 }
 
 // ------------------------------------------------------------------ 5. the module
@@ -506,9 +522,15 @@ const COPY_CLONE: FamilyModule = {
    * was invisible to that pass and two of them coexisted. `copy-permanent` was never affected — it mints a real
    * derived `def` on the token — which is why the family's own "except it isn't legendary" scenario passed.
    *
-   * SBA hooks run BEFORE that core pass inside the same loop, and the set here is a superset of the set it sees, so
-   * this settles every pair and the core pass then finds nothing left to do. The survivor is the last in battlefield
-   * order, exactly as the core pass chooses it.
+   * SBA hooks run BEFORE that core pass inside the same loop, so every pair this hook settles is already gone by the
+   * time the core pass looks. What a hook cannot do is take a kill back — it only ADDS. So the core pass still makes
+   * the mirror-image mistake, and this hook does not cure it: its filter is the PRINTED `o.def.supertypes` while the
+   * name it compares is `name(o)`, i.e. `defOf` — so two printed legends that both became copies of the same
+   * NONlegendary creature are deduplicated, although CR 707.2 copied the (empty) supertypes and neither of them is
+   * legendary any more. One token in src/engine/game.ts fixes it (`o.def.supertypes` -> `defOf(o).supertypes`;
+   * `defOf` is already imported there), and this family may not edit that file — it is reported as coreChangeNeeded.
+   * Once it lands this hook is redundant, because that filter then sees exactly the set below, and should be deleted.
+   * The survivor is the last in battlefield order, exactly as the core pass chooses it.
    */
   sba: (g) => {
     const s = g.state;
