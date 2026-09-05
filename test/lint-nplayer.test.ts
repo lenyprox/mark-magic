@@ -7,12 +7,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 function files(dir: string): string[] { return fs.readdirSync(dir).filter(f => f.endsWith('.ts')).map(f => path.join(dir, f)); }
-const re = /opponentOf\(|players\[[01]\]|\[0, 1\] as PlayerId|\[Player, Player\]|\[Agent, Agent\]/g;
+// `=== 0 ? 1 : 0` is the hand-rolled "the other seat": correct only with two players (it put the wrong seat's
+// blockers into a three-player scenario once). Use primaryOpponent / opponentsOf.
+const re = /opponentOf\(|players\[[01]\]|\[0, 1\] as PlayerId|\[Player, Player\]|\[Agent, Agent\]|=== 0 \? 1 : 0/g;
 const count = (f: string) => (fs.readFileSync(f, 'utf8').match(re) ?? []).length;
 
-test('engine, AI, sim and play code have no two-player assumptions', () => {
+test('engine, AI, sim, play and verify code have no two-player assumptions', () => {
   const offenders: string[] = [];
-  for (const f of [...files('src/engine'), ...files('src/engine/agents'), ...files('src/engine/ops'), ...files('src/ai'), ...files('src/sim'), ...files('src/play')]) {
+  for (const f of [...files('src/engine'), ...files('src/engine/agents'), ...files('src/engine/ops'), ...files('src/ai'), ...files('src/sim'), ...files('src/play'), ...files('src/verify')]) {
     if (f.endsWith('state.ts') || f.endsWith('characteristics.ts')) continue; // the deprecated definition and the 2-seat fast path
     const n = count(f); if (n) offenders.push(`${f}: ${n}`);
   }
