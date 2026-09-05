@@ -2,7 +2,7 @@
 // enough that the rollouts resemble games (lands that fix colours, biggest castable spell, counters on real threats,
 // attacks that win combat or are evasive unless the crack-back is lethal, blocks by the shared block search capped low).
 import { bestBlocks } from '../ai/combat.js';
-import { autoAgent, chooseCardsHeuristic, defaultYesNo, pickTargetsHeuristic } from '../ai/search.js';
+import { autoAgent, chooseCardsHeuristic, defaultYesNo, landScorer, pickTargetsHeuristic } from '../ai/search.js';
 import { canAttack, canBlock, findObject, hasKeyword, isCreature, power, toughness } from '../engine/characteristics.js';
 import { Game } from '../engine/game.js';
 import { type Agent, type Decision, type GameObject, type GameState, type LegalAction, type PlayerAction, type PlayerId, type TargetRef } from '../engine/state.js';
@@ -42,7 +42,7 @@ export class RolloutAgent implements Agent {
   }
 
   priority(s: GameState, me: PlayerId, legal: LegalAction[]): PlayerAction {
-    const opps = opponentsOf(s, me); const pl = s.players[me];
+    const opps = opponentsOf(s, me);
     const top = s.stack[s.stack.length - 1];
     const myTurn = s.activePlayer === me;
     const card = (l: LegalAction) => l.action.type === 'cast' ? findObject(s, l.action.cardId) : undefined;
@@ -62,12 +62,9 @@ export class RolloutAgent implements Agent {
     if (mainPhase) {
       const lands = legal.filter(l => l.action.type === 'play-land');
       if (lands.length) {
-        const have = new Map<string, number>(); for (const o of pl.battlefield) for (const m of o.def.producesMana) have.set(m, (have.get(m) ?? 0) + 1);
-        const need = new Map<string, number>(); for (const c of pl.hand) for (const p of c.def.manaCost?.pips ?? []) need.set(p, (need.get(p) ?? 0) + 1);
-        // A land drop is not always from hand: an effect that lets you play a card from exile or from a graveyard
-        // (impulse draw, Quintorius, Goph) makes those legal play-land actions too, so look the card up in every
-        // zone. A land the lookup cannot find scores below any real one rather than throwing mid-game.
-        const score = (l: LegalAction) => { const c = findObject(s, (l.action as { cardId: number }).cardId); if (!c) return -1; let sc = c.def.entersTapped ? -0.5 : 0; for (const m of c.def.producesMana) sc += (need.get(m) ?? 0) / (1 + (have.get(m) ?? 0)); return sc; };
+        // the land need not be in hand (Ramunap Excavator, Crucible of Worlds, 7n's extra land drops), which is why
+        // the ranking looks the card up across every zone; shared with the one-ply agent so it can only be fixed once
+        const score = landScorer(s, me);
         return lands.sort((a, b) => score(b) - score(a))[0].action;
       }
       // biggest castable spell; hold counterspells and pure combat tricks; equip and loyalty abilities are fine too

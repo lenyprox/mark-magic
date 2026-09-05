@@ -240,3 +240,26 @@ export async function simulateAction(g: Game, me: PlayerId, action: PlayerAction
 export async function scoreAction(g: Game, me: PlayerId, action: PlayerAction, l?: LegalAction): Promise<number> {
   return (await simulateAction(g, me, action, l))?.score ?? -Infinity;
 }
+
+/**
+ * The land-drop ranking both policies use: how much a `play-land` candidate helps cast what is in hand, minus a
+ * penalty for entering tapped, plus a bonus for a land that is not being spent out of hand. One function because it
+ * used to be two copies — the one-ply agent's and the rollout policy's — and a crash fixed in one copy stayed live
+ * in the other (fuzz bucket 3492eb01: the card of a `play-land` need not be in hand at all — Ramunap Excavator,
+ * Crucible of Worlds and 7n's extra land drops play it from the graveyard, exile or the top of the library — so it
+ * is looked up across every zone and a card that has since moved scores a floor instead of throwing on `.def`).
+ * Returns a closure so the colour tallies are built once per decision, not once per candidate.
+ */
+export function landScorer(s: GameState, me: PlayerId): (l: LegalAction) => number {
+  const pl = s.players[me];
+  const have = new Map<string, number>(); for (const o of pl.battlefield) for (const m of o.def.producesMana) have.set(m, (have.get(m) ?? 0) + 1);
+  const need = new Map<string, number>(); for (const c of pl.hand) for (const p of c.def.manaCost?.pips ?? []) need.set(p, (need.get(p) ?? 0) + 1);
+  return (l: LegalAction) => {
+    const card = findObject(s, (l.action as { cardId: number }).cardId);
+    if (!card) return -1;                                   // vanished between the legal-action scan and here
+    let sc = card.def.entersTapped ? -0.5 : 0;
+    if (card.zone !== 'hand') sc += 0.25;                   // a land replayed from the graveyard costs no card in hand
+    for (const m of card.def.producesMana) sc += (need.get(m) ?? 0) / (1 + (have.get(m) ?? 0));
+    return sc;
+  };
+}

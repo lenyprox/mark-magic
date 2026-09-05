@@ -13,7 +13,7 @@ import { opponentsOf, primaryOpponent } from '../engine/players.js';
 import { defaultAnswer } from '../engine/agents/defaults.js';
 import { redact } from '../engine/view.js';
 import { bestBlocks, bestBlocksDetailed } from './combat.js';
-import { autoAgents, chooseCardsHeuristic, cloneGame, concreteActions, defaultYesNo, describeAction, evaluate, scoreAction } from './search.js';
+import { autoAgents, chooseCardsHeuristic, cloneGame, concreteActions, defaultYesNo, describeAction, evaluate, landScorer, scoreAction } from './search.js';
 
 export { evaluate, creatureValue, cloneGame, chooseCardsHeuristic, AutoAgent } from './search.js';
 
@@ -146,13 +146,10 @@ export class AiAgent implements Agent {
     // Land drop first: pick the land that best fixes colours.
     const landPlays = legal.filter(l => l.action.type === 'play-land');
     if (landPlays.length) {
-      const pl = s.players[me];
-      const have = new Map<string, number>(); for (const o of pl.battlefield) for (const m of o.def.producesMana) have.set(m, (have.get(m) ?? 0) + 1);
-      const need = new Map<string, number>(); for (const c of pl.hand) for (const p of c.def.manaCost?.pips ?? []) need.set(p, (need.get(p) ?? 0) + 1);
-      // A land drop is not always from hand: an effect that lets you play a card from exile or from a graveyard
-      // (impulse draw, Quintorius, Goph) makes those legal play-land actions too, so look the card up in every
-      // zone. A land the lookup cannot find scores below any real one rather than throwing mid-game.
-      const score = (l: LegalAction) => { const card = findObject(s, (l.action as { cardId: number }).cardId); if (!card) return -1; let sc = card.def.entersTapped ? -0.5 : 0; for (const m of card.def.producesMana) sc += (need.get(m) ?? 0) / (1 + (have.get(m) ?? 0)); return sc; };
+      // one ranking, shared with the rollout policy: the land of a `play-land` need not be in hand (Ramunap
+      // Excavator and 7n's extra land drops play it from the graveyard, exile or the library), which the copy that
+      // used to live here got wrong — see `landScorer`.
+      const score = landScorer(s, me);
       const best = landPlays.sort((a, b) => score(b) - score(a))[0];
       this.say(`plays a land (${best.label.replace('play land ', '')}).`);
       this.reason({ kind: 'land', player: me, summary: this.lastReason, baseline: 0, chosen: { label: best.label, score: score(best), action: best.action }, candidates: landPlays.map(l => ({ label: l.label, score: score(l), action: l.action })), sims: 0, ms: 0 }, s);

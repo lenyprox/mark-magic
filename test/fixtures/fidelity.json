@@ -319,8 +319,8 @@
    ],
    "seed": 24,
    "games": 60,
-   "hitsPerGame": 20.517,
-   "ceiling": 20.517,
+   "hitsPerGame": 20.383,
+   "ceiling": 20.383,
    "topClauses": [
     {
      "card": "Quintorius, History Chaser",
@@ -331,7 +331,7 @@
     {
      "card": "Nissa, Who Shakes the World",
      "clause": "It becomes a 0/0 Elemental creature with vigilance and haste that's still a land.",
-     "hits": 51,
+     "hits": 52,
      "games": 13
     },
     {
@@ -347,12 +347,6 @@
      "games": 11
     },
     {
-     "card": "Sergeant John Benton",
-     "clause": "you and that player each draw that many cards.",
-     "hits": 38,
-     "games": 8
-    },
-    {
      "card": "Augusta, Order Returned",
      "clause": "When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature.",
      "hits": 37,
@@ -365,16 +359,22 @@
      "games": 9
     },
     {
+     "card": "Sergeant John Benton",
+     "clause": "you and that player each draw that many cards.",
+     "hits": 37,
+     "games": 8
+    },
+    {
      "card": "Betor, Kin to All",
      "clause": "Then if creatures you control have total toughness 20 or greater, untap each creature you control.",
-     "hits": 33,
-     "games": 10
+     "hits": 31,
+     "games": 9
     },
     {
      "card": "Betor, Kin to All",
      "clause": "Then if creatures you control have total toughness 40 or greater, each opponent loses half their life, rounded up.",
-     "hits": 33,
-     "games": 10
+     "hits": 31,
+     "games": 9
     },
     {
      "card": "Horizon Explorer",

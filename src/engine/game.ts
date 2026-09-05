@@ -127,6 +127,47 @@ export class Game {
     }
   }
 
+  /**
+   * CR 509.1a-b: may `blocker` be added to `attacker`'s blockers given the blocks already recorded on both? The one
+   * validator the real declare-blockers step and `simulateCombat` share, so the AI's simulated combats can never
+   * reach a board the rules step would have refused. Evasion, protection and "can't be blocked except by …" live in
+   * `canBlock`; the restrictions that depend on who is blocking, and on what is already blocking, live here. Group
+   * restrictions that only a finished declaration can judge (menace) are `applyBlockFixups`, run once per defending
+   * player afterwards.
+   */
+  private blockLegal(blocker: GameObject, attacker: GameObject): boolean {
+    const s = this.state;
+    // CR 509.1a: only the defending player blocks, and only a creature attacking *them* (`attacking` is the attacked
+    // player, or the controller of the attacked planeswalker/battle). The real step gets this from the zones it draws
+    // its two lists out of; `simulateCombat` is handed arbitrary ids, and without this clause a creature of the
+    // attacking player's own could be declared as a blocker, eat the attack and die in the simulation.
+    if (attacker.attacking === null || blocker.controller !== attacker.attacking) return false;
+    if (!canBlock(s, blocker, attacker)) return false;
+    if (BLOCK_CHECKS.length) for (const h of BLOCK_CHECKS) if (!h(s, blocker, attacker)) return false;
+    // CR 509.1b: a creature blocks one attacker unless something ("can block an additional creature") says otherwise
+    const extra = abilitiesOf(blocker).reduce((n, ab) => n + (ab.kind === 'static' && ab.effect.kind === 'extra-blocks' ? ab.effect.amount : 0), 0);
+    if (blocker.blocking.length > extra) return false;
+    if (attacker.blockedBy.length >= 1 && abilitiesOf(attacker).some(ab => ab.kind === 'static' && ab.effect.kind === 'cant-be-blocked-by-more-than-one')) return false;
+    return true;
+  }
+
+  /**
+   * The pass a declaration can only be judged as a whole by: CR 702.110b, menace's "can't be blocked except by two or
+   * more creatures", plus whatever block fixups the families registered. Drops the offending block from both sides —
+   * the blocker keeps any other attacker it was legally blocking, which a blanket `blocking = []` used to throw away.
+   */
+  private applyBlockFixups(attackers: GameObject[], d: PlayerId) {
+    const s = this.state;
+    for (const a of attackers) if (hasKeyword(s, a, 'menace') && a.blockedBy.length === 1) {
+      const b = findObject(s, a.blockedBy[0]);
+      a.blockedBy = [];
+      if (!b) continue;
+      b.blocking = b.blocking.filter(id => id !== a.id);
+      this.note(`${name(b)} can't block ${name(a)} alone (menace).`);
+    }
+    if (BLOCK_FIXUPS.length) for (const h of BLOCK_FIXUPS) h(this, attackers, d);
+  }
+
   /** Simulation helper: declare the given attackers and blocks, then run both damage steps and SBAs. */
   async simulateCombat(attackerIds: number[], blocks: { blocker: number; attacker: number }[], targets?: Record<number, AttackTarget>) {
     const s = this.state; const dp = primaryOpponent(s, s.activePlayer);
@@ -138,7 +179,21 @@ export class Game {
       else o.attacking = typeof want === 'number' ? want : dp;
       if (!hasKeyword(s, o, 'vigilance')) this.setTapped(o, true, 'attack'); s.attackers.push(id);
     }
-    for (const b of blocks) { const bl = findObject(s, b.blocker), at = findObject(s, b.attacker); if (!bl || !at || bl.blocking.length || !canBlock(s, bl, at)) continue; bl.blocking.push(at.id); at.blockedBy.push(bl.id); }
+    // every declared block goes through the same validator the real declare-blockers step uses (CR 509.1a-b), so a
+    // simulation can never reach a board the rules step would have refused (a blocker the defending player does not
+    // control, a creature not attacking that player, menace blocked by one, a second blocker on a "can't be blocked
+    // by more than one creature" attacker, a family block check, …). The step gets the first two restrictions from
+    // the zones it draws its lists out of; here the ids are arbitrary, so `blockLegal` has to test them.
+    for (const b of blocks) {
+      const bl = findObject(s, b.blocker), at = findObject(s, b.attacker);
+      if (!bl || bl.zone !== 'battlefield' || !at || at.zone !== 'battlefield') continue;
+      if (!this.blockLegal(bl, at)) continue;
+      bl.blocking.push(at.id); at.blockedBy.push(bl.id);
+    }
+    // the group-legality pass (menace) is per defending player, exactly as combatFrom runs it
+    for (const d of new Set(s.attackers.map(id => findObject(s, id)!.attacking).filter((p): p is PlayerId => p !== null))) {
+      this.applyBlockFixups(s.attackers.map(id => findObject(s, id)!).filter(a => a.attacking === d), d);
+    }
     s.step = 'declare-blockers';
     // silent events: simulations keep the string log clean but replay/analysis still see the declarations
     if (s.attackers.length) this.emit({ type: 'attack', player: s.activePlayer, target: dp, attackers: s.attackers.map(id => ({ id, name: name(findObject(s, id)!) })) }, '');
@@ -1908,16 +1963,10 @@ export class Game {
             const decl = await this.ask(d, { kind: 'blockers', attackers: attackers.map(a => a.id), candidates: blockers.map(b => b.id) }) as BlockDeclaration;
             for (const b of decl.blocks) {
               const blocker = blockers.find(o => o.id === b.blocker), attacker = attackers.find(o => o.id === b.attacker);
-              if (!blocker || !attacker || !canBlock(s, blocker, attacker)) continue;
-              if (BLOCK_CHECKS.length) { let ok = true; for (const h of BLOCK_CHECKS) if (!h(s, blocker, attacker)) { ok = false; break; } if (!ok) continue; }
-              const extra = abilitiesOf(blocker).reduce((n, ab) => n + (ab.kind === 'static' && ab.effect.kind === 'extra-blocks' ? ab.effect.amount : 0), 0);
-              if (blocker.blocking.length > extra) continue;
-              if (attacker.blockedBy.length >= 1 && abilitiesOf(attacker).some(ab => ab.kind === 'static' && ab.effect.kind === 'cant-be-blocked-by-more-than-one')) continue;
+              if (!blocker || !attacker || !this.blockLegal(blocker, attacker)) continue;
               blocker.blocking.push(attacker.id); attacker.blockedBy.push(blocker.id);
             }
-            // menace: needs 2+ blockers
-            for (const a of attackers) if (hasKeyword(s, a, 'menace') && a.blockedBy.length === 1) { const b = findObject(s, a.blockedBy[0])!; b.blocking = []; a.blockedBy = []; this.note(`${name(b)} can't block ${name(a)} alone (menace).`); }
-            if (BLOCK_FIXUPS.length) for (const h of BLOCK_FIXUPS) h(this, attackers, d);
+            this.applyBlockFixups(attackers, d);   // menace (CR 702.110b) and the family fixups
             this.emit({ type: 'block', player: d, blocks: attackers.flatMap(a => a.blockedBy.map(id => ({ blocker: id, blockerName: name(findObject(s, id)!), attacker: a.id, attackerName: name(a) }))) });
             // flanking (702.25), bushido (702.46), rampage (702.23)
             for (const a of attackers) {
