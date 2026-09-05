@@ -65,6 +65,10 @@ test/                    node:test suites (engine, parser, AI, analysis, meta, q
 decks/                   four bundled, fully simulated sample decks (.txt) and the owner's Commander decks (.csv, the collection)
 ```
 
+## Program status
+
+The "every card scripted" program (per-card scripts to 100% of the paper pool) is in progress: see [docs/HANDOFF.md](docs/HANDOFF.md) for status and the continuation checklist, [docs/plans/every-card-scripted.md](docs/plans/every-card-scripted.md) for the approved plan and [docs/workflows/README.md](docs/workflows/README.md) for how the Opus workflows are run.
+
 ## Development notes
 
 - **Commander.** `GameOptions.format: 'commander'` (the play worker and `sim:batch` switch it on whenever a deck has a commander): 40 life, commanders start in the command zone and are cast from it with the tax ({2} per earlier cast, CR 903.8), a commander that would go to the graveyard, exile, hand or library goes to the command zone instead (903.9a-b), 21 combat damage from one commander loses (704.6c), and the first mulligan is free in pods (103.5c). `src/decks/validate.ts` checks commander legality, partner pairs, colour identity, singleton and size (the deck builder's legality callout uses it). The command zone shows on the player plate; drag-and-drop from it arrives with the seats milestone.
