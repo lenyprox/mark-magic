@@ -3,8 +3,11 @@
 //
 // The parser rule registry: one file per mechanic family, folded into flat arrays that src/cards/parse.ts consults at
 // each of its dispatch points — parseEffectSentence, the parseCard line loop, parseTrigger, parseCondition, parseStatic
-// and parseCostPhrase. **Built-ins run first at every one of them**, so a family can only turn an `unknown` into
-// something; it can never change a parse that already worked. `npm run parse:diff` is the proof.
+// and parseCostPhrase. **Built-ins run first at every one of them**, and each of those ladders runs a complete
+// built-ins-only pass before the pass that enables these rules, so a family only ever claims what every built-in stage
+// declined. It does *not* follow that a parse can never move: the shape a rule then produces is the family's own, and
+// a wide rule can pull a line out of the `unknown` bucket in a way you did not intend. `npm run parse:diff` is how
+// you check — read every group it prints, not just the count.
 //
 // Module-evaluation order: parse.ts imports this barrel and this barrel imports the family files, so a family may only
 // *type*-import parse.ts (for `OracleRow`). Everything a rule needs at runtime is handed to it on `LineCtx`.

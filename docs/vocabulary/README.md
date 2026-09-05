@@ -47,8 +47,8 @@ game with no families registered pays one boolean or one `.length` test per hook
    exports and rebuilds the flat lookups. Duplicate keys across two families are a **hard error naming both files**. The output is deterministic and
    written with LF endings — running it twice produces no diff, and `test/lint-ops.test.ts` asserts the checked-in file
    is up to date. **Never hand-edit `_registry.ts`.**
-5. **Test.** `npm run verify:quick` (typecheck + lints + registry test + scripts check), then scenarios (below), then
-   `npm run verify:all` before the merge.
+5. **Test.** `npm run verify:quick` (typecheck + lints + registry and parser-registry tests + scripts check), then
+   scenarios (below), then `npm run verify:all` (which includes `parse:diff`) before the merge.
 
 If you need a hook that does not exist, **do not add it**. Stop and report `coreChangeNeeded` with the patch you want;
 the orchestrator applies core changes serially on `main`.
@@ -193,17 +193,40 @@ barrels.
 | `statics` | `parseStatic`, before it returns `null` | `{ name?, make(line, card) → StaticEffect \| StaticEffect[] \| null }` |
 | `costs` | `parseCostPhrase`, on the `else` that would return `null` | `{ name?, make(phrase) → AbilityCost \| null }` |
 
+Those dispatch points are where a rule is *offered* the text. Four of them are consulted twice — see the next section:
+once is not enough, because a sub-parser declining is also how a later built-in stage learns the text is free.
+
 A line rule never imports a parse.ts internal: `LineCtx` hands it the built-in sub-parsers (`parseEffects`,
 `parseCost`, `parseCostPhrase`, `parseCondition`, `parseManaCost`, `parseTrigger`), the `CardDef` under construction,
 the raw line, the `OracleRow`, Scryfall's own `keywords[]` tags for the card, and the mutators `addAbility`,
 `addAltCost`, `addKeyword`, `addAsEnters`, `addCostModifier` and `markUnparsed`. Reuse the sub-parsers — a family that
 re-implements filters or targets will disagree with the rest of the vocabulary.
 
-### Built-ins first, always
+### Built-ins first — and what that does and does not promise
 
-Every dispatch point runs its **built-in table first** and reaches the registry only where it was about to give up.
-A family can therefore turn an `unknown` into something, and can never move a parse that already worked. The line loop
-has two hooks, because a line can die in two different places:
+Every dispatch point runs its **built-in table first** and reaches the registry only where the built-ins were about to
+give up. That ordering is *per sub-parser*, and on its own it is not enough: a sub-parser returning `unknown` / `null`
+is also the signal a **later built-in stage** uses to claim the very same text.
+
+| the sub-parser that declines | the later built-in stage that reads that failure |
+|---|---|
+| `parseEffectSentence` on a whole sentence | the `", then"` / `" and "` decomposition in `parseSentenceRecursive` |
+| `parseTrigger` on the narrow first-comma head | the greedy comma re-split of the same line |
+| `parseCostPhrase`, through `parseActivatedLine` | the static branch below it — and, on an instant or sorcery, the spell-text branch below that |
+| `parseStatic` | the spell-text branch, on an instant or sorcery |
+
+So each of those ladders runs a complete **built-ins-only pass first** (a `useRegistry` flag threaded through the
+sub-parsers) and only then the same ladder with the registry enabled. Get this wrong and the damage is quiet: a static
+rule that fires on a sorcery line still leaves the card `fullyParsed` with an empty spell ability, so `coverage:pool`
+shows nothing and only `parse:diff` can see it. `test/parser-registry.test.ts` pins all four orderings with a
+deliberately over-wide probe family, each case paired with a positive control so it cannot pass vacuously.
+
+What is true, then: **a rule only ever sees text that every built-in stage declined.** What does *not* follow is "a
+family can never change a parse that already worked" — the shape a rule produces for the line it claims is the
+family's own, and a rule wide enough to match text you were not aiming at will move that card. `npm run parse:diff` is
+the check, and it is not optional: read every group it prints, not just the count.
+
+The line loop has two hooks, because a line can die in two different places:
 
 1. **Inside the keyword bail-out.** A line naming a keyword the built-ins know *of* but do not implement (`Bestow
    {3}{W}`, `Suspend 4—{1}{U}`) is recorded as unparsed there and never reaches the trigger / activated / static
@@ -213,6 +236,9 @@ has two hooks, because a line can die in two different places:
    sorcery — has already declined.
 
 Both hooks are guarded by `LINE_RULES.length`, so a parse with no families registered never even builds a `LineCtx`.
+The registry retries of `parseActivatedLine` (cost rules) and `parseStatic` (static rules) sit just above hook 2 —
+below the spell-text branch, in the same order as the built-in ladder — and are guarded by `COST_RULES.length` /
+`STATIC_RULES.length` the same way.
 
 ### `PARSER_VERSION`
 
@@ -225,7 +251,15 @@ family does *not* bump it; that shows up as a different `rulesHash()` instead.
 `data/master/parse-snapshot.json` (committed) holds `{ parserVersion, rulesHash, registryHash, cards: { oracleId →
 fnv-1a of the canonical CardDef }, unparsed: { oracleId → the card's unparsed lines } }`. The hash is taken over the
 canonical JSON (sorted keys) minus `imageUri`, `faceImageUris`, `representativePrintingId` and `script`, so printing
-metadata and per-card scripts do not move it.
+metadata does not move it.
+
+Per-card scripts do not move it either — but *omitting a field is not what buys that*. `CardDB.all()` parses through
+`applyScript`, which rewrites `abilities`, `keywords`, `altCosts`, `asEnters`, `costModifiers`, `unparsed` and
+`fullyParsed`; a scripted card would hash differently however many bookkeeping keys were dropped. The script is
+bypassed instead: `scripts/parse-snapshot.ts` swaps the shared `ScriptStore` for one pointed at a directory that holds
+none, so every card is hashed as a bare `parseCard(row)`, and the run prints how many scripts it ignored. Without that,
+each Phase 10 script wave would land here as thousands of changed cards and force a blanket `parse:accept` — which is
+exactly the window a real parser regression would hide in.
 
 * `npm run parse:diff` — reparse every playable card and compare. It prints the changed cards **grouped by their
   unparsed-line delta** (`now parses:` / `NO LONGER parses:`, with up to 20 example card names per group; the
@@ -233,6 +267,8 @@ metadata and per-card scripts do not move it.
   exits 1 if anything moved. Version/hash mismatches are printed as context, not as the failure.
 * `npm run parse:accept` — rewrite the snapshot. Do this only once the diff is the change you intended, and commit it
   in the same commit as the parser change.
+
+`npm run verify:all` runs `parse:diff`, so an unaccepted diff is a red gate, not a report nobody reads.
 
 The workflow for a family: take the diff **before** you start (it must be clean), add your rules, then
 `npm run parse:diff` again and read every group. A family that only adds wordings should show groups made entirely of
@@ -259,7 +295,7 @@ built-in.
 | `npm run parse:accept` | re-baseline that snapshot |
 | `npm run coverage:pool` | parser coverage: `fully_parsed` and the most common unparsed clauses |
 | `npm run typecheck:example` | typecheck `_example.ts` on its own (it is excluded from the main program) |
-| `npm run verify:quick` | typecheck + `lint-*` + `registry` + `scripts` tests + `scripts:check` |
+| `npm run verify:quick` | typecheck + `lint-*` + `registry` + `parser-registry` + `scripts` tests + `scripts:check` (the `parser-registry` test is what catches a stale rules barrel) |
 | `npm run verify:scenarios` | the behavioural scenario suite |
-| `npm run verify:all` | typecheck:all, full test suite, scripts check, `coverage:pool`, `verify:pool`, `bench:games` |
+| `npm run verify:all` | typecheck:all, full test suite, scripts check, `coverage:pool`, `parse:diff`, `verify:pool`, `bench:games` |
 | `npm run bench:games` | the performance gate: ≥ 45 games/s 60-card, ≥ 4.8 games/s Commander |

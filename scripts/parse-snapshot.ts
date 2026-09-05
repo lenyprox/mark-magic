@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { CardDB } from '../src/cards/db.js';
 import { PARSER_VERSION } from '../src/cards/parse.js';
+import { ScriptStore, useScriptStore } from '../src/cards/scripts.js';
 import { rulesHash } from '../src/cards/rules/_registry.js';
 import { registryHash } from '../src/engine/ops/_registry.js';
 import { projectRoot } from '../src/config/paths.js';
@@ -21,6 +22,26 @@ const SNAPSHOT = path.join(projectRoot(), 'data', 'master', 'parse-snapshot.json
 
 /** Fields that are printing metadata or script bookkeeping, not a parse: they move with the data set, not the parser. */
 const OMIT = new Set(['imageUri', 'faceImageUris', 'representativePrintingId', 'script']);
+
+/**
+ * The snapshot must describe the **parser**, not the per-card scripts layered on top of it. `CardDB.all()` parses
+ * through `applyScript`, which rewrites `abilities`, `keywords`, `altCosts`, `asEnters`, `costModifiers`, `unparsed`
+ * and `fullyParsed` — dropping the `script` bookkeeping field from OMIT does *not* make the hash script-independent.
+ * Left alone, every Phase 10 script wave would land here as thousands of changed cards and force a blanket
+ * `parse:accept` that could swallow a real parser regression in the same window.
+ *
+ * So the shared script store is swapped for one pointed at a directory that holds no scripts: `scriptStore().get()`
+ * then always returns `null` and `applyScript(def, null)` returns `def` untouched, which is exactly a bare
+ * `parseCard(row)`. (src/cards/db.ts is not touched — it has its own callers.) Returns how many real scripts are
+ * being ignored, so the run can say so out loud.
+ */
+function useBareParses(): number {
+  const real = new ScriptStore().size();
+  const empty = new ScriptStore(path.join(projectRoot(), 'data', 'master', '.no-scripts'));
+  if (empty.size() !== 0) throw new Error(`parse-snapshot: ${empty.dir} must not exist — it is the "no scripts" sentinel directory`);
+  useScriptStore(empty);
+  return real;
+}
 
 /** Canonical JSON: object keys sorted, `undefined` members dropped, OMIT fields removed at every depth. */
 function canonical(v: unknown): string {
@@ -49,7 +70,8 @@ interface Snapshot {
   unparsed: Record<string, string[]>;
 }
 
-function scan(): { snap: Snapshot; names: Map<string, string> } {
+function scan(): { snap: Snapshot; names: Map<string, string>; scriptsIgnored: number } {
+  const scriptsIgnored = useBareParses();
   const db = new CardDB();
   const cards: Record<string, string> = {};
   const unparsed: Record<string, string[]> = {};
@@ -60,7 +82,7 @@ function scan(): { snap: Snapshot; names: Map<string, string> } {
     names.set(c.oracleId, c.name);
   }
   db.close();
-  return { snap: { parserVersion: PARSER_VERSION, rulesHash: rulesHash(), registryHash: registryHash(), cards, unparsed }, names };
+  return { snap: { parserVersion: PARSER_VERSION, rulesHash: rulesHash(), registryHash: registryHash(), cards, unparsed }, names, scriptsIgnored };
 }
 
 /** One line per card, keys sorted — a git diff of the snapshot is then a readable list of the cards that moved. */
@@ -82,13 +104,14 @@ function serialize(s: Snapshot): string {
 }
 
 const accept = process.argv.includes('--accept');
-const { snap, names } = scan();
+const { snap, names, scriptsIgnored } = scan();
+const scriptNote = scriptsIgnored ? ` (bare parses: ${scriptsIgnored} per-card script${scriptsIgnored === 1 ? '' : 's'} deliberately not applied)` : '';
 
 if (accept) {
   fs.mkdirSync(path.dirname(SNAPSHOT), { recursive: true });
   fs.writeFileSync(SNAPSHOT, serialize(snap), 'utf8');
   const kb = (fs.statSync(SNAPSHOT).size / 1024).toFixed(1);
-  console.log(`parse:accept — wrote ${path.relative(process.cwd(), SNAPSHOT)}: ${Object.keys(snap.cards).length} cards, parserVersion ${snap.parserVersion}, rulesHash ${snap.rulesHash}, registryHash ${snap.registryHash} (${kb} KB)`);
+  console.log(`parse:accept — wrote ${path.relative(process.cwd(), SNAPSHOT)}: ${Object.keys(snap.cards).length} cards, parserVersion ${snap.parserVersion}, rulesHash ${snap.rulesHash}, registryHash ${snap.registryHash} (${kb} KB)${scriptNote}`);
   process.exit(0);
 }
 
@@ -131,7 +154,7 @@ for (const [key, cards] of [...groups.entries()].sort((a, b) => b[1].length - a[
 if (added.length) console.log(`\n${added.length} card(s) new to the pool: ${added.slice(0, 20).map(id => names.get(id) ?? id).join(', ')}`);
 if (removed.length) console.log(`\n${removed.length} card(s) no longer in the pool: ${removed.slice(0, 20).join(', ')}`);
 
-console.log(`\nparse:diff — ${changed.length} changed, ${added.length} added, ${removed.length} removed of ${Object.keys(snap.cards).length} cards`);
+console.log(`\nparse:diff — ${changed.length} changed, ${added.length} added, ${removed.length} removed of ${Object.keys(snap.cards).length} cards${scriptNote}`);
 if (changed.length || added.length || removed.length) {
   console.log('If this is the change you intended, re-baseline with: npm run parse:accept');
   process.exit(1);

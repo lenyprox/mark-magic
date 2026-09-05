@@ -3,8 +3,15 @@
 // src/engine/ops/<family>.ts adds behaviour (ops, conditions, triggers, statics, ...); src/cards/rules/<family>.ts adds
 // the oracle-text templates that produce them. A family file default-exports a `RuleFamily`; `npm run gen:registry`
 // folds every file in this directory into the flat arrays of `./_registry.ts`, and parse.ts consults those arrays
-// **after** its own built-in tables at every dispatch point. Built-ins always win, so adding a family can only turn
-// `unknown` into something — never change a parse that already worked (`npm run parse:diff` proves it).
+// **after** its own built-in tables at every dispatch point.
+//
+// "After the built-ins" is stronger than it sounds and weaker than it sounds. Stronger: a sub-parser declining is also
+// the signal a *later* built-in stage uses (the trigger head's greedy comma re-split, the static branch under a failed
+// activated cost, the spell-text branch under a failed static, the " and " decomposition under a failed sentence), so
+// parse.ts runs a complete built-ins-only pass through each of those ladders before the pass that consults these
+// rules. A rule therefore only ever sees what every built-in stage declined. Weaker: what a rule does with the line it
+// claims is entirely the family's own, and a rule wide enough to match text you were not aiming at will still change
+// that card's parse. `npm run parse:diff` is how you check — read every group it prints.
 //
 // Nothing here imports parse.ts at runtime: the helper callbacks on `LineCtx` hand a rule the built-in sub-parsers, so
 // a family reuses the shared vocabulary (filters, targets, amounts, costs) instead of re-implementing it. The only

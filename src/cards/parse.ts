@@ -3,8 +3,14 @@
 // so the engine and AI always know exactly what they can and cannot simulate.
 import type { Ability, ActivatedAbility, AbilityCost, Amount, CardDef, CardType, Color, Condition, Effect, Filter, Keyword, ManaCost, ManaSymbol, StaticEffect, TargetSpec, TriggerEvent, TriggeredAbility } from './types.js';
 // The parser rule registry (src/cards/rules/<family>.ts, folded by `npm run gen:registry`). Every dispatch point below
-// tries its built-in table FIRST and the registry only where it would otherwise give up, so a family can add wordings
-// but never move an existing parse — see docs/vocabulary/README.md and `npm run parse:diff`.
+// tries its own built-in table FIRST and reaches the registry only where the built-ins have given up. That ordering is
+// *per sub-parser*, which on its own is not enough: an `unknown`/`null` from a sub-parser is also the signal a LATER
+// built-in stage uses to claim the line — the trigger head's greedy comma re-split, the static branch under a failed
+// activated cost, the spell-text branch under a failed static, the " and " decomposition under a failed whole sentence.
+// So every one of those ladders runs a complete **built-ins-only pass first** and only then a pass with the registry
+// enabled; that is what the `useRegistry` parameter threaded through the sub-parsers below is for. What stays true is
+// that a family only ever claims what every built-in stage declined — but the *shape* of the parse it then produces is
+// its own, so always read `npm run parse:diff` (see docs/vocabulary/README.md).
 import { CONDITION_RULES, COST_RULES, EFFECT_RULES as REGISTRY_EFFECT_RULES, LINE_RULES, STATIC_RULES, TRIGGER_RULES } from './rules/_registry.js';
 import type { LineCtx } from './rules/types.js';
 
@@ -667,7 +673,7 @@ function tokenEffect(m: RegExpMatchArray, nameIdx?: number): Effect | null {
 }
 
 /** Parse a sentence into an Effect; returns unknown op on failure. */
-export function parseEffectSentence(sentence: string): Effect {
+export function parseEffectSentence(sentence: string, useRegistry = true): Effect {
   let s = sentence.trim().replace(/\s+/g, ' ').replace(/\.$/, '');
   if (/rather than pay|as an additional cost|additional cost to cast/i.test(s)) return { op: 'unknown', text: sentence.trim() };
   const optional = /^you may /i.test(s);
@@ -679,8 +685,10 @@ export function parseEffectSentence(sentence: string): Effect {
     const m = s.match(r.re);
     if (m) { const e = r.make(m); if (e) { if (optional && (e.op === 'search' || e.op === 'dig' || e.op === 'shuffle' || e.op === 'counters' || e.op === 'put-from-hand')) e.optional = true; return e; } }
   }
-  // Registry hook: family sentence templates, tried only once the built-in table above has declined the sentence.
-  for (const r of REGISTRY_EFFECT_RULES) {
+  // Registry hook: family sentence templates, tried only once the built-in table above has declined the sentence —
+  // and, from parseSentenceRecursive, only on its second pass, so a family template can never answer a sentence the
+  // built-ins were about to decompose on " and " / ", then".
+  if (useRegistry) for (const r of REGISTRY_EFFECT_RULES) {
     const m = s.match(r.re);
     if (m) { const e = r.make(m); if (e) { if (optional && (e.op === 'search' || e.op === 'dig' || e.op === 'shuffle' || e.op === 'counters' || e.op === 'put-from-hand')) e.optional = true; return e; } }
   }
@@ -704,19 +712,33 @@ export function parseEffects(text: string): Effect[] {
   return foldMarkers(out, false);
 }
 
-/** One sentence: whole first, then ", then" / " and " splits whose every part parses (recursively, so "A and B, then C" works). */
+/**
+ * One sentence: whole first, then ", then" / " and " splits whose every part parses (recursively, so "A and B, then C"
+ * works). Two passes: the built-ins alone (the whole sentence *and* every decomposition of it), and only if that still
+ * leaves an `unknown` is the same ladder re-run with the registry effect rules enabled. Without the second pass a
+ * family template matching a whole sentence would answer it before the built-in decomposition was ever tried, which is
+ * exactly the kind of already-working parse a family must not move.
+ */
 function parseSentenceRecursive(sent: string, depth: number): Effect[] {
-  const e = parseEffectSentence(sent);
+  const builtIn = sentenceEffects(sent, depth, false);
+  if (!REGISTRY_EFFECT_RULES.length || builtIn.every(x => x.op !== 'unknown')) return builtIn;
+  const withRules = sentenceEffects(sent, depth, true);
+  return withRules.every(x => x.op !== 'unknown') ? withRules : builtIn;
+}
+
+/** One pass of the sentence ladder; `useRegistry` is threaded into every sub-parse so a pass is all-or-nothing. */
+function sentenceEffects(sent: string, depth: number, useRegistry: boolean): Effect[] {
+  const e = parseEffectSentence(sent, useRegistry);
   if (e.op !== 'unknown' || depth > 3) return [e];
   const body = sent.replace(/\.$/, '');
   // "If <condition>, <effects>" / "<effects> if <condition>" / "<effects> instead if <condition>" → conditional
   let cm = body.replace(/^then /i, '').match(/^if (.+?), (.+)$/i);
-  if (cm) { const c = parseCondition(cm[1]); if (c.kind !== 'unknown') { const sub = parseSentenceRecursive(cm[2], depth + 1); if (sub.every(x => x.op !== 'unknown')) return [{ op: 'conditional', condition: c, then: sub }]; } }
+  if (cm) { const c = parseCondition(cm[1], useRegistry); if (c.kind !== 'unknown') { const sub = sentenceEffects(cm[2], depth + 1, useRegistry); if (sub.every(x => x.op !== 'unknown')) return [{ op: 'conditional', condition: c, then: sub }]; } }
   cm = body.match(/^(.+?) if (.+)$/i);
-  if (cm && !/\bunless\b/i.test(body)) { const c = parseCondition(cm[2]); if (c.kind !== 'unknown') { const sub = parseSentenceRecursive(cm[1], depth + 1); if (sub.every(x => x.op !== 'unknown')) return [{ op: 'conditional', condition: c, then: sub }]; } }
+  if (cm && !/\bunless\b/i.test(body)) { const c = parseCondition(cm[2], useRegistry); if (c.kind !== 'unknown') { const sub = sentenceEffects(cm[1], depth + 1, useRegistry); if (sub.every(x => x.op !== 'unknown')) return [{ op: 'conditional', condition: c, then: sub }]; } }
   const parts = body.split(/,? then |\. /i);
   if (parts.length > 1) {
-    const sub = parts.flatMap(p => parseSentenceRecursive(p, depth + 1));
+    const sub = parts.flatMap(p => sentenceEffects(p, depth + 1, useRegistry));
     if (sub.every(x => x.op !== 'unknown')) return sub;
   }
   // "Target player draws two cards and loses 2 life" → two sentences that repeat the subject
@@ -724,13 +746,13 @@ function parseSentenceRecursive(sent: string, depth: number): Effect[] {
   if (subj) {
     const parts = subj[2].split(/ and (?=[a-z])/i);
     if (parts.length > 1) {
-      const sub = parts.flatMap(x => parseSentenceRecursive(`${subj[1]} ${x}`, depth + 1));
+      const sub = parts.flatMap(x => sentenceEffects(`${subj[1]} ${x}`, depth + 1, useRegistry));
       if (sub.every(x => x.op !== 'unknown')) return sub;
     }
   }
   const andParts = body.split(/ and (?=you |target |each |draw |destroy |~ |put |create |exile |return )/i);
   if (andParts.length > 1) {
-    const sub = andParts.flatMap(p => parseSentenceRecursive(p, depth + 1));
+    const sub = andParts.flatMap(p => sentenceEffects(p, depth + 1, useRegistry));
     if (sub.every(x => x.op !== 'unknown')) return sub;
   }
   return [e];
@@ -739,7 +761,7 @@ function parseSentenceRecursive(sent: string, depth: number): Effect[] {
 // ---------------------------------------------------------------------------
 // Conditions
 // ---------------------------------------------------------------------------
-function parseCondition(s: string): Condition {
+function parseCondition(s: string, useRegistry = true): Condition {
   const t = s.trim().toLowerCase();
   let m: RegExpMatchArray | null;
   if ((m = t.match(/^you have (\d+) or less life$/))) return { kind: 'life-le', who: 'you', value: Number(m[1]) };
@@ -818,20 +840,22 @@ function parseCondition(s: string): Condition {
   if ((m = t.match(/^creatures you control have total toughness (\d+) or greater$/))) return { kind: 'total-toughness-ge', value: Number(m[1]) };
   if ((m = t.match(/^your opponents control (\w+) or more lands$/))) return { kind: 'opponents-lands-ge', value: num(m[1]) as number };
   if ((m = t.match(/^you control (?:a|an) (.+)$/))) { const f = parseFilterWords(m[1]); if (f) return { kind: 'controls', who: 'you', filter: f, atLeast: 1 }; }
-  // Registry hook: family condition clauses, after every built-in clause above has declined.
-  for (const r of CONDITION_RULES) { const c = r.make(s); if (c) return c; }
+  // Registry hook: family condition clauses, after every built-in clause above has declined. Callers that use a
+  // known condition to decide *which* shape claims a line (parseActivatedLine, parseSentenceRecursive) run their
+  // built-ins-only pass first, so a condition rule never picks that branch for them.
+  if (useRegistry) for (const r of CONDITION_RULES) { const c = r.make(s); if (c) return c; }
   return { kind: 'unknown', text: s };
 }
 
 // ---------------------------------------------------------------------------
 // Triggers
 // ---------------------------------------------------------------------------
-function parseTrigger(head: string): TriggerEvent {
+function parseTrigger(head: string, useRegistry = true): TriggerEvent {
   head = head.replace(/^whenever you cast or copy /i, 'whenever you cast ');
   const t = head.trim().toLowerCase();
   let m: RegExpMatchArray | null;
   if (/^(when|whenever) ~ enters(?: the battlefield)?$/.test(t)) return { on: 'etb', self: true };
-  if ((m = t.match(/^when(?:ever)? ~ enters(?: the battlefield)? (?:and|or) whenever (.+)$/))) { const other = parseTrigger('whenever ' + m[1]); return other.on === 'unknown' ? other : { on: 'or', events: [{ on: 'etb', self: true }, other] }; }
+  if ((m = t.match(/^when(?:ever)? ~ enters(?: the battlefield)? (?:and|or) whenever (.+)$/))) { const other = parseTrigger('whenever ' + m[1], useRegistry); return other.on === 'unknown' ? other : { on: 'or', events: [{ on: 'etb', self: true }, other] }; }
   if (/^whenever ~ enters or attacks$/.test(t)) return { on: 'or', events: [{ on: 'etb', self: true }, { on: 'attacks', self: true }] };
   if ((m = t.match(/^when(?:ever)? you play (another|a) land$/))) return { on: 'landfall', played: true, other: m[1] === 'another' };
   if (/^whenever a land you control enters(?: the battlefield)?$/.test(t)) return { on: 'landfall' };
@@ -896,8 +920,10 @@ function parseTrigger(head: string): TriggerEvent {
   if (/^whenever you sacrifice a permanent$/.test(t)) return { on: 'sacrifice' };
   if (/^whenever ~ becomes tapped$/.test(t)) return { on: 'tapped', self: true };
   if (/^whenever you discard a card$/.test(t)) return { on: 'discard' };
-  // Registry hook: family trigger heads, after every built-in head above has declined.
-  for (const r of TRIGGER_RULES) { const ev = r.make(head); if (ev) return ev; }
+  // Registry hook: family trigger heads, after every built-in head above has declined — and, in the parseCard line
+  // loop, only once the built-in greedy comma re-split of the line has declined too (a trigger rule that answers the
+  // narrow first-comma head would otherwise steal a line the re-split parses).
+  if (useRegistry) for (const r of TRIGGER_RULES) { const ev = r.make(head); if (ev) return ev; }
   return { on: 'unknown', text: head };
 }
 
@@ -905,7 +931,7 @@ function parseTrigger(head: string): TriggerEvent {
 // Costs
 // ---------------------------------------------------------------------------
 /** One cost phrase ("{T}", "Pay 1 life", "Exile a blue card from your hand", "Sacrifice a creature"). */
-function parseCostPhrase(p: string): AbilityCost | null {
+function parseCostPhrase(p: string, useRegistry = true): AbilityCost | null {
   const cost: AbilityCost = {};
   const raw = p.trim().replace(/\.$/, ''); const pl = raw.toLowerCase();
   let m: RegExpMatchArray | null;
@@ -931,15 +957,17 @@ function parseCostPhrase(p: string): AbilityCost | null {
   else if ((m = pl.match(/^return (?:a|an) (.+?) you control to its owner's hand$/))) { const f = parseFilterWords(m[1]); if (!f) return null; cost.returnToHand = f; }
   else if ((m = pl.match(/^tap an untapped (.+?) you control$/))) { const f = parseFilterWords(m[1]); if (!f) return null; cost.tapUntappedCreature = f; }
   else if ((m = pl.match(/^tap any number of (other )?(?:untapped )?creatures you control with total power (\d+) or (?:more|greater)$/))) cost.tapCreaturesTotalPower = { power: Number(m[2]), other: !!m[1] };
-  // Registry hook: family cost phrases, after every built-in phrase above has declined.
-  else { for (const r of COST_RULES) { const c = r.make(raw); if (c) return c; } return null; }
+  // Registry hook: family cost phrases, after every built-in phrase above has declined. A cost rule makes
+  // parseActivatedLine claim a line the built-ins could not, which would pre-empt the static branch *below* it in the
+  // line loop — so the line loop enables this only on its second pass (see parseCard).
+  else { if (useRegistry) for (const r of COST_RULES) { const c = r.make(raw); if (c) return c; } return null; }
   return cost;
 }
 
-function parseCost(costText: string): AbilityCost | null {
+function parseCost(costText: string, useRegistry = true): AbilityCost | null {
   const cost: AbilityCost = {};
   const parts = costText.split(/,\s*/).map(p => p.trim()).filter(Boolean);
-  for (const p of parts) { const c = parseCostPhrase(p); if (!c) return null; Object.assign(cost, c); }
+  for (const p of parts) { const c = parseCostPhrase(p, useRegistry); if (!c) return null; Object.assign(cost, c); }
   return cost;
 }
 
@@ -973,7 +1001,9 @@ function spellTypeFilter(word: string): Filter {
 function stripModeName(mode: string): string { return mode.replace(/^[A-Z][^—.]{0,34} — (?=[A-Z~])/, '').trim(); }
 function parseGrantedAbility(text: string): Ability | null {
   const body = text.trim().replace(/\.$/, '');
-  const act = parseActivatedLine(body + '.');
+  // Built-ins-only first: a registry cost rule here would let the activated shape claim quoted text that the built-in
+  // triggered shape below owns. The registry retry is at the bottom, once both built-in shapes have declined.
+  const act = parseActivatedLine(body + '.', false);
   if (act && act.effects.every(e => e.op !== 'unknown')) return act;
   const tm = body.match(/^(When|Whenever|At) (.+?), (.+)$/i);
   if (tm) {
@@ -986,9 +1016,11 @@ function parseGrantedAbility(text: string): Ability | null {
     if (effs.some(e => e.op === 'unknown')) return null;
     return { kind: 'triggered', event: ev, effects: effs, text, ...(optional ? { optional: true } : {}) };
   }
+  // Second pass: registry cost phrases, once both built-in shapes (activated, triggered) have declined this text.
+  if (COST_RULES.length) { const a = parseActivatedLine(body + '.', true); if (a && a.effects.every(e => e.op !== 'unknown')) return a; }
   return null;
 }
-function parseStatic(line: string, card: { types: CardType[]; subtypes: string[] }): StaticEffect | StaticEffect[] | null {
+function parseStatic(line: string, card: { types: CardType[]; subtypes: string[] }, useRegistry = true): StaticEffect | StaticEffect[] | null {
   const t = line.trim().replace(/\.$/, '');
   let m: RegExpMatchArray | null;
   // anthems
@@ -1149,8 +1181,10 @@ function parseStatic(line: string, card: { types: CardType[]; subtypes: string[]
     if ((m = t.match(/^equipped creature gets ([+-]\d+)\/([+-]\d+)(?: and has (.+))?$/i))) { const kw = m[3] ? kwList(m[3]) : []; if (kw === null) return null; return { kind: 'equipment', power: Number(m[1]), toughness: Number(m[2]), keywords: kw, equipCost: parseManaCost('{0}')! }; }
     if ((m = t.match(/^equipped creature has (.+)$/i))) { const kw = kwList(m[1]); if (!kw) return null; return { kind: 'equipment', power: 0, toughness: 0, keywords: kw, equipCost: parseManaCost('{0}')! }; }
   }
-  // Registry hook: family static lines, after every built-in static template above has declined.
-  for (const r of STATIC_RULES) { const st = r.make(line, card); if (st) return st; }
+  // Registry hook: family static lines, after every built-in static template above has declined. The line loop
+  // enables this only on its second pass: the static branch sits *above* the spell-text branch, so a static rule that
+  // ran on the first pass would silently steal whole lines from instants and sorceries.
+  if (useRegistry) for (const r of STATIC_RULES) { const st = r.make(line, card); if (st) return st; }
   return null;
 }
 
@@ -1184,6 +1218,19 @@ function tryLineRules(def: CardDef, line: string, rawLine: string, row: OracleRo
   };
   for (const r of LINE_RULES) if (r.match(line, ctx)) return true;
   return false;
+}
+
+/** Record a parsed activated ability on the def — shared by the built-in pass and the registry retry below it. */
+function addActivated(def: CardDef, line: string, act: ActivatedAbility): void {
+  if (/from your graveyard/i.test(line) && act.effects.some(e => e.op === 'bounce' && e.target === 'self')) act.fromGraveyard = true;
+  if (act.effects.some(e => e.op === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
+  if (act.manaAbility) for (const e of act.effects) if (e.op === 'add-mana' && Array.isArray(e.mana)) def.producesMana.push(...e.mana); else if (e.op === 'add-mana') def.producesMana.push('W', 'U', 'B', 'R', 'G');
+  def.abilities.push(act);
+}
+
+/** Record one (or several) parsed static effects on the def — likewise shared by both passes. */
+function addStatic(def: CardDef, line: string, st: StaticEffect | StaticEffect[]): void {
+  for (const e of Array.isArray(st) ? st : [st]) { if (e.kind === 'anthem' && e.whileInGraveyard) def.graveyardStatic = true; def.abilities.push({ kind: 'static', effect: e, text: line }); }
 }
 
 export function parseCard(row: OracleRow): CardDef {
@@ -1359,7 +1406,7 @@ export function parseCard(row: OracleRow): CardDef {
       def.abilities.push(ab); continue;
     }
 
-    if (/^whenever (?:you tap|enchanted \w+ is tapped)/i.test(line) && /for mana/i.test(line)) { const st = parseStatic(line.replace(/\.$/, ''), def); if (st) { for (const e of Array.isArray(st) ? st : [st]) def.abilities.push({ kind: 'static', effect: e, text: line }); continue; } }
+    if (/^whenever (?:you tap|enchanted \w+ is tapped)/i.test(line) && /for mana/i.test(line)) { const st = parseStatic(line.replace(/\.$/, ''), def, false); if (st) { for (const e of Array.isArray(st) ? st : [st]) def.abilities.push({ kind: 'static', effect: e, text: line }); continue; } }
     // --- triggered
     if ((m = line.match(/^(When|Whenever|At) (.+?), (.+)$/))) {
       // "Whenever X, if Y, Z" intervening-if
@@ -1367,8 +1414,16 @@ export function parseCard(row: OracleRow): CardDef {
       const ifm = body.match(/^if (.+?), (.+)$/i);
       if (ifm) { intervening = parseCondition(ifm[1]); body = ifm[2]; }
       // Trigger heads sometimes contain a comma ("Whenever a creature you control attacks, ...") that split wrong: retry greedily
-      let ev = parseTrigger(head);
-      if (ev.on === 'unknown') { const alt = line.match(/^(When|Whenever|At) (.+), ([^,]+)$/); if (alt) { const ev2 = parseTrigger(`${alt[1]} ${alt[2]}`); if (ev2.on !== 'unknown') { ev = ev2; body = alt[3]; } } }
+      // Both built-in splits first: the greedy re-split is itself a built-in stage, so a registry trigger rule that
+      // answers the narrow head must not run ahead of it.
+      let ev = parseTrigger(head, false);
+      const alt = ev.on === 'unknown' ? line.match(/^(When|Whenever|At) (.+), ([^,]+)$/) : null;
+      if (alt) { const ev2 = parseTrigger(`${alt[1]} ${alt[2]}`, false); if (ev2.on !== 'unknown') { ev = ev2; body = alt[3]; } }
+      if (ev.on === 'unknown' && TRIGGER_RULES.length) {
+        const ev3 = parseTrigger(head);
+        if (ev3.on !== 'unknown') ev = ev3;
+        else if (alt) { const ev4 = parseTrigger(`${alt[1]} ${alt[2]}`); if (ev4.on !== 'unknown') { ev = ev4; body = alt[3]; } }
+      }
       const optional = /^you may /i.test(body);
       const selfEv = 'self' in ev && ev.self === true;
       // "it" in a self-referential trigger body is the source, unless the body introduces another referent
@@ -1380,18 +1435,14 @@ export function parseCard(row: OracleRow): CardDef {
       def.abilities.push(ab); continue;
     }
 
-    // --- activated "cost: effect"
-    const act = parseActivatedLine(line);
-    if (act) {
-      if (/from your graveyard/i.test(line) && act.effects.some(e => e.op === 'bounce' && e.target === 'self')) act.fromGraveyard = true;
-      if (act.effects.some(e => e.op === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
-      if (act.manaAbility) for (const e of act.effects) if (e.op === 'add-mana' && Array.isArray(e.mana)) def.producesMana.push(...e.mana); else if (e.op === 'add-mana') def.producesMana.push('W', 'U', 'B', 'R', 'G');
-      def.abilities.push(act); continue;
-    }
+    // --- activated "cost: effect" (built-in cost phrases only — a registry cost phrase would claim the line ahead of
+    //     the static and spell-text branches below, so its retry lives past both of them)
+    const act = parseActivatedLine(line, false);
+    if (act) { addActivated(def, line, act); continue; }
 
-    // --- static
-    const st = parseStatic(line, { types, subtypes: row.subtypes });
-    if (st) { for (const e of Array.isArray(st) ? st : [st]) { if (e.kind === 'anthem' && e.whileInGraveyard) def.graveyardStatic = true; def.abilities.push({ kind: 'static', effect: e, text: line }); } continue; }
+    // --- static (built-in templates only, for the same reason: this branch sits above the spell-text branch)
+    const st = parseStatic(line, { types, subtypes: row.subtypes }, false);
+    if (st) { addStatic(def, line, st); continue; }
 
     // --- spell text / ETB-less effect text on permanents (e.g. "Destroy target creature." on a sorcery)
     if (isSpell) {
@@ -1400,9 +1451,11 @@ export function parseCard(row: OracleRow): CardDef {
       if (effs.some(e => e.op === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
       continue;
     }
-    // Registry hook (2 of 2): the last chance before the line is recorded as unparsed. Every built-in shape — saga
-    // chapter, mode, keyword, alternative cost, as-enters, loyalty, trigger, activated, static and (on an instant or
-    // sorcery) spell text — has already declined, so nothing a family claims here can change an existing parse.
+    // ---- registry pass. Every built-in stage above has declined this line (and an instant or sorcery never reaches
+    // here at all), so what a rule claims below could only have been `unknown`. The order mirrors the built-in ladder.
+    if (COST_RULES.length) { const act2 = parseActivatedLine(line, true); if (act2) { addActivated(def, line, act2); continue; } }
+    if (STATIC_RULES.length) { const st2 = parseStatic(line, { types, subtypes: row.subtypes }, true); if (st2) { addStatic(def, line, st2); continue; } }
+    // Registry hook (2 of 2): the last chance before the line is recorded as unparsed.
     if (LINE_RULES.length && tryLineRules(def, line, rawLine, row, isSpell)) continue;
     unknown(def, line);
   }
@@ -1434,17 +1487,22 @@ function parseTypeLine(tl: string): { types: string[]; supertypes: string[]; sub
 }
 
 /** "cost: effect" line -> activated ability, with the "Activate only ..." riders. */
-function parseActivatedLine(line: string): ActivatedAbility | null {
+/**
+ * `useRegistry` gates only the two sub-parses that decide whether this line *is* an activated ability — the cost and
+ * the "activate only if" condition. The body's effects always see the registry: they cannot make the line be claimed,
+ * so a family effect rule there can only fill in an `unknown`.
+ */
+function parseActivatedLine(line: string, useRegistry = true): ActivatedAbility | null {
   const m = line.match(/^((?:\{[^}]+\})+(?:, [^:]+)?|[^:]+?): (.+)$/);
   if (!m || /^(choose|enchant)/i.test(line)) return null;
-  const cost = parseCost(m[1]); if (!cost) return null;
+  const cost = parseCost(m[1], useRegistry); if (!cost) return null;
   let body = m[2]; let sorcerySpeed = false, oncePerTurn = false, instantSpeed = false; let activateOnlyIf: Condition | undefined;
   if (/ activate only as a sorcery and only if /i.test(body)) { sorcerySpeed = true; body = body.replace(/ activate only as a sorcery and only if /i, ' activate only if '); }
   if (/ activate only as a sorcery\.?$/i.test(body)) { sorcerySpeed = true; body = body.replace(/ activate only as a sorcery\.?$/i, ''); }
   if (/ activate only as an instant\.?$/i.test(body)) { instantSpeed = true; body = body.replace(/ activate only as an instant\.?$/i, ''); }
   if (/ activate only once each turn\.?$/i.test(body)) { oncePerTurn = true; body = body.replace(/ activate only once each turn\.?$/i, ''); }
   const only = body.match(/ activate only if (.+?)\.?$/i);
-  if (only) { const c = parseCondition(only[1]); if (c.kind === 'unknown') return null; activateOnlyIf = c; body = body.slice(0, only.index); }
+  if (only) { const c = parseCondition(only[1], useRegistry); if (c.kind === 'unknown') return null; activateOnlyIf = c; body = body.slice(0, only.index); }
   const effs = foldMarkers(parseEffects(body), true);
   const manaAbility = effs.some(e => e.op === 'add-mana') && effs.every(e => e.op === 'add-mana' || e.op === 'damage-you' || ((e.op === 'lose-life' || e.op === 'gain-life') && e.who === 'you'));
   return { kind: 'activated', cost, effects: effs, text: line, sorcerySpeed, oncePerTurn, manaAbility, activateOnlyIf, instantSpeed };
