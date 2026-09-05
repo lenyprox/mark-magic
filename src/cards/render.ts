@@ -932,6 +932,7 @@ export interface LineScore { text: string; rendered: string; score: number; why?
 export function printedKeywordLine(line: string): boolean {
   const t = line.trim();
   if (!t || /[.,:;"~•]/.test(t)) return false;
+  if (/^Gift (?:a|an) [A-Za-z][a-z]+(?: [a-z]+)?$/.test(t)) return true;   // "Gift a Treasure", "Gift a card", "Gift an extra turn"
   if (t.split(/\s+/).length > 4) return false;
   return /^[A-Z][A-Za-z'!-]*(?: [a-z'!-]+){0,2}(?:[ —-]*(?:\d+|(?:\{[^}]*\})+|[a-z][a-z ]*))?$/.test(t);
 }
@@ -939,6 +940,7 @@ export function printedKeywordLine(line: string): boolean {
 /** A printed keyword line split into the keyword's NAME (lower-cased) and the parameter it prints, if it has one. */
 export function keywordLineParts(line: string): { name: string; n?: string; cost?: string } {
   const t = line.trim().replace(/\.$/, '');
+  const gift = /^Gift ((?:a|an) .+)$/i.exec(t); if (gift) return { name: 'gift', n: gift[1].toLowerCase() };
   const cost = /((?:\{[^}]*\})+)\s*$/.exec(t)?.[1];
   const n = cost ? undefined : /(?:^|[^/+-])\b(\d+)\s*$/.exec(t)?.[1];
   const name = t.replace(/[ —-]*(?:(?:\{[^}]*\})+|\d+)\s*$/, '').trim().toLowerCase();
@@ -963,6 +965,13 @@ export function keywordLineParts(line: string): { name: string; n?: string; cost
  */
 export const KEYWORD_EXPANSIONS: Record<string, string> = {
   afflict: 'whenever ~ becomes blocked, defending player loses {n} life',
+  backup: 'when ~ enters, put {n} +1/+1 counters on target creature. if that is another creature, it gains the abilities of ~ until end of turn',
+  compleated: '{cost} can be paid with mana or 2 life. if life was paid, ~ enters with two fewer loyalty counters',
+  encore: '{cost}, exile ~ from your graveyard: for each opponent, create a token copy of ~ that attacks that opponent this turn if able. they gain haste. sacrifice them at the beginning of the next end step. activate only as a sorcery',
+  equip: '{cost}: attach ~ to target creature you control. activate only as a sorcery',
+  escalate: 'this spell costs {cost} more to cast for each mode chosen beyond the first',
+  fortify: '{cost}: attach ~ to target land you control. activate only as a sorcery',
+  gift: 'you may promise an opponent a gift as you cast this spell. if you do, that player gets {n} before this spell resolves',
   'battle cry': 'whenever ~ attacks, other attacking creatures get +1/+0 until end of turn',
   crew: 'tap any number of creatures you control with total power {n} or greater: crew ~',
   'cumulative upkeep': 'at the beginning of your upkeep, put an age counter on ~. sacrifice ~ unless you pay {cost} for each age counter on it',

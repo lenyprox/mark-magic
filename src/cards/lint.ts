@@ -26,6 +26,8 @@ import {
   coverProblems, ignoreLineProblem, scriptableLines, type CardScript, type ScriptFace,
 } from './scripts.js';
 import { SUBTYPE_KIND } from './subtype-vocab.js';
+/** Subtypes no printed card carries but tokens do (the vocabulary is generated from type lines): Living weapon's Germ, Fabricate's Servo, and the predefined artifact tokens. */
+const TOKEN_ONLY_SUBTYPES: ReadonlySet<string> = new Set(['Germ', 'Servo', 'Powerstone', 'Junk', 'Map', 'Incubator', 'Blood', 'Gold', 'Clue', 'Food', 'Treasure', 'Thopter', 'Spawn', 'Scion']);
 import type { PoolTier } from './pool.js';
 import type { CardDef } from './types.js';
 
@@ -172,7 +174,7 @@ export function lintScript(script: CardScript, def: CardDef, tier: PoolTier = 'p
       }
       if (typeof node.withKeyword === 'string' && !KEYWORD_VOCAB.has(node.withKeyword)) problems.push(`${where}unknown keyword ${JSON.stringify(node.withKeyword)} in a filter`);
       if (Array.isArray(node.subtypes)) {
-        for (const s of node.subtypes) if (typeof s === 'string' && !SUBTYPE_KIND[s]) problems.push(`${where}${JSON.stringify(s)} is not a subtype the pool prints (src/cards/subtype-vocab.ts — run npm run gen:subtypes after a Scryfall refresh)`);
+        for (const s of node.subtypes) if (typeof s === 'string' && !SUBTYPE_KIND[s] && !TOKEN_ONLY_SUBTYPES.has(s)) problems.push(`${where}${JSON.stringify(s)} is not a subtype the pool prints (src/cards/subtype-vocab.ts — run npm run gen:subtypes after a Scryfall refresh)`);
       }
     });
     for (const kw of face.keywords ?? []) if (!KEYWORD_VOCAB.has(String(kw))) problems.push(`${where}unknown keyword ${JSON.stringify(kw)}`);

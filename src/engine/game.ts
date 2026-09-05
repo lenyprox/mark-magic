@@ -1313,8 +1313,12 @@ export class Game {
       }
       case 'bounce': {
         const list = e.target === 'self' ? [src] : typeof e.target === 'string' ? this.groupTargets(e.target, p).objects : this.objs(T);
-        // a targeted spell on the stack is bounced too (Sink into Stupor)
-        for (const r of T) if (r.kind === 'stack') { const it = s.stack.find(i => i.id === r.id); if (it && it.kind === 'spell') { s.stack.splice(s.stack.indexOf(it), 1); it.countered = true; list.push(it.source); this.note(`${it.name} is returned to its owner's hand.`); } }
+        // a targeted spell on the stack is bounced too (Sink into Stupor) — whether it arrived as the effect's own
+        // `stack` TargetRef or through a Ref that resolved to the spell's card (Narset's Reversal's 'target:0')
+        const spells = new Set<StackItem>();
+        for (const r of T) if (r.kind === 'stack') { const it = s.stack.find(i => i.id === r.id); if (it && it.kind === 'spell') spells.add(it); }
+        for (const o of list) if (o.zone === 'stack') { const it = s.stack.find(i => i.source.id === o.id); if (it && it.kind === 'spell') spells.add(it); }
+        for (const it of spells) { s.stack.splice(s.stack.indexOf(it), 1); it.countered = true; if (!list.includes(it.source)) list.push(it.source); this.note(`${it.name} is returned to its owner's hand.`); }
         this.noteAffected(item, list);
         for (const o of list) { if (o.token) { this.moveTo(o, 'exile', 'top', 'bounce'); continue; } if (e.to === 'hand') this.moveTo(o, 'hand', 'top', 'bounce'); else { this.moveTo(o, 'library', e.to === 'library-top' ? 'top' : 'bottom', 'bounce'); } }
         break;
@@ -1425,7 +1429,8 @@ export class Game {
         break;
       }
       case 'copy-spell': {
-        const t = T[0]; const orig = typeof t === 'number' ? s.stack.find(x => x.id === t) : undefined;
+        // a spell target is a `stack` TargetRef (10.0 authors found the old `typeof t === 'number'` test never true)
+        const t = T[0]; const orig = t && t.kind === 'stack' ? s.stack.find(x => x.id === t.id) : undefined;
         if (!orig || orig.kind !== 'spell') break;
         const copy: StackItem = { ...orig, id: ++this.stackCounter, controller: p, targetsByEffect: new Map(orig.targetsByEffect), targets: [...orig.targets], isCopy: true } as StackItem;
         s.stack.push(copy);
@@ -1707,7 +1712,7 @@ export class Game {
     if (e.until === 'leaves' && src.zone !== 'battlefield') return;             // CR 610.3a: the "until" event already happened — nothing moves
     let list: GameObject[];
     if (typeof e.what === 'string') list = resolveRef(rc, e.what).filter(o => this.bindingHolds(item, o));
-    else if ('kind' in e.what) list = e.what.self ? [src] : this.objs(T);
+    else if ('kind' in e.what) list = e.what.self ? [src] : this.objs(T, true);   // a `spell` target is a stack ref
     else list = await this.chooseFrom(item, e.what, rc, T, amt);
     const ctlOf = (o: GameObject): PlayerId => e.controller === 'you' ? p : e.controller === 'that-player' || e.controller === 'target-player' ? (resolveOnePlayer(rc, e.controller, T) ?? o.owner) : o.owner;
     const entries = list.map(o => this.affectedEntry(o));                        // values as they were before the move
@@ -1724,6 +1729,8 @@ export class Game {
         this.note(`${this.pname(ctl)} puts ${name(o)} onto the battlefield${o.tapped ? ' tapped' : ''}${e.faceDown ? ' face down' : ''}.`);
       } else {
         const reason: ZoneChangeReason = e.to === 'exile' ? 'exile' : e.to === 'hand' ? (o.zone === 'graveyard' ? 'return' : 'bounce') : e.to === 'library' ? 'tuck' : 'effect';
+        // a spell leaving the stack takes its StackItem with it (CR 608.2b would otherwise resolve a card that is gone)
+        if (o.zone === 'stack') { const it = s.stack.find(i => i.source.id === o.id); if (it) { s.stack.splice(s.stack.indexOf(it), 1); it.countered = true; } }
         this.moveTo(o, e.to, e.pos ?? 'top', reason);
         if (o.zone !== e.to) continue;                                            // a replacement sent it elsewhere (commander redirect, "exile instead")
         if (e.to === 'library') this.note(`${name(o)} is put on ${e.pos === 'bottom' ? 'the bottom' : 'top'} of its owner's library.`);

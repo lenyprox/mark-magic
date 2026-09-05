@@ -862,4 +862,27 @@ export const composition: Scenario[] = [
     script: [attackWith(['Grizzly Bears'], [['Darksteel Myr', 'Grizzly Bears']])],
     expect: [{ life: [1, 20] }, { zone: ['Darksteel Myr', 'battlefield'] }, { zone: ['Grizzly Bears', 'battlefield'] }, { unsimulated: 0 }],
   },
+  // ------------------------------------------------------------------ spells as objects: copy-spell, bounce / move off the stack (10.0 author findings)
+  {
+    name: 'copy-spell copies the targeted spell on the stack (the copy resolves too)', cr: '707.10',
+    seats: [{ bf: ['Grizzly Bears', 'Mountain'], hand: ['Lightning Bolt'] }, { life: 20 }],
+    scripts: bearsFree([{ op: 'copy-spell', target: { kind: 'spell' } }]),
+    script: [{ cast: 'Lightning Bolt', targets: [['P1']] }, { activate: 'Grizzly Bears', targets: [['Lightning Bolt']] }, { resolve: true }, { resolve: true }, { resolve: true }],
+    expect: [{ life: [1, 14] }, { unsimulated: 0 }],
+  },
+  {
+    name: "bounce through a Ref returns the targeted spell's card to hand and takes the spell off the stack (Narset's Reversal shape)", cr: '608.2b',
+    seats: [{ bf: ['Grizzly Bears', 'Mountain'], hand: ['Lightning Bolt'] }, { bf: ['Mountain'], hand: ['Shock'], life: 20 }],
+    // the opponent's Shock at P0; Bears: "copy target spell, then return it to its owner's hand"
+    scripts: bearsFree([{ op: 'copy-spell', target: { kind: 'spell' } }, { op: 'bounce', target: 'target:0', to: 'hand' }]),
+    script: [{ cast: 'Shock', by: 1, targets: [['P0']] }, { activate: 'Grizzly Bears', targets: [['Shock']] }, { resolve: true }, { resolve: true }, { resolve: true }],
+    expect: [{ life: [0, 18] }, { zone: ['Shock', 'hand'] }, { stackNames: [] }, { unsimulated: 0 }],
+  },
+  {
+    name: "move to hand takes the targeted spell off the stack instead of leaving a resolving item behind", cr: '608.2b',
+    seats: [{ bf: ['Grizzly Bears'] }, { bf: ['Mountain'], hand: ['Shock'], life: 20 }],
+    scripts: bearsFree([{ op: 'move', what: { kind: 'spell' }, to: 'hand' }]),
+    script: [{ cast: 'Shock', by: 1, targets: [['P0']] }, { activate: 'Grizzly Bears', targets: [['Shock']] }, { resolve: true }, { resolve: true }],
+    expect: [{ life: [0, 20] }, { zone: ['Shock', 'hand'] }, { stackNames: [] }, { unsimulated: 0 }],
+  },
 ];

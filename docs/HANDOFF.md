@@ -393,6 +393,19 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     damage was added to the previous attacker's entry — or to nothing, which threw. Fixed in `combatDamage`: the
     remainder goes to the attacker's own last entry, else to its first blocker (CR 510.1c). Scenario in
     test/scenarios/composition.ts (Grizzly Bears with double strike into Darksteel Myr).
+31. **Harness defects the 10.0 authors reported, fixed during the wave:** `copy-spell` never copied (it tested
+    `typeof t === 'number'` on a `TargetRef`; Dualcaster Mage and Narset's Reversal verified green while doing
+    nothing); `bounce` through a Ref left the spell on the stack; `move` could not take a spell off the stack and
+    `opMove` resolved no stack refs for a `spell` TargetSpec; the renderer had no rules text for equip, backup,
+    encore, escalate, fortify, compleated and gift ("Gift a Treasure" was not a printed keyword line), so every
+    Equipment was stuck between `scripts:check` and the round-trip gate; the lint rejected token-only subtypes
+    (Germ, Servo, the predefined artifact tokens). `MTG_SCRIPTS=0` empties the process-wide script store so goldens,
+    fuzz and parser tests can run while a wave writes into data/scripts (test/staples.test.ts pins the parser alone).
+    Still open from the same reports: `unparsedLines` in batch files repeats lines; `scripts:verify` prints a MISSING
+    card's stage verdicts before the real reason; `--batch` is lost when the npm script is invoked from PowerShell;
+    `add-mana.restriction`, `move` with a filtered TargetSpec and `AmountExpr.counter` / `.filter` under a named
+    count do not render; the draft parses "choose one or more" as a one-mode choice; Unstoppable Slasher's "if it had
+    no counters on it" reads as an intervening if; no `covers` kind names an Equip line (equipment.equipCost).
 
 ## 4. Remaining Phase 8 slices
 

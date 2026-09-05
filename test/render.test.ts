@@ -310,3 +310,12 @@ test("add-mana with a word in `options` renders instead of throwing (8c re-revie
     assert.doesNotThrow(() => renderEffect(e));
   }
 });
+
+test('the printed keyword lines the 10.0 authors hit have rules text: equip, backup, encore, escalate, fortify, compleated, gift', () => {
+  for (const line of ['Equip {3}', 'Backup 1', 'Encore {6}{W}{W}', 'Escalate {G}', 'Fortify {3}', 'Compleated', 'Gift a Treasure']) {
+    assert.ok(printedKeywordLine(line), `${line} is a printed keyword line`);
+    assert.ok(keywordExpansion(line), `${line} has rules text`);
+  }
+  assert.match(keywordExpansion('Equip {3}')!, /\{3\}: attach ~ to target creature you control/);
+  assert.match(keywordExpansion('Gift a Treasure')!, /a treasure/);
+});

@@ -2,7 +2,12 @@
 // effects, delve/escape/flashback, library manipulation, hand attack, delayed triggers, Sagas, crew, MDFC lands.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { C, find, inHand, Script, setup } from './helpers.js';
+import { ScriptStore, useScriptStore } from '../src/cards/scripts.js';
+import { projectRoot } from '../src/config/paths.js';
+// the parser alone: a script wave writing into data/scripts must not move these expectations (Kozilek's Command's modal unknowns, …)
+useScriptStore(new ScriptStore(path.join(projectRoot(), 'data', 'master', '.no-scripts')));
 import { legalActions } from '../src/engine/legal.js';
 import { isCreature, power, toughness } from '../src/engine/characteristics.js';
 import type { Game } from '../src/engine/game.js';

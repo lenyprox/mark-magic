@@ -417,7 +417,8 @@ export function isVerified(script: CardScript): boolean {
 }
 
 let shared: ScriptStore | null = null;
-export function scriptStore(): ScriptStore { return (shared ??= new ScriptStore()); }
+/** The process-wide store. `MTG_SCRIPTS=0` makes it empty — the parser alone — so a gate (goldens, fuzz, a parser test) can be run while a script wave is writing files into data/scripts. */
+export function scriptStore(): ScriptStore { return (shared ??= process.env.MTG_SCRIPTS === '0' ? new ScriptStore(path.join(projectRoot(), 'data', 'master', '.no-scripts')) : new ScriptStore()); }
 export function useScriptStore(store: ScriptStore | null) { shared = store; }
 
 // ---------------------------------------------------------------------------
