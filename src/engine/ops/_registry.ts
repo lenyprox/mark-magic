@@ -16,8 +16,11 @@ import type {
 /** One family with the file it came from (runtime registrations report `(runtime)`). */
 export interface RegistryEntry { file: string; mod: FamilyModule }
 
+import family_dice_coin from './dice-coin.js';
 
-const GENERATED: RegistryEntry[] = [];
+const GENERATED: RegistryEntry[] = [
+  { file: "dice-coin.ts", mod: family_dice_coin },
+];
 
 // ---------------------------------------------------------------- flat lookups (mutated in place by rebuild())
 export type EffectOp = (e: never, c: OpCtx) => void | Promise<void>;
