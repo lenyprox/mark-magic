@@ -165,27 +165,56 @@ function staticSources(s: GameState): GameObject[] {
   return list;
 }
 
-let modCache: { state: unknown; version: number; gen: number; map: Map<number, Mods> } | null = null;
-/** Parked in the cache while an object's mods are being computed, so a re-entrant read is recognisable. */
+type ModCache = { state: unknown; version: number; gen: number; map: Map<number, Mods>; layer6: Map<number, Mods> };
+let modCache: ModCache | null = null;
+/** Parked in the main table while an object's full mods are being computed, so a re-entrant read is recognisable. */
 const IN_PROGRESS: Mods = { p: 0, t: 0, kw: [], setPT: undefined, flags: {} };
-/** The answer a re-entrant read gets: no static modification at all, i.e. the object's printed characteristics.
- * A static whose filter consults derived characteristics of the very object it is being applied to (Windstorm Drake's
- * "other creatures you control with flying", `powerGE`, `toughnessGtPower`, `withKeyword`, …) sends `matchesFilter`
- * back through `power`/`toughness`/`keywords` into `staticMods` for that same object; without a guard that recurses
- * until the stack blows. CR 613.8 settles such loops by dependency order between layers; the engine settles for the
- * printed values on the inner read — the same answer an unmodified object gives — which keeps the filter decidable
- * and terminates. Frozen because it is shared: nothing may fold a modification into it. */
+/** Parked in the layer-6 table while that pass runs, so a read nested inside it is recognisable in turn. */
+const L6_IN_PROGRESS: Mods = { p: 0, t: 0, kw: [], setPT: undefined, flags: {} };
+/** No static modification at all, i.e. the object's printed characteristics. The innermost fallback: what a read
+ * nested inside the layer-6 pass below gets, which is where the recursion has to stop. Frozen because it is shared:
+ * nothing may fold a modification into it. */
 const BASE_MODS: Mods = Object.freeze({ p: 0, t: 0, kw: Object.freeze([] as Keyword[]) as Keyword[], setPT: undefined, flags: Object.freeze({}) as Mods['flags'] }) as Mods;
 function staticMods(s: GameState, o: GameObject): Mods {
   const gen = s.bfGen ?? 0;
-  if (!modCache || modCache.state !== s || modCache.version !== s.version || modCache.gen !== gen) modCache = { state: s, version: s.version, gen, map: new Map() };
-  const cache = modCache.map;   // held across the compute: a nested read must land in the same table as this one
-  const hit = cache.get(o.id);
-  if (hit) return hit === IN_PROGRESS ? BASE_MODS : hit;
-  cache.set(o.id, IN_PROGRESS);
+  if (!modCache || modCache.state !== s || modCache.version !== s.version || modCache.gen !== gen) modCache = { state: s, version: s.version, gen, map: new Map(), layer6: new Map() };
+  const cache = modCache;   // held across the compute: a nested read must land in the same tables as this one
+  const hit = cache.map.get(o.id);
+  if (hit) return hit === IN_PROGRESS ? layer6Mods(s, o, cache) : hit;
+  cache.map.set(o.id, IN_PROGRESS);
   let m: Mods;
-  try { m = computeStaticMods(s, o); } catch (e) { cache.delete(o.id); throw e; }   // never leave a poisoned marker
-  cache.set(o.id, m);
+  try { m = computeStaticMods(s, o); } catch (e) { cache.map.delete(o.id); throw e; }   // never leave a poisoned marker
+  cache.map.set(o.id, m);
+  return m;
+}
+
+/**
+ * The answer a re-entrant read of `o`'s mods gets: the layer-6 half of them (granted keywords, granted landwalk and
+ * the can't-attack/can't-block flags) with every layer-7 term — `p`, `t` and `setPT` — dropped.
+ *
+ * A static whose filter consults derived characteristics of the very object it is being applied to (Windstorm Drake's
+ * "other creatures you control with flying", `powerGE`, `toughnessGtPower`, `withKeyword`, …) sends `matchesFilter`
+ * back through `power`/`toughness`/`keywords` into `staticMods` for that same object; without a guard that recurses
+ * until the stack blows. CR 613.8 breaks such loops by dependency order between layers, and a layer-6 grant never
+ * depends on a layer-7c boost: Levitation's or an aura's flying is decidable before any "creatures with flying get
+ * +N/+N" anthem is applied, so the anthem must see it. Hence the inner read runs the same static scan and keeps its
+ * keywords — only the P/T terms, whose dependency really can cycle (an anthem that keys on the power it is about to
+ * change), fall back to printed values. That last cycle is the one approximation left: a filter such as `powerGE`
+ * sees the printed power on a re-entrant read, so "creatures with power 4 or greater get +1/+1" misses a creature
+ * whose 4th point of power comes from another anthem. Inside the layer-6 pass a further read of the same object gets
+ * `BASE_MODS`, which is what terminates the whole thing (depth 2 per object per generation).
+ *
+ * Memoised in its own table so the answer does not depend on which characteristic was asked for first, and so the
+ * extra scan runs at most once per object per battlefield generation.
+ */
+function layer6Mods(s: GameState, o: GameObject, cache: ModCache): Mods {
+  const hit = cache.layer6.get(o.id);
+  if (hit) return hit === L6_IN_PROGRESS ? BASE_MODS : hit;
+  cache.layer6.set(o.id, L6_IN_PROGRESS);
+  let full: Mods;
+  try { full = computeStaticMods(s, o); } catch (e) { cache.layer6.delete(o.id); throw e; }   // never leave a poisoned marker
+  const m: Mods = { p: 0, t: 0, kw: full.kw, landwalk: full.landwalk, setPT: undefined, flags: full.flags };
+  cache.layer6.set(o.id, m);
   return m;
 }
 

@@ -249,3 +249,60 @@ test('engine: a static filtered by a keyword it can grant does not recurse', () 
   assert.equal(power(g.state, bears), 2, 'no flying, no pump');
   assert.equal(toughness(g.state, wind), 2);
 });
+
+// ---- Phase 8x review fixes
+test('AI: ranks a land it may play from outside the hand (fuzz bucket 3492eb01)', async () => {
+  // The same defect the rollout policy had, in the copy of the land ranking that plays the real games: Ramunap
+  // Excavator hands out a `play-land` whose card is in the graveyard, and the hand-only lookup threw on `.def`.
+  // One candidate is enough here — `score` is called for the reasoning trace, not only from a sort comparator.
+  const g = setup({ bf: ['Ramunap Excavator', 'Forest'], hand: ['Mountain'] }, {});
+  g.moveTo(inHand(g, 'Mountain', 0), 'graveyard');
+  g.state.priority = 0;
+  const legal = legalActions(g, 0);
+  const lands = legal.filter(l => l.action.type === 'play-land');
+  assert.equal(lands.length, 1, 'only the Mountain in the graveyard');
+  const action = await new AiAgent({ verbose: false, maxSims: 1 }).decide(g.state, 0, { kind: 'priority', legal }) as { type: string; cardId?: number };
+  assert.equal(action.type, 'play-land');
+  assert.equal(action.cardId, (lands[0].action as { cardId: number }).cardId);
+});
+test('engine: an anthem sees a keyword another static granted (CR 613.8)', () => {
+  // Layer 6 before layer 7c: Flight's granted flying is decidable without the anthem, so "creatures you control with
+  // flying get +1/+1" must see it. The re-entrancy guard used to answer the nested read with printed characteristics,
+  // which dropped the grant and left the creature at its printed 2/2.
+  const g = setup({ bf: ['Favorable Winds', 'Flight', 'Grizzly Bears'] }, {});
+  const bears = find(g, 'Grizzly Bears'); find(g, 'Flight').attachedTo = bears.id;
+  assert.equal(hasKeyword(g.state, bears, 'flying'), true);
+  assert.equal(power(g.state, bears), 3, 'the aura-granted flier is pumped like a printed one');
+  assert.equal(toughness(g.state, bears), 3);
+  // control: a printed flier and a keyword counter already answered 3/3, and they still do
+  const printed = setup({ bf: ['Favorable Winds', 'Wind Drake'] }, {});
+  assert.equal(power(printed.state, find(printed, 'Wind Drake')), 3);
+  const counter = setup({ bf: ['Favorable Winds', 'Grizzly Bears'] }, {});
+  find(counter, 'Grizzly Bears').counters['flying'] = 1;
+  assert.equal(power(counter.state, find(counter, 'Grizzly Bears')), 3);
+});
+test('engine: a granted keyword is seen whichever characteristic is asked for first', () => {
+  // Levitation grants flying to every creature its controller has; Windstorm Drake pumps the ones with flying. The
+  // answer must not depend on which read populated the memo table first.
+  for (const kwFirst of [true, false]) {
+    const g = setup({ bf: ['Levitation', 'Windstorm Drake', 'Grizzly Bears'] }, {});
+    const bears = find(g, 'Grizzly Bears');
+    if (kwFirst) assert.equal(hasKeyword(g.state, bears, 'flying'), true);
+    assert.equal(power(g.state, bears), 3, `power asked ${kwFirst ? 'second' : 'first'}`);
+    assert.equal(hasKeyword(g.state, bears, 'flying'), true);
+  }
+});
+test('engine: simulateCombat refuses a blocker the defending player does not control (CR 509.1a)', async () => {
+  // `blockLegal` is the whole rules step only if it carries the controller restriction too: the real step gets it
+  // from the zones it draws its lists out of, but simulateCombat is handed arbitrary ids and used to accept a
+  // creature of the *attacking* player as a blocker, which then absorbed the attack and died.
+  const g = setup({ bf: ['Runeclaw Bear', 'Grizzly Bears'] }, { bf: [], life: 20 });
+  const rune = find(g, 'Runeclaw Bear'), griz = find(g, 'Grizzly Bears');
+  await g.simulateCombat([rune.id], [{ blocker: griz.id, attacker: rune.id }]);
+  assert.equal(g.state.players[1].life, 18, 'the illegal block is dropped, so the 2/2 connects');
+  assert.equal(griz.zone, 'battlefield');
+  // control: the defending player's own creature still blocks
+  const ok = setup({ bf: ['Runeclaw Bear'] }, { bf: ['Grizzly Bears'], life: 20 });
+  await ok.simulateCombat([find(ok, 'Runeclaw Bear').id], [{ blocker: find(ok, 'Grizzly Bears').id, attacker: find(ok, 'Runeclaw Bear').id }]);
+  assert.equal(ok.state.players[1].life, 20);
+});

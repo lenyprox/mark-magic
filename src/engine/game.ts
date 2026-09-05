@@ -131,11 +131,17 @@ export class Game {
    * CR 509.1a-b: may `blocker` be added to `attacker`'s blockers given the blocks already recorded on both? The one
    * validator the real declare-blockers step and `simulateCombat` share, so the AI's simulated combats can never
    * reach a board the rules step would have refused. Evasion, protection and "can't be blocked except by …" live in
-   * `canBlock`; the restrictions that depend on what is already blocking live here. Group restrictions that only a
-   * finished declaration can judge (menace) are `applyBlockFixups`, run once per defending player afterwards.
+   * `canBlock`; the restrictions that depend on who is blocking, and on what is already blocking, live here. Group
+   * restrictions that only a finished declaration can judge (menace) are `applyBlockFixups`, run once per defending
+   * player afterwards.
    */
   private blockLegal(blocker: GameObject, attacker: GameObject): boolean {
     const s = this.state;
+    // CR 509.1a: only the defending player blocks, and only a creature attacking *them* (`attacking` is the attacked
+    // player, or the controller of the attacked planeswalker/battle). The real step gets this from the zones it draws
+    // its two lists out of; `simulateCombat` is handed arbitrary ids, and without this clause a creature of the
+    // attacking player's own could be declared as a blocker, eat the attack and die in the simulation.
+    if (attacker.attacking === null || blocker.controller !== attacker.attacking) return false;
     if (!canBlock(s, blocker, attacker)) return false;
     if (BLOCK_CHECKS.length) for (const h of BLOCK_CHECKS) if (!h(s, blocker, attacker)) return false;
     // CR 509.1b: a creature blocks one attacker unless something ("can block an additional creature") says otherwise
@@ -174,11 +180,13 @@ export class Game {
       if (!hasKeyword(s, o, 'vigilance')) this.setTapped(o, true, 'attack'); s.attackers.push(id);
     }
     // every declared block goes through the same validator the real declare-blockers step uses (CR 509.1a-b), so a
-    // simulation can never reach a board the rules step would have refused (menace blocked by one, a second blocker
-    // on a "can't be blocked by more than one creature" attacker, a family block check, …)
+    // simulation can never reach a board the rules step would have refused (a blocker the defending player does not
+    // control, a creature not attacking that player, menace blocked by one, a second blocker on a "can't be blocked
+    // by more than one creature" attacker, a family block check, …). The step gets the first two restrictions from
+    // the zones it draws its lists out of; here the ids are arbitrary, so `blockLegal` has to test them.
     for (const b of blocks) {
       const bl = findObject(s, b.blocker), at = findObject(s, b.attacker);
-      if (!bl || bl.zone !== 'battlefield' || !at || at.zone !== 'battlefield' || at.attacking === null) continue;
+      if (!bl || bl.zone !== 'battlefield' || !at || at.zone !== 'battlefield') continue;
       if (!this.blockLegal(bl, at)) continue;
       bl.blocking.push(at.id); at.blockedBy.push(bl.id);
     }
