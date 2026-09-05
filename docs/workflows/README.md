@@ -66,3 +66,34 @@ npm run sim:batch -- --deck "Varina, Lich Queen" --deck "The Slurpin Society" --
 
 They were recorded before any Phase 8 engine change; a merge that changes one of them changed engine behaviour and
 must say why in its commit message (the goldens in `test/fixtures/golden/` take over this role once 8g is merged).
+
+## Process rules adopted 2026-09-05 (after the Phase 8 retrospective)
+
+These override the pattern above where they differ. They come from the owner's review of Phase 8 (`feedback 1.txt`):
+roughly half of the Phase 8 overrun was process weight, not engineering.
+
+1. **Reviewers**: one adversarial reviewer for tooling slices (new files only), two for engine slices (core edits or
+   new ops). The lenses are `correctness` and, for engine slices, `engine-integration`. The `test-adequacy` /
+   `hygiene` lens is dropped: in Phase 8 it restated the correctness findings plus minors.
+2. **Fix rounds: two maximum.** After the second re-review, remaining minors and every finding of the shape "a later
+   layer (renderer, blind scenario, judge) would catch this" go to the backlog in `docs/HANDOFF.md` §3, and the slice
+   merges. The structural script checker is the first filter, never the sole guard.
+3. **Evidence per merge**: `verify:quick` per merge; `verify:all` per wave; goldens + fidelity (`verify:deep`) per
+   engine merge. The three seeded `data/bench/smoke*.json` baselines are retired as gates — the goldens carry that
+   role. Regenerate the smoke files only if a golden diff needs a second opinion.
+4. **Sequencing**: 8i (speed ladder, parse cache, Playwright leg) and 8j (dashboard v2) are deferred until after
+   Phase 10.0 has produced real data; 9.0 runs first, then 8c + 8k in parallel worktrees, then a reduced Phase 8 gate
+   (`verify:all`, `verify:deep`, `fuzz:deep`; no Playwright, no dashboard), then 10.0.
+5. **Judges**: one judge per card. The double judge is kept only for Phase 10.0 (the owner's decks are the
+   calibration set); the 2% re-judge audit stays for every wave, and a second judge returns only if the audit
+   shows > 3% disagreement.
+6. **Models**: serial Phase 9 work (9.0 and any later core slice on `main`) runs on **Fable 5.1 at high effort**
+   (`model: 'fable', effort: 'high'`). Parallel worktree families (9.1, 9.2, 9.3+), the Phase 10 author / blind
+   scenario / judge roles and reviewers stay on Opus unless the owner says otherwise. The orchestrating session
+   remains the only committer.
+7. **Op-coverage ratchet**: its `unknown` assertion and the type-only vocabularies (keywords, alt costs) are known
+   half-built (HANDOFF §3 item 12); do not spend a review round on them — wire them to the schema barrel when 8c
+   touches that area.
+8. **Long tail evidence bar** (to revisit after the first ~3k judged cards): the per-card blind scenario stays for
+   the owner's decks and EDHREC ≤ 5k; for the ranked long tail the orchestrator may drop to mechanical gates +
+   judge if the scenario/judge disagreement rate on the first 3k cards is low. Not decided yet — the data decides.
