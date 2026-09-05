@@ -1,5 +1,6 @@
-// Op-coverage report (phase 8h): which engine ops the harness actually exercises, and which cards to write the
-// missing scenarios with. See src/verify/opCoverage.ts for how the two sets are derived.
+// Op-coverage report (phase 8h): which engine ops the harness actually executes, and which cards to write the
+// missing scenarios with. Every scenario is run in-process behind the probe in src/verify/opProbe.ts, so "exercised"
+// means the engine dispatched on the op, not that a file mentions a card that has it. See src/verify/opCoverage.ts.
 //
 //   npm run coverage:ops                       # the report, to stdout and data/master/op-coverage.json
 //   npm run coverage:ops -- --json <path>      # write the JSON somewhere else
@@ -8,7 +9,8 @@
 //
 // --write-allowlist is deliberately manual and loud: the allowlist is a ratchet that may only shrink, so regenerating
 // it is a reviewed act, never something a script does on its own.
-// Exit codes: 0 the report was written, 2 the arguments are wrong.
+// Exit codes: 0 the report was written, 1 a scenario failed while coverage was being measured (the numbers
+// would be meaningless), 2 the arguments are wrong.
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot } from '../src/config/paths.js';
@@ -33,17 +35,33 @@ const out = jsonOut ? path.resolve(jsonOut) : REPORT_FILE();
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, JSON.stringify(r, null, 2).replace(/\r\n/g, '\n') + '\n');
 
-console.log(`pool: ${r.pool.cards} card names (${r.pool.resolved} resolved) from ${r.pool.scenarios} scenarios ` +
-  `(${r.pool.suites.length} TS suites, ${r.pool.jsonFiles} JSON files) and ${r.pool.testFiles} test files`);
+console.log(`harness: ${r.harness.scenarios} scenarios ran under the probe (${r.harness.suites.length} TS suites, ${r.harness.jsonFiles} JSON files)` +
+  (r.harness.failures.length ? `, ${r.harness.failures.length} FAILING` : ''));
+for (const f of r.harness.failures) console.log(`  FAIL ${f}`);
 console.log('');
 console.log('category        vocab  exercised  uncovered');
 for (const c of CATEGORIES) {
-  const [v, e, u] = [r.vocabulary[c].length, r.exercised[c].filter(n => r.vocabulary[c].includes(n)).length, r.uncovered[c].length];
+  const [v, e, u] = [r.vocabulary[c].length, r.exercised[c].length, r.uncovered[c].length];
   console.log(`${c.padEnd(14)} ${String(v).padStart(5)} ${String(e).padStart(10)} ${String(u).padStart(10)}`);
 }
-const tot = (k: 'vocabulary' | 'uncovered') => CATEGORIES.reduce((n, c) => n + r[k][c].length, 0);
-console.log(`${'TOTAL'.padEnd(14)} ${String(tot('vocabulary')).padStart(5)} ${String(tot('vocabulary') - tot('uncovered')).padStart(10)} ${String(tot('uncovered')).padStart(10)}`);
+const tot = (k: 'vocabulary' | 'uncovered' | 'exercised') => CATEGORIES.reduce((n, c) => n + r[k][c].length, 0);
+console.log(`${'TOTAL'.padEnd(14)} ${String(tot('vocabulary')).padStart(5)} ${String(tot('exercised')).padStart(10)} ${String(tot('uncovered')).padStart(10)}`);
 console.log('');
+
+// Ops the engine executed that the vocabulary does not know: the vocabulary has lost an anchor (this is how the
+// `turned-face-up` hole was found — the tool scored a set it refused to enumerate).
+const unknowns = CATEGORIES.flatMap(c => r.unknown[c].map(n => `${c}: ${n}`));
+if (unknowns.length) {
+  console.log(`${unknowns.length} discriminator(s) the engine dispatched on that are NOT in the vocabulary:`);
+  for (const u of unknowns) console.log(`  ${u}`);
+  console.log('');
+}
+
+if (r.dead.length) {
+  console.log('dead trigger events (no scenario can ever cover these — they are engine defects):');
+  for (const d of r.dead) console.log(`  ${d.name} — ${d.why}`);
+  console.log('');
+}
 for (const c of CATEGORIES) {
   if (!r.uncovered[c].length) continue;
   console.log(`uncovered ${c}:`);
@@ -59,16 +77,26 @@ if (writeAllowlist) {
   const file = ALLOWLIST_FILE();
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const body: Record<string, unknown> = {
-    '//': 'Op-coverage ratchet baseline (phase 8h). Engine discriminators no scenario or unit test exercises yet. ' +
+    '//': 'Op-coverage ratchet baseline (phase 8h). Engine discriminators that no scenario made the engine execute — ' +
+      'measured by running every scenario behind src/verify/opProbe.ts, so being named in a file is not coverage. ' +
       'This list may only SHRINK: test/lint-op-coverage.test.ts fails both when an op outside it is uncovered and when ' +
-      'an op inside it has become covered. Never regenerate it to make the lint pass — write the scenario instead.',
+      'an op inside it has become covered. Never regenerate it to make the lint pass — write the scenario instead. ' +
+      '"deadEvents" is different in kind: those trigger events can never fire at all (the engine raises one nothing ' +
+      'dispatches on, or dispatches on one it never raises), so they are defects to fix in the engine, not scenarios to write.',
   };
   for (const c of CATEGORIES) body[c] = r.uncovered[c];
+  body.deadEvents = r.dead.map(d => d.name).sort();
   fs.writeFileSync(file, JSON.stringify(body, null, 2).replace(/\r\n/g, '\n') + '\n');
-  console.log(`allowlist rewritten: ${rel(file)} (${tot('uncovered')} entries)`);
+  console.log(`allowlist rewritten: ${rel(file)} (${tot('uncovered')} uncovered ops, ${r.dead.length} dead events)`);
 } else if (fs.existsSync(ALLOWLIST_FILE())) {
-  const { missing, stale } = ratchet(toSets(r.uncovered), vocabulary(), readAllowlist());
-  console.log(`ratchet: ${missing.length} not allowlisted, ${stale.length} allowlist entries that can go`);
+  const { missing, stale, deadNew, deadFixed } = ratchet(toSets(r.uncovered), vocabulary(), readAllowlist());
+  console.log(`ratchet: ${missing.length} not allowlisted, ${stale.length} allowlist entries that can go, ` +
+    `${deadNew.length} new dead event(s), ${deadFixed.length} dead-event entr(ies) that can go`);
   for (const m of missing) console.log(`  MISSING  ${m.category}: ${m.name}`);
   for (const s of stale) console.log(`  STALE    ${s.category}: ${s.name} (${s.why})`);
+  for (const d of deadNew) console.log(`  DEAD     ${d.name} (${d.why})`);
+  for (const n of deadFixed) console.log(`  ALIVE    ${n} (allowlisted as dead but not dead any more)`);
 }
+
+// A red harness measures nothing: the counts above are only worth reading when every scenario passed.
+if (r.harness.failures.length) process.exit(1);

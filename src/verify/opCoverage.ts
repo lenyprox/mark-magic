@@ -2,16 +2,29 @@
 //
 // Two sets, computed from data rather than from a grep for op names in scenario files:
 //   VOCABULARY — every literal discriminator the engine can execute. Derived from the engine itself (the `case` labels
-//                of the switches that dispatch on them, plus the runtime registry lookups in src/engine/ops/_registry.ts),
-//                never from a hand-maintained list, so a family that registers a new key is in the vocabulary the moment
-//                it is registered and a core op that is deleted leaves it.
-//   EXERCISED  — every discriminator appearing in the parsed CardDefs of the cards the harness actually names: the seats
-//                and script steps of every scenario (the TS suites under test/scenarios/ and the JSON corpus under
-//                data/scenarios/) plus every C('Name') / db.get('Name') literal in the unit tests.
+//                of the switches that dispatch on them, the events queueTriggers is *called* with, plus the runtime
+//                registry lookups in src/engine/ops/_registry.ts), never from a hand-maintained list, so a family that
+//                registers a new key is in the vocabulary the moment it is registered and a core op that is deleted
+//                leaves it.
+//   EXERCISED  — every discriminator the engine actually DISPATCHED ON while the harness ran: src/verify/opProbe.ts
+//                runs every scenario (the TS suites under test/scenarios/ and the JSON corpus under data/scenarios/)
+//                in-process behind a probe that records `e.op` as applyEffect executes it, `cond.kind` as
+//                conditionHolds reads it, a trigger's event as it fires, and so on. Naming a card in a file is not
+//                coverage: most of a played card's AST never executes, and a card named in a unit test that never
+//                builds a Game executes nothing at all.
 //
-// uncovered = vocabulary \ exercised, and test/lint-op-coverage.test.ts asserts it is a subset of the committed
+// uncovered = vocabulary \ exercised \ dead, and test/lint-op-coverage.test.ts asserts it is a subset of the committed
 // allowlist test/fixtures/op-allowlist.json. A new registry key is never in that allowlist, so a family that lands
 // without a scenario fails the lint by construction.
+//
+// WHAT THIS STILL DOES NOT MEASURE: that the op's *outcome* is asserted. Every scenario carries expectations and the
+// lint refuses to score a run in which any of them failed, so an executed op ran inside a passing scenario — but a
+// scenario may of course execute an op incidentally without checking what it did. Execution is the floor, not the
+// ceiling; `npm run coverage:pool` and the scenario expectations are what raise it.
+//
+// DEAD OPS: a trigger event the engine raises that nothing dispatches on (`turned-face-up`), or a `case` label for an
+// event the engine never raises (`tapped`), can never be exercised by any scenario — it is a defect, not a coverage
+// gap, so it is counted apart from `uncovered` in `deadEvents()` and pinned by the allowlist's "deadEvents" list.
 //
 // TEXT-DERIVED, ON PURPOSE: the engine switches are read as *text* (see `switchCases` / `unionBody` below). TypeScript
 // erases the unions at runtime and the engine has no table of its own core ops, so there is nothing else to read. Every
@@ -19,13 +32,10 @@
 // shrinks is the one failure mode a ratchet must never have.
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { CardDB } from '../cards/db.js';
 import type { CardDef } from '../cards/types.js';
 import { projectRoot } from '../config/paths.js';
 import { AMOUNTS, AS_ENTERS, CONDITIONS, CORE_COST_KEYS, COST_PARTS, EFFECT_OPS, STATICS, TRIGGERS } from '../engine/ops/_registry.js';
-import { SEAT_ZONE_FIELDS, type Scenario } from './scenarioDsl.js';
-import { listScenarioFiles, readScenarioFile } from './scenarioFiles.js';
 
 // ------------------------------------------------------------------ categories
 export const CATEGORIES = ['effects', 'conditions', 'triggers', 'statics', 'amounts', 'asEnters', 'altCosts', 'costModifiers', 'costParts', 'keywords'] as const;
@@ -90,12 +100,66 @@ const literalsIn = (body: string): string[] => [...body.matchAll(/'([^'\n]+)'/g)
 const discriminatorsIn = (body: string, key: string): string[] => [...body.matchAll(new RegExp(`\\b${key}\\s*:\\s*'([^'\\n]+)'`, 'g'))].map(m => m[1]);
 
 /** The engine modules that dispatch on a discriminator; src/engine/ops/ is excluded — families register instead. */
-function engineFiles(): string[] {
+function engineFiles(withFamilies = false): string[] {
   const dir = path.join(projectRoot(), 'src', 'engine');
   const out = fs.readdirSync(dir).filter(f => f.endsWith('.ts')).map(f => path.join(dir, f));
-  const agents = path.join(dir, 'agents');
-  if (fs.existsSync(agents)) for (const f of fs.readdirSync(agents)) if (f.endsWith('.ts')) out.push(path.join(agents, f));
+  for (const sub of withFamilies ? ['agents', 'ops'] : ['agents']) {
+    const d = path.join(dir, sub);
+    if (fs.existsSync(d)) for (const f of fs.readdirSync(d)) if (f.endsWith('.ts')) out.push(path.join(d, f));
+  }
   return out.sort();
+}
+
+// ------------------------------------------------------------------ trigger events
+// Triggers are the one category with two independent halves that must agree: the engine RAISES events
+// (`queueTriggers('etb', …)`) and it DISPATCHES on them (the `switch (ev.on)` inside queueTriggers, the registry, the
+// `ev.on === 'or'` fan-out, and the trigger abilities the engine synthesises itself for storm/cascade/evoke/delayed
+// triggers). Reading only the switch — the first cut of this file — made an event the engine raises but nothing
+// handles invisible: `turned-face-up` is raised by Game.turnFaceUp, is what every morph card's trigger keys off, and
+// can never fire. Both halves are in the vocabulary, and whatever appears in only one of them is dead.
+
+/** Every event `queueTriggers` is called with. `withFamilies` also reads src/engine/ops/, where a family may raise. */
+export function raisedEvents(withFamilies = true): Set<string> {
+  const out = new Set<string>();
+  for (const f of engineFiles(withFamilies)) for (const m of stripComments(fs.readFileSync(f, 'utf8')).matchAll(/queueTriggers\(\s*'([^'\n]+)'/g)) out.add(m[1]);
+  if (out.size < 10) throw new Error('op-coverage: found almost no `queueTriggers(\'…\')` call sites — re-anchor src/verify/opCoverage.ts');
+  return out;
+}
+
+/** The `case` labels of queueTriggers' own switch: the core half of the dispatch. */
+const coreTriggerCases = (game: string): string[] => switchCases(game, 'src/engine/game.ts', 'queueTriggers(event: string', 'switch (ev.on) {');
+
+/** Every event the engine dispatches on: the switch, the registry, `ev.on === '…'`, and the events it synthesises. */
+function handledEvents(game: string): Set<string> {
+  const out = new Set<string>(coreTriggerCases(game));
+  for (const f of engineFiles()) {
+    const s = stripComments(fs.readFileSync(f, 'utf8'));
+    for (const m of s.matchAll(/\.on\s*===\s*'([^'\n]+)'/g)) out.add(m[1]);       // the 'or' fan-out
+    for (const m of s.matchAll(/(?<![\w$])on:\s*'([^'\n]+)'/g)) out.add(m[1]);    // `event: { on: '…' }` the engine pushes itself (storm, cascade, evoke, delayed)
+  }
+  for (const k of Object.keys(TRIGGERS)) out.add(k);                             // a registry trigger is asked about every event
+  return out;
+}
+
+export interface DeadEvent { name: string; why: 'raised but nothing dispatches on it' | 'dispatched on but the engine never raises it' }
+
+let deadCache: DeadEvent[] | null = null;
+/**
+ * Trigger events that can never fire: raised with no handler, or handled with nothing raising them. Both halves are
+ * engine defects — a card whose trigger keys off one of them is silently inert — so they are reported apart from the
+ * ordinary coverage gaps and pinned by the allowlist rather than being written off as "no scenario yet".
+ */
+export function deadEvents(): DeadEvent[] {
+  if (deadCache) return deadCache;
+  const game = stripComments(srcOf('src/engine/game.ts'));
+  const raised = raisedEvents();
+  const handled = handledEvents(game);
+  const out: DeadEvent[] = [];
+  for (const n of [...raised].sort()) if (!handled.has(n)) out.push({ name: n, why: 'raised but nothing dispatches on it' });
+  // Only the core `case` labels are checked the other way: a registry trigger is offered every event and an event the
+  // engine synthesises is pushed straight onto pendingTriggers, so neither needs a queueTriggers call site.
+  for (const n of [...new Set(coreTriggerCases(game))].sort()) if (!raised.has(n)) out.push({ name: n, why: 'dispatched on but the engine never raises it' });
+  return (deadCache = out);
 }
 
 // ------------------------------------------------------------------ the vocabulary
@@ -103,7 +167,7 @@ function engineFiles(): string[] {
 export const SOURCES: Record<Category, string> = {
   effects: "case labels of `switch (e.op)` in Game.applyEffect (src/engine/game.ts) + EFFECT_OPS keys",
   conditions: "case labels of `switch (cond.kind)` in conditionHolds (src/engine/characteristics.ts) + CONDITIONS keys",
-  triggers: "case labels of `switch (ev.on)` in Game.queueTriggers (src/engine/game.ts) + TRIGGERS keys",
+  triggers: "case labels of `switch (ev.on)` in Game.queueTriggers, every event `queueTriggers('…')` is called with, the `ev.on === '…'` fan-out and the `event: { on: '…' }` abilities the engine synthesises (src/engine/*.ts) + TRIGGERS keys",
   statics: "CoreStaticEffect kinds that src/engine/*.ts actually tests with `kind === '…'` + STATICS keys",
   amounts: "case labels of `switch (a.count)` in evalAmount (src/engine/characteristics.ts) + AMOUNTS keys",
   asEnters: "case labels of `switch (a.kind)` in Game.enterBattlefield plus the CoreAsEnters kinds src/engine/*.ts tests with `kind === '…'` + AS_ENTERS keys",
@@ -125,7 +189,9 @@ export function vocabulary(): Sets {
 
   add('effects', switchCases(game, 'src/engine/game.ts', 'async applyEffect(', 'switch (e.op) {'));
   add('conditions', switchCases(chars, 'src/engine/characteristics.ts', 'export function conditionHolds(', 'switch (cond.kind) {'));
-  add('triggers', switchCases(game, 'src/engine/game.ts', 'queueTriggers(event: string', 'switch (ev.on) {'));
+  // Both halves of the trigger vocabulary: what the engine dispatches on and what it raises (see deadEvents()).
+  add('triggers', handledEvents(game));
+  add('triggers', raisedEvents());
   add('amounts', switchCases(chars, 'src/engine/characteristics.ts', 'export function evalAmount(', 'switch (a.count) {'));
   add('asEnters', switchCases(game, 'src/engine/game.ts', 'for (const a of def.asEnters ?? []) {', 'switch (a.kind) {'));
 
@@ -158,7 +224,7 @@ export function vocabulary(): Sets {
   return (vocabCache = v);
 }
 /** Drop the memoised vocabulary (the lint's mutation check registers a family after the first read). */
-export const resetVocabulary = (): void => { vocabCache = null; };
+export const resetVocabulary = (): void => { vocabCache = null; deadCache = null; };
 
 // ------------------------------------------------------------------ walking a CardDef for the discriminators it uses
 const ABILITY_KINDS = new Set(['triggered', 'activated', 'static', 'spell']);
@@ -167,7 +233,8 @@ const ABILITY_KINDS = new Set(['triggered', 'activated', 'static', 'spell']);
  * `kind` collisions honest (an as-enters `counters` is not the effect op `counters`). `'skip'` marks a TargetSpec,
  * whose `kind` is a target kind and belongs to no category here.
  */
-const HINT: Record<string, Category | 'skip'> = {
+export type Hint = Category | 'skip' | undefined;
+export const HINT: Record<string, Category | 'skip'> = {
   condition: 'conditions', intervening: 'conditions', activateOnlyIf: 'conditions', unless: 'conditions', conditions: 'conditions',
   effects: 'effects', then: 'effects', else: 'effects', first: 'effects', modes: 'effects',
   event: 'triggers', events: 'triggers',
@@ -178,7 +245,7 @@ const HINT: Record<string, Category | 'skip'> = {
 };
 
 /** The category a bare `kind` belongs to when nothing positional says: the one whose vocabulary knows the name. */
-function categoryOfKind(kind: string, vocab: Sets): Category | undefined {
+export function categoryOfKind(kind: string, vocab: Sets): Category | undefined {
   for (const c of ['conditions', 'statics', 'asEnters', 'costModifiers'] as const) if (vocab[c].has(kind)) return c;
   return undefined;
 }
@@ -201,7 +268,10 @@ function walk(v: unknown, hint: Category | 'skip' | undefined, out: Sets, vocab:
   for (const k of Object.keys(o)) walk(o[k], HINT[k], out, vocab);
 }
 
-/** Every discriminator this card definition would make the engine execute. */
+/**
+ * Every discriminator this card definition *could* make the engine execute. This is a static read of the AST, so it
+ * is not coverage — it is only used to suggest exemplar cards for the ops nothing exercises (see `exemplars`).
+ */
 export function usedBy(def: CardDef, vocab: Sets, into: Sets = emptySets()): Sets {
   walk(def, undefined, into, vocab);
   // def-level flags the engine turns into effects at cast time (they never appear as `{ op }` in the AST)
@@ -210,89 +280,30 @@ export function usedBy(def: CardDef, vocab: Sets, into: Sets = emptySets()): Set
   return into;
 }
 
-// ------------------------------------------------------------------ the pool: cards the harness actually names
-const isPlayerRef = (s: string): boolean => /^P\d+$/.test(s);
-
-/** Every card name a scenario seeds or names in a script step (seat zones, counters keys, tapped, and each step). */
-export function namesInScenario(sc: Scenario, into: Set<string>): void {
-  for (const seat of sc.seats ?? []) {
-    const rec = seat as unknown as Record<string, unknown>;
-    for (const f of SEAT_ZONE_FIELDS) for (const n of (rec[f] as string[] | undefined) ?? []) into.add(n);
-    for (const n of seat.tapped ?? []) into.add(n);
-    for (const n of Object.keys(seat.counters ?? {})) into.add(n);
-  }
-  for (const step of sc.script ?? []) {
-    const s = step as unknown as Record<string, unknown>;
-    for (const k of ['cast', 'activate', 'playLand', 'turnFaceUp']) if (typeof s[k] === 'string') into.add(s[k] as string);
-    if (Array.isArray(s.attack)) for (const n of s.attack) if (typeof n === 'string') into.add(n);
-    for (const k of ['blocks', 'refused', 'block']) if (Array.isArray(s[k])) for (const pair of s[k] as unknown[]) if (Array.isArray(pair)) for (const n of pair) if (typeof n === 'string') into.add(n);
-    if (Array.isArray(s.targets)) for (const g of s.targets as unknown[]) if (Array.isArray(g)) for (const n of g) if (typeof n === 'string' && !isPlayerRef(n)) into.add(n);
-  }
-}
-
-const isScenarioList = (v: unknown): v is Scenario[] => Array.isArray(v) && v.every(x => !!x && typeof x === 'object' && typeof (x as Scenario).name === 'string' && Array.isArray((x as Scenario).script));
-
-/** Where the pool came from, for the report's summary line. */
-export interface Pool { names: string[]; scenarios: number; suites: string[]; jsonFiles: number; testFiles: number }
-
-/**
- * Every card the harness names. The TS suites are imported the way scripts/verify-scenarios.ts imports them (a computed
- * specifier, because tsconfig's rootDir is src/ and src may not import test/); the JSON corpus is read and validated by
- * the same loader the runner uses; the unit tests are scanned for their `C('Name')` / `db.get('Name')` literals.
- */
-export async function collectPool(): Promise<Pool> {
-  const root = projectRoot();
-  const names = new Set<string>();
-  let scenarios = 0;
-
-  const suiteDir = path.join(root, 'test', 'scenarios');
-  const suites: string[] = [];
-  if (fs.existsSync(suiteDir)) {
-    for (const f of fs.readdirSync(suiteDir).filter(x => x.endsWith('.ts') && x !== 'dsl.ts' && !x.endsWith('.test.ts')).sort()) {
-      const mod = await import(pathToFileURL(path.join(suiteDir, f)).href) as Record<string, unknown>;
-      const lists = Object.values(mod).filter(isScenarioList);
-      if (!lists.length) throw new Error(`op-coverage: test/scenarios/${f} exports no scenario list`);
-      suites.push(f.replace(/\.ts$/, ''));
-      for (const list of lists) for (const sc of list) { scenarios++; namesInScenario(sc, names); }
-    }
-  }
-
-  const jsonPaths = listScenarioFiles();
-  for (const p of jsonPaths) for (const sc of readScenarioFile(p).scenarios) { scenarios++; namesInScenario(sc, names); }
-
-  // The unit tests, by regex: `C('Name')` / `db.get('Name')` is how test/helpers.ts pulls one real card into a test,
-  // and `setup({ bf: [...], hand: [...] })` is how most of them seed a board — helpers.setup maps every one of those
-  // names through C(), so those cards are just as played as the ones named directly. Names that master.db does not
-  // know (a token name, a local variable) resolve to nothing and drop out in exercisedBy.
-  const testDir = path.join(root, 'test');
-  const testFiles = fs.existsSync(testDir) ? fs.readdirSync(testDir).filter(f => f.endsWith('.ts')).sort() : [];
-  for (const f of testFiles) {
-    const src = fs.readFileSync(path.join(testDir, f), 'utf8');
-    for (const m of src.matchAll(/\b(?:C|db\.get)\(\s*(['"])([^'"\n]+)\1\s*\)/g)) names.add(m[2]);
-    for (const m of src.matchAll(/\b(?:bf|hand|library|libraryTop|graveyard|exile|command|deck)\s*:\s*\[([^\][]*)\]/g))
-      for (const q of m[1].matchAll(/(['"])([^'"\n]+)\1/g)) names.add(q[2]);
-  }
-  return { names: [...names].sort(), scenarios, suites, jsonFiles: jsonPaths.length, testFiles: testFiles.length };
-}
-
 // ------------------------------------------------------------------ the report
 export interface CoverageReport {
   at: string;
-  pool: { cards: number; resolved: number; scenarios: number; suites: string[]; jsonFiles: number; testFiles: number };
+  harness: { scenarios: number; suites: string[]; jsonFiles: number; failures: string[] };
   vocabulary: Lists; exercised: Lists; uncovered: Lists;
+  /** Dispatched on while the harness ran but absent from the vocabulary — the vocabulary has lost an anchor. */
+  unknown: Lists;
+  dead: DeadEvent[];
   byOp: Record<string, string[]>;
   sources: Record<Category, string>;
 }
 
-/** Parse the named cards and fold every discriminator they use into one set of sets. Unknown names are ignored. */
-export function exercisedBy(names: string[], vocab: Sets, db = CardDB.shared()): { sets: Sets; resolved: number } {
-  const sets = emptySets(); let resolved = 0;
-  for (const n of names) { const def = db.get(n); if (!def) continue; resolved++; usedBy(def, vocab, sets); }
-  return { sets, resolved };
-}
-
 export const difference = (a: Sets, b: Sets): Sets =>
   Object.fromEntries(CATEGORIES.map(c => [c, new Set([...a[c]].filter(n => !b[c].has(n)))])) as Sets;
+
+/**
+ * What no scenario made the engine execute: vocabulary \ exercised, minus the dead trigger events, which no scenario
+ * could ever cover (they are defects, tracked by `deadEvents()` and the allowlist's "deadEvents" list instead).
+ */
+export function uncoveredOps(vocab: Sets, used: Sets, dead: DeadEvent[] = deadEvents()): Sets {
+  const out = difference(vocab, used);
+  for (const d of dead) out.triggers.delete(d.name);
+  return out;
+}
 
 /**
  * Up to `max` cards from the whole playable pool that use each uncovered discriminator, so an author knows what to
@@ -320,16 +331,21 @@ export function exemplars(uncovered: Sets, vocab: Sets, max = 5, db = CardDB.sha
   return out;
 }
 
-/** The whole report. `withExemplars` costs one full pool walk. */
+/**
+ * The whole report: run the harness behind the probe, then diff what it executed against the vocabulary.
+ * `withExemplars` costs one extra full-pool walk. The probe is imported lazily so that reading the vocabulary (which
+ * the lint does first, and which must work without a card database) never pulls the engine in.
+ */
 export async function report(opts: { withExemplars?: boolean } = {}): Promise<CoverageReport> {
   const vocab = vocabulary();
-  const pool = await collectPool();
-  const { sets: used, resolved } = exercisedBy(pool.names, vocab);
-  const uncovered = difference(vocab, used);
+  const { collectExercised } = await import('./opProbe.js');
+  const run = await collectExercised(vocab);
+  const uncovered = uncoveredOps(vocab, run.sets);
   return {
     at: new Date().toISOString(),
-    pool: { cards: pool.names.length, resolved, scenarios: pool.scenarios, suites: pool.suites, jsonFiles: pool.jsonFiles, testFiles: pool.testFiles },
-    vocabulary: toLists(vocab), exercised: toLists(used), uncovered: toLists(uncovered),
+    harness: { scenarios: run.scenarios, suites: run.suites, jsonFiles: run.jsonFiles, failures: run.failures },
+    vocabulary: toLists(vocab), exercised: toLists(run.sets), uncovered: toLists(uncovered), unknown: toLists(run.unknown),
+    dead: deadEvents(),
     byOp: opts.withExemplars ? exemplars(uncovered, vocab) : {},
     sources: SOURCES,
   };
@@ -339,15 +355,21 @@ export async function report(opts: { withExemplars?: boolean } = {}): Promise<Co
 export const ALLOWLIST_FILE = (): string => path.join(projectRoot(), 'test', 'fixtures', 'op-allowlist.json');
 export const REPORT_FILE = (): string => path.join(projectRoot(), 'data', 'master', 'op-coverage.json');
 
-export function readAllowlist(file = ALLOWLIST_FILE()): Lists {
+/** The allowlist: one list per category, plus the dead trigger events the engine is known to carry. */
+export type Allowlist = Lists & { deadEvents: string[] };
+const ALLOWLIST_KEYS: readonly string[] = [...CATEGORIES, 'deadEvents'];
+
+export function readAllowlist(file = ALLOWLIST_FILE()): Allowlist {
   const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
-  const out = {} as Lists;
-  for (const c of CATEGORIES) {
-    const v = raw[c];
-    if (v !== undefined && !(Array.isArray(v) && v.every(x => typeof x === 'string'))) throw new Error(`${file}: "${c}" must be a list of strings`);
-    out[c] = ((v as string[] | undefined) ?? []).slice();
-  }
-  for (const k of Object.keys(raw)) if (!(CATEGORIES as readonly string[]).includes(k) && k !== '//') throw new Error(`${file}: unknown category "${k}"`);
+  const out = { deadEvents: [] } as unknown as Allowlist;
+  const strings = (k: string): string[] => {
+    const v = raw[k];
+    if (v !== undefined && !(Array.isArray(v) && v.every(x => typeof x === 'string'))) throw new Error(`${file}: "${k}" must be a list of strings`);
+    return ((v as string[] | undefined) ?? []).slice();
+  };
+  for (const c of CATEGORIES) out[c] = strings(c);
+  out.deadEvents = strings('deadEvents');
+  for (const k of Object.keys(raw)) if (!ALLOWLIST_KEYS.includes(k) && k !== '//') throw new Error(`${file}: unknown category "${k}"`);
   return out;
 }
 
@@ -355,19 +377,27 @@ export interface Ratchet {
   /** Uncovered and NOT allowlisted: a new op landed without a scenario. */
   missing: { category: Category; name: string }[];
   /** Allowlisted but covered now (or gone from the vocabulary): the list has to shrink. */
-  stale: { category: Category; name: string; why: 'covered' | 'not in the vocabulary' }[];
+  stale: { category: Category; name: string; why: 'covered' | 'not in the vocabulary' | 'a dead event: it belongs under "deadEvents"' }[];
+  /** A trigger event the engine can never fire that the allowlist does not know about: a new dead op landed. */
+  deadNew: DeadEvent[];
+  /** Allowlisted as dead but alive again (or gone): the engine was fixed, so the entry has to go. */
+  deadFixed: string[];
 }
 
-export function ratchet(uncovered: Sets, vocab: Sets, allow: Lists): Ratchet {
+export function ratchet(uncovered: Sets, vocab: Sets, allow: Allowlist, dead: DeadEvent[] = deadEvents()): Ratchet {
   const missing: Ratchet['missing'] = [];
   const stale: Ratchet['stale'] = [];
+  const deadNames = new Set(dead.map(d => d.name));
+  const deadNew = dead.filter(d => !allow.deadEvents.includes(d.name));
+  const deadFixed = allow.deadEvents.filter(n => !deadNames.has(n));
   for (const c of CATEGORIES) {
     const allowed = new Set(allow[c]);
     for (const n of sorted(uncovered[c])) if (!allowed.has(n)) missing.push({ category: c, name: n });
     for (const n of allow[c]) {
       if (!vocab[c].has(n)) stale.push({ category: c, name: n, why: 'not in the vocabulary' });
+      else if (c === 'triggers' && deadNames.has(n)) stale.push({ category: c, name: n, why: 'a dead event: it belongs under "deadEvents"' });
       else if (!uncovered[c].has(n)) stale.push({ category: c, name: n, why: 'covered' });
     }
   }
-  return { missing, stale };
+  return { missing, stale, deadNew, deadFixed };
 }
