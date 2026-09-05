@@ -1,6 +1,9 @@
-// The `transform` mechanic family (Phase 9.1): transform / flip triggers, day-night (CR 726), daybound / nightbound,
-// "turn it face up" outside the morph cost, "if it entered from your graveyard", descend (CR 701.51) and the prepare
-// keyword action's `prepared` state. docs/vocabulary/transform.md is the reference; this file is the behaviour.
+// The `transform` mechanic family (Phase 9.1): transform / flip triggers, day-night (CR 731), daybound / nightbound
+// (CR 702.145), "turn it face up" outside the morph cost, "if it entered from your graveyard", descend (CR 207.2c /
+// 110.4a) and the prepare keyword action's `prepared` state (CR 722.3). docs/vocabulary/transform.md is the
+// reference; this file is the behaviour. Every `cr:` string here was checked against data/rules/cr.json (the repo's
+// own Comprehensive Rules dump, version August 7, 2026) — 701.28 is *Convert*, 726 is *The Initiative*, 702.146 is
+// *Disturb* and 701.51 is *Open an Attraction*, so none of those is this family's rule.
 //
 // The core already flips a double-faced permanent (`transform-self`, game.ts:applyEffect) but nothing ever *observes*
 // the flip: no event is queued, so "Whenever this transforms into …" can never fire. Rather than route every flip
@@ -8,59 +11,69 @@
 // WATCHES: an `sba` hook compares each double-faced permanent's `activeFace` with the last face it saw and queues a
 // `transforms` event when they differ. checkSBA runs at the top of every priority round and after every resolution
 // (game.ts:priorityRound / resolveTop), i.e. exactly where triggers wait to be put on the stack (CR 603.3), so every
-// flip is caught — the core op's, this family's op's, and the automatic daybound / nightbound flips alike.
+// flip is caught — the core op's, this family's op's, and the automatic daybound / nightbound flips alike. The same
+// hook is where CR 702.145c / 702.145f live: those two are explicitly *not* state-based actions ("this happens
+// immediately"), but the SBA loop is the only continuous check the engine has, so they are enforced there and the
+// hook returns true when it corrected a face, which makes checkSBA run its loop again.
 //
 // The four hard rules (docs/vocabulary/README.md) are kept: no `node:` imports, only type imports from the core at
 // module scope (plus the `chars` leaf), every observable change goes through a Game primitive where one exists, and
 // every `ext` value is JSON-plain. `activeFace` / `transformed` have no Game primitive — this family is the one that
 // owns them — so they are written here, always paired with the core `transform` event so the stream stays complete.
-import type { CardDef, EnterCtx, FamilyModule, Filter, Game, GameObject, GameState, OpCtx, TargetSpec, Zone } from './types.js';
+import type { CardDef, EnterCtx, FamilyModule, Filter, Game, GameObject, GameState, OpCtx, TargetRef, TargetSpec, Zone } from './types.js';
 import type { Ref } from '../../cards/types.js';
 import { extDel, extGet, extGetOr, extSet } from './ext.js';
 import { chars } from './chars.js';
 
 // ------------------------------------------------------------------ 1. the AST this family adds
 
-/** CR 701.28: turn a permanent to its other face. `to` forces a face (a no-op when it is already up). */
-export interface TransformEffect { op: 'transform'; target?: TargetSpec | Ref | 'self'; to?: 'front' | 'back'; untap?: boolean }
-/** CR 726.2: "it becomes day" / "it becomes night" (and the `neither` state a game starts in). */
+/**
+ * CR 701.27a: turn a permanent to its other face. `to` forces a face (a no-op when it is already up).
+ * `asItEnters` is the "return it to the battlefield transformed" clause (CR 712.14a): the subject is NOT on the
+ * battlefield yet, so nothing transforms — the face it will arrive with is recorded and applied by the `zoneMove`
+ * hook below, before the permanent enters. The distinction is observable: a permanent that enters transformed never
+ * had its front face on the battlefield, so the front face's enters-the-battlefield abilities (and every other
+ * permanent's "whenever a creature you control enters") see the BACK face, and no `transform` event is raised at all.
+ */
+export interface TransformEffect { op: 'transform'; target?: TargetSpec | Ref | 'self'; to?: 'front' | 'back'; untap?: boolean; asItEnters?: true }
+/** CR 731.1: "it becomes day" / "it becomes night" (and the `neither` state a game starts in). */
 export interface DayNightEffect { op: 'set-day-night'; to: 'day' | 'night' | 'neither' }
-/** The prepare keyword action: "~ becomes prepared." (a marker read by `prepared`; see the doc's open issue). */
+/** The prepare keyword action (CR 722.3a / 722.3b): "~ becomes prepared." (a marker read by `prepared`; see the doc's open issue). */
 export interface PreparedEffect { op: 'become-prepared'; target?: TargetSpec | Ref | 'self'; on?: false }
-/** CR 713.2 / 701.34: turn a face-down permanent face up without paying its morph cost. */
+/** CR 708.7: turn a face-down permanent face up without taking the morph special action (CR 702.37e). */
 export interface TurnFaceUpEffect { op: 'turn-face-up'; target?: TargetSpec | Ref | 'self'; onlyIf?: 'creature-card' }
 
-/** CR 726.1: is it day, night, or neither? */
+/** CR 731.1: is it day, night, or neither? */
 export interface DayNightCondition { kind: 'day-night'; is: 'day' | 'night' | 'neither' }
-/** CR 701.51: descend N (`permanent-cards`), descend 8 (`cards`), and "N or more permanent types among cards in your graveyard". */
+/** The descend ability word (CR 207.2c): descend N (`permanent-cards`, CR 110.4a), descend 8 (`cards`), and "N or more permanent types among cards in your graveyard". */
 export interface DescendCondition { kind: 'descend'; count: number; among: 'cards' | 'permanent-cards' | 'permanent-types' }
 /** "if it entered from your graveyard" — the zone the permanent was in when it entered the battlefield (CR 400.7). */
 export interface EnteredFromCondition { kind: 'entered-from'; zone: Zone; who?: 'you' | 'any' }
-/** The prepare keyword action's state. */
+/** The prepare keyword action's state (CR 722.3a). */
 export interface PreparedCondition { kind: 'prepared' }
 
-/** "Whenever ~ transforms into ~" / "… enters or transforms into …" / "When equipped creature transforms". */
+/** "Whenever ~ transforms into ~" / "… enters or transforms into …" / "When equipped creature transforms" (CR 701.27e). */
 export interface TransformsTrigger { on: 'transforms'; self?: boolean; into?: 'front' | 'back'; orEnters?: boolean; attached?: boolean; filter?: Filter; controller?: 'you' | 'any' | 'opponent' }
-/** "Whenever day becomes night or night becomes day" (CR 726.2c). */
+/** "Whenever day becomes night or night becomes day" (CR 731.1a). */
 export interface DayNightTrigger { on: 'day-night'; to?: 'day' | 'night' }
 /** "At the beginning of your first main phase" (CR 505.1: the precombat main phase). */
 export interface FirstMainTrigger { on: 'first-main-phase'; whose: 'your' | 'each' }
 
 /**
- * Daybound / nightbound (CR 702.145 / 702.146). They are *keywords* on the card, but they are carried here as static
- * abilities rather than through `KeywordRegistry`: a keyword a family registers is invisible to the op-coverage
- * vocabulary (src/verify/opCoverage.ts derives the keyword list from the `CoreKeyword` union alone, and every read of
- * one would be scored as a discriminator the vocabulary does not list), while a registered static is enumerated,
- * ratcheted and covered by a scenario like every other hook. Neither modifies `Mods`: the day/night switch below is
- * the only reader, and it looks at the face that is currently up — which is exactly the rule, since the front face
- * has daybound and the back face nightbound.
+ * Daybound / nightbound (CR 702.145 — one rule, not two: 702.145b defines daybound, 702.145e nightbound). They are
+ * *keywords* on the card, but they are carried here as static abilities rather than through `KeywordRegistry`: a
+ * keyword a family registers is invisible to the op-coverage vocabulary (src/verify/opCoverage.ts derives the keyword
+ * list from the `CoreKeyword` union alone, and every read of one would be scored as a discriminator the vocabulary
+ * does not list), while a registered static is enumerated, ratcheted and covered by a scenario like every other hook.
+ * Neither modifies `Mods`: `setDayNight`, `syncBound` and `flip` below are the only readers, and they look at the face
+ * that is currently up — which is exactly the rule, since the front face has daybound and the back face nightbound.
  */
 export interface DayboundStatic { kind: 'daybound' }
 export interface NightboundStatic { kind: 'nightbound' }
 
-/** "If it's neither day nor night, it becomes day as ~ enters." (CR 726.2a) — also what daybound / nightbound do. */
+/** "If it's neither day nor night, it becomes day as ~ enters." (CR 731.1) — and CR 702.145d / 702.145g / 702.145b. */
 export interface DayNightAsEnters { kind: 'day-night-enters'; to: 'day' | 'night' }
-/** "~ enters prepared." */
+/** "~ enters prepared." (CR 722.3a) */
 export interface PreparedAsEnters { kind: 'prepared' }
 
 /** The day/night event this family raises (the core has none). */
@@ -83,31 +96,44 @@ declare module '../events.js' {
 // ------------------------------------------------------------------ 3. shared helpers
 
 type DayNight = 'day' | 'night';
-/** CR 110.4c: the permanent card types, for descend and "permanent types among cards in your graveyard". */
+/** CR 110.4a: the permanent card types, for descend and "permanent types among cards in your graveyard". */
 const PERMANENT_TYPES = ['Artifact', 'Battle', 'Creature', 'Enchantment', 'Land', 'Planeswalker'] as const;
 const isPermanentCard = (o: GameObject): boolean => o.def.types.some(t => (PERMANENT_TYPES as readonly string[]).includes(t));
 
 /** `ext` keys this family owns (all JSON-plain, all on the object except `dayNight` on the state). */
 const FACE_SEEN = 'transformFaceSeen';   // the activeFace the sba watcher last reported on
 const CAME_FROM = 'transformCameFrom';   // the zone the permanent entered the battlefield from (CR 400.7)
-const PREPARED = 'transformPrepared';    // the prepare keyword action's marker
-const DAY_NIGHT = 'dayNight';            // 'day' | 'night' on GameState.ext; absent = neither (CR 726.1a)
-const PREV_AP = 'transformPrevAP';       // the previous turn's active player (CR 726.3 / 726.4)
+const PREPARED = 'transformPrepared';    // the prepare keyword action's marker (CR 722.3a)
+const ON_ENTER = 'transformOnEnter';     // the face this card will arrive with (CR 712.14a), set by `asItEnters`
+const DAY_NIGHT = 'dayNight';            // 'day' | 'night' on GameState.ext; absent = neither (CR 731.1)
+const PREV_AP = 'transformPrevAP';       // the previous turn's active player (CR 731.2a / 731.2b)
 
 const dayNightOf = (s: GameState): DayNight | undefined => extGet<DayNight>(s, DAY_NIGHT);
 /** The face-up card of a double-faced permanent for a given face index. */
 const faceDef = (o: GameObject, face: 0 | 1): CardDef => (face === 1 && o.def.backFace ? o.def.backFace : o.def);
 
+/** Does the face that is currently up carry daybound / nightbound? (the static marker, CR 702.145b / 702.145e) */
+const bound = (o: GameObject, kind: 'daybound' | 'nightbound'): boolean =>
+  chars.abilitiesOf(o).some(a => a.kind === 'static' && (a.effect as { kind: string }).kind === kind);
+
 /**
  * Turn `o` to its other face (or to the named one). Returns whether anything moved.
- * CR 701.28b: only a permanent whose card has two faces can transform, and only on the battlefield; CR 712.4a: a
- * planeswalker that transforms into a planeswalker face gets that face's starting loyalty.
+ * CR 701.27a: only a permanent whose card has two faces can transform, and only on the battlefield; CR 306.5b: a
+ * permanent that is now a planeswalker face carries that face's printed loyalty in counters.
+ *
+ * `why` enforces the last static ability of daybound and of nightbound — "This permanent can't transform except due
+ * to its daybound ability" (CR 702.145b) / "… except due to its nightbound ability" (CR 702.145e). A werewolf is
+ * therefore immune to a generic "transform target creature": only `setDayNight` and `syncBound` pass 'daybound'. The
+ * core's own `transform-self` op does not come through here (gating it needs a core change — see the doc's open
+ * issues), but CR 702.145c / 702.145f make that self-correcting whenever it is day or night, because `syncBound` puts
+ * the face back on the very next state-based check.
  */
-function flip(g: Game, o: GameObject, to?: 'front' | 'back'): boolean {
+function flip(g: Game, o: GameObject, to?: 'front' | 'back', why: 'effect' | 'daybound' = 'effect'): boolean {
   if (o.zone !== 'battlefield' || o.def.backFace === undefined || o.faceDown) return false;
   const cur: 0 | 1 = o.activeFace === 1 ? 1 : 0;
   const next: 0 | 1 = to === 'front' ? 0 : to === 'back' ? 1 : cur === 1 ? 0 : 1;
   if (next === cur) return false;
+  if (why !== 'daybound' && (bound(o, 'daybound') || bound(o, 'nightbound'))) return false;   // CR 702.145b / 702.145e
   o.activeFace = next;
   o.transformed = next === 1;
   g.state.bfGen = (g.state.bfGen ?? 0) + 1;          // the set of abilities on the battlefield just changed
@@ -117,13 +143,9 @@ function flip(g: Game, o: GameObject, to?: 'front' | 'back'): boolean {
   return true;
 }
 
-/** Does the face that is currently up carry daybound / nightbound? (the static marker, CR 702.145a / 702.146a) */
-const bound = (o: GameObject, kind: 'daybound' | 'nightbound'): boolean =>
-  chars.abilitiesOf(o).some(a => a.kind === 'static' && (a.effect as { kind: string }).kind === kind);
-
 /**
- * CR 726.2: make it day / night / neither. A change also transforms every daybound permanent (front → back when it
- * becomes night) and every nightbound one (back → front when it becomes day) — CR 702.145e / 702.146d — and queues
+ * CR 731.1: make it day / night / neither. A change also transforms every daybound permanent (front → back when it
+ * becomes night) and every nightbound one (back → front when it becomes day) — CR 702.145b / 702.145e — and queues
  * the `day-night` trigger event. The flips themselves are picked up by the `sba` watcher below, so a "whenever this
  * transforms" trigger on a werewolf fires from the day/night change as well.
  */
@@ -133,17 +155,31 @@ function setDayNight(g: Game, to: DayNight | 'neither'): boolean {
   if (from === to) return false;
   if (to === 'neither') extDel(s, DAY_NIGHT); else extSet(s, DAY_NIGHT, to);
   g.emit({ type: 'day-night', from, to });
-  if (to !== 'neither') {
-    for (const o of chars.allPermanents(s)) {
-      if (o.def.backFace === undefined) continue;
-      if (to === 'night' && bound(o, 'daybound')) flip(g, o, 'back');
-      else if (to === 'day' && bound(o, 'nightbound')) flip(g, o, 'front');
-    }
-  }
-  // CR 726.2c: "whenever day becomes night or night becomes day" is about the SWITCH. Becoming day (or night) out of
+  syncBound(g);
+  // CR 731.1a: "whenever day becomes night or night becomes day" is about the SWITCH. Becoming day (or night) out of
   // "neither" is not one, so those abilities do not trigger the first time a card sets the day/night cycle going.
   if (from !== 'neither' && to !== 'neither') g.queueTriggers('day-night', { player: s.activePlayer });
   return true;
+}
+
+/**
+ * CR 702.145c: "Any time a player controls a permanent that is front face up with daybound and it's night, that
+ * player transforms that permanent." CR 702.145f is the mirror for a nightbound permanent while it's day. Both are
+ * continuous ("any time", "this happens immediately and isn't a state-based action"), so they are re-checked from the
+ * `sba` hook as well as from `setDayNight` — which is what makes a daybound permanent that arrives while it is night
+ * correct even when something else put it down front face up, and what undoes an illegal flip the family's own `flip`
+ * gate cannot see (the core `transform-self` op). Returns whether it corrected anything.
+ */
+function syncBound(g: Game): boolean {
+  const now = dayNightOf(g.state);
+  if (now === undefined) return false;
+  let changed = false;
+  for (const o of chars.allPermanents(g.state)) {
+    if (o.def.backFace === undefined || o.faceDown) continue;
+    if (now === 'night' && o.activeFace !== 1 && bound(o, 'daybound')) changed = flip(g, o, 'back', 'daybound') || changed;
+    else if (now === 'day' && o.activeFace === 1 && bound(o, 'nightbound')) changed = flip(g, o, 'front', 'daybound') || changed;
+  }
+  return changed;
 }
 
 /** The objects an op's `target` names: a chosen target list, or a Ref (`self`, `that`, `target:0`, `equipped`, …). */
@@ -154,15 +190,55 @@ async function subjects(target: TargetSpec | Ref | 'self' | undefined, c: OpCtx)
   return resolveRef({ s: c.s, item: c.item, p: c.p, src: c.src }, t as Ref);
 }
 
+/** Does this value (an effect list, an intervening-if condition) hold a clause the engine cannot play? */
+function hasUnknown(v: unknown): boolean {
+  if (Array.isArray(v)) return v.some(hasUnknown);
+  if (v !== null && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    if (o.op === 'unknown' || o.kind === 'unknown') return true;
+    for (const k in o) if (hasUnknown(o[k])) return true;
+  }
+  return false;
+}
+
+/**
+ * Is the whole triggered ability whose event object is `ev` something the engine can actually play?
+ *
+ * Only `first-main-phase` asks. It is the one head this family adds that fires EVERY turn on EVERY permanent carrying
+ * it, and the parser contract cannot gate it: `TriggerRule.make` is handed the trigger head alone, never the body, so
+ * the family cannot decline the head on the 33 cards ("Ripples of Undeath", "Advanced Reconstruction", "Sab-Sunen,
+ * Luxa Embodied", …) whose body still holds an `unknown` clause. Claiming the head there would put an ability on the
+ * stack once a turn, forever, whose only observable effect is an `unsimulated` event — strictly worse than the
+ * pre-9.1 reading, where the head parsed as `{on:'unknown'}` and the ability simply never fired. So the family's
+ * discipline ("decline rather than claim what you cannot express") is applied one hop later, here: the trigger fires
+ * only for an ability the engine can run end to end. The 23 cards whose body parses completely are unaffected; the
+ * other 33 keep exactly their pre-9.1 behaviour, which is why `npm run fidelity:check` does not regress. See
+ * docs/vocabulary/transform.md, "first-main-phase and inert bodies".
+ */
+function bodySimulable(perm: GameObject, ev: object): boolean {
+  for (const ab of chars.abilitiesOf(perm)) {
+    if (ab.kind !== 'triggered') continue;
+    const evs: object[] = ab.event.on === 'or' ? ab.event.events : [ab.event];
+    if (!evs.includes(ev)) continue;
+    return !hasUnknown(ab.effects) && !hasUnknown(ab.intervening);
+  }
+  return true;                                        // not found: a delayed / synthesised trigger, nothing to check
+}
+
 // ------------------------------------------------------------------ 4. the module
 
 const TRANSFORM: FamilyModule = {
   name: 'transform',
 
   effects: {
-    // "Transform ~" / "Transform target creature you control" / "Transform ~, then untap it" (CR 701.28)
+    // "Transform ~" / "Transform target creature you control" / "Transform ~, then untap it" (CR 701.27a), and
+    // "… return it to the battlefield transformed" (CR 712.14a) when `asItEnters` is set.
     transform: async (e: TransformEffect, c) => {
       const list = await subjects(e.target, c);
+      if (e.asItEnters) {                              // CR 712.14a: not a transformation — the face it will arrive with
+        for (const o of list) if (o.zone !== 'battlefield') extSet(o, ON_ENTER, e.to ?? 'back');
+        return;
+      }
       const moved: GameObject[] = [];
       for (const o of list) {
         if (!flip(c.g, o, e.to)) continue;
@@ -172,12 +248,12 @@ const TRANSFORM: FamilyModule = {
       if (moved.length) c.item.affected = moved.map(o => ({ id: o.id, lastKnown: { power: chars.power(c.s, o), toughness: chars.toughness(c.s, o), controller: o.controller, manaValue: chars.manaValueOf(o), zone: 'battlefield' as Zone } }));
     },
 
-    // "It becomes day." / "It becomes night." (CR 726.2b)
+    // "It becomes day." / "It becomes night." (CR 731.1)
     'set-day-night': (e: DayNightEffect, c) => {
       if (setDayNight(c.g, e.to)) c.g.note(`It becomes ${e.to === 'neither' ? 'neither day nor night' : e.to}.`);
     },
 
-    // "~ becomes prepared." / (with `on: false`) "unprepare it"
+    // "~ becomes prepared." / (with `on: false`) "unprepare it" (CR 722.3a / 722.3b)
     'become-prepared': async (e: PreparedEffect, c) => {
       for (const o of await subjects(e.target, c)) {
         if (o.zone !== 'battlefield') continue;
@@ -186,7 +262,9 @@ const TRANSFORM: FamilyModule = {
       }
     },
 
-    // "You may turn it face up." (CR 713.2: turning a permanent face up is not a special action here — the effect does it)
+    // "You may turn it face up." (CR 708.7: the ability that let the permanent be face down may let its controller
+    // turn it face up; CR 708.8: its copiable values revert. No morph cost is paid — that is the special action of
+    // CR 702.37e, which the core's `turnFaceUp` owns.)
     'turn-face-up': async (e: TurnFaceUpEffect, c) => {
       for (const o of await subjects(e.target, c)) {
         if (o.zone !== 'battlefield' || !o.faceDown) continue;
@@ -201,7 +279,8 @@ const TRANSFORM: FamilyModule = {
 
   conditions: {
     'day-night': (cond: DayNightCondition, s) => (dayNightOf(s) ?? 'neither') === cond.is,
-    // CR 701.51a: descend N counts permanent CARDS; 701.51b: descend 8 counts cards of any kind
+    // The descend ability word (CR 207.2c): "descend N" counts permanent CARDS (CR 110.4a); "descend 8" counts cards
+    // of any kind. Neither is CR 700.11's "descended this turn", a different question the core already owns.
     descend: (cond: DescendCondition, s, src) => {
       const gy = s.players[src.controller].graveyard;
       if (cond.among === 'cards') return gy.length >= cond.count;
@@ -215,9 +294,9 @@ const TRANSFORM: FamilyModule = {
   },
 
   amounts: {
-    // "X is the number of permanent cards in your graveyard" (fathomless descend)
+    // "X is the number of permanent cards in your graveyard" (fathomless descent) — CR 110.4a
     'permanent-cards-in-graveyard': (_a, s, ctrl) => s.players[ctrl].graveyard.filter(isPermanentCard).length,
-    // "there are four or more permanent types among cards in your graveyard"
+    // "there are four or more permanent types among cards in your graveyard" — CR 110.4
     'permanent-types-in-graveyard': (_a, s, ctrl) => {
       const seen = new Set<string>();
       for (const o of s.players[ctrl].graveyard) for (const t of o.def.types) if ((PERMANENT_TYPES as readonly string[]).includes(t)) seen.add(t);
@@ -227,7 +306,7 @@ const TRANSFORM: FamilyModule = {
 
   triggers: {
     // Raised by the `sba` watcher below. `orEnters` also answers the core `etb` event ("Whenever ~ enters or
-    // transforms into ~"), which is one triggered ability with two firing conditions (CR 603.2).
+    // transforms into ~"), which is one triggered ability with two firing conditions (CR 603.2 / 701.27e).
     transforms: (ev: TransformsTrigger, perm, ctx, s, event) => {
       if (event === 'etb') return ev.orEnters === true && ctx.obj === perm;
       if (event !== 'transforms' || !ctx.obj) return false;
@@ -238,23 +317,40 @@ const TRANSFORM: FamilyModule = {
       return ev.controller === 'you' ? ctx.obj.controller === perm.controller : ev.controller === 'opponent' ? ctx.obj.controller !== perm.controller : true;
     },
     'day-night': (ev: DayNightTrigger, _perm, _ctx, s, event) => event === 'day-night' && (ev.to === undefined || dayNightOf(s) === ev.to),
-    'first-main-phase': (ev: FirstMainTrigger, perm, ctx, _s, event) => event === 'first-main-phase' && (ev.whose === 'each' || ctx.player === perm.controller),
+    'first-main-phase': (ev: FirstMainTrigger, perm, ctx, _s, event) => event === 'first-main-phase'
+      && (ev.whose === 'each' || ctx.player === perm.controller) && bodySimulable(perm, ev),
     // The core raises `turned-face-up` (Game.turnFaceUp) but its own switch has no case for it, so every morph /
     // megamorph / disguise "When this is turned face up" trigger is inert (test/fixtures/op-allowlist.json listed it
-    // under "deadEvents"). Registering the core event name here is the fix: CR 701.34b / 707.9a.
+    // under "deadEvents"). Registering the core event name here is the fix: CR 702.37e / 708.7.
     'turned-face-up': (ev: { on: 'turned-face-up'; self: boolean }, perm, ctx, _s, event) => event === 'turned-face-up' && (ev.self ? ctx.obj === perm : ctx.player === perm.controller),
   },
 
-  // Daybound / nightbound are markers, not modifications: they add nothing to `Mods`. `setDayNight` reads them off the
-  // face that is up, which is what makes a werewolf flip one way at night and the other way at dawn.
+  // Daybound / nightbound are markers, not modifications: they add nothing to `Mods`. `setDayNight`, `syncBound` and
+  // `flip` read them off the face that is up, which is what makes a werewolf flip one way at night and back at dawn.
   statics: {
-    daybound: (_e: DayboundStatic, _src, _o, _s, _m) => { /* CR 702.145a: read by setDayNight, no layer effect */ },
-    nightbound: (_e: NightboundStatic, _src, _o, _s, _m) => { /* CR 702.146a */ },
+    daybound: (_e: DayboundStatic, _src, _o, _s, _m) => { /* CR 702.145b: read by setDayNight / syncBound / flip, no layer effect */ },
+    nightbound: (_e: NightboundStatic, _src, _o, _s, _m) => { /* CR 702.145e */ },
   },
 
   asEnters: {
-    // "If it's neither day nor night, it becomes day as ~ enters." (CR 726.2a / 702.145b)
-    'day-night-enters': (a: DayNightAsEnters, _o, _ctx, g) => { if (dayNightOf(g.state) === undefined) setDayNight(g, a.to); },
+    /**
+     * Two of daybound's three static abilities, plus the printed "If it's neither day nor night, it becomes day as ~
+     * enters" line that non-keyword cards (The Celestus, Sunrise Cavalier) carry:
+     *   * CR 702.145d / 702.145g / 731.1 — if it is neither day nor night, it becomes day (night for nightbound);
+     *   * CR 702.145b — "If it is night and this permanent is represented by a double-faced card, it enters
+     *     transformed". Entering transformed is a replacement effect (CR 614.1), not a transformation: no `transform`
+     *     event is raised, no "whenever this transforms" trigger fires, and the BACK face's enters-the-battlefield
+     *     abilities are the ones that trigger — which is why it has to happen here, in the as-enters pass, and not
+     *     from `syncBound` a moment later.
+     */
+    'day-night-enters': (a: DayNightAsEnters, o: GameObject, _ctx: EnterCtx, g: Game) => {
+      if (dayNightOf(g.state) === undefined) setDayNight(g, a.to);
+      if (dayNightOf(g.state) === 'night' && o.def.backFace !== undefined && !o.faceDown && o.activeFace !== 1 && bound(o, 'daybound')) {
+        o.activeFace = 1; o.transformed = true;
+        g.state.bfGen = (g.state.bfGen ?? 0) + 1;
+        g.note(`${faceDef(o, 1).name} enters transformed.`);
+      }
+    },
     prepared: (_a: PreparedAsEnters, o: GameObject, _ctx: EnterCtx) => { extSet(o, PREPARED, true); },
   },
 
@@ -263,13 +359,29 @@ const TRANSFORM: FamilyModule = {
     // moment `o.zone` still names where the permanent is coming from. Recording it (and nothing else — `null` means
     // "no replacement") is what makes "if it entered from your graveyard" answerable. Only battlefield arrivals are
     // recorded, so the bag stays off every card in a library.
-    zoneMove: (_g, o, zone) => { if (zone === 'battlefield' && o.zone !== 'battlefield') extSet(o, CAME_FROM, o.zone); return null; },
+    //
+    // It is also where an `asItEnters` transform is applied (CR 712.14a). Nothing has moved yet, `moveTo` clears
+    // `activeFace` only for a permanent LEAVING the battlefield, and `enterBattlefield` reads the object's face for
+    // the whole entry — so setting the face here is what makes the four Ojer / Aclazotz gods arrive as their back
+    // face rather than enter as a creature and flip a moment later. The marker is cleared on any other destination so
+    // it can never leak into a later, unrelated arrival.
+    zoneMove: (_g, o, zone) => {
+      if (zone === 'battlefield' && o.zone !== 'battlefield') {
+        extSet(o, CAME_FROM, o.zone);
+        const face = extGet<'front' | 'back'>(o, ON_ENTER);
+        if (face !== undefined) {
+          extDel(o, ON_ENTER);
+          if (o.def.backFace !== undefined) { o.activeFace = face === 'back' ? 1 : 0; o.transformed = face === 'back'; }
+        }
+      } else if (zone !== 'battlefield') extDel(o, ON_ENTER);
+      return null;
+    },
   },
 
   steps: {
-    // CR 726.3 / 726.4, checked as the turn begins: day becomes night when the previous turn's active player cast no
-    // spells; night becomes day when they cast two or more. `spellsCastLastTurn` was rotated just above this hook
-    // (game.ts:runTurn), so it is exactly "during that player's own turn".
+    // CR 731.2 / 731.2a / 731.2b, checked as the turn begins: day becomes night when the previous turn's active
+    // player cast no spells; night becomes day when they cast two or more. `spellsCastLastTurn` was rotated just above
+    // this hook (game.ts:runTurn), so it is exactly "during that player's own turn". CR 731.2c: neither stays neither.
     'turn-start': (g, ap) => {
       const s = g.state;
       const prev = extGet<number>(s, PREV_AP);
@@ -287,14 +399,22 @@ const TRANSFORM: FamilyModule = {
   },
 
   /**
-   * The transform watcher. Nothing in the core announces a face change, so this compares each double-faced
-   * permanent's face with the last one reported and raises `transforms` when they differ. A permanent seen for the
-   * first time is only recorded (entering with its back face up — a disturb / "enters transformed" arrival — is not
-   * a transformation, CR 701.28c). It never returns true: it changes no game state a state-based action must
-   * re-examine, it only queues triggers.
+   * The transform watcher, and the home of the two continuous daybound / nightbound checks.
+   *
+   * `syncBound` first (CR 702.145c / 702.145f): any front-face-up daybound permanent while it is night, or back-face-up
+   * nightbound permanent while it is day, is put on the right face. Those two rules are explicitly not state-based
+   * actions, but the SBA loop is the engine's only continuous check, and it runs at the top of every priority round and
+   * after every resolution — so "immediately" is as close as the engine gets. Returning true when it corrected a face
+   * makes checkSBA loop again, which is what a state change owes the loop.
+   *
+   * Then the watcher: nothing in the core announces a face change, so this compares each double-faced permanent's face
+   * with the last one reported and raises `transforms` when they differ. A permanent seen for the first time is only
+   * recorded — entering with its back face up (a disturb arrival, or the CR 702.145b / 712.14a "enters transformed"
+   * replacement) is not a transformation and must raise nothing.
    */
   sba: (g) => {
     const s = g.state;
+    const corrected = syncBound(g);
     for (const o of chars.allPermanents(s)) {
       if (o.def.backFace === undefined) continue;
       const face = o.activeFace === 1 ? 1 : 0;
@@ -303,25 +423,48 @@ const TRANSFORM: FamilyModule = {
       extSet(o, FACE_SEEN, face);
       if (seen !== undefined) g.queueTriggers('transforms', { obj: o, player: o.controller });
     }
-    return false;
+    return corrected;
   },
 
   // Every one of this family's per-object markers is about the permanent it was (CR 400.7): a new object has none.
-  leave: (_g, o, zone) => { if (zone !== 'battlefield') { extDel(o, FACE_SEEN); extDel(o, CAME_FROM); extDel(o, PREPARED); } },
+  leave: (_g, o, zone) => { if (zone !== 'battlefield') { extDel(o, FACE_SEEN); extDel(o, CAME_FROM); extDel(o, PREPARED); extDel(o, ON_ENTER); } },
 
   targetKinds: {
-    'face-down-permanent': (g, controller, _src, spec) => chars.allPermanents(g.state)
-      .filter(o => o.faceDown === true && (spec.controller === 'you' ? o.controller === controller : spec.controller === 'opponent' ? o.controller !== controller : true))
-      .map(o => ({ kind: 'object' as const, id: o.id })),
+    /**
+     * "Turn target face-down creature face up" (Ixidor, Skirk Alarmist, Expose the Culprit).
+     *
+     * legal.ts:targetOptionsFor applies shroud / hexproof / protection / `spec.filter` in the `targetable()` closure of
+     * its own cases and hands a registry kind only the raw `spec`. That closure is not exported, so a family kind that
+     * does not repeat the check offers illegal targets (CR 702.18a shroud, 702.11b hexproof, 702.16e protection,
+     * 115.4 "an illegal target can't be chosen"). Everything below the `faceDown` test is that gate, reproduced
+     * through `chars`. A face-down permanent has no characteristics of its own (CR 708.2), so `spec.filter` and
+     * protection can only ever match what an external effect gave it — Lightning Greaves' shroud, an Aura, a granted
+     * keyword — which is exactly the case that leaked.
+     */
+    'face-down-permanent': (g, controller, src, spec) => {
+      const s = g.state; const out: TargetRef[] = [];
+      for (const o of chars.allPermanents(s)) {
+        if (o.faceDown !== true) continue;
+        if (spec.controller === 'you' ? o.controller !== controller : spec.controller === 'opponent' ? o.controller === controller : false) continue;
+        if (chars.hasKeyword(s, o, 'shroud')) continue;                                      // CR 702.18a
+        if (chars.hasKeyword(s, o, 'hexproof') && o.controller !== controller) continue;     // CR 702.11b
+        if (chars.protectedFrom(s, o, src)) continue;                                        // CR 702.16e
+        if (spec.filter && !chars.matchesFilter(s, o, spec.filter, src)) continue;
+        out.push({ kind: 'object', id: o.id });
+      }
+      return out;
+    },
   },
 
   events: {
-    'day-night': { logged: true, cr: '726.2', render: (ev) => { const e = ev as DayNightEvent; return e.to === 'neither' ? 'It becomes neither day nor night.' : `It becomes ${e.to}.`; } },
+    'day-night': { logged: true, cr: '731.1', render: (ev) => { const e = ev as DayNightEvent; return e.to === 'neither' ? 'It becomes neither day nor night.' : `It becomes ${e.to}.`; } },
   },
 
   // Round-trip English (the templates scripts:verify diffs against the oracle line).
   render: {
-    transform: (e: TransformEffect) => `Transform ${typeof e.target === 'string' || e.target === undefined ? '~' : 'target permanent'}${e.untap ? ', then untap it' : ''}`,
+    transform: (e: TransformEffect) => e.asItEnters
+      ? `it returns to the battlefield${e.to === 'front' ? '' : ' transformed'}`
+      : `Transform ${typeof e.target === 'string' || e.target === undefined ? '~' : 'target permanent'}${e.untap ? ', then untap it' : ''}`,
     'set-day-night': (e: DayNightEffect) => e.to === 'neither' ? 'It becomes neither day nor night' : `It becomes ${e.to}`,
     'become-prepared': (e: PreparedEffect) => e.on === false ? '~ is no longer prepared' : '~ becomes prepared',
     'turn-face-up': (e: TurnFaceUpEffect) => `${e.onlyIf === 'creature-card' ? 'If it\'s a creature card, ' : ''}turn it face up`,

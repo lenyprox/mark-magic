@@ -34,7 +34,7 @@ const ZONE = z.enum(['library', 'hand', 'battlefield', 'graveyard', 'exile', 'st
 
 export const schema: FamilySchema = {
   effects: [
-    z.strictObject({ op: z.literal('transform'), target: Subject, to: z.enum(['front', 'back']).optional(), untap: z.boolean().optional() }),
+    z.strictObject({ op: z.literal('transform'), target: Subject, to: z.enum(['front', 'back']).optional(), untap: z.boolean().optional(), asItEnters: z.literal(true).optional() }),
     z.strictObject({ op: z.literal('set-day-night'), to: z.enum(['day', 'night', 'neither']) }),
     z.strictObject({ op: z.literal('become-prepared'), target: Subject, on: z.literal(false).optional() }),
     z.strictObject({ op: z.literal('turn-face-up'), target: Subject, onlyIf: z.literal('creature-card').optional() }),
