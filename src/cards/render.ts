@@ -615,7 +615,7 @@ export function renderEffect(e: Effect | undefined, ctx: RenderCtx = ROOT): stri
       // `any-one` with `options` is a DUAL LAND: the parser records which colours ("Add {R} or {W}."), and printing
       // the generic "one mana of any color" for it both loses the line's own symbols and reads as a strictly better
       // card than the one on the table.
-      const options = (x.options as string[] | undefined)?.length ? list((x.options as string[]).map(s => `{${s}}`), 'or') : '';
+      const options = Array.isArray(x.options) && x.options.length ? list((x.options as string[]).map(s => `{${s}}`), 'or') : '';   // `options` is also a word ('chosen-color', …): only a list prints symbols
       const symbols = choices || options || (Array.isArray(m) ? (m as string[]).map(s => `{${s}}`).join('') : m === 'any' || m === 'any-one' ? 'one mana of any color' : words(String(m)));
       const n = x.amount !== undefined && x.amount !== 1 ? `${x.amount} ` : '';
       return `add ${n}${symbols}${x.perEach ? ` for each ${renderAmount(x.perEach as Amount)}` : ''}`;
@@ -886,9 +886,19 @@ function lemma(w: string): string {
  * ("Draw two cards." prints a 2), and "one or more" does not (see `dropQuantifiers`).
  */
 export function numbersIn(text: string): string[] {
-  const clean = digits(dropQuantifiers(text.replace(/\([^)]*\)/g, ' ').toLowerCase()));
-  return [...new Set([...(clean.match(/\d+/g) ?? []), ...(/\bx\b/.test(clean) ? ['x'] : [])])];
+  const clean = counted(digits(dropQuantifiers(text.replace(/\([^)]*\)/g, ' ').toLowerCase())));
+  // WITH multiplicity: "a 1/1 token" prints 1 three times, and a rendering that prints "9 1/1 tokens" prints it only
+  // twice — the count article is a magnitude too (8c re-review 2)
+  return [...(clean.match(/\d+/g) ?? []), ...(/\bx\b/.test(clean) ? ['x'] : [])];
 }
+/**
+ * The count nouns whose indefinite article is a magnitude of 1: "draw a card" (only `additional` / `random` / `extra`
+ * may sit between — "a Plains card" / "a creature card" is a selection, not a count), "create a … token" (any
+ * description), "put a +1/+1 counter" (up to two words of counter name), "loses a life".
+ */
+const COUNT_NOUN_RE = /\b(a|an)(?:(\s+(?:additional|random|extra))?\s+(cards?)|((?:\s+[\w+/-]+){0,6}?)\s+(tokens?)|((?:\s+[\w+/-]+){0,2}?)\s+(counters?)|\s+(life))\b/g;
+const counted = (s: string): string => s.replace(COUNT_NOUN_RE, (_m, _a: string, cAdj?: string, card?: string, tAdj?: string, token?: string, kAdj?: string, counter?: string, life?: string) =>
+  card ? `1${cAdj ?? ''} ${card}` : token ? `1${tAdj ?? ''} ${token}` : counter ? `1${kAdj ?? ''} ${counter}` : `1 ${life}`);
 
 /** The zone words a line names. */
 const ZONE_WORDS = ['battlefield', 'graveyard', 'library', 'exile', 'hand', 'command zone', 'stack'];
@@ -1068,14 +1078,16 @@ export function scoreClaimedLine(a: Ability, line: string): LineScore {
  */
 export function scoreRendering(line: string, rendered: string): LineScore {
   const rlow = collapseWording(rendered.toLowerCase());
-  const rNums = new Set(numbersIn(rendered));
+  const rNums = new Map<string, number>(); for (const n of numbersIn(rendered)) rNums.set(n, (rNums.get(n) ?? 0) + 1);
   // A COUNT EXPRESSION is printed two ways — "1 life for each Elf card in your graveyard" and "+X/+X, where X is the
   // number of Gates you control" — and neither the `1` nor the `X` is a magnitude a script could get wrong: the
   // magnitude IS the expression (whose own `times` / `plus` still print as numbers and are still gated). So when the
   // rendering carries a count expression, those two tokens alone are exempt. Every other number stays hard.
   const counted = rlow.includes('the number of');
   const exempt = (n: string) => counted && (n === '1' || n === 'x');
-  const missingNum = numbersIn(line).filter(n => !rNums.has(n) && !exempt(n));
+  // multiset inclusion: every number the line prints must be printed at least as often by the rendering
+  const lNums = new Map<string, number>(); for (const n of numbersIn(line)) lNums.set(n, (lNums.get(n) ?? 0) + 1);
+  const missingNum = [...lNums].filter(([n, k]) => (rNums.get(n) ?? 0) < k && !exempt(n)).map(([n]) => n);
   if (missingNum.length) return { text: line, rendered, score: 0, why: `the rendering does not print ${missingNum.join(', ')}` };
   const missingVocab = vocabularyIn(line).filter(v => !rlow.includes(v.replace(/ counter$/, '')));
   const A = new Set(lemmas(line)); const B = new Set(lemmas(rendered));

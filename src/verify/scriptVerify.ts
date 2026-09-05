@@ -258,10 +258,17 @@ export async function verifyCards(ids: string[], opts: VerifyOptions = {}): Prom
     // script; without it the numbers hard-gate — the whole point of stage 6 — never saw half of those cards, and a
     // `secondFace` that drew 9 cards for a line printing "Draw a card." verified at 1.00.
     const second = secondFaceOf(def);
-    const scored = scoreCard(
-      { ...applied, covers: script.covers },
-      second && script.secondFace ? { face: script.secondFace, name: second.name } : null,
-    );
+    let scored: ReturnType<typeof scoreCard>;
+    try {
+      scored = scoreCard(
+        { ...applied, covers: script.covers },
+        second && script.secondFace ? { face: script.secondFace, name: second.name } : null,
+      );
+    } catch (e) {
+      // one unrenderable card is that card's problem, never a dead batch (8c re-review 2)
+      problems.push(`the renderer threw: ${(e as Error).message}`);
+      scored = { score: 0, lines: [], gaps: ['renderer:threw'] } as unknown as ReturnType<typeof scoreCard>;
+    }
     row.roundTrip = { score: scored.score, lowest: scored.lines.filter(l => l.score < ROUND_TRIP_LOW).sort((a, b) => a.score - b.score) };
     row.rendererGaps = scored.gaps;
     if (scored.score < ROUND_TRIP_PASS) problems.push(`round trip ${scored.score.toFixed(2)} < ${ROUND_TRIP_PASS}: ${scored.lines.filter(l => l.score === scored.score).slice(0, 2).map(l => `${JSON.stringify(l.text)} rendered as ${JSON.stringify(l.rendered)}`).join('; ')}`);

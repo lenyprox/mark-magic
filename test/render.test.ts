@@ -84,7 +84,7 @@ test('the score: numbers are a hard gate, missing vocabulary halves, otherwise J
   assert.ok(scoreRendering('You gain 1 life for each creature you control.', 'you gain the number of creatures you control life').score > 0);
   assert.deepEqual(numbersIn('~ deals 3 damage to any target.'), ['3']);
   assert.deepEqual(numbersIn('~ gets +X/+X until end of turn.'), ['x']);
-  assert.deepEqual(numbersIn('Draw a card. (Reminder text with 7 in it.)'), []);
+  assert.deepEqual(numbersIn('Draw a card. (Reminder text with 7 in it.)'), ['1'], 'the count article is a 1; reminder text is dropped');
   assert.deepEqual(vocabularyIn('Return target creature card from your graveyard to your hand.').sort(), ['graveyard', 'hand']);
   assert.deepEqual(lemmas('Destroy the creatures, and an artifact.'), ['destroy', 'creature', 'and', 'artifact']);
   // "enters the battlefield" and "enters" are the same event (CR 603.6a templating change), on both sides
@@ -107,7 +107,7 @@ test('a spelled-out number is a number: on both sides of the comparison AND in t
   // "twice the number of" carries the 2 a "+2/+2 for each" line prints
   assert.deepEqual(numbersIn('twice the number of creatures blocking it'), ['2']);
   // "one or more" is an idiom for "any", not a magnitude, and does not gate
-  assert.deepEqual(numbersIn('Whenever one or more creatures you control deal combat damage to a player, draw a card.'), []);
+  assert.deepEqual(numbersIn('Whenever one or more creatures you control deal combat damage to a player, draw a card.'), ['1'], '"one or more" is a quantifier, "a card" is a count of 1');
 });
 
 test('"is put into a graveyard from the battlefield" is "dies" (CR 700.4), on both sides', () => {
@@ -292,4 +292,21 @@ test('calibration: the false-fail rate — cards BELOW the gate — stays under 
   }).join('');
   const rate = below.length / scored.length;
   assert.ok(rate < 0.10, `${below.length}/${scored.length} (${(100 * rate).toFixed(1)}%) of parser-finished cards fall below the 0.55 gate, which must stay under 10%. Worst:${worst}`);
+});
+
+test('the count article is a magnitude with multiplicity: "a card" / "a 1/1 token" / "a +1/+1 counter" cannot be inflated (8c re-review 2)', () => {
+  assert.equal(scoreRendering('Target player draws a card.', 'target player draws 9 cards').score, 0);
+  assert.equal(scoreRendering('When this creature dies, create a 1/1 white Spirit creature token with flying.', 'when ~ dies, create 9 1/1 white spirit creature tokens with flying').score, 0);
+  assert.equal(scoreRendering('Put a +1/+1 counter on target creature.', 'put 9 +1/+1 counters on target creature').score, 0);
+  assert.equal(scoreRendering('Each opponent loses a life.', 'each opponent loses 9 life').score, 0);
+  assert.ok(scoreRendering('Target player draws a card.', 'target player draws a card').score > 0.55);
+  assert.ok(scoreRendering('Create a 1/1 white Soldier creature token.', 'create a 1/1 white soldier creature token').score > 0.55);
+  assert.deepEqual(numbersIn('Create a 1/1 white Soldier creature token.'), ['1', '1', '1']);
+});
+
+test("add-mana with a word in `options` renders instead of throwing (8c re-review 2)", () => {
+  for (const options of ['chosen-color', 'exiled-with-colors', 'permanent-colors', ['R', 'W']]) {
+    const e = { op: 'add-mana', mana: 'any-one', options } as unknown as Parameters<typeof renderEffect>[0];
+    assert.doesNotThrow(() => renderEffect(e));
+  }
 });
