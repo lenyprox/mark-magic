@@ -294,6 +294,7 @@ mechanic family adds to them; nothing ever removes from them.
 Registered right now (`src/engine/ops/_registry.ts`):
 
 - `cost-alter`
+- `replacement`
 
 Each family's own vocabulary (`src/engine/ops/<family>.schema.ts`, composed into the checker by
 `src/cards/_schemas.ts`): the ops it adds, under the discriminator they extend, with their fields.
@@ -323,6 +324,37 @@ From `src/engine/ops/cost-alter.schema.ts`. These are accepted by the checker ex
 | `Amount.count` | `party` |
 | `TargetSpec.kind` | `exiled-with-card` |
 | `AbilityCost` keys | `exileFromGraveyardMatching` · `exileSelf` · `exileSelfFromGraveyard` · `returnToHandMany` · `sacrificeMany` |
+
+### Schema — replacement
+
+From `src/engine/ops/replacement.schema.ts`. These are accepted by the checker exactly like the core vocabulary above.
+
+#### Effects (`Effect.op`)
+
+| op | fields (`?` = optional) |
+|---|---|
+| `damage-cant-be-prevented` | `match?`, `duration` |
+| `prevent` | `amount`, `from?`, `to`, `duration`, `rider?` |
+| `prevent-rider` | `rider`, `target?` |
+
+#### Static effects (`StaticEffect.kind`)
+
+| kind | fields (`?` = optional) |
+|---|---|
+| `cant-gain-life` | `who` |
+| `counter-replacement` | `counter?`, `filter?`, `who?`, `instead` |
+| `damage-replacement` | `from?`, `to?`, `instead` |
+| `draw-replacement` | `who`, `instead`, `drawStepOnly?`, `exceptFirstInDrawStep?` |
+| `enters-untapped` | `filter`, `who` |
+| `prevention-shield` | `from?`, `to` |
+| `unpreventable-damage` | `filter?`, `who?`, `combat?` |
+| `zone-replacement` | `would`, `instead` |
+
+#### As-enters (`AsEnters.kind`)
+
+| kind | fields (`?` = optional) |
+|---|---|
+| `choose-type` | `what` |
 
 ## Examples
 
@@ -1534,3 +1566,463 @@ cost, which is why one small rule moves cards in several groups of `npm run pars
 reads only a plural plain type ("creatures", "artifacts", "lands", "permanents") or a plural basic land name
 ("Mountains", "Islands"); anything else declines rather than inventing a filter the rest of the vocabulary would
 disagree with.
+
+### replacement.md
+
+CR 614 (replacement effects) and CR 615 (prevention effects) as one family: *"if <this> would <happen>, <that>
+instead"*, the shields a spell hands out, the damage and counter doublers, "Players can't gain life.", "Skip your
+draw step.", "Lands you control enter untapped." and the "as ~ enters, choose …" half of CR 614.12.
+
+793 paper cards carry one of these lines. Nothing here is a new mechanic: every op below is one of the engine's own
+`replacements.*` folds (`game.ts:dealDamage` / `moveTo` / `draw` / `gainLife` / `replaceCounters`) driven by data, so
+the family adds no core edits at all.
+
+Engine: `src/engine/ops/replacement.ts` · schema: `src/engine/ops/replacement.schema.ts` · parser wordings:
+`src/cards/rules/replacement.ts` · scenarios: `test/scenarios/replacement.ts` (34, one per op, per static kind, per
+as-enters kind and per keyword parameter). Rule numbers refer to the Comprehensive Rules in `data/rules/cr.json`.
+
+---
+
+### 1. The two shared sub-shapes
+
+Almost every op below describes a damage event with the same two objects. Both are pure restrictions: an absent
+field restricts nothing, and an absent (or empty) `DamageSource` / `DamageRecipient` matches everything.
+
+#### `DamageSource` — which source the effect answers for (CR 609.7)
+
+| field | meaning |
+|---|---|
+| `chosen?: true` | "a source of your choice": one source is chosen **as the shield is created** (CR 615.10) and bound by id. The decision offers every permanent and every spell on the stack that passes `filter` / `who`, ordered so that the source about to deal the damage comes first: a damage spell on the stack, then any other spell, then a creature attacking the chooser, one attacking somebody else, one that is blocking, any other permanent an opponent controls, and last the chooser's own — ties broken by power (the bigger threat first) and then by id, so the pick is deterministic. Nothing legal is removed; an agent that takes the first option gets the useful one. |
+| `self?: true` | the source of the ability itself ("… that would be dealt **by ~**") |
+| `attached?: true` | the permanent the source is attached to ("… dealt by **enchanted creature**") |
+| `filter?: Filter` | characteristics the source must have — "a **blue** source", "**creatures**", "**another red** source" |
+| `who?: 'you' \| 'opponent' \| 'any'` | whose source, relative to the ability's controller |
+| `combat?: 'combat' \| 'noncombat'` | only combat damage (CR 510.2) or only noncombat damage |
+
+#### `DamageRecipient` — what is being damaged (CR 615.1)
+
+| field | meaning |
+|---|---|
+| `players?: 'you' \| 'each-opponent' \| 'any'` | the player half |
+| `self?: true` | the source of the ability itself ("prevent all damage that would be dealt **to ~**") |
+| `attached?: true` | the permanent the source is attached to |
+| `filter?: Filter` + `who?` | the permanent half: permanents matching `filter` controlled per `who` |
+
+A damage event matches when **either** half says so, which is how "to you **and** planeswalkers you control" is one
+recipient: `{ players: 'you', filter: { types: ['Planeswalker'] }, who: 'you' }`. With every field absent the
+recipient is every player and every permanent.
+
+#### `PreventFollowUp` — the "if damage is prevented this way, …" rider
+
+`{ mode: 'gain-life' }` · `{ mode: 'damage-source' }` · `{ mode: 'damage-source-controller' }` ·
+`{ mode: 'damage-targets' }` · `{ mode: 'counters', counter }`. It runs with the amount **actually prevented**, not
+the size of the shield.
+
+#### Ordering (CR 616.1)
+
+CR 616.1 lets the affected object's controller choose the order when several replacement or prevention effects apply
+to one event. The engine has no decision point there, so this family applies a fixed, documented order per damage
+event: the CR 614.1a modifiers first (`plus` / `times` / `counters` / `none`, in battlefield order), then the
+CR 615.6 gate, then prevention (`minus` reductions, the continuous shields, and finally the one-shot shields oldest
+first). That is the order a player almost always picks, and it is deterministic — which the fuzzer and the goldens
+need.
+
+---
+
+### 2. Effects
+
+#### `prevent` — hand out a prevention shield (CR 615.1, 615.7, 615.10)
+
+```ts
+{ op: 'prevent', amount: Amount | 'all' | 'next', from?: DamageSource, to: DamageRecipient,
+  duration: 'eot', rider?: PreventFollowUp }
+```
+
+| field | meaning |
+|---|---|
+| `amount` | a number of damage points ("prevent the next 3 damage"), `'all'` (an unlimited shield), or `'next'` ("the next time … would deal damage …, prevent that damage" — the whole event, CR 615.10) |
+| `from` / `to` | which damage the shield answers for |
+| `duration` | always `'eot'`: a shield ends in the cleanup step (CR 514.2) |
+| `rider` | the "if damage is prevented this way, …" half, when the card prints it in the same sentence |
+
+A numeric shield is spent point by point and the rest of the damage event is still dealt (CR 615.7); an `'all'`
+shield never runs out; a `'next'` shield is spent on the first matching event. Shields are consulted oldest first.
+
+```jsonc
+// Cho-Manno-style: "Prevent all damage that would be dealt to ~ this turn."
+{ "op": "prevent", "amount": "all", "to": { "self": true }, "duration": "eot" }
+```
+```jsonc
+// Deflecting Palm: "The next time a source of your choice would deal damage to you this turn, prevent that damage.
+//                   If damage is prevented this way, ~ deals that much damage to that source's controller."
+{ "op": "prevent", "amount": "next", "from": { "chosen": true }, "to": { "players": "you" },
+  "duration": "eot", "rider": { "mode": "damage-source-controller" } }
+```
+
+#### `prevent-rider` — the second sentence of the same replacement effect (CR 615.1)
+
+```ts
+{ op: 'prevent-rider', rider: PreventFollowUp, target?: TargetSpec }
+```
+
+Cards print "…, prevent that damage." and "If damage is prevented this way, …" as two sentences, and the parser
+splits a line into sentences before any rule sees it, so the rider is its own effect. It attaches to every shield
+**this same source** created that does not carry a rider yet, which in practice means the `prevent` that ran
+immediately before it in the same resolution. `target` is only needed for `{ mode: 'damage-targets' }`.
+
+When there is no shield of this family's to ride on, the rider **adopts the core one**. The core `prevent-damage`
+op (which `parse.ts` produces for "prevent the next N damage that would be dealt to **target** … this turn") parks a
+counter in `o.eotFlags.preventDamage`, and `Game.dealDamage` spends that counter before any family replacement is
+consulted — so a rider could never see what it prevented. CR 615.1 makes the two sentences **one** replacement
+effect, and it makes no difference which half of the engine holds the shield as long as the half that holds it can
+run the follow-up, so the rider takes the counter over: it becomes a family shield bound to exactly the objects this
+resolution targeted (that is what "that creature" in the rider means) and behaves like any other shield from there
+on. Test of Faith, Temper, Brace for Impact and Candles' Glow work this way.
+
+**Only a counter this resolution parked is adopted.** The objects are read off the **sibling `prevent-damage`
+effect of this very stack item** (`Game.effectiveEffects` plus that effect's own entry in `targetsByEffect`), never
+off every target the item happened to choose. A shield on an object this spell merely *targets* may belong to a
+different spell's replacement effect — a Healing Salve's 3 points on the creature a Divine Deflection names — and
+CR 615.1 makes that shield part of *that* effect: adopting it would delete the shield that was protecting the
+creature and re-arm it with this card's rider, which then deals the damage it "prevented" back into it.
+
+> **Limitation.** A rider on a card whose shield sentence is itself *unparsed* (Refraction Trap, Hallow, Acolyte's
+> Reward, Awe Strike, Chant of Vitu-Ghazi, Divine Deflection — all of which have other unparsed clauses too, so none
+> of them is counted as fully parsed) has no sibling to adopt from, whatever else is on the board. It emits an
+> `unsimulated` event naming the clause, so the skip is counted by `verify:pool`, the fidelity ratchet and a
+> scenario's `unsimulated` expectation instead of vanishing.
+
+The shield and its rider are **one** replacement effect, so CR 614.5 applies to the damage the rider deals: that
+shield does not prevent it. Without that guard a rider aimed at something the same shield protects prevents its own
+damage and the fold recurses until the stack overflows (`s.ext.replRiderActive` holds the shields whose rider is
+running). Every *other* shield still applies to it.
+
+```jsonc
+// Cho-Arrim Alchemist's second sentence: "You gain life equal to the damage prevented this way."
+{ "op": "prevent-rider", "rider": { "mode": "gain-life" } }
+```
+```jsonc
+// Refraction Trap-style: "If damage is prevented this way, ~ deals that much damage to any target."
+{ "op": "prevent-rider", "rider": { "mode": "damage-targets" }, "target": { "kind": "any" } }
+```
+
+#### `damage-cant-be-prevented` — switch prevention off for a turn (CR 615.6)
+
+```ts
+{ op: 'damage-cant-be-prevented', match?: DamageSource, duration: 'eot' }
+```
+
+Every prevention effect of this family simply does not apply to matching damage for the rest of the turn. `match`
+narrows it ("combat damage dealt by creatures you control can't be prevented this turn"); with no `match` it is all
+damage.
+
+The shields the **core** owns are switched off as well, by a different route. `Game.dealDamage` spends
+`o.eotFlags.preventDamage` — and `dealDamageToPlayer` the Fog flag — *before* the `replacements.damage` fold runs, so
+this family never sees those events. Both of those flags last exactly one turn and so does an unrestricted "damage
+can't be prevented this turn", so an unrestricted effect **takes them away** instead: they could not legally have
+prevented anything for the rest of the turn anyway. The sweep runs as the effect resolves and again in `sba` — before
+any player receives priority (CR 117.5) — so a core shield or a Fog put up later in the turn is switched off too,
+before it can be used.
+
+> **Limitation.** A *restricted* no-prevent (`match` naming a source) is deliberately left out of that sweep: those
+> core shields may still legally answer for other sources, and the core carries no way to ask this family per event.
+> No printed card in the pool is in that position today (Skullcrack, Flaring Pain, Insult // Injury, Wild Slash,
+> Unstable Footing and the rest are all unrestricted), but a script that writes `match` is. The real fix is the
+> ordering change in §6.
+
+```jsonc
+// Skullcrack / Flaring Pain: "Damage can't be prevented this turn."
+{ "op": "damage-cant-be-prevented", "duration": "eot" }
+```
+```jsonc
+// "Combat damage that would be dealt by creatures you control can't be prevented this turn."
+{ "op": "damage-cant-be-prevented", "match": { "filter": { "types": ["Creature"] }, "who": "you", "combat": "combat" },
+  "duration": "eot" }
+```
+
+---
+
+### 3. Static abilities
+
+#### `prevention-shield` — a shield a permanent hands out continuously (CR 615.1)
+
+```ts
+{ kind: 'prevention-shield', from?: DamageSource, to: DamageRecipient }
+```
+
+Unlimited and permanent while the source is on the battlefield: it prevents every matching damage event. A card that
+prevents damage in both directions ("to and dealt by enchanted creature") is **two** of these.
+
+```jsonc
+// Cho-Manno, Revolutionary: "Prevent all damage that would be dealt to ~."
+{ "kind": "prevention-shield", "to": { "self": true } }
+```
+```jsonc
+// Fog Bank's second half: "…and dealt by ~" (combat damage only)
+{ "kind": "prevention-shield", "from": { "self": true, "combat": "combat" }, "to": {} }
+```
+
+#### `unpreventable-damage` — CR 615.6 printed on a permanent
+
+```ts
+{ kind: 'unpreventable-damage', filter?: Filter, who?: 'you' | 'opponent' | 'any', combat?: 'combat' | 'noncombat' }
+```
+
+Damage from a matching source is not prevented by anything in this family. It is read **two ways**, because CR 609.7
+lets any object be a source of damage while `Mods` is a per-permanent layer computation:
+
+* the statics are matched directly against the damage source, in whatever zone it is — which is the case Leyline of
+  Punishment, Everlasting Torment, Sunspine Lynx, Spider-Punk and Kevin, Questing Dragon are printed for (beating a
+  Circle of Protection against an *instant*);
+* and a `Mods.flags` flag is folded onto every permanent that matches `filter` / `who`, which is how another family
+  can **grant** "damage it deals can't be prevented" to one permanent.
+
+```jsonc
+// Questing Beast: "Combat damage that would be dealt by creatures you control can't be prevented."
+{ "kind": "unpreventable-damage", "filter": { "types": ["Creature"] }, "who": "you", "combat": "combat" }
+```
+```jsonc
+// Everlasting Torment: "Damage can't be prevented."
+{ "kind": "unpreventable-damage" }
+```
+
+#### `damage-replacement` — CR 614.1a on damage
+
+```ts
+{ kind: 'damage-replacement', from?: DamageSource, to?: DamageRecipient, instead: DamageInstead }
+```
+
+`instead` is one of `{ mode: 'plus', amount }`, `{ mode: 'times', factor }`, `{ mode: 'minus', amount }`,
+`{ mode: 'counters', counter }` or `{ mode: 'none' }`. `counters` replaces the damage **entirely** — none is dealt,
+so nothing is marked and no lifelink or "deals damage" trigger sees it — and it only applies when the recipient is a
+permanent. `minus` is a prevention effect (CR 615.2), so it is switched off by `unpreventable-damage` and by
+`damage-cant-be-prevented`; the other modes are not.
+
+```jsonc
+// Furnace of Rath: "If a source would deal damage to a permanent or player, it deals double that damage … instead."
+{ "kind": "damage-replacement", "instead": { "mode": "times", "factor": 2 } }
+```
+```jsonc
+// Soul-Scar Mage: "If a source you control would deal noncombat damage to a creature an opponent controls,
+//                  put that many -1/-1 counters on that creature instead."
+{ "kind": "damage-replacement", "from": { "who": "you", "combat": "noncombat" },
+  "to": { "filter": { "types": ["Creature"] }, "who": "opponent" },
+  "instead": { "mode": "counters", "counter": "-1/-1" } }
+```
+
+#### `zone-replacement` — CR 614.1a on a zone change
+
+```ts
+{ kind: 'zone-replacement',
+  would: { self?: true, filter?: Filter, who?: 'you'|'opponent'|'any', to: 'graveyard'|'exile'|'hand'|'library', from?: 'battlefield'|'stack'|'any' },
+  instead: { zone: MoveZone, pos?: 'top'|'bottom' } }
+```
+
+`would.to` is the zone the object is headed for and `would.from` where it is coming from — `'battlefield'` is what
+"would **die**" means (CR 700.4). The move is redirected through `Game.moveTo`'s own replacement fold, so the object
+never touches the zone it was headed for.
+
+```jsonc
+// Possessed Skaab: "If ~ would die, exile it instead."
+{ "kind": "zone-replacement", "would": { "self": true, "to": "graveyard", "from": "battlefield" },
+  "instead": { "zone": "exile" } }
+```
+```jsonc
+// Stone of Erech: "If a creature an opponent controls would die, exile it instead."
+{ "kind": "zone-replacement",
+  "would": { "filter": { "types": ["Creature"] }, "who": "opponent", "to": "graveyard", "from": "battlefield" },
+  "instead": { "zone": "exile" } }
+```
+
+#### `counter-replacement` — CR 614.1c on counters
+
+```ts
+{ kind: 'counter-replacement', counter?: string, filter?: Filter, who?: 'you'|'opponent'|'any', instead: CounterInstead }
+```
+
+`instead` is `{ mode: 'none' }`, `{ mode: 'plus', amount }`, `{ mode: 'minus', amount }` or
+`{ mode: 'times', factor }`. Same scope as the core's `counters-replacement` (CR 614.1c, 121.4): counters being
+**put on** a permanent on the battlefield, never loyalty, never a removal. Several of them stack in battlefield
+order. It generalises the core static, which only knows `double` and `plus-one`.
+
+```jsonc
+// Corpsejack Menace: "If one or more +1/+1 counters would be put on a creature you control,
+//                     twice that many +1/+1 counters are put on it instead."
+{ "kind": "counter-replacement", "counter": "+1/+1", "filter": { "types": ["Creature"] }, "who": "you",
+  "instead": { "mode": "times", "factor": 2 } }
+```
+```jsonc
+// Vizier of Remedies: "If one or more -1/-1 counters would be put on a creature you control,
+//                      that many minus one -1/-1 counters are put on it instead."
+{ "kind": "counter-replacement", "counter": "-1/-1", "filter": { "types": ["Creature"] }, "who": "you",
+  "instead": { "mode": "minus", "amount": 1 } }
+```
+
+#### `cant-gain-life` — CR 614.1b on life gain
+
+```ts
+{ kind: 'cant-gain-life', who: 'you' | 'opponent' | 'all' }
+```
+
+`who` is read relative to the static's controller. The life gain is replaced with nothing, so no "whenever you gain
+life" trigger fires.
+
+```jsonc
+// Rampaging Ferocidon / Giant Cindermaw: "Players can't gain life."
+{ "kind": "cant-gain-life", "who": "all" }
+```
+```jsonc
+// Knight of Dusk's Shadow: "Your opponents can't gain life."
+{ "kind": "cant-gain-life", "who": "opponent" }
+```
+
+#### `draw-replacement` — CR 121.6 / 614.1 on draws
+
+```ts
+{ kind: 'draw-replacement', who: 'you'|'opponent'|'all', instead: 'skip' | number,
+  drawStepOnly?: true, exceptFirstInDrawStep?: true }
+```
+
+`instead: 'skip'` replaces the draw with nothing; a number draws that many cards instead of the one.
+`drawStepOnly` limits it to the draw taken as the draw step's turn-based action (CR 504.1), which is what "Skip your
+draw step." means; `exceptFirstInDrawStep` is the opposite exception.
+
+Two details that are easy to get wrong and are pinned by scenarios:
+
+* **CR 614.5.** A replacement does not apply to the draws it creates itself, but a *different* one still does. The
+  guard is per effect (`s.ext.replDrawApplied` is the chain of effects used on the way down to this draw), so
+  Thought Reflection plus Alhammarret's Archive gives **four** cards for one draw, not two.
+* **Both flags are decided by the turn-based draw, not by the step or by the turn's draw count.** `drawStepOnly` and
+  `exceptFirstInDrawStep` speak about the one draw CR 504.1 makes the draw step take, so they are matched against
+  the *first draw event* of the active player's draw step — which is taken before any player receives priority
+  (CR 117.5) and is marked as it happens in `s.ext.replDrawStepSeen`. An upkeep draw earlier in the turn therefore
+  does not spend the exemption, a Yawgmoth's Bargain activated during its controller's own draw step still draws
+  (the skip is not "no draws while the step lasts"), and the nested draws a replacement makes are neither. The
+  family's `draw` step hook sets the same mark right after the turn-based draw, so the window is closed even on a
+  turn where no turn-based draw happened at all (the starting player's first turn).
+
+> **Limitation.** `Game.draw` awaits only in its dredge branch, so the recursive draws are synchronous. A numeric
+> replacement therefore stands down (the single printed draw happens) when that player has a dredge card in their
+> graveyard, rather than leaving a floating promise.
+
+```jsonc
+// Dragon Appeasement / Yawgmoth's Bargain: "Skip your draw step."
+{ "kind": "draw-replacement", "who": "you", "instead": "skip", "drawStepOnly": true }
+```
+```jsonc
+// Teferi's Ageless Insight: "If you would draw a card except the first one you draw in each of your draw steps,
+//                            draw two cards instead."
+{ "kind": "draw-replacement", "who": "you", "instead": 2, "exceptFirstInDrawStep": true }
+```
+
+#### `enters-untapped` — CR 614.12 the other way round
+
+```ts
+{ kind: 'enters-untapped', filter: Filter, who: 'you' | 'all' }
+```
+
+A matching permanent that would enter tapped enters untapped instead. The engine decides `o.tapped` after every
+zone-move replacement has run, so the permanent is *marked* as it enters and untapped in the state-based-action pass
+that follows — which is before any player receives priority (CR 117.5), and the mark is consumed there, so a land
+tapped for mana later that turn is never touched.
+
+```jsonc
+// Horizon Explorer / Spelunking: "Lands you control enter untapped."
+{ "kind": "enters-untapped", "filter": { "types": ["Land"] }, "who": "you" }
+```
+```jsonc
+// "Creatures enter untapped." (every player's)
+{ "kind": "enters-untapped", "filter": { "types": ["Creature"] }, "who": "all" }
+```
+
+---
+
+### 4. As-enters
+
+#### `choose-type` — CR 614.12
+
+```ts
+{ kind: 'choose-type', what: 'basic-land-type' }
+```
+
+"As ~ enters, choose a basic land type." The core's `choose` as-enters kind already covers a colour and a creature
+type, which are the two slots `GameObject.chosen` has; a basic land type is stored as `o.ext.chosenLandType`, which is
+what a type-changing static ("~ is the chosen type") reads.
+
+It composes with the core as-enters kinds in printed order, so the shockland clause on the same line is the core's
+own `pay-life-or-tapped`:
+
+```jsonc
+// Multiversal Passage: "As ~ enters, choose a basic land type. Then you may pay 2 life. If you don't, it enters tapped."
+"asEnters": [ { "kind": "choose-type", "what": "basic-land-type" }, { "kind": "pay-life-or-tapped", "life": 2 } ]
+```
+```jsonc
+// the choice on its own
+"asEnters": [ { "kind": "choose-type", "what": "basic-land-type" } ]
+```
+
+---
+
+### 5. Parser wordings
+
+`src/cards/rules/replacement.ts` adds ten static rules, five effect rules and one line rule. The filter words a
+source or a recipient may use are a **closed vocabulary** (a colour, "source(s)", "creature(s)", "permanent(s)",
+optionally "another"), so a wording with one word outside it declines rather than parsing into a filter that means
+something else. Every static rule refuses an instant or a sorcery outright, because the static branch of the line
+ladder sits above the spell-text branch.
+
+| wording | produces |
+|---|---|
+| "Prevent all [combat] damage that would be dealt to ~ / enchanted creature [by <sources>]." | `prevention-shield` |
+| "Prevent all [combat] damage that would be dealt by ~ / enchanted creature." | `prevention-shield` |
+| "Prevent all [combat] damage that would be dealt to and dealt by ~ / enchanted creature." | two `prevention-shield`s |
+| "[Combat] damage [that would be dealt by <sources>] can't be prevented." | `unpreventable-damage` |
+| "If <source> would deal [combat] damage to <recipient>, it deals that much damage plus N / double that damage instead." | `damage-replacement` (`plus` / `times`) |
+| "If <source> would deal damage to <recipient>, prevent N of that damage." | `damage-replacement` (`minus`) |
+| "If <source> would deal [noncombat] damage to <recipient>, put that many <counter> counters on that creature instead." | `damage-replacement` (`counters`) |
+| "If ~ / a <filter> would die, exile it / return it to its owner's hand / put it on the bottom of its owner's library instead." | `zone-replacement` |
+| "If one or more <counter> counters would be put on <filter>, twice that many / that many plus N / that many minus N … instead." | `counter-replacement` |
+| "Players / You / Your opponents can't gain life." | `cant-gain-life` |
+| "Skip your draw step." / "Each player skips their draw step." | `draw-replacement` |
+| "If you would draw a card[ except the first one you draw in each of your draw steps], draw N cards instead." | `draw-replacement` |
+| "Lands / creatures / … [you control] enter untapped." | `enters-untapped` |
+| "The next time a [colour] source of your choice would deal damage to you / ~ this turn, prevent that damage." | `prevent` (`'next'`) |
+| "Prevent all [combat] damage that would be dealt to ~ / you this turn." | `prevent` (`'all'`) |
+| "Prevent all [combat] damage that would be dealt this turn by <sources>." | `prevent` (`'all'`) |
+| "Prevent the next N [combat] damage that would be dealt to ~ / you this turn." | `prevent` (numeric) |
+| "[Combat] damage can't be prevented this turn." | `damage-cant-be-prevented` |
+| "You gain life equal to the damage prevented this way." / "If damage is prevented this way, ~ deals that much damage to …" / "For each 1 damage prevented this way, put a <counter> counter on that creature." | `prevent-rider` |
+| "As ~ enters, choose a basic land type[. Then you may pay N life. If you don't, it enters tapped]." | `choose-type` (+ the core `pay-life-or-tapped`) |
+
+The built-in tables keep the three shapes they already own — "prevent all damage that would be dealt to **target**
+… this turn", "prevent all combat damage that would be dealt this turn" (fog) and "prevent the next N damage that
+would be dealt to **target** … this turn" — so those still produce the core `prevent-damage` op. That is the split
+the `prevent-rider` adoption above exists for, and the split §6's ordering note is about.
+
+---
+
+### 6. What this family does not express yet
+
+* **A core prevention shield is spent before this family's damage fold runs.** `Game.dealDamage` consumes
+  `o.eotFlags.preventDamage` at game.ts:1902-1903 and `dealDamageToPlayer` short-circuits on the Fog flag at
+  game.ts:1883, both *before* `REPLACEMENTS.damage` at the line after. Two consequences:
+  * a `damage-replacement` multiplier is applied **after** that shield, so Furnace of Rath's doubling of a Lightning
+    Bolt is fully absorbed by a 3-point Healing Salve instead of leaving 3 to be dealt (CR 614.1a modifications come
+    first, then CR 615 prevention — the order this family promises and keeps for every shield it owns itself);
+  * a *restricted* `damage-cant-be-prevented` cannot switch that shield off (see §2; the unrestricted case is handled
+    by the sweep described there).
+
+  Both are one core change: fold `REPLACEMENTS.damage` **before** the `eotFlags.preventDamage` / Fog branches and let
+  this family answer "may this be prevented?" for them. It is written up as `coreChangeNeeded` in the Phase 9.1
+  report; nothing inside a family file can reach it.
+* **Comeuppance and Honorable Passage** split the rider by the *kind* of the prevented source ("if damage from a
+  creature source is prevented this way … if damage from a noncreature source …"). `PreventFollowUp` has one mode
+  per shield, so those lines stay unparsed.
+* **"Prevent the next N damage … divided as you choose"** (Awe Strike, Refraction Trap's recipient) — a single
+  shield cannot be split across several recipients.
+* **"If a player would begin an extra turn, that player skips that turn instead"** and **"Creatures entering don't
+  cause abilities to trigger"** have no engine hook to replace (extra turns and trigger creation are core-only).
+* **Player counters.** `Game.replaceCounters` is only reached for objects, so "if you would put one or more counters
+  on a permanent **or player**" cannot double the player half.
+* **"You can't lose the game / your opponents can't win the game."** State-based actions and `Game.eliminate` are
+  core; `sba` can add an action but cannot veto one.

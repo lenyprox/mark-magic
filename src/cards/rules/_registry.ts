@@ -19,10 +19,12 @@ import type { ConditionRule, CostRule, EffectRule, LineRule, RuleFamily, StaticR
 
 import family_composition from './composition.js';
 import family_cost_alter from './cost-alter.js';
+import family_replacement from './replacement.js';
 
 const GENERATED: RuleFamily[] = [
   family_composition,
   family_cost_alter,
+  family_replacement,
 ];
 
 // ---------------------------------------------------------------- flat arrays (mutated in place by rebuild())

@@ -16,10 +16,11 @@ import { dslExtras } from './scenarios/dsl-extras.js';
 import { composition } from './scenarios/composition.js';
 import { compositionCards } from './scenarios/composition-cards.js';
 import { costAlter } from './scenarios/cost-alter.js';
+import { replacement } from './scenarios/replacement.js';
 import { runScenario, type Scenario } from './scenarios/dsl.js';
 
 const hasDb = fs.existsSync(MASTER_DB());
-const suites: { file: string; scenarios: Scenario[] }[] = [{ file: 'basics', scenarios: basics }, { file: 'mechanics', scenarios: mechanics }, { file: 'owned', scenarios: owned }, { file: 'owned2', scenarios: owned2 }, { file: 'owned3', scenarios: owned3 }, { file: 'keywords', scenarios: keywords }, { file: 'for-each', scenarios: foreach }, { file: 'dsl-extras', scenarios: dslExtras }, { file: 'composition', scenarios: composition }, { file: 'composition-cards', scenarios: compositionCards }, { file: 'cost-alter', scenarios: costAlter }];
+const suites: { file: string; scenarios: Scenario[] }[] = [{ file: 'basics', scenarios: basics }, { file: 'mechanics', scenarios: mechanics }, { file: 'owned', scenarios: owned }, { file: 'owned2', scenarios: owned2 }, { file: 'owned3', scenarios: owned3 }, { file: 'keywords', scenarios: keywords }, { file: 'for-each', scenarios: foreach }, { file: 'dsl-extras', scenarios: dslExtras }, { file: 'composition', scenarios: composition }, { file: 'composition-cards', scenarios: compositionCards }, { file: 'cost-alter', scenarios: costAlter }, { file: 'replacement', scenarios: replacement }];
 
 for (const suite of suites) for (const sc of suite.scenarios) {
   test(`[${suite.file}] ${sc.name}${sc.cr ? ` (CR ${sc.cr})` : ''}`, { skip: !hasDb }, async () => {

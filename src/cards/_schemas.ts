@@ -19,10 +19,12 @@
 import type { FamilySchema } from '../engine/ops/types.js';
 import { CORE_VOCABULARY, mergeFamilySchemas, type FamilySchemaEntry } from './schema-core.js';
 import { schema as schema_cost_alter } from '../engine/ops/cost-alter.schema.js';
+import { schema as schema_replacement } from '../engine/ops/replacement.schema.js';
 
 /** Every family schema with the file it came from, in file-name order. */
 export const FAMILY_SCHEMA_ENTRIES: readonly FamilySchemaEntry[] = [
   { family: "cost-alter", file: "src/engine/ops/cost-alter.schema.ts", schema: schema_cost_alter },
+  { family: "replacement", file: "src/engine/ops/replacement.schema.ts", schema: schema_replacement },
 ];
 
 /** The family schemas by family name (the file's basename, which is also the FamilyModule's `name` by convention). */

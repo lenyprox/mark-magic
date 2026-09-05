@@ -17,9 +17,11 @@ import type {
 export interface RegistryEntry { file: string; mod: FamilyModule }
 
 import family_cost_alter from './cost-alter.js';
+import family_replacement from './replacement.js';
 
 const GENERATED: RegistryEntry[] = [
   { file: "cost-alter.ts", mod: family_cost_alter },
+  { file: "replacement.ts", mod: family_replacement },
 ];
 
 // ---------------------------------------------------------------- flat lookups (mutated in place by rebuild())
