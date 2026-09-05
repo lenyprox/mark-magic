@@ -18,8 +18,9 @@ import {
 import { extBump, extDel } from './ops/ext.js';
 import type { EnterCtx, OpCtx } from './ops/types.js';
 
-/** Extra combat phases queued for this turn (CR 506.1); families set `s.ext.extraCombats`. The cleanup step clears any
- * that were never reached, so an unspent one can never leak into the next turn (or into an AI clone of it). */
+/** Extra combat phases queued for this turn (CR 506.1); families set `s.ext.extraCombats`. The cleanup step, the start
+ * of every turn and the active player leaving the game all clear the counter, so an unspent one can never leak into
+ * another player's turn (or into an AI clone of it) even when the turn ends before its cleanup step. */
 function extraCombats(s: GameState): number { const e = s.ext; return e === undefined ? 0 : (e.extraCombats as number | undefined) ?? 0; }
 
 export class Rng {
@@ -190,8 +191,12 @@ export class Game {
   }
   /** Doubling Season / Kami of Whispered Hopes: how many counters actually land (CR 614.1c replacement). Loyalty costs are never modified. */
   private replaceCounters(o: GameObject, counter: string, delta: number): number {
-    if (delta <= 0 || o.zone !== 'battlefield' || counter === 'loyalty') return delta;
     let n = delta;
+    // The registry fold runs first and unguarded: a family replacement has to see counter *removals* (a wither shield),
+    // objects outside the battlefield (a suspended card in exile) and loyalty. The core doubling statics below keep
+    // their own narrower scope - additions only, on the battlefield, never loyalty (CR 614.1c, 121.4).
+    if (REPLACEMENTS.counters.length) for (const h of REPLACEMENTS.counters) n = h(this, o, counter, n);
+    if (n <= 0 || o.zone !== 'battlefield' || counter === 'loyalty') return n;
     for (const src of this.state.players[o.controller].battlefield) for (const ab of abilitiesOf(src)) {
       if (ab.kind !== 'static' || ab.effect.kind !== 'counters-replacement') continue;
       const e = ab.effect;
@@ -199,7 +204,6 @@ export class Game {
       if (e.filter && !matchesFilter(this.state, o, e.filter, src)) continue;
       n = e.mode === 'double' ? n * 2 : n + 1;
     }
-    if (REPLACEMENTS.counters.length) for (const h of REPLACEMENTS.counters) n = h(this, o, counter, n);
     return n;
   }
   addCounters(o: GameObject, counter: string, delta: number) {
@@ -265,6 +269,10 @@ export class Game {
 
   private async runTurn() {
     const s = this.state;
+    // CR 506.1: an extra combat phase belongs to the turn that granted it. The cleanup step clears any that were never
+    // reached, but a turn that ended early (its active player was eliminated) never runs one, so the new active
+    // player's turn starts from zero here as well - an extra combat must never cross a turn boundary.
+    extDel(s, 'extraCombats');
     this.emit({ type: 'turn', player: s.activePlayer, number: s.turn });
     for (const p of s.players) { p.spellsCastLastTurn = p.spellsCastThisTurn; p.descendedThisTurn = false; p.landsPlayedThisTurn = 0; p.extraLandsThisTurn = 0; p.attackedThisTurn = false; p.attackedWithThisTurn = 0; p.lifeLostThisTurn = 0; p.creaturesDiedThisTurn = 0; p.spellsCastThisTurn = 0; p.permanentsLeftThisTurn = 0; p.cardsDrawnThisTurn = 0; p.lifeGainedThisTurn = 0; for (const o of p.battlefield) { o.activatedThisTurn.clear(); o.triggeredThisTurn?.clear(); } }
     s.players[s.activePlayer].turnsTaken = (s.players[s.activePlayer].turnsTaken ?? 0) + 1;
@@ -335,8 +343,7 @@ export class Game {
     }
     if (reach('combat-end')) { await this.combatFrom(from, resume); if (s.winner !== null) return; }
     if (reach('main2')) {
-      if (enter('main2')) await this.setStep('main2');
-      await this.stepHooks('main2');
+      if (enter('main2')) { await this.setStep('main2'); await this.stepHooks('main2'); }
       if (await round('main2')) return;
       // extra combat phases (CR 506.1 / "after this phase, there is an additional combat phase"): another combat, then another main phase
       for (let guard = 0; guard < 20 && extraCombats(s) > 0; guard++) {
@@ -1537,7 +1544,9 @@ export class Game {
       if (r.zone) zone = r.zone;
       if (r.pos) libraryPos = r.pos;
     }
-    if (earthbentHome && zone === 'hand') this.note(`${name(o)} would die and returns to its owner's hand instead.`);
+    // the note is deferred past the replacements so a cancelled move stays silent, but the commander redirect
+    // (hand -> command zone) must not swallow it: the earthbend replacement did apply (CR 903.9a)
+    if (earthbentHome && zone !== 'graveyard') this.note(`${name(o)} would die and returns to its owner's hand instead.`);
     if (o.zone === 'battlefield' && zone !== 'battlefield') { delete o.animated; delete o.earthbent; delete o.faceDown; }
     this.bfGen++;
     const removeFrom = (arr: GameObject[]) => { const i = arr.indexOf(o); if (i >= 0) arr.splice(i, 1); };
@@ -1612,6 +1621,8 @@ export class Game {
   /** CR 800.4a: everything the player owns leaves the game; what they controlled goes back; their stack items vanish. */
   private leaveGame(p: PlayerId) {
     const s = this.state;
+    // the turn ends here without reaching its cleanup step, so its unspent extra combats leave with the player
+    if (s.activePlayer === p) extDel(s, 'extraCombats');
     for (const q of s.players) for (const o of [...q.battlefield]) { if (o.owner === p) this.moveTo(o, 'exile', 'top', 'effect'); else if (o.controller === p) this.changeControl(o, o.owner); }
     for (const it of [...s.stack]) if (it.controller === p) { s.stack.splice(s.stack.indexOf(it), 1); it.countered = true; if (it.kind === 'spell' && it.source.zone === 'stack') this.moveTo(it.source, 'exile', 'top', 'effect'); }
     this.pendingTriggers = this.pendingTriggers.filter(t => t.controller !== p);
@@ -1649,7 +1660,7 @@ export class Game {
       // legend rule
       if (SBA_HOOKS.length) for (const h of SBA_HOOKS) if (h(this)) again = true;
       for (const p of s.players) {
-        const legends = p.battlefield.filter(o => o.def.supertypes.includes('Legendary'));
+        const legends = battlefieldOf(s, p.id).filter(o => o.def.supertypes.includes('Legendary'));
         const seen = new Map<string, GameObject>();
         for (const o of legends) { const n = name(o); if (seen.has(n)) { const older = seen.get(n)!; this.emit({ type: 'sba', kind: 'legend-rule', id: older.id, name: n }); this.moveTo(older, 'graveyard', 'top', 'sba'); again = true; } seen.set(n, o); }
       }
@@ -1873,7 +1884,7 @@ export class Game {
           const allAttackers = s.attackers.map(id => findObject(s, id)!).filter(o => o && o.zone === 'battlefield');
           for (const d of defenders) {
             const attackers = allAttackers.filter(a => a.attacking === d);
-            const blockers = s.players[d].battlefield.filter(o => isCreature(o) && !o.tapped);
+            const blockers = battlefieldOf(s, d).filter(o => isCreature(o) && !o.tapped);
             if (!attackers.length || !blockers.length) continue;
             const decl = await this.ask(d, { kind: 'blockers', attackers: attackers.map(a => a.id), candidates: blockers.map(b => b.id) }) as BlockDeclaration;
             for (const b of decl.blocks) {

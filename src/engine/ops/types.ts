@@ -71,6 +71,13 @@ export interface TokenAbility {
   /** The negative ability index this token's built-in ability answers to. */ index: number;
   /** The `TokenSpec` flag that marks the token; a family token without one is marked by `o.ext.tokenAbility = <name>`. */ flag?: keyof TokenSpec;
   /** A legal action for it right now, or null. */ legal(g: Game, p: PlayerId, o: GameObject): LegalAction | null;
+  /**
+   * Does this ability speak for the token in `legalActions`, so the generic activated-ability and equip scan is
+   * skipped for it? Defaults to true (Clue and Food: the token has nothing else to offer). Return false to fall
+   * through to that scan anyway - Treasure does while it is tapped, Eldrazi Spawn always (the mana solver taps it
+   * directly), which is what the hardcoded checks did before the abilities moved into this registry.
+   */
+  covers?(g: Game, p: PlayerId, o: GameObject): boolean;
   /** Perform it (already matched on `index`). */ activate(g: Game, p: PlayerId, o: GameObject): Promise<boolean>;
 }
 

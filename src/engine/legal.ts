@@ -132,7 +132,8 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
   // activated abilities of permanents (phasing-aware: a phased-out permanent does not exist, CR 702.26e)
   for (const o of battlefieldOf(s, p)) {
     // predefined tokens (Treasure, Clue, Food, ...) carry their built-in ability in the TOKEN_ABILITIES registry
-    if (o.token !== null) { const ta = tokenAbilityOf(o); if (ta) { const la = ta.legal(g, p, o); if (la) out.push(la); continue; } }
+    // `covers` (default true) decides whether the token ability replaces the generic scan below or falls through to it
+    if (o.token !== null) { const ta = tokenAbilityOf(o); if (ta) { const la = ta.legal(g, p, o); if (la) out.push(la); if (ta.covers === undefined || ta.covers(g, p, o)) continue; } }
     abilitiesOf(o).forEach((ab, i) => {
       if (ab.kind !== 'activated') return;
       // tap-only mana abilities are used implicitly by auto-payment; ones with other costs (Lotus Petal, Lion's Eye Diamond) are explicit actions
@@ -208,10 +209,13 @@ export function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZo
   const wantsXRange = !!d.asEnters?.some(a => a.kind === 'counters' && a.amount === 'X');
   const tryPay = (cost: ManaCost, x: number, delveN: number, useExtras: boolean) => findPaymentFull(s, pl, cost, x, adjust + delveN, g.manaLimit, { forSpell: c, extraSources: useExtras ? extras : [], extrasFirst: useExtras });
 
-  interface Variant { alt?: AltCost; kicked?: boolean; x?: number; pay?: { delve?: number[]; useExtras?: boolean }; how: string[]; mv: number; plan?: Payment | null; cost?: ManaCost }
-  const variants: Variant[] = [];
-  // `modes` is threaded into spellManaCost for entwine/spree-style mode costs; the variant loop below still enumerates
-  // modes after the payment plans, so no core card passes a non-undefined value yet (8a-2 restructures it).
+  interface Variant { alt?: AltCost; kicked?: boolean; x?: number; modes?: number[]; pay?: { delve?: number[]; useExtras?: boolean }; how: string[]; mv: number; plan?: Payment | null; cost?: ManaCost }
+  // Cost enumeration runs once per mode set, so a registry `modeCost` (entwine, escalate, spree, multikicker) is part
+  // of the cost every payment plan below is built against. `bySlot` keeps the emitted order what it was when the modes
+  // were crossed in afterwards: the nth variant of every mode set stays together, in mode-set order.
+  const bySlot: Variant[][] = [];
+  let slot = 0;
+  const push = (v: Variant) => { (bySlot[slot] ??= []).push(v); slot++; };
   const consider = (alt: AltCost | undefined, kicked: boolean, modes?: number[]) => {
     if (alt && alt.from !== from) return;
     if (!alt && from === 'graveyard') return;
@@ -229,19 +233,23 @@ export function castActionsFor(g: Game, p: PlayerId, c: GameObject, from: CastZo
       const mv = alt && !alt.cost.mana ? 0 : manaValue(cost, xn);
       const plan = tryPay(cost, xn, 0, false);
       if (plan) {
-        variants.push({ alt, kicked, x, how, mv, plan, cost });
-        if (delve && countsExiled && gy > 0 && genericNeeded > 0) { const n = Math.min(gy, genericNeeded); variants.push({ alt, kicked, x, pay: { delve: pickDelve(s, pl, c, n) }, how: [...how, `delve ${n}`], mv }); }
+        push({ alt, kicked, x, modes, how, mv, plan, cost });
+        if (delve && countsExiled && gy > 0 && genericNeeded > 0) { const n = Math.min(gy, genericNeeded); push({ alt, kicked, x, modes, pay: { delve: pickDelve(s, pl, c, n) }, how: [...how, `delve ${n}`], mv }); }
         continue;
       }
-      if (delve && gy > 0 && genericNeeded > 0) { const n = Math.min(gy, genericNeeded); if (tryPay(cost, xn, n, false)) { variants.push({ alt, kicked, x, pay: { delve: pickDelve(s, pl, c, n) }, how: [...how, `delve ${n}`], mv }); continue; } }
-      if (extras.length && tryPay(cost, xn, 0, true)) variants.push({ alt, kicked, x, pay: { useExtras: true }, how: [...how, hasModifier(d, 'convoke') ? 'convoke' : 'improvise'], mv });
+      if (delve && gy > 0 && genericNeeded > 0) { const n = Math.min(gy, genericNeeded); if (tryPay(cost, xn, n, false)) { push({ alt, kicked, x, modes, pay: { delve: pickDelve(s, pl, c, n) }, how: [...how, `delve ${n}`], mv }); continue; } }
+      if (extras.length && tryPay(cost, xn, 0, true)) push({ alt, kicked, x, modes, pay: { useExtras: true }, how: [...how, hasModifier(d, 'convoke') ? 'convoke' : 'improvise'], mv });
     }
   };
-  consider(undefined, false);
-  if (d.kicker && from === 'hand') consider(undefined, true);
-  for (const alt of d.altCosts ?? []) consider(alt, false);
+  for (const modes of modeSets) {
+    slot = 0;
+    consider(undefined, false, modes);
+    if (d.kicker && from === 'hand') consider(undefined, true, modes);
+    for (const alt of d.altCosts ?? []) consider(alt, false, modes);
+  }
 
-  for (const v of variants) for (const modes of modeSets) {
+  for (const group of bySlot) for (const v of group) {
+    const modes = v.modes;
     const eff = expandModes(effects, modes);
     const reqs = targetingEffects(eff);
     const targetOptions = reqs.map(r => ({ spec: describeSpec(r.spec), options: targetOptionsFor(g, p, r.spec, c), optional: !!r.spec.optional, count: r.spec.count ?? 1 }));
