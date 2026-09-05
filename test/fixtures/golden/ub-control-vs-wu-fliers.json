@@ -546,8 +546,8 @@
    "seed": 4163523332,
    "winner": null,
    "turns": 31,
-   "eventVector": "f74cfdcd",
-   "logHash": "732914d6",
+   "eventVector": "de84b1cf",
+   "logHash": "e97a7a19",
    "turnHashes": [
     "e9598c1d",
     "08cc6bad",
@@ -579,7 +579,7 @@
     "0dd0997b",
     "a75f686a",
     "c92c2fc2",
-    "42131aa5"
+    "9080fb6a"
    ]
   },
   {

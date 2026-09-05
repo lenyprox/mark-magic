@@ -14,7 +14,6 @@
     "exile-graveyard",
     "explore",
     "extra-land",
-    "extra-turn",
     "fight",
     "fold-new-targets",
     "gain-ability",
@@ -61,7 +60,6 @@
     "life-ge",
     "life-le",
     "metalcraft",
-    "morbid",
     "more-life-than-opponent",
     "not-your-turn",
     "opponent-hellbent",
@@ -81,7 +79,6 @@
     "self-tapped",
     "self-untapped",
     "self-was-cast",
-    "spells-cast-this-turn-ge",
     "turn-le",
     "unspent-mana-ge",
     "you-lost-life-this-turn"
@@ -105,7 +102,6 @@
     "extra-mana-on-tap",
     "lifegain-multiplier",
     "opponent-creatures-etb-tapped",
-    "opponents-cant-cast",
     "tokens-replacement",
     "unspent-mana-becomes-red"
   ],
@@ -139,11 +135,9 @@
     "buyback",
     "escape",
     "evoke",
-    "flashback",
     "impending",
     "jump-start",
     "life",
-    "pitch",
     "warp"
   ],
   "costModifiers": [
@@ -172,11 +166,9 @@
     "horsemanship",
     "intimidate",
     "landwalk",
-    "protection",
     "prowess",
     "rampage",
     "shroud",
-    "skulk",
     "unblockable",
     "ward"
   ],

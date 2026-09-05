@@ -18,9 +18,12 @@
 // from src/cards/schema.js at module scope always finds them initialised.
 import type { FamilySchema } from '../engine/ops/types.js';
 import { CORE_VOCABULARY, mergeFamilySchemas, type FamilySchemaEntry } from './schema-core.js';
+import { schema as schema_cost_alter } from '../engine/ops/cost-alter.schema.js';
 
 /** Every family schema with the file it came from, in file-name order. */
-export const FAMILY_SCHEMA_ENTRIES: readonly FamilySchemaEntry[] = [];
+export const FAMILY_SCHEMA_ENTRIES: readonly FamilySchemaEntry[] = [
+  { family: "cost-alter", file: "src/engine/ops/cost-alter.schema.ts", schema: schema_cost_alter },
+];
 
 /** The family schemas by family name (the file's basename, which is also the FamilyModule's `name` by convention). */
 export const FAMILY_SCHEMAS: Readonly<Record<string, FamilySchema>> = Object.fromEntries(FAMILY_SCHEMA_ENTRIES.map(e => [e.family, e.schema]));
