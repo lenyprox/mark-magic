@@ -536,7 +536,9 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     (game.ts ~185-222) queues `you-attack` but never sets `attackedWithThisTurn` and omits the lone-attacker exalted
     bonus that the real declare-attackers path applies (game.ts ~2404-2409), so a scenario `attack` step cannot reach
     "attack with three or more creatures" (Legion's Landing) or exalted; an `attack` step from main1 also skips the
-    beginning-of-combat triggers (authors need `passUntil: combat-begin` + `resolve` first — document or fix). Tokens
+    beginning-of-combat triggers (authors need `passUntil: combat-begin` + `resolve` first — document or fix); it also
+    declares and validates blocks before the `attacks` triggers are queued, so a block restriction an attack trigger
+    creates is invisible to the `attack` step's `blocks` / `refused` (audit, Breeches). Tokens
     cannot be addressed by name in expectations ("no object named Wall"): game.ts ~1377 names them `<subtypes> token`
     while CR 111.4 says the name IS the subtypes (fix the naming, then the corpus files that use the bare subtype start
     asserting). `TriggeredAbility.condition` is a dead field (only `intervening` is consulted, game.ts ~2311) — the lint
@@ -880,6 +882,20 @@ Plan D6, brief docs/workflows/briefs/process-slice.md, run through `tooling-slic
   scripts (paper 12,974 = 40.4%), parser-alone unchanged at 12,877.
 - Groups 2+ (batches 021–112) are NOT launched: the parser wave runs first, then 10.1 is re-queued with
   `--only-unlocked`, `blindRate: 3`, `alwaysSample` (owner ids), and promoted per group of 20 batches.
+
+### 10.1.1 audit (2% re-judge, process rule 5)
+- One card of the eleven judged (sorted ids, every 50th): **Breeches, Eager Pillager**, judged on one faithful verdict
+  with no blind scenario (unsampled). The audit judge (Opus, four probe scenarios through the real combat path) voted
+  **unfaithful** (0.72): the "target creature can't block" mode is scripted as a resolution-time `choose-objects` +
+  `cant-block`, so an opponent's hexproof creature can be chosen (CR 702.11b, 601.2c); the wave judge had listed the
+  same gap and voted faithful on a "forced by the vocabulary" rationale. The audit verdict is folded into the script
+  (data/scripts/reports/10.1-g1-audit.json → status `verified`, bucket rejected). Disagreement 1 of 1: above the 3%
+  bar, on a sample of one — the owner decides whether the second judge returns for groups 2+ (recommendation: keep one
+  judge but make the judge rule explicit that a `choose-objects` standing in for a printed "target" is unfaithful, and
+  add the lint §3 item 36 asks for).
+- Harness defect found by the audit: `Game.simulateCombat` (game.ts ~205-220) declares and validates blocks BEFORE it
+  queues the `attacks` triggers, so a DSL `attack` step with `blocks` / `refused` can never observe a block restriction
+  created by an attack trigger; drive combat with `passUntil` instead until fixed (added to §3 item 36).
 
 ## 12. parse:why tooling slice — the failure-cause histogram (2026-09-06)
 
