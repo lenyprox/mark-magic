@@ -54,9 +54,9 @@
   },
   "notes": "APPROXIMATION: no condition asks whether a card left your graveyard this turn, so the end-step trigger is turned inside out - a card leaving your graveyard sets up a delayed trigger at the beginning of the next end step that creates the Treasure. Deviation: two cards leaving your graveyard in one turn set up two delayed triggers and make two Treasures, where the card makes one per end step (see needs).",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "15e8a787",
     "scriptHash": "2f42052f",
     "schema": "ok",

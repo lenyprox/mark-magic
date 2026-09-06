@@ -1,0 +1,131 @@
+{
+  "oracleId": "2631130e-63e2-43a3-914a-648e76722203",
+  "name": "Fire Lord Azula",
+  "oracleHash": "b9e8c87b",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [
+    "firebending"
+  ],
+  "firebending": 2,
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": [
+            "R",
+            "R"
+          ],
+          "sticky": true
+        }
+      ],
+      "text": "Firebending 2"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "cast",
+        "who": "you",
+        "filter": {}
+      },
+      "intervening": {
+        "kind": "self-attacking"
+      },
+      "optional": false,
+      "effects": [
+        {
+          "op": "bind",
+          "as": "that",
+          "from": "triggering"
+        },
+        {
+          "op": "copy-stack",
+          "target": "that"
+        },
+        {
+          "op": "may",
+          "effects": [
+            {
+              "op": "change-targets",
+              "target": "the-copies",
+              "how": "choose-new"
+            }
+          ]
+        }
+      ],
+      "text": "Whenever you cast a spell while ~ is attacking, copy that spell. You may choose new targets for the copy."
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 8,
+    "timing": "main"
+  },
+  "notes": "\"while ~ is attacking\" is the trigger intervening condition (checked as the trigger would go on the stack, game.ts:2311), not an effect. The firebending trigger and the firebending: 2 parameter are the parser own expansion, kept so the \"Firebending 2\" line is claimed by the keyword with its parameter.",
+  "verification": {
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "b9e8c87b",
+    "scriptHash": "8575644b",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.765,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/26/2631130e-63e2-43a3-914a-648e76722203.json",
+      "passed": 0,
+      "failed": 3,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "Firebending 2 (Whenever this creature attacks, add {R}{R}. This mana lasts until end of combat.) — expected the two red mana empty when the combat phase ends — an empty pool in the postcombat main phase — scripted { op: 'add-mana', mana: ['R','R'], sticky: true }. `sticky` mana is only cleared in the cleanup step (src/engine/game.ts:501 `if (step === 'cleanup') p.stickyMana = []`), and src/cards/types.ts:261 documents it as \"the mana stays in the pool until end of turn\". So the mana outlives combat by the whole turn: blind scenario 'Firebending mana is lost once you leave combat' fails with P0 pool 'R' !== '' at main2. The vocabulary offers no end-of-combat duration on add-mana, so the script as delivered cannot express the printed duration — reported as a vocabulary/engine gap, but the delivered behaviour is wrong. — CR 500.4 / 106.4",
+          "Whenever you cast a spell while Fire Lord Azula is attacking, copy that spell. — expected the trigger fires for any spell you cast while Azula is an attacking creature (still attacking through the end of combat step), and the copy resolves — 3+3 from a Bolt cast in combat — scripted event { on: 'cast', who: 'you', filter: {} } + intervening { kind: 'self-attacking' }. Verified by re-running the scenario with the intervening clause removed: with it, no trigger line appears in the log at all (P1 ends at 13); without it the copy fires and the scenario passes exactly (P1 at 10). The scenario harness's `attack` step runs simulateCombat, which clears every `attacking` field once damage is done (scenarioDsl.ts:577-579; game.ts:228/240/2460), so the subsequent `cast` sees `src.attacking === null` and conditionHolds fails at game.ts:2311. Root cause therefore looks like a harness limitation rather than a wrong clause — but as shipped the card's headline ability never produces a copy in any testable line (the script's own verification records ability index 1 `reached: false`), so it is unverified behaviour, and the blind run fails 1/3. — CR 506.4 / 603.2",
+          "Whenever you cast a spell while Fire Lord Azula is attacking, … — expected \"while ~ is attacking\" is part of the trigger condition, checked only as the event occurs (CR 603.2); it is NOT an intervening-if, which would be re-checked on resolution (CR 603.4) — scripted modelled as `intervening`. In this engine the intervening check happens only when the trigger is put on the stack (game.ts:2311), i.e. essentially at event time, so no divergence is demonstrable — flagged as a modelling mismatch of the printed grammar rather than a proven behavioural bug. The remaining clauses check out: `filter: {}` correctly means any spell, `who: 'you'` is controller-correct, `copy-stack` on the bound triggering spell plus `may` + `change-targets { target: 'the-copies', how: 'choose-new' }` is the copy-clone family's own shape for optional new targets (CR 707.10), and `optional: false` correctly makes the trigger itself mandatory. — CR 603.2 / 603.4 / 707.10"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "Firebending 2 (Whenever this creature attacks, add {R}{R}. This mana lasts until end of combat.) — expected The two red mana empty from the pool when the combat phase ends; by the postcombat main phase the pool is empty. — scripted { op: 'add-mana', mana: ['R','R'], sticky: true }. `sticky` is defined in src/cards/types.ts:261 as 'the mana stays in the pool until end of turn' and src/engine/game.ts:501 clears stickyMana only when step === 'cleanup'. The mana therefore survives into main2 and can be spent all turn. Reproduced: scenario 'Firebending mana is lost once you leave combat' fails with P0 mana pool 'R' !== ''. add-mana has no end-of-combat duration in the schema (src/cards/schema-core.ts:653), so the vocabulary cannot express the printed duration — the script still asserts a duration the card does not have. — CR 500.4, 106.4",
+          "Whenever you cast a spell while Fire Lord Azula is attacking, copy that spell. — expected The copy is made whenever a spell is cast while Azula is an attacking creature — i.e. at any point from the declare attackers step until she is removed from combat as the end of combat step ends. — scripted Modeled as event {on:'cast', who:'you', filter:{}} plus intervening {kind:'self-attacking'}. The shape reads defensibly (game.ts:2311 checks the condition only as the trigger goes on the stack, so no CR 603.4 second check is introduced), but the copy never actually happens in play: scenario 'A spell cast while Fire Lord Azula is attacking is copied' fails (P1 life 13 !== 10, 2 damage events), and verification.sandbox reports abilities[1].reached=false. My instrumented run shows Azula.attacking === null at step 'combat-damage' when the Bolt is cast, so the intervening check rejects the trigger. Root cause is the harness/engine (scenarioDsl declareCombat → simulateCombat runs all of combat and clears attacking), not obviously the script's shape — but the clause is unproven and currently non-functional. — CR 506.4, 707.10, 603.4",
+          "You may choose new targets for the copy. — expected An optional retarget of the copy, each of its targets kept or changed (CR 707.10c / 115.7b). — scripted {op:'may', effects:[{op:'change-targets', target:'the-copies', how:'choose-new'}]} — functionally right, but change-targets already carries an `optional` field (copy-clone.schema.ts:57) which is the idiomatic encoding; wrapping in `may` asks a yes/no question before retarget then offers keep-or-change per target, a double prompt. Cosmetic, not a rules deviation. — CR 707.10c, 115.7b",
+          "(A copy of a permanent spell becomes a token.) — expected A copy of a permanent spell is a token that ceases to exist on leaving the stack. — scripted copy-stack handles this (src/engine/ops/copy-clone.ts, tokenSpecOf + ccSpellCopy). Correct; recorded to show it was checked. — CR 707.10a, 111.1"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      }
+    ]
+  }
+}

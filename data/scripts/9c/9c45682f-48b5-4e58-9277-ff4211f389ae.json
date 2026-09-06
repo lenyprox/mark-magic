@@ -91,9 +91,9 @@
   },
   "notes": "'cast from anywhere other than your hand' is the ELSE branch of the cast-from-hand condition - an exact negation, not an approximation: the then branch is deliberately empty. The counters go on each Spirit you control (the two new tokens included) through for-each.",
   "verification": {
-    "at": "2026-09-05T14:14:25.564Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:15.358Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "c21e6710",
     "scriptHash": "126678c6",
     "schema": "ok",
@@ -119,29 +119,29 @@
       "failed": 3,
       "names": []
     },
-    "status": "verified",
-    "problems": [],
     "judge": [
       {
         "model": "opus/judge1",
         "verdict": "faithful",
         "issues": [
-          "Create two 2/2 red and white Spirit creature tokens. — expected Two 2/2 red-and-white Spirit creature tokens named 'Spirit'. — scripted token count 2, 2/2, colors ['R','W'], types ['Creature'], subtypes ['Spirit'] — correct. No `name` given, so the engine names them 'Spirit token' (game.ts:1332) rather than 'Spirit'; purely cosmetic. The two scenario failures are NOT a script defect: tokens are built with makeObject(..., src.def, ...), so their def.name is 'Antiquities on the Loose', and the harness's findByName (scenarioDsl.ts:418) matches on def.name and scans the battlefield before the graveyard/exile, hitting the token instead of the sorcery. A script-side token name would not change def.name, so this is a harness limitation. — CR CR 111.4",
-          "Then if this spell was cast from anywhere other than your hand, put a +1/+1 counter on each Spirit you control. — expected Exact negation of 'cast from your hand' — true for a flashback cast from the graveyard, false for a hand cast; counters go on every Spirit permanent you control, the two new tokens included. — scripted conditional {cast-from-hand} with an empty `then` and the work in `else`. characteristics.ts:432 reads (src.castWith?.from ?? 'hand') === 'hand' and game.ts:621 records the real cast zone, so a flashback cast from the graveyard takes the else branch. for-each over {subtypes:['Spirit'], who:'you'} defaults to the battlefield zone (refs.ts:142) and runs after the token op, so the new tokens are included. Correct.",
-          "Flashback {4}{W}{W} — expected Castable from the graveyard for {4}{W}{W}, then exiled. — scripted altCosts entry id 'flashback', cost {4}{W}{W}, from:'graveyard', exileAfter:true, and an explicit covers entry claiming the line. Correct; the flashback scenario's graveyardCount[0,0] and battlefield count both passed."
+          "Create two 2/2 red and white Spirit creature tokens. — expected Two tokens named 'Spirit' (a token's name is its subtypes), 2/2, red and white, Creature — Spirit. — scripted token {count:2, 2/2, colors:['R','W'], types:['Creature'], subtypes:['Spirit']} with no `name`; game.ts:1379 then derives 'Spirit token'. Cosmetic, and consistent with the repo convention (a `name` is written only for named tokens — Treasure, Germ, Lander, Eldrazi Spawn). It is NOT the cause of the 0/3 blind result: tokens are built from the source card's def, so scenarioDsl's findByName sees 'Antiquities on the Loose' regardless of any script-side name — a harness limitation. — CR CR 111.4",
+          "Then if this spell was cast from anywhere other than your hand, put a +1/+1 counter on each Spirit you control. — expected Exact negation of 'cast from your hand' (true for the flashback cast from the graveyard, false for a hand cast, false for an uncast copy); counters go on every Spirit permanent you control, the two new tokens included. — scripted conditional {kind:'cast-from-hand'} with an empty `then` and the work in `else`; characteristics.ts:432 reads (src.castWith?.from ?? 'hand') === 'hand', so a copy that was never cast takes the empty branch — matching the card. for-each over {subtypes:['Spirit'], who:'you'} defaults to the battlefield and runs after the token op, so the new tokens are covered. Correct; the blind run confirms both branches and that the opponent's Spirit is untouched. — CR CR 608.2, 702.34a",
+          "Flashback {4}{W}{W} — expected Castable from the graveyard for {4}{W}{W}, then exiled. — scripted altCosts {id:'flashback', cost {4}{W}{W}, from:'graveyard', exileAfter:true} with a covers entry claiming the line. Correct; the blind exile/graveyard-count assertions pass. — CR CR 702.34a"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       },
       {
         "model": "opus/judge2",
         "verdict": "faithful",
         "issues": [
-          "Create two 2/2 red and white Spirit creature tokens. — expected the two objects are named 'Spirit' — scripted token op omits `name`; tokens are built from the source card's def, so the scenario harness's findByName (scenarioDsl.ts:418, x.def.name) sees 'Antiquities on the Loose' on the battlefield — the cause of both scenario failures. Body, colors and count are right; a harness/naming artifact, not a rules error. — CR 111.4",
-          "Then if this spell was cast from anywhere other than your hand, put a +1/+1 counter on each Spirit you control. — expected exact negation of 'cast from your hand'; a spell that was not cast at all (a copy) gets no counters; the new tokens are included — scripted correct — conditional {kind:'cast-from-hand'} with empty then and the counters in else; characteristics.ts:432 defaults castWith?.from to 'hand', so an uncast copy takes the then branch (no counters), matching the card. for-each over {subtypes:['Spirit'], who:'you'} covers the two fresh tokens plus pre-existing Spirits; the flashback scenario shows the pre-existing Spirit at 2/2 with one counter. — CR 702.34a / 608.2",
-          "Flashback {4}{W}{W} — expected castable from the graveyard for {4}{W}{W}, then exiled — scripted correct — altCosts flashback from:'graveyard', exileAfter:true, and a valid covers entry {line:'Flashback {4}{W}{W}', by:'altCosts'}; the exile-instead scenario passes — CR 702.34a"
+          "Create two 2/2 red and white Spirit creature tokens. — expected Two tokens named 'Spirit', 2/2, red and white, creature - Spirit. — scripted token count 2, 2/2, colors ['R','W'], types ['Creature'], subtypes ['Spirit'], no `name`, so game.ts:1379 names them 'Spirit token' instead of 'Spirit'. Purely cosmetic; it does NOT cause the blind failures either, since token def.name is inherited from the source card (the harness's findByName reads def.name), so setting `name` would not fix them. — CR CR 111.4",
+          "Then if this spell was cast from anywhere other than your hand, put a +1/+1 counter on each Spirit you control. — expected Exact negation of 'cast from your hand' - true for the flashback cast from the graveyard, false for a hand cast; a counter on every Spirit permanent you control, the two new tokens included. — scripted conditional {kind:'cast-from-hand'} with an empty `then` and the work in `else`; characteristics.ts:449 reads (src.castWith?.from ?? 'hand') === 'hand' against the zone recorded at cast (game.ts:641). The else branch runs for-each over {subtypes:['Spirit'], who:'you'}, which defaults to the battlefield (refs.ts:139) and runs after the token op, so the fresh tokens get counters and the opponent's Spirits do not. Correct. — CR CR 608.2 / 400.7",
+          "Flashback {4}{W}{W} — expected Castable from the graveyard for {4}{W}{W}; exiled instead of going back to the graveyard. — scripted altCosts entry id 'flashback', {4}{W}{W}, from:'graveyard', exileAfter:true, plus a covers entry claiming the line. Correct - the blind run confirms the card ends in exile, not the graveyard. — CR CR 702.34a"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       }
-    ]
+    ],
+    "status": "verified",
+    "problems": []
   }
 }

@@ -1,0 +1,69 @@
+{
+  "oracleId": "5a57fba3-01e3-4852-8c45-7c910502bd03",
+  "name": "Bitterthorn, Nissa's Animus",
+  "scenarios": [
+    {
+      "name": "Living weapon makes a Germ token and attaches the Equipment to it",
+      "cr": "702.104a",
+      "ruling": "The Equipment enters, creates a 0/0 black Phyrexian Germ token and attaches itself to it, so the Germ is a 1/1 from the equip bonus.",
+      "seats": [
+        { "bf": ["Plains", "Plains", "Plains"], "hand": ["Bitterthorn, Nissa's Animus"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Bitterthorn, Nissa's Animus" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Bitterthorn, Nissa's Animus", "battlefield"] },
+        { "attachedTo": ["Bitterthorn, Nissa's Animus", "Germ"] },
+        { "pt": ["Germ", 1, 1] },
+        { "zoneCount": [0, "battlefield", 5] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Equip attaches Bitterthorn and the equipped creature gets +1/+1",
+      "cr": "702.6b",
+      "ruling": "Equip {3} moves the Equipment onto a creature you control, and the static ability makes a 2/2 into a 3/3.",
+      "seats": [
+        { "bf": ["Bitterthorn, Nissa's Animus", "Grizzly Bears", "Forest", "Forest", "Forest"] },
+        {}
+      ],
+      "script": [
+        { "activate": "Bitterthorn, Nissa's Animus", "targets": [["Grizzly Bears"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "attachedTo": ["Bitterthorn, Nissa's Animus", "Grizzly Bears"] },
+        { "pt": ["Grizzly Bears", 3, 3] },
+        { "mana": [0, ""] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The equipped creature attacking searches a basic land onto the battlefield tapped",
+      "cr": "603.2",
+      "ruling": "The attack trigger searches your library for a basic land card and puts it onto the battlefield tapped, then shuffles.",
+      "seats": [
+        { "bf": ["Bitterthorn, Nissa's Animus", "Grizzly Bears", "Forest", "Forest", "Forest"] },
+        {}
+      ],
+      "script": [
+        { "activate": "Bitterthorn, Nissa's Animus", "targets": [["Grizzly Bears"]] },
+        { "resolve": true },
+        { "answer": true },
+        { "attack": ["Grizzly Bears"] }
+      ],
+      "expect": [
+        { "zone": ["Mountain", "battlefield"] },
+        { "tapped": ["Mountain", true] },
+        { "libraryCount": [0, 19] },
+        { "zoneCount": [0, "battlefield", 6] },
+        { "life": [1, 17] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

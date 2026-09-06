@@ -4,6 +4,13 @@
   "clause": "Once during each of your turns, you may play a land from your graveyard or cast a permanent spell with mana value 3 or less from your graveyard. If you do, it gains \"When ~ is put into a graveyard from the battlefield, exile it and you gain 2 life.\"",
   "needs": [
     {
+      "opFamily": "cast-from",
+      "proposedSignature": "extend the cost-alter static: { kind: 'cast-from'; zone; filter?; free?; lands?: true; oncePerTurn?: true; alternatives?: CastFromOption[]; grants?: Ability }",
+      "semantics": "One permission line that covers 'play a land from' and 'cast a spell from' as alternatives, may be used only once during each of your turns, and attaches a granted ability to whatever was played or cast under it. Today cast-from and play-lands-from are two unlimited always-on permissions with no rider.",
+      "cr": "305.1, 601.2, 611.2c",
+      "clause": "Once during each of your turns, you may play a land from your graveyard or cast a permanent spell with mana value 3 or less from your graveyard. If you do, it gains \"...\""
+    },
+    {
       "opFamily": "cost-alter",
       "proposedSignature": "static { kind: 'play-from-zone'; zone: 'graveyard' | 'exile' | 'library-top'; filter?: Filter; oncePerTurn?: boolean; grants?: Ability } and effect { op: 'cast-from-zone'; target: TargetSpec; zone: SetZone; free?: boolean }",
       "semantics": "A permission to play/cast cards from another zone, optionally limited to once per turn and optionally granting the object an ability while it is played this way; plus the one-shot 'you may cast that card' form an activated ability uses.",
@@ -19,5 +26,5 @@
     }
   ],
   "wave": "unknown",
-  "attempts": 1
+  "attempts": 2
 }

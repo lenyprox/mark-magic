@@ -1,0 +1,101 @@
+{
+  "oracleId": "13bf8103-3db3-4ee6-a6bb-441aabfd9e41",
+  "name": "Warden of the Grove",
+  "oracleHash": "a105a00b",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "end-step",
+        "whose": "your"
+      },
+      "effects": [
+        {
+          "op": "counters",
+          "target": "self",
+          "counter": "+1/+1",
+          "amount": 1
+        }
+      ],
+      "text": "At the beginning of your end step, put a +1/+1 counter on ~."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": false,
+        "filter": {
+          "types": [
+            "Creature"
+          ],
+          "nontoken": true,
+          "other": true
+        },
+        "controller": "you"
+      },
+      "effects": [
+        {
+          "op": "endure",
+          "amount": {
+            "count": "counters-on-source-any"
+          },
+          "target": "triggering"
+        }
+      ],
+      "text": "Whenever another nontoken creature you control enters, it endures X, where X is the number of counters on ~."
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "Endure is the keyword-action family op (CR 701.64a); X is `counters-on-source-any`, every counter kind on this creature, which is what \"the number of counters on this creature\" means.",
+  "verification": {
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "a105a00b",
+    "scriptHash": "54f05019",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'turn' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.25,
+      "lowest": [
+        {
+          "text": "Whenever another nontoken creature you control enters, it endures X, where X is the number of counters on ~.",
+          "rendered": "whenever another nontoken creature you control enters, That creature endures X",
+          "score": 0.25
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.25 < 0.55: \"Whenever another nontoken creature you control enters, it endures X, where X is the number of counters on ~.\" rendered as \"whenever another nontoken creature you control enters, That creature endures X\""
+    ]
+  }
+}

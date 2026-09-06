@@ -1,0 +1,107 @@
+{
+  "oracleId": "bdb9e933-f679-4930-b669-0d123db09d16",
+  "name": "Bloodline Bidding",
+  "oracleHash": "9de43219",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "choose-type",
+          "what": "creature-type"
+        },
+        {
+          "op": "move",
+          "what": {
+            "filter": {
+              "types": [
+                "Creature"
+              ],
+              "chosenType": true
+            },
+            "zone": "graveyard",
+            "who": "you",
+            "count": "all"
+          },
+          "to": "battlefield"
+        }
+      ],
+      "text": "Choose a creature type. Return all creature cards of the chosen type from your graveyard to the battlefield."
+    }
+  ],
+  "costModifiers": [
+    {
+      "kind": "convoke"
+    }
+  ],
+  "covers": [
+    {
+      "line": "Convoke",
+      "by": "costModifiers"
+    }
+  ],
+  "aiHints": {
+    "role": "recursion",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "The layers family's choose-type effect records the chosen creature type on the SOURCE (the resolving spell, layers.ts:407), which is the object matchesFilter reads for Filter.chosenType (characteristics.ts:231), so the move's set is 'creature cards of the chosen type in your graveyard', evaluated on resolution (CR 700.4, 608.2h). count 'all' takes every one, and the cards return under their owner's control (the default), which is you - they were in your graveyard. Convoke is the parser's costModifiers entry, re-declared here because mode is 'replace', and claimed by the covers entry.",
+  "verification": {
+    "at": "2026-09-06T05:06:15.358Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "9de43219",
+    "scriptHash": "7f3db65e",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.733,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/bd/bdb9e933-f679-4930-b669-0d123db09d16.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "Choose a creature type. Return all creature cards of the chosen type from your graveyard to the battlefield. — expected Type chosen on resolution; then every creature card of that type in YOUR graveyard returns; no targeting; they enter under your control. — scripted choose-type {what:'creature-type'} (layers.ts:408 records it on the resolving spell object) followed by move {what:{filter:{types:['Creature'], chosenType:true}, zone:'graveyard', who:'you', count:'all'}, to:'battlefield'}. matchesFilter reads source.chosen.creatureType (characteristics.ts:231), the set has no `kind` so legal.ts:80ff adds no target requirement, and count:'all' takes every match. Correct. — CR CR 700.4, 608.2h",
+          "Return all creature cards … to the battlefield. — expected Under the control of the spell's controller (identical to owner here, since the cards are in your own graveyard). — scripted move with no `controller`, so opMove's ctlOf falls back to o.owner (game.ts:1790). Same player in every reachable state for this card; a semantic shortcut, not an observable difference. — CR CR 110.2a",
+          "Convoke (…) — expected Creatures may be tapped to help pay. — scripted costModifiers [{kind:'convoke'}] plus an explicit covers entry {line:'Convoke', by:'costModifiers'} — a legitimate claim; the reminder text is parenthetical on the same line. — CR CR 702.51a",
+          "Choose a creature type. — expected Any creature type may be named. — scripted the engine's option list (layers.ts:371 creatureTypeOptions) only offers types present in your hand/battlefield/graveyard, falling back to 'Human'. An engine narrowing, not a script defect — the script cannot widen it — but it means an empty-graveyard/hand board cannot name an arbitrary type."
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "Choose a creature type. Return all creature cards of the chosen type from your graveyard to the battlefield. — expected The type is chosen on resolution; then every creature card of that type in YOUR graveyard enters the battlefield under your control, with no player choice about which. — scripted choose-type 'creature-type' (layers.ts:408 records it on the resolving spell) then move {filter:{types:['Creature'],chosenType:true}, zone:'graveyard', who:'you', count:'all'} to battlefield. characteristics.ts:231 reads source.chosen.creatureType, chooseFrom (game.ts:1764,1777) returns the whole set with no prompt for count 'all', and opMove's default controller is the owner - you, since they are in your graveyard. Only nit: layers.ts:371 limits the offered types to those visible in your hand/battlefield/graveyard rather than every creature type; harmless here since the graveyard is included. — CR CR 700.4 / 608.2h / 400.3",
+          "Convoke — expected Tapping creatures during casting pays {1} or one mana of that creature's colour. — scripted costModifiers [{kind:'convoke'}] re-declared under mode 'replace', with a matching covers entry; cost.ts:59,65 implements it and legal.ts:345 offers the convoke payment plan. Correct. — CR CR 702.51a"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      }
+    ]
+  }
+}

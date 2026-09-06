@@ -56,9 +56,9 @@
   },
   "notes": "'You may pay 1 life. If you do, return it to your hand' is one may over both halves: paying 1 life is written as losing 1 life (no AbilityCost is available inside an effect list), and the two are inseparable, so the payment can never happen without the return.",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "fc71c79b",
     "scriptHash": "37e1ac1a",
     "schema": "ok",
@@ -88,27 +88,29 @@
       "failed": 4,
       "names": []
     },
-    "status": "verified",
-    "problems": [],
     "judge": [
       {
         "model": "opus/judge1",
         "verdict": "unfaithful",
         "issues": [
-          "At the beginning of your upkeep, if this card is in your graveyard, you may pay 1 life. If you do, return it to your hand. — expected the ability functions from the graveyard and triggers each of your upkeeps while the card is there — scripted the trigger is written correctly (intervening self-in-graveyard), but queueTriggers only scans triggerPerms() = allPermanents(s) plus command-zone hooks (src/engine/game.ts ~2148) — graveyard cards are never scanned, so this ability can never fire. Sandbox records ability index 1 reached:false, and the blind scenario failed: Master of Death stayed in graveyard, life 20 !== 19, hand 0 !== 1 — CR CR 603.6 / 603.10 — abilities that function from the graveyard trigger from that zone",
-          "you may pay 1 life — expected paying life is a cost payment, not a life-loss event — scripted op 'lose-life' amount 1 — will trigger 'whenever you lose life' watchers and interacts with loss-prevention effects that a payment would not — CR CR 118.8 / 119.3 — paying life is not losing life for triggers that care"
+          "At the beginning of your upkeep, IF THIS CARD IS IN YOUR GRAVEYARD, you may pay 1 life. If you do, return it to your hand. — expected The ability functions from the graveyard and triggers at each of your upkeeps while the card is there. — scripted Shape is right (upkeep trigger + intervening self-in-graveyard), but queueTriggers only scans triggerPerms(s) = allPermanents(s) plus family TRIGGER_SOURCES (game.ts:2245-2257), and the only registered source is planeswalker emblems — graveyards are never scanned, so this ability can never fire. Sandbox records ability index 1 reached:false; the blind scenario confirms (stayed in graveyard, life 20 not 19, hand 0 not 1). — CR 603.6d, 113.6",
+          "you may PAY 1 LIFE — expected paying life is a cost payment, not a life-loss event — scripted {op:'lose-life', amount:1} inside a may — it will set off 'whenever you lose life' watchers and interact with loss-modifying effects that a payment would not, and it cannot fail the way an unpayable cost does. — CR 118.8, 119.3",
+          "When this creature enters, surveil 2. — expected surveil 2 — scripted {op:'surveil', amount:2} — correct. — CR 701.42"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       },
       {
         "model": "opus/judge2",
         "verdict": "unfaithful",
         "issues": [
-          "At the beginning of your upkeep, if this card is in your graveyard, you may pay 1 life. If you do, return it to your hand. — expected the ability functions from the graveyard and triggers each of your upkeeps — scripted triggered ability with intervening self-in-graveyard, but queueTriggers only scans triggerPerms() = allPermanents(s) + TRIGGER_SOURCES (game.ts:2146-2158), and no module registers a graveyard trigger source. The ability can never fire. Sandbox reports ability index 1 'reached: false'; blind scenario confirms Master of Death stayed in the graveyard, life 20 not 19 — CR 603.6d, 113.6",
-          "you may pay 1 life — expected paying life is a cost (CR 118.8); it is a payment, not life loss — scripted op 'lose-life' amount 1 inside a may — differs for 'whenever you lose life' triggers and for effects that care about payment vs loss — CR 118.8, 119.3"
+          "At the beginning of your upkeep, if this card is in your graveyard, you may pay 1 life. If you do, return it to your hand. — expected The ability functions from the graveyard and triggers each of your upkeeps while the card is there. — scripted The trigger is written plausibly (intervening self-in-graveyard), but queueTriggers scans only triggerPerms() = allPermanents(s) plus registered TRIGGER_SOURCES (game.ts:2245-2248), and the only registered source is the planeswalker/emblem module's command-zone hook — no module scans graveyards. The ability can never fire. Sandbox records ability index 1 reached:false; the blind scenario confirms Master of Death stays in the graveyard, life 20 not 19, hand 0 not 1. — CR CR 603.6d, 113.6",
+          "you may pay 1 life — expected Paying life is a cost payment, not a life-loss event. — scripted op 'lose-life' amount 1 inside the may — it fires 'whenever you lose life' watchers and interacts with loss-prevention effects that a payment would not, and the may covers both halves so payment and return are inseparable. — CR CR 118.8, 119.3",
+          "When this creature enters, surveil 2. — expected Surveil 2 on entry. — scripted etb self -> surveil 2. Correct."
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       }
-    ]
+    ],
+    "status": "verified",
+    "problems": []
   }
 }

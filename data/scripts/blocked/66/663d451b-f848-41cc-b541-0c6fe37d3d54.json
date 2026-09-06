@@ -9,8 +9,15 @@
       "semantics": "A copy with copiable-value exceptions (CR 707.2 layer 1 overrides): P/T, colours, name and a granted ability, on top of the extra types/subtypes/keywords the op already carries.",
       "cr": "707.2, 706.2, 613.2",
       "clause": "Create a token that's a copy of it, except it's a 4/4 black Zombie. / except it's 1/1 and has toxic 1. / except it's a Spirit in addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard.\""
+    },
+    {
+      "opFamily": "copy-token-abilities",
+      "proposedSignature": "{ op: 'token-copy'; target: TargetOrRef; count?: Amount; except?: CopyException; addAbilities?: Ability[] }  (or addAbilities on CopyException itself)",
+      "semantics": "The 'except it has \"...\"' half of CR 707.9a: the token copy is created with one or more extra abilities printed on it, in addition to the copied characteristics.",
+      "cr": "707.9a",
+      "clause": "create a token that's a copy of that creature, except it's a Spirit in addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard.\""
     }
   ],
   "wave": "unknown",
-  "attempts": 1
+  "attempts": 2
 }

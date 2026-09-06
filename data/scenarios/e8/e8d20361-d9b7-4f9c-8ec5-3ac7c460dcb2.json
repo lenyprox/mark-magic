@@ -1,0 +1,64 @@
+{
+  "oracleId": "e8d20361-d9b7-4f9c-8ec5-3ac7c460dcb2",
+  "name": "Horizon Explorer",
+  "scenarios": [
+    {
+      "name": "A land put onto the battlefield tapped enters untapped instead",
+      "cr": "614.1b",
+      "ruling": "Rampant Growth simply puts the land onto the battlefield tapped with no replacement effect of its own, so Horizon Explorer's replacement applies and the land enters untapped.",
+      "seats": [
+        { "bf": ["Horizon Explorer", "Forest", "Forest"], "hand": ["Rampant Growth"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Rampant Growth" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Mountain", "battlefield"] },
+        { "tapped": ["Mountain", false] },
+        { "libraryCount": [0, 19] },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "zone": ["Rampant Growth", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Attacking a player creates a Lander token",
+      "cr": "603.2",
+      "ruling": "The trigger is on attacking a player, and it creates one artifact token.",
+      "seats": [
+        { "bf": ["Horizon Explorer"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Horizon Explorer"] }
+      ],
+      "expect": [
+        { "life": [1, 18] },
+        { "zoneCount": [0, "battlefield", 2] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The Lander trigger fires when another creature attacks and Horizon Explorer stays home",
+      "cr": "603.2",
+      "ruling": "The ability reads \"whenever you attack a player\", not \"whenever this creature attacks\", so it triggers on any attack you declare.",
+      "seats": [
+        { "bf": ["Horizon Explorer", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Grizzly Bears"] }
+      ],
+      "expect": [
+        { "life": [1, 18] },
+        { "tapped": ["Horizon Explorer", false] },
+        { "zoneCount": [0, "battlefield", 3] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

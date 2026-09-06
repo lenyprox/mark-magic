@@ -1,0 +1,109 @@
+{
+  "oracleId": "e8d20361-d9b7-4f9c-8ec5-3ac7c460dcb2",
+  "name": "Horizon Explorer",
+  "oracleHash": "03d23430",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "enters-untapped",
+        "filter": {
+          "types": [
+            "Land"
+          ]
+        },
+        "who": "you"
+      },
+      "text": "Lands you control enter untapped."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "you-attack"
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 0,
+          "toughness": 0,
+          "colors": [],
+          "types": [
+            "Artifact"
+          ],
+          "subtypes": [],
+          "keywords": [],
+          "name": "Lander"
+        }
+      ],
+      "text": "Whenever you attack a player, create a Lander token."
+    }
+  ],
+  "aiHints": {
+    "role": "ramp",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "APPROXIMATION: the token op carries no granted ability, so the Lander is created as a plain colorless artifact token named Lander and its own \"{2}, {T}, Sacrifice this token: search for a basic land\" ability (printed only as reminder text on this card) is not simulated. \"Whenever you attack a player\" is the `you-attack` event, which fires once per combat.",
+  "verification": {
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "03d23430",
+    "scriptHash": "acbb0085",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.75,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/e8/e8d20361-d9b7-4f9c-8ec5-3ac7c460dcb2.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "tested",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "create a Lander token. (It's an artifact with \"{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\") — expected The Lander token has that activated ability — the token's defining text, not flavour reminder. Sacrificing it is the entire ramp payoff of the card. — scripted {op:'token', types:['Artifact'], keywords:[], name:'Lander'} — the core token op carries no granted ability (game.ts:1373-1386 builds tok.token from the effect's literal fields only), so the tokens are inert colorless artifacts that can never fetch a land. The script's aiHints still claim role 'ramp'. — CR 111.4 / 702.x — a predefined token's characteristics include its printed abilities",
+          "Whenever you attack a player, create a Lander token. — expected The 'attack a player' template triggers once for EACH player you attack with one or more creatures. — scripted event {on:'you-attack'}; game.ts:2275 fires it once when ctx.player === controller, i.e. once per combat no matter how many opponents were attacked. Identical in 2 seats, short by one or more tokens in the 4-seat games the sandbox also runs. — CR 506.2, 603.2",
+          "create a Lander token — expected a noncreature artifact token has no power/toughness — scripted power:0, toughness:0 on a types:['Artifact'] token — inert today, but it makes the token a 0/0 the moment anything animates it, and misdescribes the object. — CR 208.3"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "create a Lander token. (It's an artifact with \"{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\") — expected The Lander is an artifact token carrying its own activated ability — the card's entire ramp payload. — scripted token op with keywords:[], no granted ability: a vanilla colorless artifact named 'Lander' that can never be sacrificed for a land. The script's notes call this an APPROXIMATION but there is no `needs`/`ignore` entry recording the loss. — CR CR 111.1, 113.3b",
+          "Whenever you attack a player, create a Lander token. — expected Triggers on attacking a PLAYER (and, in multiplayer, is about the attacked player). — scripted event {on:'you-attack'}, which game.ts:2275 fires as `ctx.player === perm.controller` for any attack declaration — it also fires when your only attacks are against a planeswalker or battle. — CR CR 506.2, 508.1",
+          "Lands you control enter untapped. — expected A replacement that makes your lands enter untapped. — scripted static enters-untapped {filter:{types:['Land']}, who:'you'} — handled by replacement.ts:500 (marks the permanent, untapped in the SBA pass before priority). Correct."
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      }
+    ]
+  }
+}

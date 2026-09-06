@@ -9,8 +9,15 @@
       "semantics": "Reveal cards from the top of your library until one matches `filter`; bind it as 'that' and run `found`, then put the remaining revealed cards where `rest` says (random order for 'bottom-random').",
       "cr": "701.16, 701.19",
       "clause": "reveal cards from the top of your library until you reveal a land card. Put that card onto the battlefield tapped and the rest on the bottom of your library in a random order."
+    },
+    {
+      "opFamily": "reveal-until",
+      "proposedSignature": "{ op: 'reveal-until'; filter: Filter; take: { to: 'battlefield' | 'hand' | 'graveyard'; tapped?: boolean }; rest: 'bottom' | 'bottom-random' | 'graveyard' | 'top' }",
+      "semantics": "Reveal cards from the top of your library until one matching filter is revealed; put that card where take says and the rest where rest says ('in a random order' for bottom-random). dig cannot express it: its look count is fixed and its take always goes to hand.",
+      "cr": "701.16, 401.4",
+      "clause": "reveal cards from the top of your library until you reveal a land card. Put that card onto the battlefield tapped and the rest on the bottom of your library in a random order."
     }
   ],
   "wave": "unknown",
-  "attempts": 1
+  "attempts": 2
 }

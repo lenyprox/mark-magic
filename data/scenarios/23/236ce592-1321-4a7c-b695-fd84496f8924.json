@@ -1,0 +1,66 @@
+{
+  "oracleId": "236ce592-1321-4a7c-b695-fd84496f8924",
+  "name": "Fear of Missing Out",
+  "scenarios": [
+    {
+      "name": "Fear of Missing Out entering discards a card and then draws a card",
+      "cr": "603.6b",
+      "ruling": "The discard happens first and the draw second, so the discarded card is in the graveyard and the hand is refilled from the library.",
+      "seats": [
+        { "bf": ["Mountain", "Mountain"], "hand": ["Fear of Missing Out", "Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Fear of Missing Out" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Fear of Missing Out", "battlefield"] },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "handCount": [0, 1] },
+        { "graveyardCount": [0, 1] },
+        { "libraryCount": [0, 19] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "With delirium the attack trigger gives an additional combat phase",
+      "cr": "500.8",
+      "ruling": "Four card types in the graveyard (creature, instant, sorcery, land) satisfy the intervening-if, so after this combat phase there is another one in which a second creature can attack.",
+      "seats": [
+        { "bf": ["Fear of Missing Out", "Hill Giant"], "graveyard": ["Grizzly Bears", "Lightning Bolt", "Divination", "Mountain"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Fear of Missing Out"] },
+        { "attack": ["Hill Giant"] }
+      ],
+      "expect": [
+        { "life": [1, 15] },
+        { "zone": ["Fear of Missing Out", "battlefield"] },
+        { "zone": ["Hill Giant", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Without delirium the attack trigger does nothing",
+      "cr": "603.4",
+      "ruling": "Only three card types are in the graveyard, so the intervening-if fails, the ability never triggers, nothing is untapped and there is no extra combat.",
+      "seats": [
+        { "bf": ["Fear of Missing Out", "Grizzly Bears"], "tapped": ["Grizzly Bears"], "graveyard": ["Walking Corpse", "Lightning Bolt", "Divination"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Fear of Missing Out"] }
+      ],
+      "expect": [
+        { "life": [1, 18] },
+        { "tapped": ["Grizzly Bears", true] },
+        { "tapped": ["Fear of Missing Out", true] },
+        { "graveyardCount": [0, 3] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

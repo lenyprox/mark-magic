@@ -1,0 +1,95 @@
+{
+  "oracleId": "d4838305-5392-42b2-81d1-9b9da71b20b1",
+  "name": "Overcharged Amalgam",
+  "oracleHash": "cf325d7a",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [
+    "flash",
+    "flying"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "exploit"
+        }
+      ],
+      "text": "Exploit"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "exploits",
+        "self": true
+      },
+      "optional": false,
+      "effects": [
+        {
+          "op": "counter",
+          "target": {
+            "kind": "spell-or-ability"
+          }
+        }
+      ],
+      "text": "When ~ exploits a creature, counter target spell, activated ability, or triggered ability."
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 6,
+    "timing": "instant"
+  },
+  "notes": "\"Flash\" and \"Flying\" are claimed by the face keywords. Exploit is the keyword-action op on the ETB trigger (CR 702.110a) and the second ability is the exploits trigger it feeds. \"counter target spell, activated ability, or triggered ability\" is the copy-clone target kind spell-or-ability, which is exactly a spell or an ability on the stack (mana abilities never use the stack, so they cannot be targeted).",
+  "verification": {
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "cf325d7a",
+    "scriptHash": "48cd0d88",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Exploit",
+          "rendered": "when ~ enters, Exploit",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Exploit\" rendered as \"when ~ enters, Exploit\""
+    ]
+  }
+}

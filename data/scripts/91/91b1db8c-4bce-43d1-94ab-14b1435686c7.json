@@ -1,0 +1,138 @@
+{
+  "oracleId": "91b1db8c-4bce-43d1-94ab-14b1435686c7",
+  "name": "Grim Reaper's Scythe",
+  "oracleHash": "ea4a9d17",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "leaves-graveyard",
+        "filter": {
+          "types": [
+            "Creature"
+          ]
+        }
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 2,
+          "toughness": 2,
+          "colors": [
+            "B"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Zombie"
+          ],
+          "keywords": []
+        }
+      ],
+      "text": "Whenever one or more creature cards leave your graveyard, create a 2/2 black Zombie creature token."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 3,
+          "x": 0,
+          "pips": [
+            "B"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}{B}"
+        },
+        "tap": true,
+        "sacrificeMany": {
+          "filter": {
+            "types": [
+              "Creature"
+            ]
+          },
+          "count": 2
+        }
+      },
+      "effects": [
+        {
+          "op": "move",
+          "what": {
+            "filter": {
+              "types": [
+                "Creature"
+              ]
+            },
+            "zone": "graveyard",
+            "who": "you",
+            "count": 1,
+            "choose": "you"
+          },
+          "to": "battlefield",
+          "controller": "you",
+          "withCounters": {
+            "counter": "finality",
+            "amount": 1
+          }
+        }
+      ],
+      "sorcerySpeed": true,
+      "text": "{3}{B}, {T}, Sacrifice two creatures: Return target creature card from your graveyard to the battlefield with a finality counter on it. Activate only as a sorcery."
+    }
+  ],
+  "aiHints": {
+    "role": "recursion",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "The return is a `move` of a chosen creature card from your graveyard so that the finality counter rides along (`withCounters`); `return-from-graveyard` has no counter field. That form chooses on resolution rather than targeting on the stack (CR 115.1), which is the one deviation.",
+  "verification": {
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "ea4a9d17",
+    "scriptHash": "9617c666",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'misc' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "{3}{B}, {T}, Sacrifice two creatures: Return target creature card from your graveyard to the battlefield with a finality counter on it. Activate only as a sorcery.",
+          "rendered": "{3}{B}, {T}, sacrificeMany: put a creature card from your graveyard onto the battlefield with 1 finality counters on it. activate only as a sorcery",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"{3}{B}, {T}, Sacrifice two creatures: Return target creature card from your graveyard to the battlefield with a finality counter on it. Activate only as a sorcery.\" rendered as \"{3}{B}, {T}, sacrificeMany: put a creature card from your graveyard onto the battlefield with 1 finality counters on it. activate only as a sorcery\""
+    ]
+  }
+}

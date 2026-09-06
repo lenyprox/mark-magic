@@ -91,9 +91,9 @@
   },
   "notes": "APPROXIMATIONS: the add-mana restriction vocabulary has no 'noncreature spells' value, so the mana this ability makes is unrestricted; and 'activate each power-up ability only once' (per game) has no field - oncePerTurn would be a different rule, so it is left off.",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "82c2fffb",
     "scriptHash": "16cbb91c",
     "schema": "ok",

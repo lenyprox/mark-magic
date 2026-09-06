@@ -1,0 +1,106 @@
+{
+  "oracleId": "3640c29b-1534-4952-b297-619ade948431",
+  "name": "Roaming Throne",
+  "oracleHash": "9fcb9f77",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [
+    "ward"
+  ],
+  "wardCost": 2,
+  "asEnters": [
+    {
+      "kind": "choose",
+      "what": "creature-type"
+    }
+  ],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "type-change",
+        "scope": "self",
+        "subtypes": "chosen-creature-type"
+      },
+      "text": "~ is the chosen type in addition to its other types."
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "trigger-twice",
+        "filter": {
+          "types": [
+            "Creature"
+          ],
+          "chosenType": true
+        }
+      },
+      "text": "If a triggered ability of another creature you control of the chosen type triggers, it triggers an additional time."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Ward {2}",
+      "by": "ward"
+    },
+    {
+      "line": "As ~ enters, choose a creature type.",
+      "by": "asEnters"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 7,
+    "timing": "main"
+  },
+  "notes": "trigger-twice with a filter and no `event` is the \"another permanent you control\" form: game.ts:2225 scans only the triggering permanent controller battlefield and requires perm.id !== src.id, so the filter { types: [Creature], chosenType: true } is exactly \"another creature you control of the chosen type\". chosenType reads the type chosen as this permanent entered (matchesFilter is passed the source).",
+  "verification": {
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "9fcb9f77",
+    "scriptHash": "ac03135b",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.1,
+      "lowest": [
+        {
+          "text": "~ is the chosen type in addition to its other types.",
+          "rendered": "type change",
+          "score": 0.1
+        },
+        {
+          "text": "If a triggered ability of another creature you control of the chosen type triggers, it triggers an additional time.",
+          "rendered": "if a permanent would trigger, it triggers an additional time",
+          "score": 0.313
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.10 < 0.55: \"~ is the chosen type in addition to its other types.\" rendered as \"type change\""
+    ]
+  }
+}

@@ -52,9 +52,9 @@
   },
   "notes": "X is the trigger's own amount (that-many = the combat damage this creature dealt to that player), used as the mvLE of the graveyard target.",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "d7d5a404",
     "scriptHash": "babfd177",
     "schema": "ok",
@@ -80,27 +80,29 @@
       "failed": 4,
       "names": []
     },
-    "status": "verified",
-    "problems": [],
     "judge": [
       {
         "model": "opus/judge1",
         "verdict": "unfaithful",
         "issues": [
-          "target creature card with mana value X or less ... where X is the amount of damage this creature dealt to that player — expected X = the combat damage dealt (e.g. 3), so a MV-2 creature card is a legal target — scripted filter mvLE={count:'that-many'}, but matchesFilter evaluates it as evalAmount(s, f.mvLE, ctrl, 0, source) with NO AmountCtx (src/engine/characteristics.ts:260), and 'that-many' resolves to ctx?.thatMany ?? 0 (characteristics.ts:156) — X is always 0, so only MV-0 creature cards are ever legal targets. Blind scenario confirms: Grizzly Bears (MV 2) stayed in the graveyard — CR CR 608.2 — X is determined by the value specified by the ability",
-          "you may return TARGET creature card — expected the target is chosen when the trigger is put on the stack; the 'may' is decided on resolution — scripted the targeted return is nested inside a 'may' effect, which mixes target selection with the optional decision"
+          "return target creature card with mana value X or less from your graveyard to the battlefield, where X is the amount of damage this creature dealt to that player — expected X = the combat damage just dealt (e.g. 3), so a mana-value-2 creature card is a legal target — scripted filter mvLE:{count:'that-many'} — target legality runs matchesFilter -> characteristics.ts:274, which calls evalAmount(..., source) with NO AmountCtx, and 'that-many' falls back to `ctx?.thatMany ?? ctx?.refs?.item.lastAmount ?? 0` (characteristics.ts:170) = 0. Only mana-value-0 creature cards can ever be targeted. Blind run confirms: Grizzly Bears (MV 2) stayed in the graveyard after 3 damage. — CR 608.2b, 601.2c",
+          "you may return TARGET creature card ... — expected the target is chosen when the trigger goes on the stack; the 'may' is decided on resolution — scripted the targeted return-from-graveyard is nested inside {op:'may'} — acceptable ordering in this engine, but it mixes the optional decision with target selection; moot while the mvLE defect stands. — CR 601.2c, 603.3d",
+          "Vigilance, trample — expected two keywords — scripted keywords:['vigilance','trample'] with a covers entry — correct. — CR 702.20b, 702.19b"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       },
       {
         "model": "opus/judge2",
         "verdict": "unfaithful",
         "issues": [
-          "target creature card with mana value X or less ... where X is the amount of damage this creature dealt — expected X = combat damage dealt this trigger; a creature card of that mana value or less is a legal target — scripted mvLE:{count:'that-many'} lives inside the TARGET filter. Target legality goes through legal.ts:153 -> matchesFilter -> characteristics.ts:260, which calls evalAmount(s, f.mvLE, ctrl, 0, source) with NO AmountCtx, so 'that-many' falls through to ctx?.thatMany ?? ctx?.refs?.item.lastAmount ?? 0 = 0 (characteristics.ts:156). Effectively only mana-value-0 creature cards are ever legal targets. Blind scenario confirms: Grizzly Bears (MV 2) not returned after 3 damage — CR 608.2b, 601.2c",
-          "you may return target creature card — expected target chosen when the trigger goes on the stack, then optional on resolution — scripted 'may' wraps the return-from-graveyard with target:true — ordering is acceptable, but is moot given the mvLE=0 defect above — CR 601.2c"
+          "you may return target creature card with mana value X or less from your graveyard to the battlefield, where X is the amount of damage this creature dealt to that player — expected X = the combat damage just dealt (e.g. 3), so a mana-value-2 creature card is a legal target. — scripted mvLE:{count:'that-many'} sits inside the TARGET filter. Target legality goes legal.ts -> matchesFilter -> characteristics.ts:274, which calls evalAmount(..., source) with NO AmountCtx, and 'that-many' falls through to `ctx?.thatMany ?? ctx?.refs?.item.lastAmount ?? 0` (characteristics.ts:170) = 0. Only mana-value-0 creature cards are ever legal targets. Blind scenario confirms Grizzly Bears (MV 2) is not returned after 3 damage. — CR CR 608.2b, 601.2c",
+          "you may return TARGET creature card — expected The target is chosen when the trigger is put on the stack; the 'may' is decided on resolution. — scripted 'may' wraps return-from-graveyard with target:true — ordering is tolerable in this engine, but moot given the mvLE=0 defect.",
+          "Vigilance, trample — expected Both keywords. — scripted keywords ['vigilance','trample'] with a covers entry. Correct."
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       }
-    ]
+    ],
+    "status": "verified",
+    "problems": []
   }
 }

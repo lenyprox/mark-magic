@@ -54,9 +54,9 @@
   },
   "notes": "return-from-graveyard takes a numeric count only, so the X (the number of opponents you have) is written as a move of a chosen set from your graveyard: you pick up to that many Zombie cards. That form chooses on resolution instead of targeting on the stack (CR 115.1), which is the one deviation.",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "cd0352d3",
     "scriptHash": "4a04db30",
     "schema": "ok",
@@ -82,29 +82,29 @@
       "failed": 0,
       "names": []
     },
-    "status": "tested",
-    "problems": [],
     "judge": [
       {
         "model": "opus/judge1",
         "verdict": "unfaithful",
         "issues": [
-          "return up to X target Zombie cards from your graveyard to the battlefield — expected 'up to X' — you may choose zero or fewer than X targets — scripted move with what.count={count:'opponents'} and no optional flag; chooseFrom() computes n = min(amt, cands.length) and asks with exact:true (src/engine/game.ts chooseFrom), and returns all candidates outright when n >= cands.length — the return is mandatory — CR CR 601.2c / 115.1 — 'up to' lets you choose fewer, including zero",
-          "up to X TARGET Zombie cards — expected targets chosen when the trigger goes on the stack; illegal/changed targets checked on resolution — scripted chooseFrom on resolution (documented in notes), so the cards are not targets at all — hexproof-from-graveyard style effects, 'can't be the target', and target-count checks never apply — CR CR 115.1, 603.3d",
-          "Zombie cards — expected any card with the Zombie subtype in your graveyard (includes changeling/Kindred noncreature cards, e.g. Nameless Inversion) — scripted filter.types=['Creature'] plus subtypes=['Zombie'] — narrowed to Zombie creature cards only; render confirms 'Zombie creature cards'"
+          "return UP TO X target Zombie cards from your graveyard to the battlefield — expected 'up to' — you may choose fewer targets, including zero — scripted move with what.count={count:'opponents'} and no optional flag; chooseFrom (game.ts:1761-1779) asks with exact:true and returns ALL candidates outright when n >= cands.length, so the return is mandatory at exactly min(X, available). — CR 601.2c, 115.1",
+          "return up to X TARGET Zombie cards — expected targets chosen when the trigger goes on the stack and re-checked for legality on resolution — scripted chosen on resolution via chooseFrom (script notes admit this), so nothing is targeted — hexproof/shroud-from-graveyard style effects, 'can't be the target of', and target-count checks never apply. — CR 115.1, 603.3d",
+          "Zombie cards — expected any card with the Zombie subtype in your graveyard, including a Kindred/Tribal noncreature Zombie card — scripted filter {types:['Creature'], subtypes:['Zombie']} — narrowed to Zombie CREATURE cards; the render confirms 'Zombie creature cards'. — CR 205.3m"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       },
       {
         "model": "opus/judge2",
         "verdict": "unfaithful",
         "issues": [
-          "return up to X target Zombie cards from your graveyard to the battlefield — expected Up to X TARGET cards, chosen on announcement; controller may choose fewer, including zero — scripted move with what.count={count:'opponents'}, choose:'you'. chooseFrom() (game.ts:1688-1706) uses exact:true and returns ALL candidates outright when n>=cands.length, so it is mandatory 'exactly min(X, available)', not 'up to X', and nothing is targeted (no shroud/hexproof/target-illegality interaction) — CR 115.1, 601.2c",
-          "target Zombie cards — expected any Zombie card (a Kindred/Tribal Zombie card qualifies) — scripted filter narrowed to types:['Creature'] + subtypes:['Zombie']; render reads 'Zombie creature cards' — CR 205.3m",
-          "covers/notes — expected the targeting + 'up to' deviation flagged as a need — scripted notes mention the targeting deviation only; the loss of 'up to' (optional zero) is not disclosed and there is no openNeeds/ignore entry"
+          "return UP TO X target Zombie cards from your graveyard to the battlefield — expected You may choose fewer than X, including zero. — scripted move with what.count={count:'opponents'} and no optional flag; chooseFrom (game.ts:1761-1779) returns ALL candidates outright when n >= cands.length and otherwise asks with exact:true — the return is mandatory 'exactly min(X, available)'. The notes disclose the targeting deviation but not the loss of 'up to', and there is no needs/ignore entry. — CR CR 601.2c, 115.1",
+          "up to X TARGET Zombie cards — expected Targets chosen when the trigger goes on the stack; legality rechecked on resolution. — scripted chooseFrom picks on resolution, so nothing is targeted: shroud/hexproof-style protection, 'can't be the target', and target-count effects never apply. — CR CR 115.1, 603.3d",
+          "Zombie cards — expected Any card with the Zombie subtype in your graveyard (a Kindred/Tribal Zombie noncreature card qualifies). — scripted filter {types:['Creature'], subtypes:['Zombie']} — narrowed to Zombie CREATURE cards; render confirms 'Zombie creature cards'. — CR CR 205.3m"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       }
-    ]
+    ],
+    "status": "tested",
+    "problems": []
   }
 }

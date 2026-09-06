@@ -1,0 +1,74 @@
+{
+  "oracleId": "fa81e7ff-0f2c-40df-9169-c0a22f00cd76",
+  "name": "Conspiracy Theorist",
+  "scenarios": [
+    {
+      "name": "Attacking lets you pay one and discard a card to draw a card",
+      "cr": "603.2",
+      "ruling": "Paying {1} and discarding is done on resolution; the discarded card goes to the graveyard and one card is drawn.",
+      "seats": [
+        { "bf": ["Conspiracy Theorist", "Forest"], "hand": ["Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "answer": true },
+        { "attack": ["Conspiracy Theorist"] }
+      ],
+      "expect": [
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "zone": ["Mountain", "hand"] },
+        { "handCount": [0, 1] },
+        { "libraryCount": [0, 19] },
+        { "tapped": ["Forest", true] },
+        { "life": [1, 18] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Discarding a nonland card lets you exile it from your graveyard",
+      "cr": "603.2",
+      "ruling": "The second ability triggers on the discard and moves the discarded card out of the graveyard into exile.",
+      "seats": [
+        { "bf": ["Conspiracy Theorist", "Mountain", "Mountain"], "hand": ["Tormenting Voice", "Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Tormenting Voice" },
+        { "answer": ["Lightning Bolt"] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Lightning Bolt", "exile"] },
+        { "zoneCount": [0, "exile", 1] },
+        { "graveyardCount": [0, 1] },
+        { "handCount": [0, 2] },
+        { "libraryCount": [0, 18] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A card exiled by Conspiracy Theorist can be cast that turn",
+      "cr": "601.3e",
+      "ruling": "The exiled card may be cast this turn by paying its normal cost, so a Lightning Bolt exiled from the graveyard can still be cast from exile the same turn.",
+      "seats": [
+        { "bf": ["Conspiracy Theorist", "Mountain", "Mountain", "Mountain"], "hand": ["Tormenting Voice", "Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Tormenting Voice" },
+        { "answer": ["Lightning Bolt"] },
+        { "resolve": true },
+        { "cast": "Lightning Bolt", "targets": [["P1"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [1, 17] },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "zoneCount": [0, "exile", 0] },
+        { "handCount": [0, 2] },
+        { "libraryCount": [0, 18] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

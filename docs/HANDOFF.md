@@ -639,3 +639,26 @@ this slice reverted to 7c4cf0c, so it is the baseline, not this slice, and nothi
 runs both legs in one environment and so cannot be green as written — item 33(h).
 
 Then re-queue 10.0 (blocked + rejected) and 10.1.
+
+## 8. Phase 10.0 re-run and 9.1x (2026-09-06)
+
+- **9.1x** (f88d2d0): 18 of the 20 core changes the 9.1 families declared landed and are pinned in
+  test/scenarios/core-9-1x.ts and test/core-9-1x.test.ts (see the commit message for the list; PARSER_VERSION 5).
+  Deferred: Saga chapter dispatch inside addCounters (item 33), the pump-then-bite `damage source:'that'`.
+- **10.0 re-run** from f88d2d0 over the owner's decks: 485 cards considered, 331 finished by the parser alone,
+  78 still blocked on families later waves add, 63 queued in 3 batches (docs/workflows/script-wave.js, Opus author →
+  blind scenario author → two judges). Result file data/scripts/reports/10.0-run2.json, promoted with
+  `npm run scripts:promote`: **judged 3 / verified 3 / scripted 15 / blocked 13 / rejected 18** (the judges' reasons
+  are in the report: 'up to' targets written as exact counts, conditional draws, Adventure, Living weapon's token
+  types, discount sign conventions …). Owner decks now 12,893 paper cards fully parsed with scripts; needs.json
+  ranks 24 families (play-permission, exile-with-source, one-shot-zone-replacement, copy-token-abilities,
+  keyword-removal, player-counter-conditions, granted-landwalk, ward-cost, reveal-until, retarget …) — the input for
+  9.2. The authors' 40 toolProblems (data/scripts/reports/10.0-run2.json) are renderer gaps for the 8c backlog: no
+  renderer for the layers `type-change` static, `exploit` missing from KEYWORD_EXPANSIONS, renderAmount dropping
+  the counter / filter of counters-on-permanents and the times/plus/half modifiers on non-count amounts, `move`
+  printing "from your undefined" for a TargetSpec `what`, return-from-graveyard dropping `count` / `optional`,
+  renderCost printing non-core cost parts as bare keys, add-mana `restriction` unrendered, the `set-pt` STATIC kind
+  unrendered, the count-expression exemption keyed on the literal "the number of".
+- The two Deflecting Swat scenarios in test/scenarios/copy-clone.ts no longer pin `unsimulated: 1` (that count was
+  the commander-cost line, which a script in the store now covers; the scenarios pin retargeting).
+- docs/workflows/script-wave.js: inner backticks in the author prompt broke the workflow parser; fixed.

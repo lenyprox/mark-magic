@@ -4,6 +4,20 @@
   "clause": "{T}: Choose target nonland permanent card in your graveyard. If you haven't cast a spell this turn, you may cast that card. If you do, you can't cast additional spells this turn. Activate only as a sorcery.",
   "needs": [
     {
+      "opFamily": "cast-from-zone",
+      "proposedSignature": "{ op: 'cast-card'; from: 'graveyard' | 'exile' | 'hand'; target?: TargetSpec; filter?: Filter; mvLE?: Amount; optional?: true } - cast a chosen or targeted card from that zone, PAYING its costs",
+      "semantics": "The acting player casts the named card during this resolution; the spell goes on the stack above the ability and its costs are paid normally (an unpayable cost means the cast does not happen). Complements cost-alter's free cast-free and the standing cast-from permission.",
+      "cr": "601.2, 608.2f",
+      "clause": "If you haven't cast a spell this turn, you may cast that card."
+    },
+    {
+      "opFamily": "cast-restriction",
+      "proposedSignature": "condition { kind: 'spells-cast-this-turn-le'; who: 'you' | 'that-player'; value: number } and effect { op: 'cant-cast'; who: 'you' | 'each-opponent' | 'target-player'; filter?: Filter; duration: 'this-turn' }",
+      "semantics": "The condition mirrors the existing spells-cast-this-turn-ge and answers 'if you haven't cast a spell this turn' (value 0). The effect installs a one-shot casting restriction for the rest of the turn over spells matching filter.",
+      "cr": "601.3a, 118.12",
+      "clause": "If you do, you can't cast additional spells this turn. / Your opponents can't cast noncreature spells this turn."
+    },
+    {
       "opFamily": "cost-alter",
       "proposedSignature": "static { kind: 'play-from-zone'; zone: 'graveyard' | 'exile' | 'library-top'; filter?: Filter; oncePerTurn?: boolean; grants?: Ability } and effect { op: 'cast-from-zone'; target: TargetSpec; zone: SetZone; free?: boolean }",
       "semantics": "A permission to play/cast cards from another zone, optionally limited to once per turn and optionally granting the object an ability while it is played this way; plus the one-shot 'you may cast that card' form an activated ability uses.",
@@ -12,5 +26,5 @@
     }
   ],
   "wave": "unknown",
-  "attempts": 1
+  "attempts": 2
 }

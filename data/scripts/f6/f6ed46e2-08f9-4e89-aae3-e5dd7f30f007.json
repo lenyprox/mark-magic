@@ -34,9 +34,9 @@
   },
   "notes": "'Up to two target permanent cards in your graveyard' is the documented return-from-graveyard idiom (target, count 2, optional), with 'permanent card' written as the filter 'not an instant or sorcery card'. APPROXIMATION: no Filter field records how a card reached the graveyard, so 'that were put there from the battlefield this turn' is not restricted. The low round-trip score is a renderer gap: render.ts prints neither 'count' nor 'optional' for return-from-graveyard, so the rendering drops the 'up to two' the line prints.",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:15.358Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "7deae6ca",
     "scriptHash": "7ca90c23",
     "schema": "ok",

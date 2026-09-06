@@ -1,0 +1,135 @@
+{
+  "oracleId": "b685757b-521e-4353-a233-97052359723d",
+  "name": "Questing Beast",
+  "oracleHash": "7efbfee6",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [
+    "vigilance",
+    "deathtouch",
+    "haste"
+  ],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "cant-be-blocked-by",
+        "scope": "self",
+        "by": {
+          "powerLE": 2
+        }
+      },
+      "text": "~ can't be blocked by creatures with power 2 or less."
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "unpreventable-damage",
+        "filter": {
+          "types": [
+            "Creature"
+          ]
+        },
+        "who": "you",
+        "combat": "combat"
+      },
+      "text": "Combat damage that would be dealt by creatures you control can't be prevented."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "damage",
+          "amount": {
+            "count": "that-many"
+          },
+          "target": {
+            "kind": "planeswalker",
+            "controller": "opponent"
+          }
+        }
+      ],
+      "text": "Whenever ~ deals combat damage to an opponent, it deals that much damage to target planeswalker that player controls."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Vigilance, deathtouch, haste",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "finisher",
+    "value": 8,
+    "timing": "main"
+  },
+  "notes": "The evasion line is the combat-restr family's `cant-be-blocked-by` static (a `self-keywords` with an empty keyword list has zero magnitude and claims no line). \"That much damage\" is `{ count: \"that-many\" }`, the amount the combat-damage trigger was about (TriggerCtx.amount). APPROXIMATION: the planeswalker target is narrowed to one an opponent controls rather than to the specific player who was dealt the damage; no target spec can name \"that player\".",
+  "verification": {
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "7efbfee6",
+    "scriptHash": "4e8980cd",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.706,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/b6/b685757b-521e-4353-a233-97052359723d.json",
+      "passed": 6,
+      "failed": 0,
+      "names": []
+    },
+    "status": "tested",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "Whenever Questing Beast deals combat damage to an opponent, it deals that much damage to target planeswalker that player controls. — expected The only legal targets are planeswalkers controlled by the specific opponent who was just dealt combat damage. — scripted target {kind:'planeswalker', controller:'opponent'} — any opponent's planeswalker is a legal target. Exact in 2 seats; wrong in the 4-seat games the sandbox runs (damage player B, ping player C's planeswalker). The script's notes admit no target spec can say 'that player'. — CR 109.5, 601.2c",
+          "Vigilance, deathtouch, haste / can't be blocked by creatures with power 2 or less / combat damage ... can't be prevented — expected three separate clauses — scripted keywords[] + cant-be-blocked-by{powerLE:2} + unpreventable-damage{filter Creature, who:'you', combat:'combat'} — all three correctly expressed; 6/6 blind scenarios pass. — CR 702.20b, 509.1b, 615.6"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "Whenever Questing Beast deals combat damage to an opponent, it deals that much damage to target planeswalker that player controls. — expected The planeswalker must be one controlled by THAT player — the opponent who was just dealt the damage. — scripted target {kind:'planeswalker', controller:'opponent'} — any opponent's planeswalker is a legal target. In a multiplayer game you may hit a planeswalker belonging to a player who took no damage. The script's notes admit no target spec can say 'that player'. — CR CR 109.5, 601.2c",
+          "Whenever Questing Beast deals combat damage to an opponent — expected Trigger condition restricted to an opponent. — scripted event {on:'combat-damage-player', self:true} — game.ts:2271 fires for combat damage to ANY player, including yourself (e.g. after a control-change or a damage redirection); equivalent only in the two-player case. — CR CR 603.2",
+          "it deals that much damage / can't be blocked by creatures with power 2 or less / combat damage can't be prevented — expected damage equal to the combat damage dealt; blocking restriction by power; unpreventable combat damage from your creatures. — scripted amount {count:'that-many'} (fed by queueTriggers('combat-damage-player', {amount:d.n}) at game.ts:2493), cant-be-blocked-by {powerLE:2}, unpreventable-damage {filter creature, who you, combat} — all correct."
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      }
+    ]
+  }
+}

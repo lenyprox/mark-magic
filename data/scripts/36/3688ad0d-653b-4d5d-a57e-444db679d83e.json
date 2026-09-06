@@ -67,9 +67,9 @@
   },
   "notes": "A non-mana ward is claimable by no ward declaration (wardCost is a number), so it is scripted as the triggered ability ward stands for. APPROXIMATIONS: no AbilityCost part expresses 'get five poison counters', so the counters are handed out as an effect and the spell is never countered for refusing to pay; and the targeted event does not distinguish an opponent's spell from your own, so targeting your own ~ poisons you.",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "69b61899",
     "scriptHash": "436bbc7d",
     "schema": "ok",

@@ -69,9 +69,9 @@
   },
   "notes": "APPROXIMATION: no Filter field records HOW a card reached a graveyard, so 'that was put there from the battlefield this turn' is not restricted - any creature card in an opponent's graveyard is a legal target. X is the exiled card's power ('power-of-that'), read off the binding the exile leaves behind (last known values, CR 608.2h).",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "2210f412",
     "scriptHash": "539bec21",
     "schema": "ok",

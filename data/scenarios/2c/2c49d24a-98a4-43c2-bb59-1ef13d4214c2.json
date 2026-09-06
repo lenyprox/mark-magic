@@ -1,0 +1,96 @@
+{
+  "oracleId": "2c49d24a-98a4-43c2-bb59-1ef13d4214c2",
+  "name": "Untimely Malfunction",
+  "scenarios": [
+    {
+      "name": "The first mode destroys the targeted artifact",
+      "cr": "701.7a",
+      "ruling": "Destroying a permanent moves it from the battlefield to its owner's graveyard; Sol Ring is not regenerated or indestructible, so it dies.",
+      "seats": [
+        { "bf": ["Mountain", "Mountain"], "hand": ["Untimely Malfunction"] },
+        { "bf": ["Sol Ring"] }
+      ],
+      "script": [
+        { "cast": "Untimely Malfunction", "modes": [0], "targets": [["Sol Ring"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Sol Ring", "graveyard"] },
+        { "zoneCount": [1, "battlefield", 0] },
+        { "graveyardCount": [1, 1] },
+        { "log": "Sol Ring is destroyed" },
+        { "zone": ["Untimely Malfunction", "graveyard"] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The second mode redirects a Lightning Bolt to the only other legal target",
+      "cr": "115.7",
+      "ruling": "The new target is chosen on resolution and the target must be changed if there is another legal target; with no creatures on the battlefield the only other legal target for the Bolt is its own controller, so the damage is redirected to them.",
+      "active": 1,
+      "seats": [
+        { "bf": ["Mountain", "Mountain"], "hand": ["Untimely Malfunction"] },
+        { "bf": ["Mountain"], "hand": ["Lightning Bolt"] }
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["P0"]], "by": 1 },
+        { "cast": "Untimely Malfunction", "modes": [1], "targets": [["Lightning Bolt"]], "by": 0 },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [1, 17] },
+        { "life": [0, 20] },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "zone": ["Untimely Malfunction", "graveyard"] },
+        { "events": { "type": "damage", "min": 1, "max": 1 } },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The third mode stops the targeted creature from blocking this turn",
+      "cr": "509.1a",
+      "ruling": "A creature that can't block is an illegal blocker, so the attack goes through unblocked and the defending player takes the combat damage.",
+      "seats": [
+        { "bf": ["Mountain", "Mountain", "Hill Giant"], "hand": ["Untimely Malfunction"] },
+        { "bf": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "cast": "Untimely Malfunction", "modes": [2], "targets": [["Grizzly Bears"]] },
+        { "resolve": true },
+        { "attack": ["Hill Giant"], "refused": [["Grizzly Bears", "Hill Giant"]] }
+      ],
+      "expect": [
+        { "life": [1, 17] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "zone": ["Hill Giant", "battlefield"] },
+        { "zone": ["Untimely Malfunction", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The third mode can name two creatures and neither of them may block",
+      "cr": "509.1a",
+      "ruling": "\"One or two target creatures\" lets the mode take two targets; both are barred from blocking for the rest of the turn, so an attacker they could both have blocked is unblocked.",
+      "seats": [
+        { "bf": ["Mountain", "Mountain", "Hill Giant"], "hand": ["Untimely Malfunction"] },
+        { "bf": ["Grizzly Bears", "Colossal Dreadmaw"] }
+      ],
+      "script": [
+        { "cast": "Untimely Malfunction", "modes": [2], "targets": [["Grizzly Bears", "Colossal Dreadmaw"]] },
+        { "resolve": true },
+        { "attack": ["Hill Giant"], "refused": [["Grizzly Bears", "Hill Giant"], ["Colossal Dreadmaw", "Hill Giant"]] }
+      ],
+      "expect": [
+        { "life": [1, 17] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "zone": ["Colossal Dreadmaw", "battlefield"] },
+        { "zone": ["Hill Giant", "battlefield"] },
+        { "zone": ["Untimely Malfunction", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

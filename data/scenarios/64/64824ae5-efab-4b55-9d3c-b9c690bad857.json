@@ -3,9 +3,9 @@
   "name": "Essence Flux",
   "scenarios": [
     {
-      "name": "Essence Flux blinks a creature that is not a Spirit and its counters are gone",
+      "name": "Essence Flux blinks a creature that is not a Spirit and its counters cease to exist",
       "cr": "400.7",
-      "ruling": "The creature returns as a new object, so the +1/+1 counters it had cease to exist and no new counter is added.",
+      "ruling": "The creature returns to the battlefield as a new object, so any counters on the exiled permanent cease to exist, and a non-Spirit gets no new counter.",
       "seats": [
         { "bf": ["Island", "Grizzly Bears"], "counters": { "Grizzly Bears": { "+1/+1": 2 } }, "hand": ["Essence Flux"] },
         {}
@@ -16,6 +16,7 @@
       ],
       "expect": [
         { "zone": ["Grizzly Bears", "battlefield"] },
+        { "control": ["Grizzly Bears", 0] },
         { "counters": ["Grizzly Bears", { "+1/+1": 0 }] },
         { "pt": ["Grizzly Bears", 2, 2] },
         { "zone": ["Essence Flux", "graveyard"] },
@@ -23,9 +24,9 @@
       ]
     },
     {
-      "name": "A Spirit returns with a +1/+1 counter on it",
+      "name": "A Spirit returns from exile with a +1/+1 counter on it",
       "cr": "121.1",
-      "ruling": "The card is checked after it returns; a Spirit gets a +1/+1 counter, so the 3/3 comes back as a 4/4.",
+      "ruling": "Essence Flux checks whether the creature is a Spirit after it has returned, so a 3/3 Spirit comes back as a 4/4 with one +1/+1 counter.",
       "seats": [
         { "bf": ["Island", "Gnarled Mass"], "hand": ["Essence Flux"] },
         {}
@@ -43,9 +44,9 @@
       ]
     },
     {
-      "name": "Blinking a creature retriggers its enters-the-battlefield ability",
+      "name": "Blinking a creature makes its enters-the-battlefield ability trigger again",
       "cr": "603.6b",
-      "ruling": "The creature really leaves and enters again, so Wall of Omens' enters trigger draws another card.",
+      "ruling": "The permanent really leaves the battlefield and enters again as a new object, so Wall of Omens' enters trigger sees it enter and draws a card.",
       "seats": [
         { "bf": ["Island", "Wall of Omens"], "hand": ["Essence Flux"] },
         {}
@@ -59,6 +60,28 @@
         { "handCount": [0, 1] },
         { "libraryCount": [0, 19] },
         { "counters": ["Wall of Omens", { "+1/+1": 0 }] },
+        { "pt": ["Wall of Omens", 0, 4] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The blinked creature comes back to the battlefield rather than staying in exile",
+      "cr": "400.7",
+      "ruling": "The exile is only momentary: the same card returns to the battlefield under its owner's control as part of the same resolution, so nothing is left in exile.",
+      "seats": [
+        { "bf": ["Island", "Gnarled Mass"], "hand": ["Essence Flux"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Essence Flux", "targets": [["Gnarled Mass"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Gnarled Mass", "battlefield"] },
+        { "control": ["Gnarled Mass", 0] },
+        { "zoneCount": [0, "exile", 0] },
+        { "zoneCount": [0, "battlefield", 2] },
+        { "counters": ["Gnarled Mass", { "+1/+1": 1 }] },
         { "unsimulated": 0 }
       ]
     }

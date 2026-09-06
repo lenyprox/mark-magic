@@ -9,8 +9,15 @@
       "semantics": "A one-shot 'Choose a creature type.' an instant or sorcery can perform, recording the choice on the resolving item so later effects of the same item read it through Filter.chosenType / notChosenType. Today only the as-enters replacement {kind:'choose', what:'creature-type'} exists, and a non-permanent never reaches it.",
       "cr": "701.x, 205.3m",
       "clause": "Choose a creature type. Destroy all creatures that aren't of the chosen type."
+    },
+    {
+      "opFamily": "chosen-type-negation",
+      "proposedSignature": "Filter.notChosenType?: boolean — in matchesFilter(s, o, f, source): `if (f?.notChosenType && source?.chosen?.creatureType && subtypes(o).includes(source.chosen.creatureType)) return false;` (the exact mirror of the existing `chosenType` clause at characteristics.ts:231)",
+      "semantics": "\"…that aren't of the chosen type\": the exact negation of the chosen creature type recorded on the source by the layers family's `choose-type` effect. Note that a card with no choice recorded yet must match nothing for `chosenType` and everything for `notChosenType`, so the two are not simply `!`-of each other in the no-choice case. With this one boolean, Kindred Dominance is `[{op:'choose-type',what:'creature-type'},{op:'destroy',target:'all-creatures',filter:{notChosenType:true}}]`.",
+      "cr": "700.4, 205.3m, 613.1",
+      "clause": "Destroy all creatures that aren't of the chosen type."
     }
   ],
   "wave": "unknown",
-  "attempts": 1
+  "attempts": 2
 }

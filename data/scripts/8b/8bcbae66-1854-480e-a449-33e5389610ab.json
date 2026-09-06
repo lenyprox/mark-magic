@@ -103,9 +103,9 @@
   },
   "notes": "APPROXIMATION: AbilityCost has no 'exile this permanent' part, so the exile is written as the first EFFECT of the ability instead of as part of its cost - the card really is exiled, but on resolution rather than on activation, so the ability could be activated twice in response to itself (see needs).",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "a86dc306",
     "scriptHash": "c7147ed3",
     "schema": "ok",
@@ -136,8 +136,6 @@
       "failed": 0,
       "names": []
     },
-    "status": "tested",
-    "problems": [],
     "judge": [
       {
         "model": "opus/judge1",
@@ -158,6 +156,8 @@
         ],
         "at": "2026-09-05T14:44:44.856Z"
       }
-    ]
+    ],
+    "status": "verified",
+    "problems": []
   }
 }

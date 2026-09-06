@@ -1,0 +1,114 @@
+{
+  "oracleId": "236ce592-1321-4a7c-b695-fd84496f8924",
+  "name": "Fear of Missing Out",
+  "oracleHash": "d5ef3e40",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "loot",
+          "draw": 1,
+          "discard": 1,
+          "discardFirst": true
+        }
+      ],
+      "text": "When ~ enters, discard a card, then draw a card."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": true
+      },
+      "oncePerTurn": true,
+      "intervening": {
+        "kind": "delirium"
+      },
+      "effects": [
+        {
+          "op": "untap",
+          "target": {
+            "kind": "creature"
+          }
+        },
+        {
+          "op": "extra-combat"
+        }
+      ],
+      "text": "Whenever ~ attacks for the first time each turn, if there are four or more card types among cards in your graveyard, untap target creature. After this phase, there is an additional combat phase."
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "\"attacks for the first time each turn\" is the triggered ability's `oncePerTurn` flag; the delirium intervening-if is checked as the ability would trigger (CR 603.4). The extra combat phase is the combat-restr family's `extra-combat`.",
+  "verification": {
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "d5ef3e40",
+    "scriptHash": "85989f63",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.788,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/23/236ce592-1321-4a7c-b695-fd84496f8924.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "tested",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "When this creature enters, discard a card, then draw a card. — expected The draw is not conditional on the discard: with an empty hand you discard nothing and STILL draw a card. (Casting FOMO as your last card in hand is the common line.) — scripted {op:'loot', draw:1, discard:1, discardFirst:true} — game.ts:1123 does `if (!pl.hand.length) break;` before the draw, so an empty hand skips the whole effect and you draw nothing. — CR 608.2a — each part of the instruction is carried out as far as possible; 701.8a",
+          "Delirium — Whenever this creature attacks for the first time each turn, if there are four or more card types ... untap target creature. — expected trigger once per turn, delirium checked as an intervening-if on trigger and again on resolution — scripted oncePerTurn + intervening {kind:'delirium'} — correct shape, but the engine consumes the once-per-turn slot at trigger time (game.ts:2288, before intervening is evaluated) and never re-checks the intervening-if on resolution (game.ts:2208 checks it only when the trigger goes on the stack). Under-enforcement, not expressible in the script. — CR 603.4",
+          "After this phase, there is an additional combat phase. — expected one extra combat phase, no extra main phase — scripted {op:'extra-combat'} -> extBump(s,'extraCombats',1) (ops/combat-restr.ts:294) — correct. — CR 506.1"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "When this creature enters, discard a card, then draw a card. — expected With an empty hand you discard nothing and STILL draw a card (the discard is an effect, not a cost, and failing it does not stop the rest). — scripted loot {draw:1, discard:1, discardFirst:true}; game.ts:1122-1123 does `if (!pl.hand.length) break;` — an empty-handed controller draws nothing at all. — CR CR 608.2, 701.8a",
+          "Delirium — Whenever this creature attacks for the first time each turn, if there are four or more card types among cards in your graveyard, … — expected The intervening-if is checked when the ability would trigger AND again on resolution; if false on resolution nothing happens. — scripted intervening {kind:'delirium'} is checked only when the trigger is queued (game.ts trigger path); it is never re-evaluated on resolution, so emptying/changing the graveyard in response still lets the untap + extra combat happen. — CR CR 603.4",
+          "untap target creature. After this phase, there is an additional combat phase. — expected Untap one target creature; add one extra combat phase after this phase (no extra main phase). — scripted untap {target:{kind:'creature'}} then extra-combat (combat-restr.ts:294 bumps s.ext.extraCombats, consumed at game.ts:447). Correct; 'attacks for the first time each turn' is the oncePerTurn flag, keyed per source per turn (game.ts:2289), an acceptable rendering of CR 603.2."
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      }
+    ]
+  }
+}

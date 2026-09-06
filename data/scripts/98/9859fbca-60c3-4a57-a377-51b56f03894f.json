@@ -85,9 +85,9 @@
   },
   "notes": "The trigger's 'that many' has nothing to feed it (the you-attack event carries no amount), so the DRAW counts the attacking Zombies you control and the discard and the life gain read that amount back as 'that many'. The trigger fires on every attack; with no Zombie attacking the count is 0 and nothing happens.",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "1aa1f3ad",
     "scriptHash": "544962ce",
     "schema": "ok",
@@ -118,29 +118,31 @@
       "failed": 0,
       "names": []
     },
-    "status": "tested",
-    "problems": [],
     "judge": [
       {
         "model": "opus/judge1",
         "verdict": "unfaithful",
         "issues": [
-          "Whenever you attack with one or more Zombies — expected the ability triggers only if at least one attacking creature is a Zombie — scripted event {on:'you-attack'} with no filter/condition — queueTriggers 'you-attack' fires on ctx.player === controller for ANY attack; the ability goes on the stack with 0 for its amounts instead of not triggering — CR CR 603.2 — trigger condition is part of the event, not the effect",
-          "draw that many cards / discard that many / gain that much life — expected 'that many' is locked to the number of Zombies that attacked, fixed at the moment the trigger condition was met — scripted draw amount = {count:'objects', filter:{subtypes:['Zombie'],attacking:true}, who:'you'} evaluated at RESOLUTION — if an attacking Zombie dies or leaves in response, the count drops (real card still draws the original number) — CR CR 603.2, 608.2 — the value is determined by the triggering event",
-          "(card frame) — expected Varina, Lich Queen prints 'Flying, vigilance, lifelink' above the attack trigger — scripted batch oracleText and scryfallKeywords for this record carry no keywords at all, and the script declares no keywords — faithful to the supplied batch text, but the batch record itself looks incomplete; flagging as a data concern, not scored against the script"
+          "Whenever you attack with ONE OR MORE ZOMBIES, ... — expected The ability does not trigger at all unless at least one attacking creature is a Zombie. — scripted event {on:'you-attack'} with no filter; game.ts:2275 fires it whenever ctx.player === controller, i.e. every combat you attack in. A do-nothing trigger (draw 0 / discard 0 / gain 0) goes on the stack — observable to opponents and to 'whenever a triggered ability triggers' effects. — CR 603.2",
+          "draw that many cards, then discard that many cards. You gain that much life. — expected 'that many' is fixed by the triggering event (the number of Zombies that attacked) and does not change if those Zombies later leave. — scripted the draw counts {count:'objects', filter:{subtypes:['Zombie'], attacking:true}} at RESOLUTION; kill an attacking Zombie in response and the count drops. (The discard/gain-life chaining off 'that-many' is correct.) — CR 603.2, 608.2",
+          "{2}, Exile two cards from your graveyard: — expected you choose which two cards to exile as you pay the cost — scripted cost.exileFromGraveyard: 2 — game.ts:687 exiles gy[0] and gy[1] with no choice, and its loop guard (`i < gy.length`) would even let a partial payment through. — CR 601.2h",
+          "card frame — expected the printed card also has 'Flying, vigilance, lifelink' — scripted absent from the batch oracleText itself, so the script is faithful to the supplied text — flagging as a data concern, not scored. — CR n/a"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       },
       {
         "model": "opus/judge2",
         "verdict": "unfaithful",
         "issues": [
-          "Whenever you attack with one or more Zombies — expected trigger condition requires at least one attacking Zombie; with no Zombie attacking the ability does not trigger at all — scripted event {on:'you-attack'} with no filter — fires on EVERY attack and puts a do-nothing trigger on the stack (draw 0 / discard 0 / gain 0). Observable: opponents get priority, and 'whenever a triggered ability triggers' effects see it — CR 603.2",
-          "Exile two cards from your graveyard (cost) — expected you choose which two cards to exile — scripted cost.exileFromGraveyard:2; game.ts:667 exiles gy[0] and gy[1] with no choice — CR 601.2h",
-          "draw that many / discard that many / gain that much life — expected all three read the same number of attacking Zombies — scripted draw counts attacking Zombies, discard and gain-life use {count:'that-many'} = item.lastAmount — correct chaining (characteristics.ts:156); no defect found here — CR 608.2"
+          "Whenever you attack with one or more Zombies — expected The ability only triggers if at least one attacking creature is a Zombie. — scripted event {on:'you-attack'} with no filter or condition — game.ts:2275 fires for any attack by the controller, putting a draw-0/discard-0/gain-0 trigger on the stack. Observable: priority passes, and 'whenever a triggered ability triggers' effects see it. — CR CR 603.2",
+          "{2}, Exile two cards from your graveyard: … — expected You choose which two cards to exile as the cost. — scripted cost.exileFromGraveyard:2 — game.ts:687 exiles gy[0] and gy[1] with no choice at all, which matters for graveyard-order and for cards you wanted to keep. — CR CR 601.2h",
+          "draw that many cards, then discard that many cards. You gain that much life. — expected 'That many' is fixed by the trigger event (the number of attacking Zombies at declaration) and does not change if those Zombies leave. — scripted draw amount = {count:'objects', filter:{subtypes:['Zombie'], attacking:true}, who:'you'} evaluated at RESOLUTION; killing an attacking Zombie in response shrinks the draw. The discard and gain-life chaining off {count:'that-many'} (item.lastAmount) is correct. — CR CR 603.2, 608.2",
+          "(card frame) — expected Varina prints 'Flying, vigilance, lifelink' above the attack trigger. — scripted The batch record carries no keywords and the script declares none — faithful to the supplied batch text, but flagged as a batch-data concern, not scored against the script."
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       }
-    ]
+    ],
+    "status": "tested",
+    "problems": []
   }
 }

@@ -3,9 +3,9 @@
   "name": "Bow of Nylea",
   "scenarios": [
     {
-      "name": "Attacking creatures you control have deathtouch and kill what blocks them",
+      "name": "Attacking creatures you control have deathtouch, so a 2/2 attacker kills the 6/6 that blocks it",
       "cr": "702.2b",
-      "ruling": "Any nonzero damage from a source with deathtouch is lethal, so the 2/2 attacker destroys the 6/6 blocker.",
+      "ruling": "Any nonzero damage dealt by a source with deathtouch is lethal damage, so the two damage from the attacking bear destroys the blocking 6/6.",
       "seats": [
         { "bf": ["Bow of Nylea", "Grizzly Bears"] },
         { "bf": ["Colossal Dreadmaw"] }
@@ -15,16 +15,17 @@
       ],
       "expect": [
         { "zone": ["Colossal Dreadmaw", "graveyard"] },
-        { "zone": ["Grizzly Bears", "graveyard"] },
         { "log": "Colossal Dreadmaw is destroyed" },
+        { "zone": ["Grizzly Bears", "graveyard"] },
         { "zone": ["Bow of Nylea", "battlefield"] },
+        { "life": [1, 20] },
         { "unsimulated": 0 }
       ]
     },
     {
-      "name": "A blocking creature you control does not get deathtouch from the Bow",
+      "name": "A creature you control that is blocking does not get deathtouch from the Bow",
       "cr": "702.2b",
-      "ruling": "The static ability grants deathtouch only to attacking creatures you control, so your blocker does not kill the big attacker.",
+      "ruling": "The static ability grants deathtouch only to attacking creatures you control, so your blocker deals ordinary damage, the 6/6 attacker survives and its trample damage in excess of the blocker's toughness still reaches you.",
       "active": 1,
       "seats": [
         { "bf": ["Bow of Nylea", "Grizzly Bears"] },
@@ -35,15 +36,16 @@
       ],
       "expect": [
         { "zone": ["Colossal Dreadmaw", "battlefield"] },
-        { "zone": ["Grizzly Bears", "graveyard"] },
         { "noLog": "Colossal Dreadmaw is destroyed" },
+        { "zone": ["Grizzly Bears", "graveyard"] },
+        { "life": [0, 16] },
         { "unsimulated": 0 }
       ]
     },
     {
       "name": "The first mode puts a +1/+1 counter on target creature",
       "cr": "700.2",
-      "ruling": "You choose the mode as you activate the ability; the first mode is a single +1/+1 counter.",
+      "ruling": "You choose which mode you are using as you activate the ability; the first mode is one +1/+1 counter on a targeted creature and nothing else.",
       "seats": [
         { "bf": ["Bow of Nylea", "Forest", "Forest", "Grizzly Bears"] },
         {}
@@ -58,13 +60,14 @@
         { "pt": ["Grizzly Bears", 3, 3] },
         { "tapped": ["Bow of Nylea", true] },
         { "life": [0, 20] },
+        { "noLog": "deals 2 damage" },
         { "unsimulated": 0 }
       ]
     },
     {
       "name": "The second mode deals 2 damage to a target creature with flying",
       "cr": "700.2",
-      "ruling": "Only a creature with flying can be chosen; 2 damage destroys the 2/2 flier and the ground creature is untouched.",
+      "ruling": "The second mode can only be pointed at a creature with flying; two damage is lethal to the 2/2 Drake and the ground creature beside it is untouched.",
       "seats": [
         { "bf": ["Bow of Nylea", "Forest", "Forest"] },
         { "bf": ["Wind Drake", "Grizzly Bears"] }
@@ -76,16 +79,18 @@
       ],
       "expect": [
         { "zone": ["Wind Drake", "graveyard"] },
-        { "zone": ["Grizzly Bears", "battlefield"] },
         { "log": "deals 2 damage" },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "pt": ["Grizzly Bears", 2, 2] },
         { "life": [0, 20] },
+        { "tapped": ["Bow of Nylea", true] },
         { "unsimulated": 0 }
       ]
     },
     {
       "name": "The third mode gains you 3 life",
       "cr": "700.2",
-      "ruling": "The third mode is a flat 3 life and touches nothing else.",
+      "ruling": "The third mode is a flat three life for the Bow's controller and touches nothing else.",
       "seats": [
         { "bf": ["Bow of Nylea", "Forest", "Forest"] },
         {}
@@ -99,13 +104,14 @@
         { "life": [0, 23] },
         { "life": [1, 20] },
         { "tapped": ["Bow of Nylea", true] },
+        { "noLog": "deals 2 damage" },
         { "unsimulated": 0 }
       ]
     },
     {
-      "name": "The fourth mode puts cards from your graveyard on the bottom of your library",
+      "name": "The fourth mode puts up to four target cards from your graveyard on the bottom of your library",
       "cr": "700.2",
-      "ruling": "Up to four target cards in your graveyard go to the bottom of your library, so the graveyard empties and the library grows.",
+      "ruling": "The chosen cards leave the graveyard for the bottom of their owner's library, so the graveyard empties and the library grows by the same number.",
       "seats": [
         { "bf": ["Bow of Nylea", "Forest", "Forest"], "graveyard": ["Lightning Bolt", "Shock"] },
         {}
@@ -116,10 +122,11 @@
         { "resolve": true }
       ],
       "expect": [
-        { "graveyardCount": [0, 0] },
-        { "libraryCount": [0, 22] },
         { "zone": ["Lightning Bolt", "library"] },
         { "zone": ["Shock", "library"] },
+        { "graveyardCount": [0, 0] },
+        { "libraryCount": [0, 22] },
+        { "life": [0, 20] },
         { "unsimulated": 0 }
       ]
     }

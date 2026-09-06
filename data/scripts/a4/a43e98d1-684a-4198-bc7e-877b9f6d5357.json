@@ -46,9 +46,9 @@
   },
   "notes": "The destroyed creature is bound as 'that' by destroy (noteAffected), so 'that-player' is its controller. The 'more than four' gate needs no condition: a diff never goes below 0 (CR 107.1b), so a controller with four or fewer cards exiles none. The cards are chosen by their owner (choose: 'owner'), which is what 'they exile cards from their hand' means.",
   "verification": {
-    "at": "2026-09-05T14:14:25.564Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:15.358Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "65406efe",
     "scriptHash": "7082945c",
     "schema": "ok",

@@ -4,7 +4,6 @@
     "amass",
     "bite",
     "cant-attack-or-block",
-    "cant-block",
     "counter-triggering",
     "crew-self",
     "each-self-damage",
@@ -21,7 +20,6 @@
     "remove-from-combat",
     "renown",
     "return-own",
-    "return-to-battlefield",
     "reveal-hand",
     "sacrifice-self",
     "saddle-self",
@@ -37,10 +35,8 @@
     "cards-drawn-ge",
     "cards-in-hand-ge",
     "cast-from-hand",
-    "controls-commander",
     "controls-each",
     "controls-le",
-    "delirium",
     "descended-this-turn",
     "domain-ge",
     "escaped",
@@ -130,7 +126,6 @@
     "warp"
   ],
   "costModifiers": [
-    "convoke",
     "delve",
     "improvise"
   ],

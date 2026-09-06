@@ -1,0 +1,123 @@
+{
+  "oracleId": "dd35a377-0865-4b25-bd0f-aaead29a9f0e",
+  "name": "Doran, Besieged by Time",
+  "scenarios": [
+    {
+      "name": "A creature spell with toughness greater than its power costs one generic less",
+      "cr": "601.2f",
+      "ruling": "Wall of Omens is 0/4, so its {1}{W} cost is reduced to {W} and a single Plains pays for it.",
+      "seats": [
+        { "bf": ["Doran, Besieged by Time", "Plains"], "hand": ["Wall of Omens"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Wall of Omens" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Wall of Omens", "battlefield"] },
+        { "tapped": ["Plains", true] },
+        { "mana": [0, ""] },
+        { "handCount": [0, 1] },
+        { "libraryCount": [0, 19] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The discount leaves a land untapped when more mana is available",
+      "cr": "601.2f",
+      "ruling": "With the reduction applied Wall of Omens costs {W}, so only the Plains is needed and the other two lands stay untapped.",
+      "seats": [
+        { "bf": ["Doran, Besieged by Time", "Plains", "Island", "Mountain"], "hand": ["Wall of Omens"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Wall of Omens" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Wall of Omens", "battlefield"] },
+        { "tapped": ["Plains", true] },
+        { "tapped": ["Island", false] },
+        { "tapped": ["Mountain", false] },
+        { "mana": [0, ""] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A creature spell whose toughness is not greater than its power gets no discount",
+      "cr": "601.2f",
+      "ruling": "Grizzly Bears is 2/2, so the reduction does not apply and both lands are needed to pay {1}{G}.",
+      "seats": [
+        { "bf": ["Doran, Besieged by Time", "Forest", "Mountain"], "hand": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "tapped": ["Forest", true] },
+        { "tapped": ["Mountain", true] },
+        { "mana": [0, ""] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "An attacking creature gets +X/+X for the difference between its power and toughness",
+      "cr": "603.2",
+      "ruling": "Doran is 0/5, so the difference is 5 and it attacks as a 5/10.",
+      "seats": [
+        { "bf": ["Doran, Besieged by Time"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Doran, Besieged by Time"] }
+      ],
+      "expect": [
+        { "pt": ["Doran, Besieged by Time", 5, 10] },
+        { "life": [1, 15] },
+        { "zone": ["Doran, Besieged by Time", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A blocking creature also gets +X/+X",
+      "cr": "603.2",
+      "ruling": "The trigger reads attacks or blocks; blocking Doran becomes a 5/10 and kills the 3/3 it blocks.",
+      "active": 1,
+      "seats": [
+        { "bf": ["Doran, Besieged by Time"] },
+        { "bf": ["Hill Giant"] }
+      ],
+      "script": [
+        { "attack": ["Hill Giant"], "blocks": [["Doran, Besieged by Time", "Hill Giant"]] }
+      ],
+      "expect": [
+        { "pt": ["Doran, Besieged by Time", 5, 10] },
+        { "zone": ["Hill Giant", "graveyard"] },
+        { "zone": ["Doran, Besieged by Time", "battlefield"] },
+        { "life": [0, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A creature whose power equals its toughness gets nothing from Doran",
+      "cr": "603.2",
+      "ruling": "The difference between 2 and 2 is zero, so an attacking Grizzly Bears stays a 2/2.",
+      "seats": [
+        { "bf": ["Doran, Besieged by Time", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Grizzly Bears"] }
+      ],
+      "expect": [
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "life": [1, 18] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

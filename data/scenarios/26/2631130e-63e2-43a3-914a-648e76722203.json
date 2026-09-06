@@ -1,0 +1,72 @@
+{
+  "oracleId": "2631130e-63e2-43a3-914a-648e76722203",
+  "name": "Fire Lord Azula",
+  "scenarios": [
+    {
+      "name": "Firebending 2 adds two red mana when Fire Lord Azula attacks",
+      "cr": "508.2",
+      "ruling": "Firebending 2 is \"Whenever this creature attacks, add {R}{R}\". With no lands on the battlefield the only mana available is the firebending mana, so a {R} instant can still be cast during combat and one red mana is left over.",
+      "seats": [
+        { "bf": ["Fire Lord Azula"], "hand": ["Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Fire Lord Azula"] },
+        { "cast": "Lightning Bolt", "targets": [["P1"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "mana": [0, "R"] },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "zone": ["Fire Lord Azula", "battlefield"] },
+        { "log": "deals 3 damage" },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Firebending mana is lost once you leave combat",
+      "cr": "500.4",
+      "ruling": "The mana lasts until end of combat and no longer: it survives the steps of the combat phase, but by the postcombat main phase the pool is empty again.",
+      "seats": [
+        { "bf": ["Fire Lord Azula"], "hand": ["Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Fire Lord Azula"] },
+        { "cast": "Lightning Bolt", "targets": [["P1"]] },
+        { "resolve": true },
+        { "passUntil": "main2" }
+      ],
+      "expect": [
+        { "mana": [0, ""] },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "zone": ["Fire Lord Azula", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A spell cast while Fire Lord Azula is attacking is copied",
+      "cr": "707.10",
+      "ruling": "Fire Lord Azula is still an attacking creature until it is removed from combat as the end of combat step ends, so a Lightning Bolt cast during combat is copied; the copy keeps the original's target and resolves first, so the opponent takes 3 twice on top of Azula's 4 combat damage.",
+      "seats": [
+        { "bf": ["Fire Lord Azula", "Mountain"], "hand": ["Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Fire Lord Azula"] },
+        { "cast": "Lightning Bolt", "targets": [["P1"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [1, 10] },
+        { "life": [0, 20] },
+        { "events": { "type": "damage", "min": 3 } },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "graveyardCount": [0, 1] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

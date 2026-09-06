@@ -4,6 +4,13 @@
   "clause": "Sacrifice ~: Your opponents can't cast noncreature spells this turn.",
   "needs": [
     {
+      "opFamily": "cast-restriction",
+      "proposedSignature": "condition { kind: 'spells-cast-this-turn-le'; who: 'you' | 'that-player'; value: number } and effect { op: 'cant-cast'; who: 'you' | 'each-opponent' | 'target-player'; filter?: Filter; duration: 'this-turn' }",
+      "semantics": "The condition mirrors the existing spells-cast-this-turn-ge and answers 'if you haven't cast a spell this turn' (value 0). The effect installs a one-shot casting restriction for the rest of the turn over spells matching filter.",
+      "cr": "601.3a, 118.12",
+      "clause": "If you do, you can't cast additional spells this turn. / Your opponents can't cast noncreature spells this turn."
+    },
+    {
       "opFamily": "cost-alter",
       "proposedSignature": "{ op: 'restrict-casting'; who: ScopeWho; filter?: Filter; duration: 'this-turn'; max?: number }",
       "semantics": "A one-shot continuous effect forbidding the named players from casting spells matching `filter` for the rest of the turn (or beyond a cap of `max` further spells).",
@@ -12,5 +19,5 @@
     }
   ],
   "wave": "unknown",
-  "attempts": 1
+  "attempts": 2
 }

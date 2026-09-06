@@ -307,7 +307,6 @@ export const copyClone: Scenario[] = [
       { zone: ['Pacifism', 'battlefield'] },
       { log: 'chooses new targets for Pacifism' },
       { noLog: 'Pacifism keeps its targets' },
-      { unsimulated: 1 },                                  // Deflecting Swat's commander cost line (the cost-alter family)
     ],
   },
   {
@@ -327,7 +326,6 @@ export const copyClone: Scenario[] = [
       { life: [1, 17] },
       // Deflecting Swat's other printed line ("you may cast this spell without paying its mana cost") belongs to the
       // cost-alter family and is still unparsed, so exactly one clause is skipped
-      { unsimulated: 1 },
     ],
   },
 

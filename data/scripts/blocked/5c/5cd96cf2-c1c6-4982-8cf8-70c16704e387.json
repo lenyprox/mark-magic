@@ -4,6 +4,13 @@
   "clause": "Tap an untapped Zombie you control: Target creature gains swampwalk until end of turn.",
   "needs": [
     {
+      "opFamily": "granted-landwalk",
+      "proposedSignature": "{ op: 'grant-keyword'; target; keywords: Keyword[]; landwalk?: string[]; duration } and the same optional landwalk on pump and on the layers become",
+      "semantics": "Grant a PARAMETERISED landwalk ('gains swampwalk until end of turn'). characteristics.ts:562 already reads staticMods(...).landwalk next to def.landwalk, so only the one-shot grant path is missing the land-type list.",
+      "cr": "702.14",
+      "clause": "Target creature gains swampwalk until end of turn."
+    },
+    {
       "opFamily": "layers",
       "proposedSignature": "{ op: 'grant-landwalk', target: TargetSpec | Ref | 'creatures-you-control', subtypes: string[], duration: 'eot' | 'permanent' }  -- or give `grant-keyword` an optional `landwalk?: string[]` alongside `keywords`",
       "semantics": "Grants a PARAMETERISED landwalk to a target. The bare `landwalk` keyword carries no land type, and characteristics.ts:545 builds the walk types from `attacker.def.landwalk` plus an anthem static's `landwalk` list only, so nothing an effect grants can ever make a creature unblockable today. The op would push the land types into the same per-object bag `staticMods().landwalk` already feeds.",
@@ -12,5 +19,5 @@
     }
   ],
   "wave": "unknown",
-  "attempts": 1
+  "attempts": 2
 }

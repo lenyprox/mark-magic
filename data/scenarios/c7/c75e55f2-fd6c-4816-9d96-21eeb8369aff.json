@@ -1,0 +1,112 @@
+{
+  "oracleId": "c75e55f2-fd6c-4816-9d96-21eeb8369aff",
+  "name": "The Scarab God",
+  "scenarios": [
+    {
+      "name": "The upkeep trigger drains each opponent for the number of Zombies you control",
+      "cr": "603.2",
+      "ruling": "X is the number of Zombies you control as the ability resolves; The Scarab God is a God, not a Zombie, so two Walking Corpses make X = 2.",
+      "active": 1,
+      "seats": [
+        { "bf": ["The Scarab God", "Walking Corpse", "Walking Corpse"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "upkeep" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [1, 18] },
+        { "life": [0, 20] },
+        { "libraryCount": [0, 20] },
+        { "handCount": [0, 0] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "With no Zombies the upkeep trigger drains nothing",
+      "cr": "603.2",
+      "ruling": "X is the number of Zombies you control; with none, each opponent loses 0 life and you scry 0.",
+      "active": 1,
+      "seats": [
+        { "bf": ["The Scarab God"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "upkeep" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [1, 20] },
+        { "life": [0, 20] },
+        { "libraryCount": [0, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The activated ability exiles a creature card from a graveyard and makes a 4/4 Zombie copy",
+      "cr": "707.2",
+      "ruling": "The card is exiled and the token copies it except that it is a 4/4 black Zombie, so a copy of a 2/2 Grizzly Bears is a 4/4.",
+      "seats": [
+        { "bf": ["The Scarab God", "Island", "Swamp", "Mountain", "Mountain"] },
+        { "graveyard": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "activate": "The Scarab God", "targets": [["Grizzly Bears"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "graveyardCount": [1, 0] },
+        { "zoneCount": [1, "exile", 1] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "control": ["Grizzly Bears", 0] },
+        { "pt": ["Grizzly Bears", 4, 4] },
+        { "zoneCount": [0, "battlefield", 6] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The Scarab God stays in the graveyard when it dies before the end step",
+      "cr": "603.7a",
+      "ruling": "The death trigger only sets up a delayed triggered ability; nothing returns until the beginning of the next end step.",
+      "seats": [
+        { "bf": ["The Scarab God", "Swamp", "Swamp", "Mountain"], "hand": ["Murder"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Murder", "targets": [["The Scarab God"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["The Scarab God", "graveyard"] },
+        { "handCount": [0, 0] },
+        { "graveyardCount": [0, 2] },
+        { "zoneCount": [0, "battlefield", 3] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The Scarab God returns to its owner's hand at the beginning of the next end step",
+      "cr": "603.7a",
+      "ruling": "The delayed trigger fires at the beginning of the next end step of the same turn and returns the card from the graveyard to its owner's hand.",
+      "seats": [
+        { "bf": ["The Scarab God", "Swamp", "Swamp", "Mountain"], "hand": ["Murder"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Murder", "targets": [["The Scarab God"]] },
+        { "resolve": true },
+        { "passUntil": "end" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["The Scarab God", "hand"] },
+        { "handCount": [0, 1] },
+        { "graveyardCount": [0, 1] },
+        { "zoneCount": [0, "battlefield", 3] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

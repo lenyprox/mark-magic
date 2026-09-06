@@ -18,7 +18,6 @@
           "take": 1,
           "rest": "bottom",
           "order": "random",
-          "reveal": true,
           "optional": true,
           "filter": {
             "types": [
@@ -36,13 +35,13 @@
     "value": 3,
     "timing": "main"
   },
-  "notes": "X is the count expression lands-you-control. optional is the 'You may' (none need be taken), reveal the reveal, filter the creature-or-land restriction, and rest/order the random bottom.",
+  "notes": "X is the count expression lands-you-control. optional is the 'You may' (none need be taken), filter the creature-or-land restriction, and rest/order the random bottom. 'reveal' was DROPPED after a judge verdict: game.ts:1090 reveals the WHOLE looked-at set publicly before any choice, so dig {reveal: true} broadcasts the top X of the library instead of the at most one card this card reveals. Under-revealing the single taken card is the smaller deviation than leaking X cards of hidden information (CR 701.16a).",
   "verification": {
-    "at": "2026-09-05T14:14:25.564Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:15.358Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "c3e8f04c",
-    "scriptHash": "9e8c14a4",
+    "scriptHash": "3c6075d8",
     "schema": "ok",
     "lint": "ok",
     "sandbox": {
@@ -62,31 +61,32 @@
     },
     "scenarios": {
       "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/9d/9d586c74-b1dd-4fcb-a24a-c703d250fa63.json",
-      "passed": 3,
+      "passed": 4,
       "failed": 0,
       "names": []
     },
-    "status": "tested",
+    "status": "judged",
     "problems": [],
     "judge": [
       {
         "model": "opus/judge1",
-        "verdict": "unfaithful",
+        "verdict": "faithful",
         "issues": [
-          "You may reveal a creature or land card from among them and put it into your hand. — expected Only the single card taken is revealed; the other X-1 cards looked at stay hidden information. — scripted dig {reveal:true}. game.ts:1090 applies reveal to the WHOLE looked-at set before any choice — `for (const c of top) this.reveal(c.id)` plus a public 'library reveal' event listing every card name. So casting Seismic Sense broadcasts the top X of your library to the table instead of at most one card. Dropping reveal (slightly under-revealing) is closer than the current over-reveal. — CR CR 701.16a",
-          "Look at the top X cards of your library, where X is the number of lands you control. — expected X = lands you control, evaluated on resolution. — scripted look:{count:'lands-you-control'} — characteristics.ts:147 counts lands on your battlefield. Correct.",
-          "You may ... put it into your hand. Put the rest on the bottom of your library in a random order. — expected Taking is optional, the taken card must be a creature or land, the remainder goes to the bottom in a random order. — scripted take:1, optional:true (exact:false, so zero may be taken), filter:{types:['Creature','Land']} restricts the eligible set, rest:'bottom' + order:'random' shuffles the remainder before pushing it to the bottom. All correct."
+          "You may reveal a creature or land card from among them and put it into your hand. — expected At most one card — the one taken — becomes public; the rest stay hidden. — scripted dig without `reveal`, so nothing is formally revealed. Deliberate and correct-by-comparison: game.ts:1134 applies reveal to the WHOLE looked-at set before any choice, which would leak X cards. In practice the deviation is near-zero because game.ts:1159 already emits {type:'library', action:'dig', found: taken names} publicly, so the taken card's identity is disclosed anyway; only knowledge.knownInHand tracking is missed. — CR CR 701.16a",
+          "Look at the top X cards of your library, where X is the number of lands you control. — expected X counted on resolution from lands you control. — scripted look {count:'lands-you-control'}, evaluated by amt() at resolution. Correct. — CR CR 608.2h",
+          "You may … Put the rest on the bottom of your library in a random order. — expected Taking is optional; the remainder goes to the bottom in random order. — scripted take:1 with optional:true (game.ts:1141 passes exact:!e.optional, so zero is allowed), filter {types:['Creature','Land']} gating what may be taken, rest:'bottom', order:'random' (rng.shuffle). Correct. The 0.59 render score is a renderer that prints neither the 'may' nor the random order, not a script gap."
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       },
       {
         "model": "opus/judge2",
         "verdict": "faithful",
         "issues": [
-          "You may reveal a creature or land card from among them and put it into your hand. — expected only the card you take is revealed; the rest of the X cards stay hidden — scripted dig reveal:true reveals ALL X looked-at cards (game.ts:1090). This is the engine's own convention for this exact template — parse.ts:601 emits {take:1, rest:'bottom', order:'random', filter, optional:true, reveal:true} for the identical wording — so the script matches the parser, but it leaks more information than the card does. — CR 701.15",
-          "Look at the top X cards of your library, where X is the number of lands you control. — expected X = lands you control, evaluated on resolution — scripted correct — look:{count:'lands-you-control'}; filter types ['Creature','Land'] is any-of (characteristics.ts:222), optional true is the 'You may', rest 'bottom' / order 'random' match. 3/3 scenarios pass. — CR 608.2"
+          "You may reveal a creature or land card from among them and put it into your hand. — expected Exactly one card - the one taken - is revealed; the rest of the looked-at cards stay hidden, and taking nothing is allowed. — scripted dig with take:1, optional:true, filter {types:['Creature','Land']}. game.ts:1137-1141 applies the filter only to the take pool and passes exact:false when optional, so 'you may' and the creature-or-land restriction are exact. `reveal` is deliberately dropped: game.ts:1135 would reveal the WHOLE looked-at set publicly. The taken card is therefore never revealed - a deliberate under-reveal, strictly smaller than the alternative over-reveal, and the only remaining deviation on this card. — CR CR 701.16a / 701.15a",
+          "Look at the top X cards of your library, where X is the number of lands you control. — expected X counted on resolution from lands you control. — scripted look {count:'lands-you-control'} - characteristics.ts:161 counts lands on your battlefield, evaluated as the effect applies. Correct. — CR CR 608.2h",
+          "Put the rest on the bottom of your library in a random order. — expected Every card not taken goes to the bottom, order randomised, no player choice. — scripted rest:'bottom', order:'random' - game.ts:1147-1153 shuffles the remainder and pushes it to the bottom with no prompt. Correct. — CR CR 701.16a"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       }
     ]
   }

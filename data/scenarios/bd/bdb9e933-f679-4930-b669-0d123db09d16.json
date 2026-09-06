@@ -1,0 +1,86 @@
+{
+  "oracleId": "bdb9e933-f679-4930-b669-0d123db09d16",
+  "name": "Bloodline Bidding",
+  "scenarios": [
+    {
+      "name": "Bloodline Bidding returns every creature card of the chosen type from your graveyard",
+      "cr": "701.32a",
+      "ruling": "You choose the creature type as the spell resolves; every creature card of that type in your graveyard returns to the battlefield untapped, and creature cards of other types stay where they are.",
+      "seats": [
+        {
+          "bf": ["Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp"],
+          "hand": ["Bloodline Bidding"],
+          "graveyard": ["Grizzly Bears", "Runeclaw Bear", "Hill Giant"]
+        },
+        {}
+      ],
+      "script": [
+        { "answer": "Bear" },
+        { "cast": "Bloodline Bidding" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "zone": ["Runeclaw Bear", "battlefield"] },
+        { "control": ["Grizzly Bears", 0] },
+        { "tapped": ["Grizzly Bears", false] },
+        { "zone": ["Hill Giant", "graveyard"] },
+        { "log": "chooses Bear" },
+        { "zone": ["Bloodline Bidding", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Bloodline Bidding reaches only your graveyard, not an opponent's",
+      "cr": "109.5",
+      "ruling": "\"Your graveyard\" means the graveyard of the spell's controller, so an opponent's creature card of the chosen type is untouched.",
+      "seats": [
+        {
+          "bf": ["Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp"],
+          "hand": ["Bloodline Bidding"],
+          "graveyard": ["Grizzly Bears"]
+        },
+        { "graveyard": ["Runeclaw Bear"] }
+      ],
+      "script": [
+        { "answer": "Bear" },
+        { "cast": "Bloodline Bidding" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "control": ["Grizzly Bears", 0] },
+        { "zone": ["Runeclaw Bear", "graveyard"] },
+        { "zoneCount": [1, "battlefield", 0] },
+        { "graveyardCount": [1, 1] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Convoke lets creatures you tap pay part of Bloodline Bidding's cost",
+      "cr": "702.51a",
+      "ruling": "Convoke lets each creature tapped while casting the spell pay for {1} or one mana of that creature's colour, so six lands plus two tapped creatures pay the whole {6}{B}{B}.",
+      "seats": [
+        {
+          "bf": ["Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Swamp", "Grizzly Bears", "Wandering Ones"],
+          "hand": ["Bloodline Bidding"],
+          "graveyard": ["Runeclaw Bear"]
+        },
+        {}
+      ],
+      "script": [
+        { "answer": "Bear" },
+        { "cast": "Bloodline Bidding" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Runeclaw Bear", "battlefield"] },
+        { "tapped": ["Grizzly Bears", true] },
+        { "tapped": ["Wandering Ones", true] },
+        { "tapped": ["Swamp", true] },
+        { "zone": ["Bloodline Bidding", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

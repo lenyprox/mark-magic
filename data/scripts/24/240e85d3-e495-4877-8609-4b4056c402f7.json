@@ -3,7 +3,7 @@
   "name": "Victimize",
   "oracleHash": "905e95c6",
   "source": "llm",
-  "confidence": 0.7,
+  "confidence": 0.75,
   "mode": "replace",
   "keywords": [],
   "abilities": [
@@ -11,19 +11,28 @@
       "kind": "spell",
       "effects": [
         {
-          "op": "sacrifice",
-          "who": "you",
-          "what": {
-            "types": [
-              "Creature"
-            ]
+          "op": "conditional",
+          "condition": {
+            "kind": "controls",
+            "who": "you",
+            "filter": {
+              "types": [
+                "Creature"
+              ]
+            },
+            "atLeast": 1
           },
-          "amount": 1
-        },
-        {
-          "op": "reflexive",
-          "when": "you-do",
-          "effects": [
+          "then": [
+            {
+              "op": "sacrifice",
+              "who": "you",
+              "what": {
+                "types": [
+                  "Creature"
+                ]
+              },
+              "amount": 1
+            },
             {
               "op": "return-from-graveyard",
               "what": {
@@ -47,13 +56,13 @@
     "value": 4,
     "timing": "main"
   },
-  "notes": "'If you do' is the reflexive trigger (CR 603.12): it fires only when the sacrifice actually happened. The two creature cards are a real target requirement (return-from-graveyard with target: true), so they are chosen and re-checked rather than picked afresh; the reflexive chooses them when it goes on the stack rather than on cast, which is the closest the engine gets.",
+  "notes": "The two creature cards are a real target requirement (return-from-graveyard with target: true, count 2): legal.ts emits a graveyard-card spec for it at CAST time - targets inside a 'conditional' are asked for with the container's own index (docs/vocabulary/composition.md section 3) - so they are chosen when the spell is cast and re-checked on resolution (CR 601.2c, 608.2b). 'Sacrifice a creature. If you do' is the conditional's gate: the sacrifice is mandatory while you control a creature, and the return happens only in that branch, which is exactly when 'if you do' holds. The previous draft used a reflexive trigger, which chose the cards when the reflexive went on the stack rather than on cast.",
   "verification": {
-    "at": "2026-09-05T14:14:25.564Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:15.358Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "905e95c6",
-    "scriptHash": "2a345cb5",
+    "scriptHash": "5163c70b",
     "schema": "ok",
     "lint": "ok",
     "sandbox": {
@@ -72,7 +81,7 @@
       "lowest": [
         {
           "text": "Choose two target creature cards in your graveyard. Sacrifice a creature. If you do, return the chosen cards to the battlefield tapped.",
-          "rendered": "you sacrifice a creature. when you do, return target creature from your graveyard to the battlefield tapped",
+          "rendered": "if you control a creature, you sacrifice a creature. return target creature from your graveyard to the battlefield tapped",
           "score": 0
         }
       ]
@@ -85,7 +94,7 @@
     },
     "status": "scripted",
     "problems": [
-      "round trip 0.00 < 0.55: \"Choose two target creature cards in your graveyard. Sacrifice a creature. If you do, return the chosen cards to the battlefield tapped.\" rendered as \"you sacrifice a creature. when you do, return target creature from your graveyard to the battlefield tapped\""
+      "round trip 0.00 < 0.55: \"Choose two target creature cards in your graveyard. Sacrifice a creature. If you do, return the chosen cards to the battlefield tapped.\" rendered as \"if you control a creature, you sacrifice a creature. return target creature from your graveyard to the battlefield tapped\""
     ]
   }
 }

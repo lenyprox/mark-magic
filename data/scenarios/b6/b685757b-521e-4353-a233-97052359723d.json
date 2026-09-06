@@ -1,0 +1,116 @@
+{
+  "oracleId": "b685757b-521e-4353-a233-97052359723d",
+  "name": "Questing Beast",
+  "scenarios": [
+    {
+      "name": "A creature with power 2 or less cannot block Questing Beast",
+      "cr": "509.1b",
+      "ruling": "The blocking restriction is checked as blockers are declared, so a 2/2 is not a legal blocker and the damage goes through.",
+      "seats": [
+        { "bf": ["Questing Beast"] },
+        { "bf": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "attack": ["Questing Beast"], "refused": [["Grizzly Bears", "Questing Beast"]] }
+      ],
+      "expect": [
+        { "life": [1, 16] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "zone": ["Questing Beast", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A creature with power 3 can block Questing Beast and dies to deathtouch",
+      "cr": "702.2b",
+      "ruling": "Only creatures with power 2 or less are stopped; a 3/3 blocks legally and any damage from a deathtouch source is lethal.",
+      "seats": [
+        { "bf": ["Questing Beast"] },
+        { "bf": ["Hill Giant"] }
+      ],
+      "script": [
+        { "attack": ["Questing Beast"], "blocks": [["Hill Giant", "Questing Beast"]] }
+      ],
+      "expect": [
+        { "zone": ["Hill Giant", "graveyard"] },
+        { "zone": ["Questing Beast", "battlefield"] },
+        { "life": [1, 20] },
+        { "life": [0, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Haste lets Questing Beast attack the turn it enters",
+      "cr": "702.10b",
+      "ruling": "A creature with haste can attack even though its controller has not controlled it continuously since their most recent turn began.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest", "Forest"], "hand": ["Questing Beast"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Questing Beast" },
+        { "resolve": true },
+        { "attack": ["Questing Beast"] }
+      ],
+      "expect": [
+        { "life": [1, 16] },
+        { "zone": ["Questing Beast", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Vigilance keeps Questing Beast untapped after it attacks",
+      "cr": "702.21b",
+      "ruling": "Attacking does not cause a creature with vigilance to tap.",
+      "seats": [
+        { "bf": ["Questing Beast"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Questing Beast"] }
+      ],
+      "expect": [
+        { "tapped": ["Questing Beast", false] },
+        { "life": [1, 16] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Fog cannot prevent combat damage from creatures you control",
+      "cr": "615.1",
+      "ruling": "Questing Beast's third ability stops prevention effects, so a Fog cast before combat prevents nothing dealt by any creature Questing Beast's controller controls.",
+      "seats": [
+        { "bf": ["Questing Beast", "Grizzly Bears"] },
+        { "bf": ["Forest"], "hand": ["Fog"] }
+      ],
+      "script": [
+        { "cast": "Fog", "by": 1 },
+        { "resolve": true },
+        { "attack": ["Questing Beast", "Grizzly Bears"] }
+      ],
+      "expect": [
+        { "life": [1, 14] },
+        { "zone": ["Fog", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Combat damage to an opponent is echoed onto a planeswalker they control",
+      "cr": "603.2",
+      "ruling": "The trigger deals the same amount of damage to the targeted planeswalker; four damage removes all three loyalty counters from Jace Beleren.",
+      "seats": [
+        { "bf": ["Questing Beast"] },
+        { "bf": ["Jace Beleren"] }
+      ],
+      "script": [
+        { "attack": ["Questing Beast"] }
+      ],
+      "expect": [
+        { "life": [1, 16] },
+        { "zone": ["Jace Beleren", "graveyard"] },
+        { "zoneCount": [1, "battlefield", 0] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

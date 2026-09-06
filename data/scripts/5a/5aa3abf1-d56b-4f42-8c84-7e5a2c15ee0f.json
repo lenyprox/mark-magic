@@ -1,0 +1,173 @@
+{
+  "oracleId": "5aa3abf1-d56b-4f42-8c84-7e5a2c15ee0f",
+  "name": "Nissa, Who Shakes the World",
+  "oracleHash": "a2ee473a",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "extra-mana-on-tap",
+        "filter": {
+          "subtypes": [
+            "Forest"
+          ]
+        },
+        "mana": [
+          "G"
+        ]
+      },
+      "text": "Whenever you tap a Forest for mana, add an additional {G}."
+    },
+    {
+      "kind": "activated",
+      "cost": {},
+      "loyalty": 1,
+      "sorcerySpeed": true,
+      "oncePerTurn": true,
+      "effects": [
+        {
+          "op": "counters",
+          "target": {
+            "kind": "land",
+            "optional": true,
+            "count": 1,
+            "controller": "you",
+            "filter": {
+              "types": [
+                "Land"
+              ],
+              "notTypes": [
+                "Creature"
+              ]
+            }
+          },
+          "counter": "+1/+1",
+          "amount": 3
+        },
+        {
+          "op": "untap",
+          "target": "that"
+        },
+        {
+          "op": "animate",
+          "target": "that",
+          "power": 0,
+          "toughness": 0,
+          "colors": [],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Elemental"
+          ],
+          "keywords": [
+            "vigilance",
+            "haste"
+          ],
+          "duration": "permanent"
+        }
+      ],
+      "text": "+1: Put three +1/+1 counters on up to one target noncreature land you control. Untap it. It becomes a 0/0 Elemental creature with vigilance and haste that's still a land."
+    },
+    {
+      "kind": "activated",
+      "cost": {},
+      "loyalty": -8,
+      "sorcerySpeed": true,
+      "oncePerTurn": true,
+      "effects": [
+        {
+          "op": "emblem",
+          "text": "Lands you control have indestructible.",
+          "abilities": [
+            {
+              "kind": "static",
+              "effect": {
+                "kind": "anthem",
+                "power": 0,
+                "toughness": 0,
+                "filter": {
+                  "types": [
+                    "Land"
+                  ]
+                },
+                "scope": "you-control",
+                "keywords": [
+                  "indestructible"
+                ],
+                "anyPermanent": true
+              },
+              "text": "Lands you control have indestructible."
+            }
+          ]
+        },
+        {
+          "op": "search",
+          "filter": {
+            "subtypes": [
+              "Forest"
+            ]
+          },
+          "to": "battlefield",
+          "tapped": true,
+          "count": 99,
+          "optional": true
+        }
+      ],
+      "text": "-8: You get an emblem with \"Lands you control have indestructible.\" Search your library for any number of Forest cards, put them onto the battlefield tapped, then shuffle."
+    }
+  ],
+  "aiHints": {
+    "role": "ramp",
+    "value": 8,
+    "timing": "main"
+  },
+  "notes": "The emblem carries the anthem as a static ability; anyPermanent is required because the anthem is about lands, not creatures (characteristics.ts:367). \"Any number of Forest cards\" is the wave idiom search { count: 99, optional: true } (see Nissa, Worldwaker). The +1 is the parser own reading, kept verbatim: animate ADDS the creature type, so \"that is still a land\" needs nothing extra.",
+  "verification": {
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "a2ee473a",
+    "scriptHash": "8cd55b19",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.538,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.54 < 0.55: \"Whenever you tap a Forest for mana, add an additional {G}.\" rendered as \"whenever Forest is tapped for mana, its controller adds an additional {G}\""
+    ]
+  }
+}

@@ -4,6 +4,13 @@
   "clause": "Creatures your opponents control lose deathtouch and can't have or gain deathtouch.",
   "needs": [
     {
+      "opFamily": "keyword-removal",
+      "proposedSignature": "{ kind: 'keyword-removal'; scope: 'you-control' | 'all' | 'opponents-control'; filter?: Filter; keywords: Keyword[] | 'all'; cantGain?: true }",
+      "semantics": "The negative half of layer 6 as a continuous static: permanents matching the filter lose the listed keywords and, with cantGain, cannot have or gain them. Mods.kw only grows today, so the whole Archetype cycle is unscriptable.",
+      "cr": "613.1f, 611.2",
+      "clause": "Creatures your opponents control lose deathtouch and can't have or gain deathtouch."
+    },
+    {
       "opFamily": "layers",
       "proposedSignature": "{ kind: 'lose-keywords', scope: 'all' | 'you-control' | 'opponents-control' | 'enchanted', filter?: Filter, keywords: Keyword[], cantGain?: true }",
       "semantics": "A continuous static that removes the listed keywords from every permanent the filter matches (layer 6) and, with `cantGain`, also stops them being granted by any later effect. The mirror image of `anthem`'s `keywords` - the whole Archetype cycle and every 'creatures your opponents control lose flying' effect needs it.",
@@ -12,5 +19,5 @@
     }
   ],
   "wave": "unknown",
-  "attempts": 1
+  "attempts": 2
 }

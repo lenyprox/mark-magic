@@ -1,0 +1,144 @@
+{
+  "oracleId": "fa81e7ff-0f2c-40df-9169-c0a22f00cd76",
+  "name": "Conspiracy Theorist",
+  "oracleHash": "db1c28e2",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "optional-pay",
+          "mana": {
+            "generic": 1,
+            "x": 0,
+            "pips": [],
+            "hybrid": [],
+            "phyrexian": [],
+            "raw": "{1}"
+          },
+          "then": [
+            {
+              "op": "discard",
+              "amount": 1,
+              "who": "you"
+            },
+            {
+              "op": "draw",
+              "amount": 1,
+              "who": "you"
+            }
+          ]
+        }
+      ],
+      "text": "Whenever ~ attacks, you may pay {1} and discard a card. If you do, draw a card."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "discard",
+        "filter": {
+          "notTypes": [
+            "Land"
+          ]
+        }
+      },
+      "effects": [
+        {
+          "op": "optional-then",
+          "first": [
+            {
+              "op": "move",
+              "what": {
+                "filter": {},
+                "zone": "graveyard",
+                "who": "you",
+                "count": 1,
+                "choose": "you"
+              },
+              "to": "exile"
+            }
+          ],
+          "then": [
+            {
+              "op": "play-exiled",
+              "until": "eot"
+            }
+          ]
+        }
+      ],
+      "text": "Whenever you discard one or more nonland cards, you may exile one of them from your graveyard. If you do, you may cast it this turn."
+    }
+  ],
+  "aiHints": {
+    "role": "draw",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "APPROXIMATION: the discard half of \"pay {1} and discard a card\" is a cost, and `optional-pay` carries only mana, so it is written as \"you may pay {1}; if you do, discard a card, then draw a card\" — the same choice, resolved rather than paid. The second trigger exiles a chosen card from your graveyard and `play-exiled` marks what the move bound as castable this turn.",
+  "verification": {
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "db1c28e2",
+    "scriptHash": "483da6f0",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.583,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/fa/fa81e7ff-0f2c-40df-9169-c0a22f00cd76.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "tested",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "Whenever you discard one or more nonland cards, you may exile ONE OF THEM from your graveyard. — expected Only the cards discarded by that event may be exiled. — scripted move {what:{filter:{}, zone:'graveyard', who:'you', count:1, choose:'you'}} — an EMPTY filter over your whole graveyard, so any card at all (a creature milled last turn, a land) can be exiled and then cast this turn. Materially stronger than the card. — CR 608.2, 109.5 ('them' = the discarded cards)",
+          "Whenever you discard one or more nonland cards, ... — expected one trigger per discard EVENT, however many cards it discarded — scripted event {on:'discard', filter:{notTypes:['Land']}} — game.ts:1947 calls queueTriggers('discard') once per card, so discarding three nonland cards puts three copies of the ability on the stack. — CR 603.2",
+          "Whenever this creature attacks, you may pay {1} and discard a card. If you do, draw a card. — expected Paying {1} AND discarding a card is a single cost: with an empty hand the cost cannot be paid, so no draw. — scripted optional-pay {mana {1}, then:[discard 1, draw 1]} — game.ts:1194 asks only whether you can pay the mana; with an empty hand the discard does nothing and you still draw. Cost turned into a resolution effect (documented in notes, but it changes what is legal). — CR 601.2h, 118.3"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "Whenever this creature attacks, you may pay {1} and discard a card. If you do, draw a card. — expected Paying {1} AND discarding a card is one cost; with an empty hand the cost cannot be paid and you draw nothing. — scripted optional-pay {mana:{1}} then discard 1 then draw 1 as resolution effects. game.ts:1336 `const n = Math.min(amt, pl.hand.length); if (!n) continue;` — with an empty hand you pay {1}, discard nothing, and still draw. Free card the printed card never gives. — CR CR 601.2h, 118.4",
+          "Whenever you discard one or more nonland cards, you may exile ONE OF THEM from your graveyard. — expected The exile is restricted to the cards just discarded by that event. — scripted move {what:{filter:{}, zone:'graveyard', who:'you', count:1, choose:'you'}} to exile — ANY card in your graveyard may be exiled (including a land, or something milled ten turns ago), then play-exiled makes it castable. A substantial broadening. — CR CR 701.9a",
+          "Whenever you discard ONE OR MORE nonland cards — expected One trigger per discard event, however many cards it discarded. — scripted event {on:'discard', filter:{notTypes:['Land']}}; Game.discard (game.ts:1947) calls queueTriggers('discard') once PER CARD, so discarding three nonland cards gives three triggers and three exile/cast permissions. — CR CR 603.2",
+          "If you do, you may cast it this turn. — expected Permission to CAST (a land could not be played this way). — scripted play-exiled {until:'eot'} sets castableFromExile, which permits playing the card (a land included) — a difference only because the exile source above was left unrestricted. — CR CR 601.1, 305.1"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      }
+    ]
+  }
+}

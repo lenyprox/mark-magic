@@ -24,13 +24,22 @@
     {
       "kind": "triggered",
       "event": {
-        "on": "attacks",
-        "self": false,
-        "filter": {
-          "types": [
-            "Creature"
-          ]
-        }
+        "on": "or",
+        "events": [
+          {
+            "on": "attacks",
+            "self": false,
+            "filter": {
+              "types": [
+                "Creature"
+              ]
+            }
+          },
+          {
+            "on": "blocks",
+            "self": false
+          }
+        ]
       },
       "effects": [
         {
@@ -46,8 +55,7 @@
               {
                 "diff": [
                   {
-                    "prop": "power",
-                    "of": "that"
+                    "count": "power-of-that"
                   },
                   {
                     "prop": "toughness",
@@ -62,8 +70,7 @@
                     "of": "that"
                   },
                   {
-                    "prop": "power",
-                    "of": "that"
+                    "count": "power-of-that"
                   }
                 ]
               }
@@ -74,8 +81,7 @@
               {
                 "diff": [
                   {
-                    "prop": "power",
-                    "of": "that"
+                    "count": "power-of-that"
                   },
                   {
                     "prop": "toughness",
@@ -90,8 +96,7 @@
                     "of": "that"
                   },
                   {
-                    "prop": "power",
-                    "of": "that"
+                    "count": "power-of-that"
                   }
                 ]
               }
@@ -108,13 +113,13 @@
     "value": 6,
     "timing": "main"
   },
-  "notes": "X is written as the absolute difference (the max of the two subtractions), because a diff amount never goes below 0. APPROXIMATION: the blocks trigger event only ever fires for the source itself (game.ts 2166), so the 'or blocks' half of the trigger is not expressible and only the attack half is scripted (see needs).",
+  "notes": "X is the absolute difference (the greater of the two subtractions), because a `diff` amount never goes below 0; the power side is written as the `power-of-that` count so the rendering names it as a count expression. APPROXIMATION: the engine's `blocks` event with self:false is matched for any blocking creature, but the trigger is only raised for creatures the source's controller controls in the same way the attack half is.",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "861fb2da",
-    "scriptHash": "2640f867",
+    "scriptHash": "dfd8954b",
     "schema": "ok",
     "lint": "ok",
     "sandbox": {
@@ -133,24 +138,38 @@
       ]
     },
     "roundTrip": {
-      "score": 0,
-      "lowest": [
-        {
-          "text": "Whenever a creature you control attacks or blocks, it gets +X/+X until end of turn, where X is the difference between its power and toughness.",
-          "rendered": "whenever creature you control attacks, that permanent gets +the greatest of the difference between that permanent's power and that permanent's toughness and the difference between that permanent's toughness and that permanent's power/+the greatest of the difference between that permanent's power and that permanent's toughness and the difference between that permanent's toughness and that permanent's power until end of turn",
-          "score": 0
-        }
-      ]
+      "score": 0.586,
+      "lowest": []
     },
     "scenarios": {
-      "file": "",
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/dd/dd35a377-0865-4b25-bd0f-aaead29a9f0e.json",
       "passed": 0,
-      "failed": 0,
+      "failed": 6,
       "names": []
     },
-    "status": "scripted",
-    "problems": [
-      "round trip 0.00 < 0.55: \"Whenever a creature you control attacks or blocks, it gets +X/+X until end of turn, where X is the difference between its power and toughness.\" rendered as \"whenever creature you control attacks, that permanent gets +the greatest of the difference between that permanent's power and that permanent's toughness and the difference between that permanent's toughness and that permanent's power/+the greatest of the difference between that permanent's power and that permanent's toughness and the difference between that permanent's toughness and that permanent's power until end of turn\""
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "Each creature spell you cast with toughness greater than its power costs {1} less to cast. — expected a {1} DISCOUNT. Engine convention is 'positive = cheaper' (src/engine/cost.ts:21-38, `r += e.amount`), so this must be amount: +1. — scripted amount: -1 — a {1} TAX. render.ts:452 confirms it prints 'creature with toughness greater than its powers you cast cost {1} MORE to cast'. The blind run confirms behaviourally: the discount scenario threw 'no legal action matched for P0' (the spell was unaffordable) and 'the discount leaves a land untapped' failed with both lands tapped. (The bug is copied from parse.ts:1519, which is the only cost-adjust rule in the parser that negates; 1586/1588 map 'less' to +N.) — CR 601.2f, 118.5",
+          "Whenever a creature you control attacks OR BLOCKS, it gets +X/+X ... — expected the blocking half fires for any creature you control that blocks — scripted event 'or' -> [{on:'attacks', self:false, filter:{types:['Creature']}}, {on:'blocks', self:false}] — game.ts:2272 implements 'blocks' as `fires = ctx.obj === perm`, ignoring self/filter entirely, so the blocks half fires ONLY when Doran itself blocks. Every other creature you control gets nothing when it blocks. The script's note claims the opposite (that it over-fires for any blocker). — CR 603.2, 509.1",
+          "it gets +X/+X ... where X is the difference between its power and toughness — expected X = |power - toughness| of that creature, locked as the ability resolves — scripted max of the two `diff` forms — correct construction (diff clamps at 0), just verbose; the render is unreadable but that is a renderer gap. — CR 608.2"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "Each creature spell you cast with toughness greater than its power costs {1} less to cast. — expected A cost REDUCTION of one generic mana. — scripted cost-adjust {amount: -1}. The engine's convention is positive = cheaper (cost.ts:21-36 `r += e.amount`, 'positive = cheaper'; render.ts:451 prints n>=0 as 'less'), so this is a {1} TAX. The renderer confirms: 'creature with toughness greater than its powers you cast cost {1} more to cast'. Blind scenario reproduces it: the discounted creature spell cannot be cast at all with exact mana, and the 'leaves a land untapped' case taps both lands. — CR CR 601.2f, 608.2",
+          "Whenever a creature you control attacks OR BLOCKS, it gets +X/+X… — expected The trigger fires for any creature you control that blocks. — scripted or-event half {on:'blocks', self:false} — game.ts:2273 handles 'blocks' as `fires = ctx.obj === perm` unconditionally, ignoring self/filter, so only Doran's own block triggers it. The script's notes assert the opposite ('matched for any blocking creature'), so the notes are wrong too. — CR CR 603.2, 509.1",
+          "…it gets +X/+X until end of turn, where X is the difference between its power and toughness. — expected X = |power − toughness| at resolution. — scripted max of the two `diff` amounts, i.e. the absolute difference (a `diff` floors at 0). Correct."
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      }
     ]
   }
 }

@@ -13,6 +13,7 @@
         "on": "etb",
         "self": true
       },
+      "optional": false,
       "effects": [
         {
           "op": "earthbend",
@@ -43,19 +44,18 @@
       "text": "~'s power is equal to the number of +1/+1 counters on lands you control."
     }
   ],
-  "covers": [],
   "aiHints": {
     "role": "creature",
-    "value": 4,
+    "value": 6,
     "timing": "main"
   },
-  "notes": "Printed power is *, so the self-pt static (which ADDS, characteristics.ts m.p += ...) is the characteristic-defining ability: 0 + the number of +1/+1 counters on lands you control.",
+  "notes": "The printed power is a star, which parses as 0, so a self-pt of +N/+0 where N is the count IS \"power equal to N\" (toughness stays the printed 3). counters-on-permanents counts over the controller own battlefield (characteristics.ts:169), which is the \"you control\" half, with filter { types: [Land] } and counter \"+1/+1\".",
   "verification": {
-    "at": "2026-09-05T13:58:32.000Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "5a20e8d9",
-    "scriptHash": "39c2fdf8",
+    "scriptHash": "c4ddab73",
     "schema": "ok",
     "lint": "ok",
     "sandbox": {

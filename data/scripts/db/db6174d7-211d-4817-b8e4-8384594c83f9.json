@@ -1,0 +1,72 @@
+{
+  "oracleId": "db6174d7-211d-4817-b8e4-8384594c83f9",
+  "name": "Urborg, Tomb of Yawgmoth",
+  "oracleHash": "67ffdb54",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "type-change",
+        "scope": "all",
+        "filter": {
+          "types": [
+            "Land"
+          ]
+        },
+        "subtypes": [
+          "Swamp"
+        ]
+      },
+      "text": "Each land is a Swamp in addition to its other land types."
+    }
+  ],
+  "aiHints": {
+    "role": "land",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "The layers family declines this wording in the PARSER (docs/vocabulary/layers.md limit 2: CR 305.6, a granted basic land type brings no intrinsic mana ability) but the engine applies the layer for a hand-written script, and it is the doc own example. Known divergence: a land that becomes a Swamp this way does not gain \"{T}: Add {B}\", so the card is right for Swamp filters, swampwalk and domain and wrong for mana.",
+  "verification": {
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "67ffdb54",
+    "scriptHash": "c43aba82",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.091,
+      "lowest": [
+        {
+          "text": "Each land is a Swamp in addition to its other land types.",
+          "rendered": "type change",
+          "score": 0.091
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.09 < 0.55: \"Each land is a Swamp in addition to its other land types.\" rendered as \"type change\""
+    ]
+  }
+}

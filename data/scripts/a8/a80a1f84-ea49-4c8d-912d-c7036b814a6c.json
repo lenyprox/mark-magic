@@ -18,32 +18,32 @@
       },
       "effects": [
         {
-          "op": "scoped",
-          "who": "each-player",
-          "do": [
-            {
-              "op": "move",
-              "what": {
-                "filter": {},
-                "zone": "graveyard",
-                "who": "you",
-                "count": 1,
-                "choose": "you"
-              },
-              "to": "exile"
-            }
-          ]
+          "op": "move",
+          "what": {
+            "filter": {},
+            "zone": "graveyard",
+            "who": "each-player",
+            "count": 1,
+            "choose": "owner"
+          },
+          "to": "exile"
         },
         {
-          "op": "counters",
-          "target": {
-            "kind": "attacking-creature"
-          },
-          "counter": "+1/+1",
-          "amount": {
-            "count": "opponents",
-            "plus": 1
-          }
+          "op": "reflexive",
+          "when": "you-do",
+          "effects": [
+            {
+              "op": "counters",
+              "target": {
+                "kind": "attacking-creature"
+              },
+              "counter": "+1/+1",
+              "amount": {
+                "count": "opponents",
+                "plus": 1
+              }
+            }
+          ]
         }
       ],
       "text": "Whenever ~ attacks, each player exiles a card from their graveyard. When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature."
@@ -60,13 +60,13 @@
     "value": 6,
     "timing": "main"
   },
-  "notes": "APPROXIMATION: nothing counts the nonland cards a preceding effect exiled, so 'that many' is written as the number of players (one card per player is exiled, so that is the upper bound); the reflexive 'When one or more nonland cards are exiled this way' is folded into the same resolution rather than a second trigger (see needs).",
+  "notes": "Each player exiles a card from their own graveyard (`move` of a chosen set with who: each-player, choose: owner, one per player in APNAP order), and the \"When one or more nonland cards are exiled this way\" clause is the reflexive trigger that follows it (CR 603.12). APPROXIMATION: nothing counts how many of the exiled cards were nonland, so \"that many\" is written as the number of players (one card per player is exiled, which is the upper bound).",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "43dfa858",
-    "scriptHash": "07d152da",
+    "scriptHash": "6f050331",
     "schema": "ok",
     "lint": "ok",
     "sandbox": {
@@ -81,7 +81,7 @@
       ]
     },
     "roundTrip": {
-      "score": 0.429,
+      "score": 0.5,
       "lowest": []
     },
     "scenarios": {
@@ -92,7 +92,7 @@
     },
     "status": "scripted",
     "problems": [
-      "round trip 0.43 < 0.55: \"Whenever ~ attacks, each player exiles a card from their graveyard. When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature.\" rendered as \"whenever ~ attacks, exile a card from your graveyard. put the number of opponents you have plus 1 +1/+1 counters on target attacking creature\""
+      "round trip 0.50 < 0.55: \"Whenever ~ attacks, each player exiles a card from their graveyard. When one or more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature.\" rendered as \"whenever ~ attacks, exile a card from each player's graveyard. when you do, put the number of opponents you have plus 1 +1/+1 counters on target attacking creature\""
     ]
   }
 }

@@ -69,9 +69,9 @@
   },
   "notes": "The 'Enchant creature you control' line is claimed by the aura static that carries the enchant restriction; the base 9/9 and the keywords are the set-pt static (layer 7b, CR 613.4b), which is why the keyword grant appears on both. APPROXIMATION: 'each other opponent' is written as each-opponent (there is no 'every opponent but that one' target), so the damaged opponent takes the damage twice; and the damage is dealt by the Aura rather than by the enchanted creature.",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:15.358Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "42466a97",
     "scriptHash": "a4c4a091",
     "schema": "ok",

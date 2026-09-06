@@ -46,9 +46,9 @@
   },
   "notes": "Flash is a keyword line; the ETB is a plain `copy-spell` with `newTargets`.",
   "verification": {
-    "at": "2026-09-05T13:58:18.541Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "66b7ec2a",
     "scriptHash": "ed3d3042",
     "schema": "ok",
@@ -74,8 +74,6 @@
       "failed": 2,
       "names": []
     },
-    "status": "verified",
-    "problems": [],
     "judge": [
       {
         "model": "opus/judge1",
@@ -98,6 +96,8 @@
         ],
         "at": "2026-09-05T14:44:44.856Z"
       }
-    ]
+    ],
+    "status": "verified",
+    "problems": []
   }
 }

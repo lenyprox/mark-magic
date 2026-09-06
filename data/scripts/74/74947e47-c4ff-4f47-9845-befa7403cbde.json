@@ -74,9 +74,9 @@
   },
   "notes": "APPROXIMATIONS: (1) no trigger event can restrict WHICH player is attacked, so the token trigger fires on any attack rather than only on an attack against the player with the most life; (2) 'you have the most life or are tied for most life' is written as the intervening condition 'more-life-than-opponent' (more life than AN opponent), the closest condition the vocabulary has; it misses the tie case and, in multiplayer, is looser than 'the most life'. Both need a life-standing condition family (see needs).",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "8bc6827b",
     "scriptHash": "2b0cbf04",
     "schema": "ok",

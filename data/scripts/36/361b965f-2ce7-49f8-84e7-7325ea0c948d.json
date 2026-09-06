@@ -3,7 +3,7 @@
   "name": "Bow of Nylea",
   "oracleHash": "29958a52",
   "source": "llm",
-  "confidence": 0.8,
+  "confidence": 0.85,
   "mode": "replace",
   "abilities": [
     {
@@ -73,15 +73,12 @@
             ],
             [
               {
-                "op": "move",
-                "what": {
-                  "kind": "graveyard-card",
-                  "who": "you",
-                  "count": 4,
-                  "optional": true
-                },
-                "to": "library",
-                "pos": "bottom"
+                "op": "return-from-graveyard",
+                "what": {},
+                "to": "library-bottom",
+                "target": true,
+                "count": 4,
+                "optional": true
               }
             ]
           ]
@@ -95,13 +92,13 @@
     "value": 6,
     "timing": "main"
   },
-  "notes": "The four bullets belong to the 'Choose one -' line and are the four modes of the choose-mode effect.",
+  "notes": "The four bullets belong to the 'Choose one -' line and are the four modes of the choose-mode effect (a bullet is not an oracle line of its own, README 'Claiming lines'). Mode 4 is return-from-graveyard with target: true, count 4, optional - real targets chosen on activation and re-checked on resolution (CR 115.1, 608.2b), which is what 'up to four TARGET cards from your graveyard' means; the previous draft used a resolution-time chooser and a judge rejected it. APPROXIMATION: 'in any order' is not modelled - the cards go to the bottom in the order they were targeted, and the format has no decision for ordering a set of cards put on the bottom of a library.",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:15.358Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "29958a52",
-    "scriptHash": "41c2da07",
+    "scriptHash": "c9901587",
     "schema": "ok",
     "lint": "ok",
     "sandbox": {
@@ -136,20 +133,22 @@
         "model": "opus/judge1",
         "verdict": "faithful",
         "issues": [
-          "Bow of Nylea deals 2 damage to target creature with flying — expected the damaged creature dies to 2 damage — scripted damage 2 with target {kind:'creature', filter:{flying:true}} — the filter key IS supported (characteristics.ts:250) and legal.ts builds the spec, so the blind failure (Wind Drake survived, no 'deals 2 damage' in the log) reads as the harness mode-selection gap, not a wrong effect. Could not fully rule out a mode-dispatch defect",
-          "Put up to four target cards from your graveyard on the bottom of your library in any order — expected 'in any order' — you choose the relative order of the cards placed on the bottom — scripted move with pos:'bottom' — order is whatever the move loop iterates; the ordering choice is not modelled. Targeting and the 'up to four' are correct (graveyard-card TargetSpec with count:4, optional:true) — CR CR 701.x / 400.7 — the player choosing the order is a real choice"
+          "Put up to four target cards from your graveyard on the bottom of your library in any order. — expected The controller orders the up-to-four cards as they go to the bottom of the library. — scripted return-from-graveyard {what:{}, to:'library-bottom', target:true, count:4, optional:true}. game.ts:1465 moveTo(o,'library','bottom') in the order the cards were targeted; there is no ordering decision in the vocabulary. Disclosed APPROXIMATION in notes. Everything else on the line is exact: legal.ts:80 turns target:true into a real graveyard-card spec with who:'you', count 4, optional -> 'up to four target cards from your graveyard', chosen on activation and re-checked on resolution. — CR CR 115.1, 608.2b, 401.4",
+          "{1}{G}, {T}: Choose one — — expected Four modes, one chosen on activation, at instant speed. — scripted choose-mode count 1 with the four modes in printed order; cost {1}{G} + tap; no sorcerySpeed. legal.ts:255 enumerates modeCombos(4,1) so every mode is offerable. The blind harness's failure on modes 2 and 4 is a harness mode-selection limit (it takes the first mode whose targets fit), not a script defect.",
+          "Attacking creatures you control have deathtouch. — expected Static, continuous, applies only while the creature is attacking and only to yours. — scripted anthem 0/0, filter {attacking:true}, scope 'you-control', keywords ['deathtouch'] — correct; the blind attacking/blocking pair both pass. — CR CR 604.3, 702.2b"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       },
       {
         "model": "opus/judge2",
-        "verdict": "unfaithful",
+        "verdict": "faithful",
         "issues": [
-          "• Put up to four target cards from your graveyard on the bottom of your library in any order. — expected up to four TARGET cards, chosen on activation — scripted move what:{kind:'graveyard-card', who:'you', count:4, optional:true} — a resolution-time chooser, not targets. The scenario supplies targets:[['Lightning Bolt','Shock']] which the chooser path never consumes; both cards stayed in the graveyard — CR 115.1, 601.2c",
-          "Blind-result claim: 'Both are the harness mode-selection gap, not a wrong effect' — expected claim should be substantiated — scripted UNSUPPORTED. Mode 0 ({\"answer\":[0]}) and mode 2 ({\"answer\":[2]}, gain 3 life) both PASS, so mode selection demonstrably works; if it always defaulted to mode 0 the life-gain scenario would have failed. Modes 1 and 3 fail for their own reasons — mode 3 is the targeting mismatch above, mode 1 ('deals 2 damage to target creature with flying', target {kind:'creature', filter:{flying:true}}) produced no damage log at all against Wind Drake — CR 700.2",
-          "Attacking creatures you control have deathtouch. — expected static grant to attacking creatures you control — scripted anthem 0/0 with filter {attacking:true}, scope you-control, keywords ['deathtouch'] — correct; matchesFilter honours f.attacking (characteristics.ts:248) and both deathtouch scenarios pass — CR 702.2b"
+          "Put up to four target cards from your graveyard on the bottom of your library in any order. — expected Up to four targeted cards from YOUR graveyard go to the bottom of your library, and their controller orders them. — scripted return-from-graveyard {what:{}, to:'library-bottom', target:true, count:4, optional:true}. legal.ts:80 adds who:'you' when anyGraveyard is absent, so the target pool is your graveyard only; count 4 + optional gives 'up to four'; game.ts:1454 uses the targets picked on activation and re-checks legality (CR 608.2b). The only gap is 'in any order' - the cards go to the bottom in target order, which is not a free choice. Minor, documented. — CR CR 115.1 / 608.2b / 701.20",
+          "Attacking creatures you control have deathtouch. — expected Continuous, dynamic: a creature you control has deathtouch only while it is attacking. — scripted static anthem +0/+0, filter {attacking:true}, scope 'you-control', keywords ['deathtouch']. characteristics.ts:366-373 checks same-controller and matchesFilter (f.attacking, line 262) on every read, so the grant appears when the creature attacks and is gone while it blocks. Correct. — CR CR 613.1c",
+          "{1}{G}, {T}: Choose one - — expected The mode is chosen as the ability is put on the stack, and only that mode's targets are chosen. — scripted choose-mode count 1 with the four bullets as modes. legal.ts:255 enumerates one action per mode (modeCombos k=1) and game.ts:890 expands only the chosen mode's effects, so mode and targets are locked at activation. The blind 2/6 failure is a harness limitation (autoPickMode, game.ts:2338), not a script defect. — CR CR 601.2b / 700.2",
+          "Bow of Nylea deals 2 damage to target creature with flying. / You gain 3 life. / Put a +1/+1 counter on target creature. — expected 2 damage from the Bow to a flying creature; you gain exactly 3 life; one +1/+1 counter on any target creature. — scripted damage 2 to {kind:'creature',filter:{flying:true}} (f.flying, characteristics.ts:264), gain-life 3 who 'you', counters '+1/+1' amount 1 on target creature. All three match, damage source is the Bow. — CR CR 119.3 / 121.1"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       }
     ]
   }

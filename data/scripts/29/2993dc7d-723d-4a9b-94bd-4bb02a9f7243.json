@@ -47,9 +47,9 @@
   },
   "notes": "counter binds the countered ability's source permanent (game.ts objs(T,true) maps a stack ref to it.source), so 'that' is the permanent whose ability was countered. APPROXIMATION: the format's only durations are 'eot' and 'permanent', so the ability loss is written as permanent rather than 'for as long as ~ remains on the battlefield' (CR 611.2b); it also cannot restrict the loss to artifacts/creatures/planeswalkers because lose-abilities takes no filter.",
   "verification": {
-    "at": "2026-09-05T13:58:32.000Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "63e04861",
     "scriptHash": "55d0cbdb",
     "schema": "ok",

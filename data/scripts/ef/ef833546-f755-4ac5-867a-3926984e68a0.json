@@ -70,9 +70,9 @@
   },
   "notes": "The intervening clause 'if that player controls more lands than you' is written as the core condition opponent-more-lands ('an opponent controls more lands than you'); the two are identical in a two-player game and differ only when a THIRD player has the land advantage instead of the one whose land entered. No core condition names the triggering player's own land count.",
   "verification": {
-    "at": "2026-09-05T13:59:38.385Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "22cd287c",
     "scriptHash": "943ca2de",
     "schema": "ok",
@@ -102,29 +102,31 @@
       "failed": 0,
       "names": []
     },
-    "status": "tested",
-    "problems": [],
     "judge": [
       {
         "model": "opus/judge1",
         "verdict": "unfaithful",
         "issues": [
-          "Whenever a land an opponent controls enters, if that player controls more lands than you, you may put a land card from your hand onto the battlefield. — expected The intervening-if is about THAT player (the controller of the land that just entered): the trigger does nothing unless the specific opponent whose land entered controls more lands than you. — scripted intervening: {kind: 'opponent-more-lands'} — src/engine/characteristics.ts:401 returns true if ANY opponent has more lands than you. In a 4-seat game (the sandbox runs seats4) a land entering under player B lets you drop a land whenever player C is ahead, which the card does not do. No condition kind in src/cards/schema.ts CONDITION_VARIANTS expresses 'that player', so the vocabulary cannot currently say this; the script's notes acknowledge the divergence but the clause is still wrong as written. — CR CR 603.4 (intervening-if), CR 109.5 / 603.10 — 'that player' is the player the trigger event was about",
-          "Whenever a land an opponent controls enters, if that player controls more lands than you, ... — expected An intervening-if is checked twice: when the ability would trigger and again as it resolves; if false on resolution the ability does nothing. — scripted src/engine/game.ts:2208 checks ability.intervening only when the trigger is put on the stack and never re-checks on resolution. Engine-side gap, not expressible in the script, but it means the scripted clause is under-enforced. — CR CR 603.4",
-          "...you may put a land card from your hand onto the battlefield. — expected One 'you may' decision, made by the ability's controller on resolution. — scripted Redundant double optionality: ability-level \"optional\": true plus the put-from-hand effect's \"optional\": true. The ability-level flag has no consumer anywhere in src/engine (grep finds no reader of TriggeredAbility.optional), so behaviour is right by accident; the 'you may' is actually carried by put-from-hand's optional → exact:false at src/engine/game.ts:1122. Dead metadata, not a behavioural error."
+          "Whenever a land an opponent controls enters, if THAT PLAYER controls more lands than you, you may put a land card from your hand onto the battlefield. — expected The intervening-if is about the controller of the land that just entered — no other opponent's land count matters. — scripted intervening {kind:'opponent-more-lands'} — characteristics.ts:418 returns true if ANY opponent has more lands than you (`opps.some(...)`). In the 4-seat games the sandbox runs, a land entering under a land-poor opponent still turns the ability on because a third player is ahead. No condition kind expresses 'that player'. — CR 603.4, 109.5",
+          "... if that player controls more lands than you ... — expected an intervening-if is checked twice — on trigger and again on resolution; if false on resolution the ability does nothing — scripted game.ts:2208 evaluates ability.intervening only when the trigger is put on the stack; it is never re-checked as the trigger resolves. Engine gap, but the clause is under-enforced as written. — CR 603.4",
+          "...you may put a land card from your hand onto the battlefield. — expected one 'you may' decision on resolution — scripted ability-level optional:true AND put-from-hand optional:true. Only the effect-level flag is read by the engine (game.ts:1122 area / exact:false); TriggeredAbility.optional has no reader in src/engine — dead, duplicated metadata rather than a behavioural bug. — CR 603.1",
+          "When this artifact enters, search your library for up to two basic Plains cards, reveal them, put them into your hand, then shuffle. — expected up to two (may find fewer/none), reveal, to hand, shuffle — scripted search {basic:true, subtypes:['Plains'], count:2, optional:true, reveal:true, to:'hand'} — correct; optional:true is what makes the choice non-exact. — CR 701.19"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       },
       {
         "model": "opus/judge2",
         "verdict": "unfaithful",
         "issues": [
-          "Whenever a land an opponent controls enters, if that player controls more lands than you, you may put a land card from your hand onto the battlefield. — expected The intervening-if names THAT PLAYER (the controller of the land that entered): the trigger only fires when the player whose land entered controls more lands than you. — scripted intervening: { kind: 'opponent-more-lands' } — src/engine/characteristics.ts:401 evaluates `opps.some(pl => lands(pl) > lands(me))`, i.e. ANY opponent. In a 4-player game with opponent A at 3 lands, you at 5, opponent B at 8: A plays a land and the script fires (B is ahead) whereas the real card does not trigger. The script's own `notes` admits this; the condition vocabulary (src/cards/schema.ts:287, types.ts:330) has no that-player variant, so no correct encoding exists today. — CR 603.4 (intervening-if checked on trigger and again on resolution); 109.5 / 'that player' = the player referred to by the trigger event",
-          "Whenever a land an opponent controls enters, ... you may put a land card from your hand onto the battlefield. — expected one optionality gate ('you may put') — scripted the ability carries `optional: true` AND the put-from-hand effect carries `optional: true`. Ability-level `optional` is never read by the engine (only src/cards/render.ts:716 consumes it — no reader anywhere in src/engine), so it is dead metadata rather than a bug, but it is a redundant/misleading claim. — CR 603.1",
-          "When this artifact enters, search your library for up to two basic Plains cards, reveal them, put them into your hand, then shuffle. — expected up to two, may find fewer; reveal; to hand; shuffle — scripted search count 2, optional true, basic+Plains, to hand, reveal — correct. `exact: !e.optional` (game.ts:1230) lets the player take 0–2, and the shuffle fires unconditionally at game.ts:1239. No issue. — CR 701.19"
+          "Whenever a land an opponent controls enters, if THAT PLAYER controls more lands than you, you may put a land card from your hand onto the battlefield. — expected The intervening-if is about the controller of the land that just entered. — scripted intervening {kind:'opponent-more-lands'} — characteristics.ts evaluates `some opponent has more lands than you`. In a 4-seat game a land entering under a land-poor opponent still enables the trigger whenever any other opponent is ahead. No condition variant expresses 'that player'; the notes disclose it but the clause is still wrong. — CR CR 603.4, 109.5",
+          "Whenever a land an opponent controls enters, if that player controls more lands than you… — expected Intervening-if is checked both on trigger and again on resolution. — scripted The engine checks `ability.intervening` only when queueing the trigger; it is never re-checked on resolution, so the land drop still happens if the condition stops being true. — CR CR 603.4",
+          "…you may put a land card from your hand onto the battlefield. — expected One 'you may' decision on resolution. — scripted Ability-level `optional:true` PLUS put-from-hand `optional:true`. Ability-level `optional` has no reader in src/engine (only render.ts consumes it), so behaviour is right by accident — dead/misleading metadata rather than a behavioural bug. — CR CR 603.1",
+          "When this artifact enters, search your library for up to two basic Plains cards, reveal them, put them into your hand, then shuffle. — expected Up to two (may find fewer or none), revealed, to hand, then shuffle. — scripted search {count:2, optional:true, basic:true, subtypes:['Plains'], reveal:true, to:'hand'} — game.ts:1277 uses `exact: !e.optional`, so 0-2 is allowed, and the shuffle is unconditional. Correct. — CR CR 701.19"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       }
-    ]
+    ],
+    "status": "tested",
+    "problems": []
   }
 }

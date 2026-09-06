@@ -12,6 +12,7 @@
       "cost": {
         "tap": true
       },
+      "manaAbility": true,
       "effects": [
         {
           "op": "add-mana",
@@ -20,8 +21,7 @@
           ]
         }
       ],
-      "text": "{T}: Add {C}.",
-      "manaAbility": true
+      "text": "{T}: Add {C}."
     },
     {
       "kind": "activated",
@@ -29,6 +29,7 @@
         "tap": true,
         "payLife": 1
       },
+      "manaAbility": true,
       "effects": [
         {
           "op": "add-mana",
@@ -37,8 +38,7 @@
           "restriction": "instant-sorcery"
         }
       ],
-      "text": "{T}, Pay 1 life: Add one mana of any color. Spend this mana only to cast an instant or sorcery spell.",
-      "manaAbility": true
+      "text": "{T}, Pay 1 life: Add one mana of any color. Spend this mana only to cast an instant or sorcery spell."
     },
     {
       "kind": "activated",
@@ -54,63 +54,70 @@
       },
       "effects": [
         {
-          "op": "animate",
-          "target": "self",
-          "power": 2,
-          "toughness": 4,
-          "colors": [],
-          "types": [
-            "Creature"
-          ],
-          "subtypes": [
-            "Wizard"
-          ],
-          "keywords": [],
-          "duration": "permanent"
-        },
-        {
-          "op": "gain-ability",
-          "ability": {
-            "kind": "triggered",
-            "event": {
-              "on": "cast",
-              "who": "you",
-              "filter": {
-                "types": [
-                  "Instant",
-                  "Sorcery"
-                ]
-              }
+          "op": "conditional",
+          "condition": {
+            "kind": "self-is-type",
+            "type": "Creature"
+          },
+          "then": [],
+          "else": [
+            {
+              "op": "become",
+              "target": "self",
+              "types": [
+                "Creature"
+              ],
+              "subtypes": [
+                "Wizard"
+              ],
+              "power": 2,
+              "toughness": 4,
+              "duration": "permanent"
             },
-            "effects": [
-              {
-                "op": "pump",
-                "target": "self",
-                "power": 1,
-                "toughness": 0,
-                "duration": "eot"
+            {
+              "op": "gain-ability",
+              "ability": {
+                "kind": "triggered",
+                "event": {
+                  "on": "cast",
+                  "who": "you",
+                  "filter": {
+                    "types": [
+                      "Instant",
+                      "Sorcery"
+                    ]
+                  }
+                },
+                "effects": [
+                  {
+                    "op": "pump",
+                    "target": "self",
+                    "power": 1,
+                    "toughness": 0,
+                    "duration": "eot"
+                  }
+                ],
+                "text": "Whenever you cast an instant or sorcery spell, ~ gets +1/+0 until end of turn."
               }
-            ],
-            "text": "Whenever you cast an instant or sorcery spell, ~ gets +1/+0 until end of turn."
-          }
+            }
+          ]
         }
       ],
       "text": "{5}: If ~ isn't a creature, it becomes a 2/4 Wizard creature with \"Whenever you cast an instant or sorcery spell, ~ gets +1/+0 until end of turn.\" It's still a land."
     }
   ],
-  "covers": [],
   "aiHints": {
     "role": "land",
-    "value": 2,
+    "value": 4,
     "timing": "main"
   },
-  "notes": "animate unions the Creature type and the Wizard subtype onto the printed Land ('It's still a land') and gain-ability grants the quoted trigger to the source itself (game.ts pushes onto src.grantedAbilities). The 'If ~ isn't a creature' guard is not written: the format has no negated condition, and re-activating is idempotent here (animate rewrites the same o.animated values and does not clear the until-end-of-turn pump).",
+  "notes": "\"If ~ is not a creature\" has no negated condition in the vocabulary, so it is a conditional on self-is-type Creature with an EMPTY then and the whole effect in else - the shape parse.ts itself uses for \"sacrifice it unless it escaped\" (parse.ts:481). That keeps the guard real: a second activation while it is already a creature does nothing, so the granted trigger is never stacked twice. become adds Creature to the land types (CR 205.1b), so \"It is still a land\" needs nothing extra, and gain-ability puts the quoted trigger on the source itself.",
   "verification": {
-    "at": "2026-09-05T13:58:32.000Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "b0304eb0",
-    "scriptHash": "850d2a9e",
+    "scriptHash": "426db280",
     "schema": "ok",
     "lint": "ok",
     "sandbox": {

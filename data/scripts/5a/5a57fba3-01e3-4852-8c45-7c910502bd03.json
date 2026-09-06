@@ -113,9 +113,9 @@
   },
   "notes": "The 'Equip {3}' line has no covers kind and no declaration that claims it, so it is written as the activated ability the keyword means (attach to a creature you control, sorcery speed). The renderer has no rules text for 'equip' in KEYWORD_EXPANSIONS, so that line scores 0 as a renderer gap; the equip cost is also carried by the equipment static's equipCost. The Germ token is declared with subtypes ['Phyrexian'] only: lint rejects 'Germ' as \"not a subtype the pool prints\" even though parse.ts's own living-weapon expansion emits it, so the token carries name 'Germ' instead.",
   "verification": {
-    "at": "2026-09-05T13:59:38.385Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "93f74322",
     "scriptHash": "dc48500a",
     "schema": "ok",
@@ -146,24 +146,39 @@
       ]
     },
     "roundTrip": {
-      "score": 0,
-      "lowest": [
-        {
-          "text": "Equip {3}",
-          "rendered": "{3}: attach ~ to target creature you control. activate only as a sorcery",
-          "score": 0
-        }
-      ]
+      "score": 0.667,
+      "lowest": []
     },
     "scenarios": {
-      "file": "",
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/5a/5a57fba3-01e3-4852-8c45-7c910502bd03.json",
       "passed": 0,
-      "failed": 0,
+      "failed": 3,
       "names": []
     },
-    "status": "scripted",
-    "problems": [
-      "round trip 0.00 < 0.55: \"Equip {3}\" rendered as \"{3}: attach ~ to target creature you control. activate only as a sorcery\""
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "Living weapon (… create a 0/0 black Phyrexian GERM creature token …) — expected The token's creature types are Phyrexian AND Germ. — scripted token subtypes:['Phyrexian'] only, name 'Germ'. The parser's own living-weapon expansion (parse.ts:1891) emits subtypes:['Phyrexian','Germ']; the script dropped 'Germ' because lint rejects it as a subtype (notes admit this). Anything that cares about Germs (or 'Phyrexian Germ' text) misses it, and the printed keyword line therefore isn't fully expressed. — CR 702.104a, 205.3m",
+          "BLIND-SCENARIO DIAGNOSIS (not a script defect) — expected 'Living weapon makes a Germ token and attaches the Equipment to it' should pass — scripted The failure is a harness artifact, not broken living weapon: a token's GameObject.def is its CREATOR's def (game.ts:1377 `makeObject(..., src.def, ...)`), while scenarioDsl.ts findByName (line ~416) and the attachedTo assertion (line 637) both look up `o.def.name`. So the Germ resolves as 'Bitterthorn, Nissa's Animus' and `{pt:['Germ',1,1]}` reports 'no object named Germ'. attach-to-that itself works: item.affected is set by the token op (game.ts:1384) and SBAs only run after the whole resolution (game.ts:995), so the 0/0 is attached (and 1/1) before it could die. Recommend fixing the scenario/harness, not the script. — CR 111.4",
+          "Equip {3} / Equipped creature gets +1/+1 / Whenever equipped creature attacks… — expected three clauses — scripted equipment static (+1/+1, equipCost {3}), attacks trigger with filter {attachedToSource:true}, and a sorcery-speed attach-self activated ability — all correct; the equip cost is stated twice (static equipCost plus the activated ability), which is duplication but not a behavioural error. — CR 702.6b"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "Living weapon (…create a 0/0 black Phyrexian Germ creature token…) — expected The token's creature types are Phyrexian Germ. — scripted token subtypes ['Phyrexian'] only, with name 'Germ' — the token is NOT a Germ for any Germ-matters effect or type check. parse.ts:1891's own living-weapon expansion emits ['Phyrexian','Germ']; the script dropped the subtype to satisfy lint (notes admit this). — CR CR 205.3m, 702.104a",
+          "Equip {3} — expected One equip ability. — scripted The equipment static already carries equipCost {3} and the engine synthesizes the equip activation from it (legal.ts:266-268, abilityIndex -3; game.ts:812). The script ALSO declares a separate activated ability {3}: attach-self, so the card offers two distinct equip actions — a duplicated ability that also doubles any 'whenever you activate an ability' counting. — CR CR 702.6b",
+          "Living weapon … attach this to it — expected The Equipment attaches to the token it just created. — scripted token then attach-to-that (game.ts:1313 reads item.affected[0]) — this WORKS. The blind-scenario failure ('attached to Bitterthorn', 'no object named Germ') is a harness artifact: tokens are made with makeObject(src.def,…), so the token's def.name is the Equipment's name and scenarioDsl.findByName (scenarioDsl.ts:416-419) matches on def.name. zoneCount 5 passed, i.e. the Germ exists and the attach happened. Not a script defect. — CR CR 702.104a",
+          "Whenever equipped creature attacks, you may search your library for a basic land card… — expected Only the creature this Equipment is attached to. — scripted event {on:'attacks', self:false, filter:{attachedToSource:true}} — characteristics.ts:254 enforces `source.attachedTo === o.id`. Correct (the renderer's 'a creature you control' is render lossiness)."
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      }
     ]
   }
 }

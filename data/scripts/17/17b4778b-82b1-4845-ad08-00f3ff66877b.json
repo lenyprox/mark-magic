@@ -1,0 +1,101 @@
+{
+  "oracleId": "17b4778b-82b1-4845-ad08-00f3ff66877b",
+  "name": "Perpetual Timepiece",
+  "oracleHash": "c491e398",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "mill",
+          "amount": 2,
+          "who": "you"
+        }
+      ],
+      "text": "{T}: Mill two cards."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}"
+        },
+        "exileSelf": true
+      },
+      "effects": [
+        {
+          "op": "shuffle-into-library",
+          "target": {
+            "kind": "graveyard-card",
+            "who": "you",
+            "count": 99,
+            "optional": true
+          }
+        }
+      ],
+      "text": "{2}, Exile ~: Shuffle any number of target cards from your graveyard into your library."
+    }
+  ],
+  "aiHints": {
+    "role": "recursion",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "\"Any number of target cards\" is the spec's count 99 with optional (the composition core's idiom for \"any number of target\"). The exile-this-artifact cost is the cost-alter family's exileSelf part.",
+  "verification": {
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "c491e398",
+    "scriptHash": "5ab26001",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.318,
+      "lowest": [
+        {
+          "text": "{2}, Exile ~: Shuffle any number of target cards from your graveyard into your library.",
+          "rendered": "{2}, exileSelf: shuffle up to 99 target card in a graveyards into its owner's library",
+          "score": 0.318
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.32 < 0.55: \"{2}, Exile ~: Shuffle any number of target cards from your graveyard into your library.\" rendered as \"{2}, exileSelf: shuffle up to 99 target card in a graveyards into its owner's library\""
+    ]
+  }
+}

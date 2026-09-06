@@ -3,7 +3,7 @@
   "name": "Essence Flux",
   "oracleHash": "d7b17fc7",
   "source": "llm",
-  "confidence": 0.7,
+  "confidence": 0.6,
   "mode": "replace",
   "abilities": [
     {
@@ -22,10 +22,25 @@
           "underControlOf": "owner"
         },
         {
-          "op": "counters",
-          "target": "that",
-          "counter": "+1/+1",
-          "amount": 1
+          "op": "conditional",
+          "condition": {
+            "kind": "controls",
+            "who": "you",
+            "filter": {
+              "subtypes": [
+                "Spirit"
+              ]
+            },
+            "atLeast": 1
+          },
+          "then": [
+            {
+              "op": "counters",
+              "target": "that",
+              "counter": "+1/+1",
+              "amount": 1
+            }
+          ]
         }
       ],
       "text": "Exile target creature you control, then return that card to the battlefield under its owner's control. If it's a Spirit, put a +1/+1 counter on it."
@@ -36,13 +51,13 @@
     "value": 4,
     "timing": "instant"
   },
-  "notes": "APPROXIMATION: no condition asks whether the returned card is a Spirit, so the +1/+1 counter is put on the returned creature whatever its subtypes (see needs).",
+  "notes": "APPROXIMATION, and the closest this vocabulary reaches: no condition asks whether a BOUND OBJECT ('that', the card just returned) has a subtype - the core conditions are about the source, the board or a player - so 'If it's a Spirit' is written as 'if you control a Spirit', evaluated after the return. It is exact whenever you control no other Spirit (the blinked Spirit is on the battlefield by then, and a blinked non-Spirit gets no counter unless another Spirit of yours is out); it over-counts only when you already control a Spirit and blink something else. The unconditional counter the previous draft put on every returned creature was rejected by both judges. See needs: a Ref-scoped condition { kind: 'ref-is', ref: Ref, filter: Filter } would make this exact (CR 608.2a).",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:15.358Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "d7b17fc7",
-    "scriptHash": "0bf84b99",
+    "scriptHash": "8980af16",
     "schema": "ok",
     "lint": "ok",
     "sandbox": {
@@ -57,34 +72,36 @@
       ]
     },
     "roundTrip": {
-      "score": 0.818,
+      "score": 0.909,
       "lowest": []
     },
     "scenarios": {
       "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/64/64824ae5-efab-4b55-9d3c-b9c690bad857.json",
-      "passed": 0,
-      "failed": 3,
+      "passed": 4,
+      "failed": 0,
       "names": []
     },
-    "status": "verified",
+    "status": "tested",
     "problems": [],
     "judge": [
       {
         "model": "opus/judge1",
         "verdict": "unfaithful",
         "issues": [
-          "If it's a Spirit, put a +1/+1 counter on it. — expected the +1/+1 counter goes on only if the returned permanent is a Spirit — scripted unconditional counters op on 'that' (script notes admit this). Blind scenarios confirm two failures: Grizzly Bears gained a +1/+1 counter (P/T 3/3 instead of 2/2) and Wall of Omens gained one — CR CR 608.2a — the 'if' clause is checked on resolution and gates the dependent effect"
+          "If it's a Spirit, put a +1/+1 counter on it. — expected The condition asks whether the RETURNED object (the new object created by the return, CR 400.7/608.2a) is a Spirit. Blink a non-Spirit -> no counter, always. — scripted conditional {kind:'controls', who:'you', filter:{subtypes:['Spirit']}, atLeast:1} then counters on 'that'. This is a different question: it is true whenever you control ANY Spirit. Blinking a non-Spirit while you control a Spirit token (the card's own deck archetype) puts a +1/+1 counter on the non-Spirit — a false positive that is easy to reach, not a corner case. No false negatives. — CR CR 400.7, 608.2a",
+          "Exile target creature you control, then return that card to the battlefield under its owner's control. — expected If the targeted creature is owned by an opponent (you control it via a control-change effect), it returns under the OPPONENT's control, and 'if it's a Spirit' still applies to it. — scripted return-to-battlefield target 'that' underControlOf 'owner' is correct for the return. The Spirit clause then misfires the other way in this case: the script asks whether YOU control a Spirit, so an opponent-owned Spirit returned under their control gets no counter unless you happen to control a Spirit of your own. — CR CR 110.2a",
+          "(process) notes cite a vocabulary need but none is filed — expected An approximation this consequential should carry an openNeeds entry (the notes themselves propose { kind:'ref-is', ref, filter }). — scripted batch card openNeeds is []; needs.json is a generated report and contains no entry for 64824ae5. I confirmed the schema (src/cards/schema-core.ts:487-548) has no ref-scoped condition, so the approximation really is the closest reachable today — but it is untracked."
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       },
       {
         "model": "opus/judge2",
         "verdict": "unfaithful",
         "issues": [
-          "If it's a Spirit, put a +1/+1 counter on it. — expected the +1/+1 counter is placed only when the returned permanent is a Spirit — scripted unconditional counters op on 'that' (self-disclosed approximation). Blind scenarios confirm: Grizzly Bears returned as a 3/3 with a +1/+1 counter, Wall of Omens likewise — CR 608.2a",
-          "Exile target creature you control, then return that card to the battlefield under its owner's control — expected exile and return; the returned object is new (counters, auras, damage gone), enters under OWNER's control — scripted exile target {kind:'creature', controller:'you'} then return-to-battlefield target:'that' underControlOf:'owner' — correct, and the blink/ETB-retrigger half works in the scenarios; only the Spirit condition is broken — CR 400.7, 111.7"
+          "If it's a Spirit, put a +1/+1 counter on it. — expected The counter is put on the returned permanent only if THAT permanent is a Spirit (CR 608.2a, an intervening test on the object itself). — scripted conditional {kind:'controls', who:'you', filter:{subtypes:['Spirit']}, atLeast:1} then counters on 'that'. characteristics.ts:429 tests your whole battlefield, so blinking a NON-Spirit while you control any other Spirit wrongly gives the blinked creature a +1/+1 counter - a common line in the Spirit deck this card is printed for. No scenario covers it (all four blind scenarios have a single relevant creature). The gap is real: no core condition tests a bound Ref's characteristics, and counters' own `filter` is only honoured for target 'creatures-you-control' (game.ts:1390), so it cannot rescue target 'that'. — CR CR 608.2a / 400.7",
+          "Exile target creature you control, then return that card to the battlefield under its owner's control. — expected Blink your own creature; it returns as a new object under its owner's control, counters and attachments gone. — scripted exile {kind:'creature', controller:'you'} then return-to-battlefield {target:'that', underControlOf:'owner'} (game.ts:1292 takes item.affected still in exile and enters it under o.owner). Correct. — CR CR 400.7 / 110.5"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       }
     ]
   }

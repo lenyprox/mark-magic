@@ -3,52 +3,52 @@
   "name": "Kozilek's Command",
   "scenarios": [
     {
-      "name": "Kozilek's Command's first mode creates X Eldrazi Spawn tokens for the targeted player",
+      "name": "The first mode makes the targeted player create X Eldrazi Spawn tokens",
       "cr": "111.1",
-      "ruling": "Choosing the first mode with X=2 makes the targeted player create two 0/1 colorless Eldrazi Spawn creature tokens.",
+      "ruling": "The tokens are created by the player that mode targets, so with X=2 the opponent gets two 0/1 colorless Eldrazi Spawn even though you cast the spell.",
       "seats": [
         { "bf": ["Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Kozilek's Command"] },
         {}
       ],
       "script": [
-        { "cast": "Kozilek's Command", "x": 2, "modes": [0, 1], "targets": [["P0"], ["P0"]] },
+        { "cast": "Kozilek's Command", "x": 2, "modes": [0, 1], "targets": [["P1"], ["P0"]] },
         { "resolve": true }
       ],
       "expect": [
         { "events": { "type": "create-token", "min": 1 } },
-        { "zoneCount": [0, "battlefield", 6] },
-        { "zoneCount": [1, "battlefield", 0] },
-        { "handCount": [0, 1] },
+        { "zoneCount": [1, "battlefield", 2] },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "pt": ["Eldrazi Spawn", 0, 1] },
+        { "control": ["Eldrazi Spawn", 1] },
         { "zone": ["Kozilek's Command", "graveyard"] },
-        { "stack": 0 },
         { "unsimulated": 0 }
       ]
     },
     {
-      "name": "Kozilek's Command's second mode scries X and then draws a card",
-      "cr": "121.1",
-      "ruling": "The second mode makes the targeted player scry X and then draw one card, whatever X is; the first mode's tokens go to the other targeted player.",
+      "name": "The second mode makes the targeted player scry X and then draw a card",
+      "cr": "701.17a",
+      "ruling": "The scry and the draw both belong to the player that mode targets, so the opponent's hand grows by one and their library shrinks by one while yours does not.",
       "seats": [
-        { "bf": ["Wastes", "Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Kozilek's Command"] },
+        { "bf": ["Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Kozilek's Command"] },
         {}
       ],
       "script": [
-        { "cast": "Kozilek's Command", "x": 3, "modes": [0, 1], "targets": [["P1"], ["P0"]] },
+        { "cast": "Kozilek's Command", "x": 2, "modes": [0, 1], "targets": [["P0"], ["P1"]] },
         { "resolve": true }
       ],
       "expect": [
-        { "handCount": [0, 1] },
-        { "libraryCount": [0, 19] },
-        { "zoneCount": [1, "battlefield", 3] },
-        { "handCount": [1, 0] },
-        { "zone": ["Kozilek's Command", "graveyard"] },
+        { "handCount": [1, 1] },
+        { "libraryCount": [1, 19] },
+        { "handCount": [0, 0] },
+        { "libraryCount": [0, 20] },
+        { "zoneCount": [0, "battlefield", 6] },
         { "unsimulated": 0 }
       ]
     },
     {
-      "name": "Kozilek's Command's third mode exiles a creature with mana value X or less",
-      "cr": "202.3",
-      "ruling": "Grizzly Bears has mana value 2, so it is a legal target for the third mode with X=2, and it is exiled rather than destroyed.",
+      "name": "The third mode exiles a creature with mana value X or less",
+      "cr": "202.3b",
+      "ruling": "Grizzly Bears has mana value 2, so with X=2 it is a legal target; it is exiled rather than destroyed, so nothing reaches the graveyard.",
       "seats": [
         { "bf": ["Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Kozilek's Command"] },
         { "bf": ["Grizzly Bears"] }
@@ -67,9 +67,9 @@
       ]
     },
     {
-      "name": "Kozilek's Command's fourth mode exiles up to X cards from graveyards",
-      "cr": "701.19a",
-      "ruling": "The fourth mode exiles up to X target cards from any graveyards; with X=2 both targeted cards leave the opponent's graveyard for exile.",
+      "name": "The fourth mode exiles up to X target cards from graveyards",
+      "cr": "406.2",
+      "ruling": "The fourth mode reaches any graveyard, so with X=2 both targeted cards leave the opponent's graveyard for exile.",
       "seats": [
         { "bf": ["Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Kozilek's Command"] },
         { "graveyard": ["Hill Giant", "Lightning Bolt"] }
@@ -87,9 +87,9 @@
       ]
     },
     {
-      "name": "An Eldrazi Spawn token made by Kozilek's Command sacrifices itself for one colorless mana",
+      "name": "An Eldrazi Spawn token sacrifices itself for one colorless mana",
       "cr": "605.1a",
-      "ruling": "The token has the mana ability \"Sacrifice this token: Add {C}\", which does not use the stack and leaves {C} in the pool.",
+      "ruling": "The token has the mana ability \"Sacrifice this token: Add {C}\", which does not use the stack; the token leaves the battlefield and {C} stays in the pool.",
       "seats": [
         { "bf": ["Wastes", "Wastes", "Wastes"], "hand": ["Kozilek's Command"] },
         {}

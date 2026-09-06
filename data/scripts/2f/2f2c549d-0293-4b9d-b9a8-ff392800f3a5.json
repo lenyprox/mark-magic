@@ -3,7 +3,7 @@
   "name": "Kozilek's Command",
   "oracleHash": "1d376512",
   "source": "llm",
-  "confidence": 0.75,
+  "confidence": 0.7,
   "mode": "replace",
   "keywords": [],
   "abilities": [
@@ -37,6 +37,7 @@
                       "Spawn"
                     ],
                     "keywords": [],
+                    "name": "Eldrazi Spawn",
                     "spawn": true
                   }
                 ]
@@ -93,13 +94,13 @@
     "value": 4,
     "timing": "instant"
   },
-  "notes": "The ability's text is the 'Choose two' line alone: a modal bullet is not a line of its own (README, Claiming lines), and naming all four bullets would put the ability over its budget - a choose-mode counts once per substantive mode, so four modes cannot pay for five named lines. The Spawn token's 'Sacrifice this token: Add {C}.' is the token op's spawn flag. lint bug workaround: the token's count is written as {sum:['X']} and the graveyard-card target carries an empty filter, because src/cards/lint.ts rejects a literal Amount / TargetSpec count of 'X' as an 'unknown amount count' unless a sibling `filter` is present.",
+  "notes": "The ability's text is the 'Choose two' line alone: a modal bullet is not a line of its own (README, Claiming lines), and naming all four bullets would put the ability over its budget - a choose-mode counts once per substantive mode, so four modes cannot pay for five named lines. The Spawn token's 'Sacrifice this token: Add {C}.' is the token op's spawn flag; name 'Eldrazi Spawn' is the printed token name (CR 111.4). ENGINE DEFECT, reported rather than worked around: mode 3's filter mvLE: 'X' is the card's X, but characteristics.ts:260 evaluates a non-numeric mvLE with the item's X hard-coded to 0, so the mode is currently offered only against mana-value-0 creatures. Writing a number there would be a different card, so the correct amount stays. Lint workaround: the token's count is written as {sum:['X']} and the graveyard-card target carries an empty filter, because src/cards/lint.ts rejects a literal count of 'X' as an 'unknown amount count' unless a sibling filter is present.",
   "verification": {
-    "at": "2026-09-05T14:14:25.564Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:15.358Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "1d376512",
-    "scriptHash": "48f42c8a",
+    "scriptHash": "2747a96b",
     "schema": "ok",
     "lint": "ok",
     "sandbox": {
@@ -128,25 +129,27 @@
     "judge": [
       {
         "model": "opus/judge1",
-        "verdict": "unfaithful",
+        "verdict": "faithful",
         "issues": [
-          "• Exile target creature with mana value X or less. — expected With X=2 paid, any creature of mana value 2 or less is a legal target and the mode is offerable. — scripted {op:'exile', target:{kind:'creature', filter:{mvLE:'X'}}}. src/engine/characteristics.ts:260 evaluates a non-numeric mvLE via evalAmount(s, f.mvLE, ctrl, 0, source) — the x argument is HARDCODED 0, so 'X' always evaluates to 0 and the filter means 'mana value 0 or less'. The blind scenario confirms it: with x:2 against an mv-2 creature the engine offered only mode combos 1+2, 1+4, 2+4 — mode 3 is never legal against any creature with mv>=1. The mode is effectively dead text. — CR CR 601.2b (X is locked in as the value chosen while casting) / CR 115.1",
-          "• Target player creates X 0/1 colorless Eldrazi Spawn creature tokens with \"Sacrifice this token: Add {C}.\" — expected Tokens named \"Eldrazi Spawn\". — scripted The token op carries no `name`, so game.ts:1332 derives the name as `${subtypes.join(' ')} token` = \"Eldrazi Spawn token\". Cosmetic in the engine (render.ts:594 prints 'Eldrazi Spawn' off the spawn flag), but the token object is built from src.def, so its def.name is \"Kozilek's Command\" — the scenario harness's findByName (scenarioDsl.ts:418) searches def.name and cannot see an 'Eldrazi Spawn'. Adding name:'Eldrazi Spawn' fixes the printed name; the def.name collision is a harness limitation, not a script defect. — CR CR 111.4",
-          "Choose two — / all four bullets — expected Each printed bullet accounted for by a claimed line or an explicit `covers`/`ignore` entry. — scripted The single ability's `text` is \"Choose two —\" alone and the script has no `covers` block; the four mode bullets are unclaimed. The notes argue a budget rule permits this, but as written nothing in the script file claims the bullet text, so the modes' correctness (including the dead mode 3) is invisible to line-level checking. — CR CR 700.2",
-          "• Exile up to X target cards from graveyards. — expected Up to X cards, chosen from ANY player's graveyard. — scripted target {kind:'graveyard-card', count:'X', optional:true, filter:{}} with no `who` — legal.ts:153 then scans every player's graveyard, and `optional` gives 'up to'. This clause is correct; recorded only to note that the empty `filter` is a lint workaround, not a semantic restriction."
+          "• Exile target creature with mana value X or less. — expected Exiles any creature whose mana value is <= the X paid for this spell. — scripted exile target {kind:'creature', filter:{mvLE:'X'}} — the correct expression, but characteristics.ts:274 evaluates a non-numeric mvLE as evalAmount(s, f.mvLE, ctrl, 0, source) with the x argument hard-coded to 0, so in play the mode is only offered against mana-value-0 creatures. CONFIRMED ENGINE DEFECT (the blind run reproduces it: mv-2 creature with X=2 not castable). No script-side spelling avoids it — every X form routes through the same x=0 call — so I do not count it against the script, but the card is functionally broken until the engine is fixed and no openNeeds entry records it ([] in the batch). — CR CR 202.3b, 601.2c",
+          "• Target player creates X 0/1 colorless Eldrazi Spawn creature tokens with \"Sacrifice this token: Add {C}.\" — expected The TARGET PLAYER creates them; 0/1, colorless, Creature — Eldrazi Spawn, with the sacrifice-for-{C} ability. — scripted scoped who:'target-player' around token {count:{sum:['X']}, 0/1, colors:[], types:['Creature'], subtypes:['Eldrazi','Spawn'], name:'Eldrazi Spawn', spawn:true}. Correct: game.ts:1648 sets item.actor and game.ts:1062 reads p = item.actor ?? item.controller, so the tokens are the target player's; the spawn flag is the built-in mana ability (ops/_tokens.ts Spawn). The blind naming failure is the harness's findByName reading def.name, not the script. — CR CR 111.4",
+          "• Target player scries X, then draws a card. — expected The same target player scries X and draws. — scripted scoped who:'target-player' [scry X, draw 1 who:'you'] — 'you' inside a scoped block resolves to item.actor, i.e. the target player, so the draw does not leak to the caster. Correct.",
+          "• Exile up to X target cards from graveyards. — expected Any player's graveyard, up to X targets. — scripted exile target {kind:'graveyard-card', count:'X', optional:true, filter:{}}; legal.ts:153 scans every player's graveyard when the spec has no `who`, and specCount (legal.ts:58) resolves 'X' to the item's X. Correct.",
+          "Choose two — — expected Two DIFFERENT modes, applied in printed order. — scripted choose-mode count 2; modeCombos (legal.ts:417) emits only i<j pairs and game.ts:890 expands them ascending. Correct. — CR CR 601.2b, 700.2c"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       },
       {
         "model": "opus/judge2",
         "verdict": "unfaithful",
         "issues": [
-          "• Exile target creature with mana value X or less. — expected a creature whose mana value is <= the X paid for the spell is a legal target (X=2 -> mana value 2 legal) — scripted exile target {kind:'creature', filter:{mvLE:'X'}} — src/engine/characteristics.ts:260 evaluates a filter's mvLE with evalAmount(..., 0, ...): the item's X is hard-coded to 0, so the filter is 'mana value 0 or less'. Blind scenario 3 confirms: with x:2 and a mana-value-2 Grizzly Bears on the battlefield the mode is never offered ('no legal action matched'; only mode pairs 1+2, 1+4, 2+4 exist). Mode 3 is effectively unplayable. — CR 115.1 / 202.3",
-          "• Target player creates X 0/1 colorless Eldrazi Spawn creature tokens with \"Sacrifice this token: Add {C}.\" — expected the created objects are named 'Eldrazi Spawn' — scripted token op omits `name`, so token.name defaults to 'Eldrazi Spawn token' and the object's def stays the source card, so def.name is \"Kozilek's Command\". Scenarios 1 and 5 fail on that name ('Eldrazi Spawn not found'). Behaviourally the spawn mana ability and 0/1 colorless body are right (mana.ts:32, game.ts:1332), so this is a naming/harness-level defect, not a rules error; an explicit `name: \"Eldrazi Spawn\"` would remove it. — CR 111.4",
-          "• Target player scries X, then draws a card. — expected target player scries X and that same player draws — scripted correct — scoped who:'target-player' rebinds item.actor, and both scry and draw who:'you' resolve to the scoped player (game.ts:1017, 1575); scenario 2 passes — CR 121.1",
-          "• Exile up to X target cards from graveyards. — expected up to X target cards in ANY graveyard — scripted correct — graveyard-card spec with no `who` scans every player's graveyard (legal.ts:153, types.ts:41), count 'X' via specCount, optional true; scenario 4 passes — CR 701.19a"
+          "Exile target creature with mana value X or less. — expected With X=2 on the stack, any creature of mana value 2 or less is a legal target. — scripted exile target {kind:'creature', filter:{mvLE:'X'}}. characteristics.ts:274 resolves a non-numeric mvLE through evalAmount(..., x=0, ...) (line 150-152: 'X' returns the x argument, hard-coded 0 here), so the filter always reads 'mana value 0 or less'. The mode is offered only against mv-0 creatures and cannot be cast at a Grizzly Bears with X=2 - the blind scenario confirms. The fault is engine-side, but the card as scripted does not play correctly. — CR CR 202.3b / 601.2c",
+          "Target player creates X 0/1 colorless Eldrazi Spawn creature tokens with \"Sacrifice this token: Add {C}.\" — expected The targeted player creates the tokens; each is 0/1, colorless, Eldrazi Spawn, with the sac-for-{C} mana ability. — scripted scoped who 'target-player' around token {count:{sum:['X']}, 0/1, colors:[], subtypes:['Eldrazi','Spawn'], name:'Eldrazi Spawn', spawn:true}. scoped rebinds item.actor (game.ts:1648) and the token op uses p = actor (game.ts:1062,1377), so the target player gets them; mana.ts:32 gives a spawn token the ['C'] option and game.ts:914 sacrifices it. Correct. — CR CR 111.4 / 605.1a",
+          "Target player scries X, then draws a card. — expected Both the scry and the draw belong to the targeted player, not the caster. — scripted scoped who 'target-player' do [scry X, draw 1 who 'you']. Inside the scope 'you' resolves to item.actor, so the targeted player scries and draws. Correct despite the who:'you' spelling. — CR CR 701.17a",
+          "Exile up to X target cards from graveyards. — expected Up to X targets, drawn from ANY player's graveyard. — scripted exile target {kind:'graveyard-card', count:'X', optional:true, filter:{}} with from:'graveyard'. legal.ts:153 omits the who restriction, so all graveyards are eligible, and specCount (legal.ts:58,359) resolves 'X' from the cast's chosen X. Correct. — CR CR 406.2 / 115.1",
+          "Choose two - — expected Two DIFFERENT modes, chosen on cast. — scripted choose-mode count 2; modeCombos (legal.ts:417) enumerates unordered distinct pairs only. Correct. — CR CR 700.2d"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       }
     ]
   }

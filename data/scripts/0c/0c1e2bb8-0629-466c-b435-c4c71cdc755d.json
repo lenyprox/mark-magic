@@ -59,9 +59,9 @@
   },
   "notes": "APPROXIMATION: no condition can ask whether the bound card ('that') is a creature card, so the life gain, the life loss and the move to hand run for whatever the top card is. A noncreature card has power and toughness 0, so the two life effects are correctly 0 for it; the deviation is that a noncreature card is also put into your hand instead of staying on top (see needs).",
   "verification": {
-    "at": "2026-09-05T14:17:43.920Z",
-    "parserVersion": 4,
-    "registryHash": "811c9dc5",
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
     "oracleHash": "fab9144a",
     "scriptHash": "e7d6a7b9",
     "schema": "ok",
@@ -87,28 +87,29 @@
       "failed": 3,
       "names": []
     },
-    "status": "verified",
-    "problems": [],
     "judge": [
       {
         "model": "opus/judge1",
         "verdict": "unfaithful",
         "issues": [
-          "If it's a creature card, ... then put it into your hand — expected a noncreature card stays on top of the library and no life is gained or lost — scripted no condition on the bound card; the move to hand runs unconditionally (script notes admit this). Blind scenario confirms: 'A revealed noncreature card stays on top of the library' failed — Lightning Bolt zone 'hand' !== 'library', library 20 !== 21 — CR CR 608.2a — an 'if' clause in the effect is checked on resolution and the dependent effects don't happen if false",
-          "reveal the top card of your library — expected the card is revealed — public information to all players — scripted op 'look-top' with who:'you' — private look, opponents never see the card — CR CR 701.15 (reveal) vs 701.14 (look at)"
+          "IF IT'S A CREATURE CARD, you gain life equal to that card's toughness, lose life equal to its power, then put it into your hand. — expected A noncreature top card stays on top of the library and no life changes. — scripted No condition is attached; the move to hand runs unconditionally (script notes admit it). Blind run confirms: Lightning Bolt ended in hand, library 20 vs 21, hand 1 vs 0. — CR 608.2a",
+          "REVEAL the top card of your library — expected the card becomes public information to all players — scripted {op:'look-top', who:'you'} — a private look; opponents never see it (game.ts emits action 'look', not a reveal). — CR 701.15 (reveal) vs 701.14 (look at)",
+          "gain life equal to that card's toughness, lose life equal to its power — expected the P/T of a card in the library — scripted {prop:'toughness'/'power', of:'that'} — works only via the printed-P/T fallback for a library card, and reads 0 for noncreature cards (which is why the life totals happen to come out right in that case). — CR 208.1"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       },
       {
         "model": "opus/judge2",
         "verdict": "unfaithful",
         "issues": [
-          "If it's a creature card, ... then put it into your hand. — expected a noncreature top card stays on top of the library and nothing else happens — scripted no condition; move 'that' to hand runs unconditionally. Blind scenario confirms: Lightning Bolt ended in hand, library 20 vs 21 — CR 608.2a",
-          "reveal the top card of your library — expected reveal — the card becomes public information to all players — scripted op 'look-top' (game.ts:1223) emits action:'look', not a reveal; only the controller sees it — CR 701.16",
-          "gain life equal to that card's toughness, lose life equal to its power — expected P/T of a card in the library — scripted {prop:'toughness'/'power', of:'that'} — render calls it 'that permanent's toughness'; works only because a library card falls back to printed P/T, and yields 0 for noncreature cards — CR 208.1"
+          "IF IT'S A CREATURE CARD, you gain life equal to that card's toughness, lose life equal to its power, then put it into your hand. — expected A noncreature card stays on top of the library and no life changes. — scripted No condition on the bound card; the move to hand runs unconditionally (notes admit this). Blind scenario confirms: Lightning Bolt ends in hand, library 20 vs 21, hand 1 vs 0. — CR CR 608.2a",
+          "reveal the top card of your library — expected Reveal — the card becomes public information to every player. — scripted op 'look-top' (game.ts:1270) emits action:'look' with who:'you'; only the controller sees the card, so opponents get no information the printed card gives them. — CR CR 701.16 (reveal) vs 701.15 (look at)",
+          "you gain life equal to that card's toughness, lose life equal to its power — expected The printed P/T of the revealed card. — scripted {prop:'toughness'/'power', of:'that'} — works because a library card falls back to printed P/T (and yields 0 for a noncreature), but the renderer calls it 'that permanent's toughness'; correct only incidentally. — CR CR 208.1"
         ],
-        "at": "2026-09-05T14:44:44.856Z"
+        "at": "2026-09-06T05:41:06.612Z"
       }
-    ]
+    ],
+    "status": "verified",
+    "problems": []
   }
 }

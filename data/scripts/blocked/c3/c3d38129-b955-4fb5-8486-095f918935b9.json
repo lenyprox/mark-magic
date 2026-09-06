@@ -11,6 +11,20 @@
       "clause": "You may cast a spell with mana value X or less from your hand without paying its mana cost. / you may play cards from the top of your library … pay life equal to its mana value rather than pay its mana cost / You may look at and play those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color / You may cast that card this turn without paying its mana cost. / If you control a commander, you may cast ~ without paying its mana cost."
     },
     {
+      "opFamily": "exile-with-source",
+      "proposedSignature": "{ op: 'exile'; target: TargetSpec | Ref; from?: SetZone; until?: 'leaves'; withSource?: true }  — withSource pushes the exiled ids onto source.exiledWith",
+      "semantics": "Record the cards an effect exiled as 'exiled with' the source — the association the exiled-with Ref and the exiled-with-card target kind already read (cost-alter.ts:476). Only delve, imprint and hideaway populate it now, so a card that exiles in one ability and refers to 'cards exiled with ~' in another cannot be scripted.",
+      "cr": "400.7, 610.3",
+      "clause": "At the beginning of your end step, exile target noncreature, nonland card from your graveyard. ... Choose target card exiled with ~."
+    },
+    {
+      "opFamily": "one-shot-zone-replacement",
+      "proposedSignature": "{ op: 'zone-replace'; what: Ref | TargetSpec; would: 'graveyard' | 'exile' | 'hand' | 'library'; instead: { to: SetZone; pos?: 'top' | 'bottom'; tapped?: boolean }; duration: 'this-turn' | 'while-on-stack' }",
+      "semantics": "A replacement effect an EFFECT creates for one named object rather than a permanent's static ability: 'If that spell would be put into a graveyard, put it on the bottom of its owner's library instead.' The replacement family has only the static zone-replacement.",
+      "cr": "614.1a",
+      "clause": "If that spell would be put into a graveyard, put it on the bottom of its owner's library instead."
+    },
+    {
       "opFamily": "replacement",
       "proposedSignature": "static { kind: 'replacement', would: { event: 'damage'|'enters'|'zone-change'|'counters'; filter?: Filter; scope?: 'you-control'|'all'|'self'; to?: 'you'|'any' }, instead: Effect[] | 'none' | 'unpreventable', duration?: 'permanent'|'eot' } · effect { op: 'prevent-next-damage', from: 'chosen-source', to: 'you'|Ref, duration: 'eot', then?: Effect[] }",
       "semantics": "The generic { would, instead } shape, plus a shield that BINDS the source it prevented and feeds the prevented amount to `that-many` so the redirect half of Deflecting Palm can read it.",
@@ -19,5 +33,5 @@
     }
   ],
   "wave": "unknown",
-  "attempts": 1
+  "attempts": 2
 }

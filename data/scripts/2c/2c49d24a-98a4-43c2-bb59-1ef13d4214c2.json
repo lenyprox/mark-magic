@@ -1,0 +1,110 @@
+{
+  "oracleId": "2c49d24a-98a4-43c2-bb59-1ef13d4214c2",
+  "name": "Untimely Malfunction",
+  "oracleHash": "804ffabd",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "choose-mode",
+          "count": 1,
+          "modes": [
+            [
+              {
+                "op": "destroy",
+                "target": {
+                  "kind": "artifact"
+                }
+              }
+            ],
+            [
+              {
+                "op": "change-targets",
+                "target": {
+                  "kind": "single-target-spell-or-ability"
+                },
+                "how": "change-one"
+              }
+            ],
+            [
+              {
+                "op": "cant-block",
+                "target": {
+                  "kind": "creature",
+                  "count": 2,
+                  "optional": true
+                },
+                "duration": "eot"
+              }
+            ]
+          ]
+        }
+      ],
+      "text": "Choose one —"
+    }
+  ],
+  "aiHints": {
+    "role": "removal",
+    "value": 5,
+    "timing": "instant"
+  },
+  "notes": "The ability names only the \"Choose one\" line: each bullet belongs to that line (faceLines drops bullets) and a modal ability may name at most one line per substantive mode. The third mode is the closest the target vocabulary reaches for \"one or two target creatures\": TargetSpec has a count but no minimum, so { count: 2, optional: true } is \"up to two\" - it also allows zero targets, where the card requires at least one.",
+  "verification": {
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "804ffabd",
+    "scriptHash": "f72b0eab",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 1,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/2c/2c49d24a-98a4-43c2-bb59-1ef13d4214c2.json",
+      "passed": 4,
+      "failed": 0,
+      "names": []
+    },
+    "status": "tested",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "• One or two target creatures can't block this turn. — expected a mode that requires at least one and at most two targets; with no creature on the battlefield this mode cannot legally be chosen (CR 601.2c: the announced targets must meet the required minimum; 700.2 modal choice must be legal) — scripted { op: 'cant-block', target: { kind: 'creature', count: 2, optional: true }, duration: 'eot' } — `optional: true` is the vocabulary's \"up to\" (src/cards/types.ts:39 `optional?: boolean // \"up to one\"`, legal.ts:180 renders it as \"up to two target creatures\"), and legal.ts:213/361 let a cast through when an optional spec has zero options, so the mode is castable with zero targets and does nothing. The script's own `notes` admits this (\"TargetSpec has a count but no minimum … it also allows zero targets, where the card requires at least one\"). The blind scenarios only exercise one and two targets, so they pass without catching it. — CR 601.2c / 700.2",
+          "Choose one — (whole card, covers accounting) — expected every printed line claimed — scripted the single ability's `text` is only \"Choose one —\" and there is no `covers` field; `npm run scripts:render` scores that one line 1.00 and never scores the three bullets, so no rendered check exists for the mode bodies. Not a rules error under the faceLines convention (bullets are dropped), but it means the bullet wording is unverified by the round-trip score. Modes 1 (destroy target artifact) and 2 (change-targets / 'single-target-spell-or-ability' / how 'change-one', which the engine implements as a forced move to another legal target per CR 115.7) are otherwise correct, and `duration: 'eot'` correctly matches \"this turn\" (cleared via eotFlags at cleanup). — CR 115.7"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "unfaithful",
+        "issues": [
+          "• One or two target creatures can't block this turn. — expected A required minimum of one target and a maximum of two ('one or two target creatures'): the mode is an illegal mode choice when no creature can be targeted, and the spell can never be cast with zero creatures named (CR 601.2c, 700.2d). — scripted { op: 'cant-block', target: { kind: 'creature', count: 2, optional: true }, duration: 'eot' } — TargetSpec.optional is documented in src/cards/types.ts:39 as 'up to one'/'up to N', and src/engine/legal.ts:213/261/361 exempts optional requirements from the 'no legal options' gate, so mode 3 is castable with ZERO targets and remains a legal mode with an empty board. The script's own notes admit this ('it also allows zero targets, where the card requires at least one'). — CR 601.2c, 700.2d, 115.3",
+          "Choose one — (whole modal ability) — expected The ability's text should carry the modal line and its three bullets so the render round-trip actually re-derives the printed modes. — scripted ability.text is only 'Choose one —'. `npm run scripts:render` therefore reports card score 1.00 against a two-word string; none of the three mode bodies (destroy artifact / change target / can't block) is exercised by the round-trip at all, so the 1.00 score is not evidence that the modes are covered. Secondary/process issue, not itself a rules error. — CR 700.2",
+          "• Change the target of target spell or ability with a single target. — expected Target must be changed to a different legal target if one exists; if none exists the target is unchanged. — scripted change-targets / how:'change-one' on kind 'single-target-spell-or-ability' — src/engine/ops/copy-clone.ts:288-292 offers only `others` for change-one and falls back to keeping the target when the list is empty. This clause is CORRECT; recorded only to show it was checked. — CR 115.7, 115.7b"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      }
+    ]
+  }
+}

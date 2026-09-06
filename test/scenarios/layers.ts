@@ -151,6 +151,9 @@ export const layers: Scenario[] = [
       + 'Spreading Seas, Sea\u2019s Claim and Tidal Warrior keep their line in `unparsed`. The Forest here is still a '
       + 'Forest, swampwalk is OFF, and the block is really made.',
     seats: [{ bf: ['Bog Wraith', 'Urborg, Tomb of Yawgmoth'] }, { bf: ['Forest', 'Runeclaw Bear'] }],
+    // the parser declines the line; a per-card script in the store may cover it (10.0 re-run wrote one), so the
+    // premise "no layer at all" is pinned here with an empty face rather than read from the store
+    scripts: { 'Urborg, Tomb of Yawgmoth': { abilities: [], mode: 'replace' } },
     script: [{ sba: true }, attackWith(['Bog Wraith'], [['Runeclaw Bear', 'Bog Wraith']])],
     expect: [{ life: [1, 20] }, { zone: ['Runeclaw Bear', 'graveyard'] }, { events: { type: 'block', min: 1 } }, { log: /Runeclaw Bear deals 2 damage to Bog Wraith/ }],
   },

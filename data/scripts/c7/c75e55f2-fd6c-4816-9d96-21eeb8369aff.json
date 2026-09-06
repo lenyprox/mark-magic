@@ -1,0 +1,185 @@
+{
+  "oracleId": "c75e55f2-fd6c-4816-9d96-21eeb8369aff",
+  "name": "The Scarab God",
+  "oracleHash": "379839cd",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "upkeep",
+        "whose": "your"
+      },
+      "effects": [
+        {
+          "op": "scoped",
+          "who": "you",
+          "do": [
+            {
+              "op": "lose-life",
+              "amount": {
+                "count": "permanents-you-control",
+                "filter": {
+                  "subtypes": [
+                    "Zombie"
+                  ]
+                }
+              },
+              "who": "each-opponent"
+            },
+            {
+              "op": "scry",
+              "amount": {
+                "count": "permanents-you-control",
+                "filter": {
+                  "subtypes": [
+                    "Zombie"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "text": "At the beginning of your upkeep, each opponent loses X life and you scry X, where X is the number of Zombies you control."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [
+            "U",
+            "B"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}{U}{B}"
+        }
+      },
+      "effects": [
+        {
+          "op": "exile",
+          "target": {
+            "kind": "graveyard-card",
+            "filter": {
+              "types": [
+                "Creature"
+              ]
+            }
+          },
+          "from": "graveyard"
+        },
+        {
+          "op": "copy-permanent",
+          "target": "that",
+          "except": {
+            "power": 4,
+            "toughness": 4,
+            "colors": [
+              "B"
+            ],
+            "subtypes": [
+              "Zombie"
+            ]
+          }
+        }
+      ],
+      "text": "{2}{U}{B}: Exile target creature card from a graveyard. Create a token that's a copy of it, except it's a 4/4 black Zombie."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "dies",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "delayed-trigger",
+          "at": "next-end-step",
+          "effects": [
+            {
+              "op": "move",
+              "what": "self",
+              "to": "hand"
+            }
+          ]
+        }
+      ],
+      "text": "When ~ dies, return it to its owner's hand at the beginning of the next end step."
+    }
+  ],
+  "aiHints": {
+    "role": "finisher",
+    "value": 8,
+    "timing": "main"
+  },
+  "notes": "The first two abilities are the parser's own reading, kept because the script replaces the face. The death trigger sets up a delayed trigger at the next end step that returns the card (`move` of `self`, which resolves the source wherever it now is, CR 400.7).",
+  "verification": {
+    "at": "2026-09-06T05:06:21.434Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "379839cd",
+    "scriptHash": "2d8e0a73",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'turn' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "trigger fired in the 'die' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.737,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/c7/c75e55f2-fd6c-4816-9d96-21eeb8369aff.json",
+      "passed": 5,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "{2}{U}{B}: ... Create a token that's a copy of it, except it's a 4/4 black Zombie. — expected Only P/T, color and creature types are overwritten; any non-creature subtypes of the copied card (e.g. an artifact subtype) survive the 'except' clause. — scripted except.subtypes:['Zombie'] — withException (src/engine/ops/copy-clone.ts:166) REPLACES the whole subtype array, so a copied Artifact Creature — Equipment token loses 'Equipment' too. Edge case only; the creature-type replacement itself is right. — CR 707.9 / 707.2",
+          "When The Scarab God dies, return it to its owner's hand at the beginning of the next end step. — expected The delayed trigger returns the specific card that was put into the graveyard; if it has since left the graveyard (reanimated, exiled, shuffled in) it is a new object and nothing returns. — scripted delayed-trigger -> {op:'move', what:'self', to:'hand'} — resolves the source wherever it now is; the script's own note says so. In practice it will yank the God back from any zone it happens to be in at the next end step. — CR 400.7, 603.7d",
+          "each opponent loses X life and you scry X — expected scry X, X = Zombies you control — scripted correct at the engine level (scry takes an AmountRef and game.ts:1433 evaluates it); the renderer prints 'scry [object Object]' (render.ts:533 interpolates the Amount object) — a renderer gap, not a script defect. — CR 701.17"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      },
+      {
+        "model": "opus/judge2",
+        "verdict": "faithful",
+        "issues": [
+          "When The Scarab God dies, return it to its owner's hand at the beginning of the next end step. — expected The delayed trigger returns the card only if it is still in the graveyard it went to; if it changed zones again the effect loses track of it (CR 400.7). — scripted delayed-trigger -> move what:'self' to hand, which resolves the source wherever it now is. Non-blocking: only differs if the card is moved out of the graveyard in between. — CR CR 400.7, 603.7",
+          "each opponent loses X life and you scry X — expected X = number of Zombies you control, both halves. — scripted count 'permanents-you-control' filter {subtypes:['Zombie']} for both — correct at the engine level (evalAmount, characteristics.ts). Renderer prints 'scry [object Object]' (render.ts gap for an Amount-valued scry), a rendering defect only; scry accepts AmountRef in schema-core.ts:658 and game.ts:1433 evaluates it.",
+          "Create a token that's a copy of it, except it's a 4/4 black Zombie. — expected Token copy keeps the copiable values but is 4/4, black, and its creature type is Zombie (replacing others); it stays legendary. — scripted copy-permanent target:'that' with except {power:4,toughness:4,colors:['B'],subtypes:['Zombie']} — withException (copy-clone.ts:157-176) REPLACES subtypes and colors and leaves supertypes alone, which is right; copySources resolves 'that' from item.affected (the just-exiled card) regardless of zone. Verified correct. — CR CR 707.2"
+        ],
+        "at": "2026-09-06T05:41:06.612Z"
+      }
+    ]
+  }
+}

@@ -5,7 +5,7 @@
     {
       "name": "Seismic Sense looks at as many cards as you control lands and puts a creature card into your hand",
       "cr": "701.16a",
-      "ruling": "Three lands means X is three, so the top three cards are seen and the only creature card among them can be revealed and taken.",
+      "ruling": "X is the number of lands you control, so three lands means the top three cards are looked at and the only creature card among them can be revealed and taken.",
       "seats": [
         { "bf": ["Forest", "Forest", "Forest"], "hand": ["Seismic Sense"], "libraryTop": ["Shock", "Grizzly Bears", "Lightning Bolt"] },
         {}
@@ -25,7 +25,7 @@
     {
       "name": "Seismic Sense can take a land card instead of a creature card",
       "cr": "701.16a",
-      "ruling": "The revealed card may be a creature or a land card; with only a land legal among the top three, that land goes to hand.",
+      "ruling": "The card revealed and put into your hand may be a creature or a land card; with only a land legal among the top three, that land goes to hand.",
       "seats": [
         { "bf": ["Forest", "Forest", "Forest"], "hand": ["Seismic Sense"], "libraryTop": ["Shock", "Island", "Lightning Bolt"] },
         {}
@@ -43,9 +43,9 @@
       ]
     },
     {
-      "name": "Seismic Sense with one land sees only the top card, so a creature under it is out of reach",
+      "name": "With one land Seismic Sense sees only the top card, so a creature beneath it is out of reach",
       "cr": "701.16a",
-      "ruling": "X is the number of lands you control. With one land only the top card is looked at, so the Grizzly Bears below it is never seen and stays in the library.",
+      "ruling": "X is the number of lands you control when the spell resolves. With a single land only the top card is looked at, so the creature card below it is never seen and stays in the library.",
       "seats": [
         { "bf": ["Forest"], "hand": ["Seismic Sense"], "libraryTop": ["Shock", "Grizzly Bears"] },
         {}
@@ -60,6 +60,31 @@
         { "handCount": [0, 0] },
         { "libraryCount": [0, 22] },
         { "zone": ["Seismic Sense", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The cards Seismic Sense does not take go to the bottom of the library, not the top",
+      "cr": "701.16a",
+      "ruling": "The rest are put on the bottom of your library, so the next cards drawn come from the untouched top of the library and not from the cards just looked at.",
+      "seats": [
+        { "bf": ["Forest", "Island", "Island", "Island"], "hand": ["Seismic Sense", "Divination"], "libraryTop": ["Shock", "Lightning Bolt", "Grizzly Bears", "Giant Growth"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Seismic Sense" },
+        { "resolve": true },
+        { "cast": "Divination" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "hand"] },
+        { "zone": ["Mountain", "hand"] },
+        { "zone": ["Shock", "library"] },
+        { "zone": ["Lightning Bolt", "library"] },
+        { "zone": ["Giant Growth", "library"] },
+        { "handCount": [0, 3] },
+        { "libraryCount": [0, 21] },
         { "unsimulated": 0 }
       ]
     }

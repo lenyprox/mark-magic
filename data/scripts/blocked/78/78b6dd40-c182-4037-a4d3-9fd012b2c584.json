@@ -4,6 +4,13 @@
   "clause": "{T}: Until end of turn, target creature you control with power 4 or greater gains trample and \"Whenever this creature deals combat damage to a player, draw a card.\"",
   "needs": [
     {
+      "opFamily": "grant-ability",
+      "proposedSignature": "{ op: 'grant-ability'; target: TargetSpec | Ref | 'creatures-you-control'; ability: Ability; duration: 'eot' | 'permanent' }",
+      "semantics": "The named permanents gain the printed ability for the duration (layer 6). The existing gain-ability op grants only to the source and only permanently, and the grant-ability STATIC is an always-on continuous effect, so nothing expresses a granted triggered ability on a target until end of turn.",
+      "cr": "613.1f, 611.2c",
+      "clause": "target creature you control with power 4 or greater gains trample and \"Whenever this creature deals combat damage to a player, draw a card.\""
+    },
+    {
       "opFamily": "layers",
       "proposedSignature": "{ op: 'grant-ability'; target: TargetSpec | Ref | 'creatures-you-control'; ability: Ability; duration: 'eot' | 'permanent' } (widen the existing source-only form)",
       "semantics": "Grant a quoted ability to chosen objects for a duration, layer 6, instead of only to the source permanently.",
@@ -12,5 +19,5 @@
     }
   ],
   "wave": "unknown",
-  "attempts": 1
+  "attempts": 2
 }

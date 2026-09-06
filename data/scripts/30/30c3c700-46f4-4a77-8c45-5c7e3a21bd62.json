@@ -1,0 +1,151 @@
+{
+  "oracleId": "30c3c700-46f4-4a77-8c45-5c7e3a21bd62",
+  "name": "Wizard's Staff",
+  "oracleHash": "7101f506",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "equipment",
+        "power": 0,
+        "toughness": 0,
+        "keywords": [
+          "prowess"
+        ],
+        "equipCost": {
+          "generic": 3,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}"
+        }
+      },
+      "text": "Equipped creature has prowess."
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "trigger-twice",
+        "equipped": true
+      },
+      "text": "If a triggered ability of equipped creature triggers, that ability triggers an additional time."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}"
+        }
+      },
+      "sorcerySpeed": true,
+      "effects": [
+        {
+          "op": "attach-self",
+          "target": {
+            "kind": "creature",
+            "controller": "you",
+            "filter": {
+              "subtypes": [
+                "Wizard"
+              ]
+            }
+          }
+        }
+      ],
+      "text": "Equip Wizard {1}"
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 3,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}"
+        }
+      },
+      "sorcerySpeed": true,
+      "effects": [
+        {
+          "op": "attach-self",
+          "target": {
+            "kind": "creature",
+            "controller": "you"
+          }
+        }
+      ],
+      "text": "Equip {3}"
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "Neither equip line has a covers kind, so each is written as the activated ability the keyword means (attach to a creature you control, sorcery speed) - the shape Bitterthorn, Nissa Animus was judged on. The equipment static carries the {3} equip cost as well (legal.ts:265 reads the FIRST equipment static for its own equip action), so the {3} action exists twice at runtime; \"Equip Wizard {1}\" exists only as the activated ability, since one equipment static can hold one cost and one filter.",
+  "verification": {
+    "at": "2026-09-06T05:10:55.835Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "7101f506",
+    "scriptHash": "d9c163fb",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 1,
+          "reached": false
+        },
+        {
+          "index": 2,
+          "reached": false
+        },
+        {
+          "index": 3,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.154,
+      "lowest": [
+        {
+          "text": "Equip Wizard {1}",
+          "rendered": "{1}: attach ~ to target Wizard you control. activate only as a sorcery",
+          "score": 0.154
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.15 < 0.55: \"Equip Wizard {1}\" rendered as \"{1}: attach ~ to target Wizard you control. activate only as a sorcery\""
+    ]
+  }
+}
