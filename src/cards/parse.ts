@@ -1106,7 +1106,8 @@ function sentenceEffects(sent: string, depth: number, useRegistry: boolean): Eff
     }
   }
   const andParts = body.split(/ and (?=you |target |each |draw |destroy |~ |put |create |exile |return )/i);
-  if (andParts.length > 1) {
+  // 9.1: a trailing ", where X is …" defines X for BOTH conjuncts — only a whole-sentence rule may claim it
+  if (andParts.length > 1 && !/, where x is /i.test(body)) {
     const sub = andParts.flatMap(p => sentenceEffects(p, depth + 1, useRegistry));
     if (sub.every(x => x.op !== 'unknown')) return sub;
   }

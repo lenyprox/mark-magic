@@ -21,6 +21,7 @@ import family_composition from './composition.js';
 import family_control from './control.js';
 import family_copy_clone from './copy-clone.js';
 import family_cost_alter from './cost-alter.js';
+import family_dice_coin from './dice-coin.js';
 import family_keyword_action from './keyword-action.js';
 import family_piles_choices from './piles-choices.js';
 import family_planeswalker from './planeswalker.js';
@@ -33,6 +34,7 @@ const GENERATED: RuleFamily[] = [
   family_control,
   family_copy_clone,
   family_cost_alter,
+  family_dice_coin,
   family_keyword_action,
   family_piles_choices,
   family_planeswalker,

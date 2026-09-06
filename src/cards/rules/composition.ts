@@ -396,7 +396,11 @@ function playerClause(clause: string, ctx: EffectCtx): Effect[] | null {
  */
 function playerBlock(who: ScopeWho, clause: string, ctx: EffectCtx): Effect | null {
   let c = clause.trim(); let yours: Effect[] = [];
+  // A trailing ", where X is …" defines X for BOTH halves: only a whole-sentence "where X" rule may read it, and it
+  // hands the head (without the clause) back here. Splitting first left the block's X bare while the tail's was
+  // defined ("each opponent loses X life and you gain X life, where X is the other result" — Grave Endeavor, 9.1).
   const tail = c.match(/^(.+?)(?:,? and|,? then) you (.+)$/i);
+  if (tail && /, where x is /i.test(c)) return null;
   if (tail && !/\b(you|your)\b/i.test(tail[1])) { c = tail[1]; const e = sub(ctx, `you ${tail[2]}`); if (!e) return null; yours = e; }
   if (/\b(you|your)\b/i.test(c)) return null;
   const effs = playerClause(c, ctx); if (!effs) return null;

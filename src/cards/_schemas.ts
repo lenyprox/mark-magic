@@ -21,6 +21,7 @@ import { CORE_VOCABULARY, mergeFamilySchemas, type FamilySchemaEntry } from './s
 import { schema as schema_control } from '../engine/ops/control.schema.js';
 import { schema as schema_copy_clone } from '../engine/ops/copy-clone.schema.js';
 import { schema as schema_cost_alter } from '../engine/ops/cost-alter.schema.js';
+import { schema as schema_dice_coin } from '../engine/ops/dice-coin.schema.js';
 import { schema as schema_keyword_action } from '../engine/ops/keyword-action.schema.js';
 import { schema as schema_piles_choices } from '../engine/ops/piles-choices.schema.js';
 import { schema as schema_planeswalker } from '../engine/ops/planeswalker.schema.js';
@@ -33,6 +34,7 @@ export const FAMILY_SCHEMA_ENTRIES: readonly FamilySchemaEntry[] = [
   { family: "control", file: "src/engine/ops/control.schema.ts", schema: schema_control },
   { family: "copy-clone", file: "src/engine/ops/copy-clone.schema.ts", schema: schema_copy_clone },
   { family: "cost-alter", file: "src/engine/ops/cost-alter.schema.ts", schema: schema_cost_alter },
+  { family: "dice-coin", file: "src/engine/ops/dice-coin.schema.ts", schema: schema_dice_coin },
   { family: "keyword-action", file: "src/engine/ops/keyword-action.schema.ts", schema: schema_keyword_action },
   { family: "piles-choices", file: "src/engine/ops/piles-choices.schema.ts", schema: schema_piles_choices },
   { family: "planeswalker", file: "src/engine/ops/planeswalker.schema.ts", schema: schema_planeswalker },
