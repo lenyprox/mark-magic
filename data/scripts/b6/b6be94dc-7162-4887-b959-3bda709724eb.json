@@ -1,0 +1,156 @@
+{
+  "oracleId": "b6be94dc-7162-4887-b959-3bda709724eb",
+  "name": "Reckoner Bankbuster",
+  "oracleHash": "aa4e6eff",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "asEnters": [
+    {
+      "kind": "counters",
+      "counter": "charge",
+      "amount": 3
+    }
+  ],
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}"
+        },
+        "tap": true,
+        "removeCounters": {
+          "counter": "charge",
+          "amount": 1
+        }
+      },
+      "effects": [
+        {
+          "op": "draw",
+          "amount": 1,
+          "who": "you"
+        },
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "self-no-counters",
+            "counter": "charge"
+          },
+          "then": [
+            {
+              "op": "token",
+              "count": 1,
+              "power": 0,
+              "toughness": 0,
+              "colors": [],
+              "types": [
+                "Artifact"
+              ],
+              "subtypes": [
+                "Treasure"
+              ],
+              "keywords": [],
+              "treasure": true,
+              "name": "Treasure"
+            },
+            {
+              "op": "token",
+              "count": 1,
+              "power": 1,
+              "toughness": 1,
+              "colors": [],
+              "types": [
+                "Creature"
+              ],
+              "subtypes": [
+                "Pilot"
+              ],
+              "keywords": [],
+              "text": "This token crews Vehicles as though its power were 2 greater."
+            }
+          ]
+        }
+      ],
+      "text": "{2}, {T}, Remove a charge counter from ~: Draw a card. Then if there are no charge counters on ~, create a Treasure token and a 1/1 colorless Pilot creature token with \"This token crews Vehicles as though its power were 2 greater.\""
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "tapCreaturesTotalPower": {
+          "power": 3,
+          "other": false
+        }
+      },
+      "effects": [
+        {
+          "op": "crew-self"
+        }
+      ],
+      "text": "Crew 3",
+      "instantSpeed": true
+    }
+  ],
+  "covers": [
+    {
+      "line": "~ enters with three charge counters on it.",
+      "by": "asEnters"
+    }
+  ],
+  "aiHints": {
+    "role": "draw",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "PARTIAL. The Pilot token's granted ability is carried only as the token's `text` (no `abilities` field on `token`, no crew-power modifier in the engine).",
+  "verification": {
+    "at": "2026-09-06T06:15:15.552Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "aa4e6eff",
+    "scriptHash": "4b3d119a",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "{2}, {T}, Remove a charge counter from ~: Draw a card. Then if there are no charge counters on ~, create a Treasure token and a 1/1 colorless Pilot creature token with \"This token crews Vehicles as though its power were 2 greater.\"",
+          "rendered": "{2}, {T}, remove 1 charge counter from ~: you draw a card. if ~ has no charge counters on it, create a Treasure artifact token. create a 1/1 Pilot creature token",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"{2}, {T}, Remove a charge counter from ~: Draw a card. Then if there are no charge counters on ~, create a Treasure token and a 1/1 colorless Pilot creature token with \\\"This token crews Vehicles as though its power were 2 greater.\\\"\" rendered as \"{2}, {T}, remove 1 charge counter from ~: you draw a card. if ~ has no charge counters on it, create a Treasure artifact token. create a 1/1 Pilot creature token\""
+    ]
+  }
+}

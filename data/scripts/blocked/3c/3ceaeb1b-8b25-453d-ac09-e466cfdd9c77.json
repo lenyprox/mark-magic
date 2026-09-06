@@ -1,0 +1,16 @@
+{
+  "oracleId": "3ceaeb1b-8b25-453d-ac09-e466cfdd9c77",
+  "name": "Undying Evil",
+  "clause": "Target creature gains undying until end of turn.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:undying",
+      "proposedSignature": "{ op: 'grant-ability'; target: TargetSpec | Ref; ability: Ability; duration: 'eot' | 'permanent' } (an effect, unlike today's static grant-ability) - or, cheaper, KeywordRegistry: { undying: true, persist: true } so grant-keyword can carry them and self-keywords can render them",
+      "semantics": "Give an object other than the source a named ability for a duration (layer 6). Undying: when the creature dies, if it had no +1/+1 counters on it, return it to the battlefield under its owner's control with a +1/+1 counter on it. `gain-ability` cannot stand in: game.ts:1327 always pushes onto `src`, has no target and no duration.",
+      "cr": "702.92, 613.1f",
+      "clause": "Target creature gains undying until end of turn."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

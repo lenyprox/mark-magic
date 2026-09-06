@@ -1,0 +1,110 @@
+{
+  "oracleId": "9b2cdbed-c733-409b-b0e4-2c8960c25111",
+  "name": "Maskwood Nexus",
+  "oracleHash": "25454276",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "type-change",
+        "scope": "you-control",
+        "filter": {
+          "types": [
+            "Creature"
+          ]
+        },
+        "everyCreatureType": true
+      },
+      "text": "Creatures you control are every creature type. The same is true for creature spells you control and creature cards you own that aren't on the battlefield."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 3,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}"
+        },
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 2,
+          "toughness": 2,
+          "colors": [
+            "U"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Shapeshifter"
+          ],
+          "keywords": [],
+          "name": "Shapeshifter"
+        },
+        {
+          "op": "become",
+          "target": "those",
+          "everyCreatureType": true,
+          "duration": "permanent"
+        }
+      ],
+      "text": "{3}, {T}: Create a 2/2 blue Shapeshifter creature token with changeling."
+    }
+  ],
+  "notes": "Changeling on a created token is expressed as `become everyCreatureType` on the tokens the preceding `token` effect bound - the `token` op has no everyCreatureType flag. The static covers only the battlefield half of its line: the engine has no form for 'creature spells you control and creature cards you own that aren't on the battlefield'.",
+  "verification": {
+    "at": "2026-09-06T06:16:28.918Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "25454276",
+    "scriptHash": "06762187",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.025,
+      "lowest": [
+        {
+          "text": "Creatures you control are every creature type. The same is true for creature spells you control and creature cards you own that aren't on the battlefield.",
+          "rendered": "type change",
+          "score": 0.025
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.03 < 0.55: \"Creatures you control are every creature type. The same is true for creature spells you control and creature cards you own that aren't on the battlefield.\" rendered as \"type change\""
+    ]
+  }
+}

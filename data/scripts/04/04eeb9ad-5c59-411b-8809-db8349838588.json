@@ -1,0 +1,161 @@
+{
+  "oracleId": "04eeb9ad-5c59-411b-8809-db8349838588",
+  "name": "Westvale Abbey // Ormendahl, Profane Prince",
+  "oracleHash": "1b59acfd",
+  "source": "llm",
+  "confidence": 0.9,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": [
+            "C"
+          ]
+        }
+      ],
+      "text": "{T}: Add {C}.",
+      "manaAbility": true
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 5,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{5}"
+        },
+        "tap": true,
+        "payLife": 1
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 1,
+          "toughness": 1,
+          "colors": [
+            "W",
+            "B"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Human",
+            "Cleric"
+          ],
+          "keywords": []
+        }
+      ],
+      "text": "{5}, {T}, Pay 1 life: Create a 1/1 white and black Human Cleric creature token."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 5,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{5}"
+        },
+        "tap": true,
+        "sacrificeMany": {
+          "filter": {
+            "types": [
+              "Creature"
+            ]
+          },
+          "count": 5
+        }
+      },
+      "effects": [
+        {
+          "op": "transform",
+          "target": "self",
+          "untap": true
+        }
+      ],
+      "text": "{5}, {T}, Sacrifice five creatures: Transform ~, then untap it."
+    }
+  ],
+  "backFace": {
+    "keywords": [
+      "flying",
+      "lifelink",
+      "indestructible",
+      "haste"
+    ],
+    "abilities": []
+  },
+  "aiHints": {
+    "role": "finisher",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "The flip is the transform op with untap:true, which is exactly 'Transform this land, then untap it.' Ormendahl's only line is a keyword line, claimed by the back face's keywords.",
+  "verification": {
+    "at": "2026-09-06T10:03:39.677Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "1b59acfd",
+    "scriptHash": "9cbd80f9",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.929,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/04/04eeb9ad-5c59-411b-8809-db8349838588.json",
+      "passed": 0,
+      "failed": 4,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "{5}, {T}, Pay 1 life: Create a 1/1 white and black Human Cleric creature token. — expected a token named \"Human Cleric\", 1/1, both white and black, subtypes Human and Cleric; 1 life paid as a cost — scripted cost {mana:{5}, tap, payLife:1} and token 1/1 colors ['W','B'] subtypes ['Human','Cleric'] — all correct; the blind run confirms life 20->19 and one create-token event. The single scenario failure is only that the token is unaddressable: with `name` omitted the engine calls it \"Human Cleric token\" (game.ts:1379) while CR 111.4 makes its name \"Human Cleric\". Corpus-wide convention (parse.ts:747), shared with Legion's Landing, so not scored against this script. — CR 111.4",
+          "{5}, {T}, Sacrifice five creatures: Transform this land, then untap it. — expected exactly five creatures you control sacrificed as a cost (the Abbey itself, a land, is not eligible); then transform and untap — scripted sacrificeMany {filter:{types:['Creature']},count:5} — cost-alter.ts:409 draws candidates from pl.battlefield, i.e. only the activating player's own creatures, and the land cannot match a Creature filter. transform {target:'self', untap:true} flips then setTapped(false) in that order (transform.ts:288-294). Blind run confirms five creatures in the graveyard and the permanent untapped. Correct. — CR 701.27a / 118.3",
+          "// Flying, lifelink, indestructible, haste — expected the back face Ormendahl, Profane Prince is a 9/7 Legendary Creature — Demon with all four keywords — scripted backFace.keywords carries all four and backFace.abilities is empty, which is right; the 9/7 and the type line come from the card DB, not the script (scripts.ts:1532 applyFace only replaces abilities/keywords). Blind run confirms all four keywords and that Ormendahl's flying refuses a ground blocker. — CR 702.9b / 702.15a / 702.12b / 702.10b"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

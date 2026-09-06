@@ -1,0 +1,16 @@
+{
+  "oracleId": "04cf02dc-f053-414e-87d8-1537f25bcbf4",
+  "name": "Lotus Bloom",
+  "clause": "Suspend 3—{0}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:suspend",
+      "proposedSignature": "AltCost `{ id: 'suspend', label, cost: ManaCost, from: 'hand', timeCounters: number }` (mirroring the existing `impending` altCost, which already carries `timeCounters` and is ticked in game.ts:462/765) + effect `{ op: 'suspend-self', counters: Amount }` + trigger `{ on: 'last-time-counter-removed', self: boolean }` + condition `{ kind: 'suspended', least?: number }` + TargetSpec kind `'suspended-card'` + covers kind `suspend` (or an extra altCosts row) with the anchored shape `^suspend (\\d+)[—-] ?(\\{.+\\})$`, matching on `timeCounters` and `cost.mana.raw`.",
+      "semantics": "Suspend N—[cost] is three abilities (CR 702.62a): a static ability in hand — if you could begin to cast this card from hand you may pay [cost] and exile it with N time counters on it, not using the stack; a triggered ability in exile — at the beginning of your upkeep, if this card is suspended, remove a time counter from it; and a triggered ability — when the last time counter is removed, if it's exiled, you may play it without paying its mana cost, and a creature spell cast this way gains haste until you lose control of it. A card is 'suspended' while it is in exile, has suspend and has a time counter on it (CR 702.62b).",
+      "cr": "702.62a",
+      "clause": "Suspend 3—{1}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

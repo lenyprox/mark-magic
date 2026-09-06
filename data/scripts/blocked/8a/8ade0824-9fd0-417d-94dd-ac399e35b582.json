@@ -1,0 +1,16 @@
+{
+  "oracleId": "8ade0824-9fd0-417d-94dd-ac399e35b582",
+  "name": "Skyhunter Strike Force",
+  "clause": "Melee",
+  "needs": [
+    {
+      "opFamily": "named-keyword:melee",
+      "proposedSignature": "Amount.count gains 'opponents-attacked-this-combat'; Keyword gains 'melee'; KEYWORD_EXPANSIONS gains 'melee': 'whenever ~ attacks, it gets +1/+1 until end of turn for each opponent you attacked this combat'.",
+      "semantics": "The count is the number of opponents the ability's controller attacked this combat, so melee becomes { on: 'attacks', self: true } -> { op: 'pump', target: 'self', power: { count: 'opponents-attacked-this-combat' }, toughness: the same, duration: 'eot' }. As a Keyword it can also be granted by an anthem ('Other creatures you control have melee.').",
+      "cr": "702.121a",
+      "clause": "Melee"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

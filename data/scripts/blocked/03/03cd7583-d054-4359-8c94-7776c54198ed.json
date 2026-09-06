@@ -1,0 +1,23 @@
+{
+  "oracleId": "03cd7583-d054-4359-8c94-7776c54198ed",
+  "name": "Party Thrasher",
+  "clause": "Noncreature spells you cast from exile have convoke.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "{ op: 'impulse-choose'; count: number; take: number; until: 'eot' | 'next-turn' } - exile the top `count` cards, choose `take` of them, and only those may be played.",
+      "semantics": "Party Thrasher's 'exile the top two cards of your library, then choose one of them. You may play that card this turn.' Today impulse makes every exiled card playable, which is strictly better than the card prints.",
+      "cr": "601.3e",
+      "clause": "If you do, exile the top two cards of your library, then choose one of them. You may play that card this turn."
+    },
+    {
+      "opFamily": "named-keyword:convoke",
+      "proposedSignature": "A static { kind: 'grant-cost-modifier'; scope: 'your-spells'; filter?: Filter; from?: CastZone; modifier: CostModifier }, and a binding for the convoking creatures: ObjectSet word 'convoked' ({ op: 'for-each', over: 'convoked' }) and Filter { convokedSource: true }.",
+      "semantics": "First half: 'Spells you cast from exile have convoke' / 'Creature spells you cast have convoke' - a permanent granting a cost modifier to a class of spells. Second half: the engine must remember which creatures were tapped to convoke a spell, so 'Each creature that convoked this spell connives' and 'shares a creature type with a creature that convoked this spell' can name them.",
+      "cr": "702.51a, 702.51c",
+      "clause": "Spells you cast from exile have convoke. / Each creature that convoked ~ connives."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

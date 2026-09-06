@@ -531,6 +531,28 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     that is re-authored unsampled keeps its shard under data/scenarios/ — nothing deletes it; scenarios-data.test.ts
     skips it by name, and a retirement tool (delete the shard when `blindSampled === false`) is still to write.
 
+36. **Engine and harness gaps the 10.1 group-1 judges and blind authors surfaced (2026-09-06)** — recorded from
+    data/scripts/reports/10.1-g1.json (gitignored; regenerate from the journal if lost). Harness: `Game.simulateCombat`
+    (game.ts ~185-222) queues `you-attack` but never sets `attackedWithThisTurn` and omits the lone-attacker exalted
+    bonus that the real declare-attackers path applies (game.ts ~2404-2409), so a scenario `attack` step cannot reach
+    "attack with three or more creatures" (Legion's Landing) or exalted; an `attack` step from main1 also skips the
+    beginning-of-combat triggers (authors need `passUntil: combat-begin` + `resolve` first — document or fix). Tokens
+    cannot be addressed by name in expectations ("no object named Wall"): game.ts ~1377 names them `<subtypes> token`
+    while CR 111.4 says the name IS the subtypes (fix the naming, then the corpus files that use the bare subtype start
+    asserting). `TriggeredAbility.condition` is a dead field (only `intervening` is consulted, game.ts ~2311) — the lint
+    should reject it (Woe Strider's escape counters fired unconditionally). Granted cascade uses the ability SOURCE's
+    mana value (game.ts ~1241) instead of the spell's (Imoti, The First Sliver). `gain-ability` of a player-level
+    static ends when the source leaves (Ancient Silver Dragon "for the rest of the game") — no player-static/emblem
+    op. `search` has no "with different names" / "not named ~" restriction (Gifts Ungiven, Realms Uncharted,
+    Burning-Rune Demon). `become-prepared` is inert (transform.ts ~303; the prepare face cannot be built). `TokenSpec`
+    drops a token's quoted ability text (Defend the Rider's Pilot). Family `choose-modes` has `repeat` but no targets,
+    core `choose-mode` has targets but no repeat (Fiery Confluence) — and authors wrote `choose-objects` where the
+    printed mode says "target" (Eldrazi Confluence): the judge rule is right, add a lint. The four "Season of …"
+    paradox cards' `{P}` mode lines are claimable by nothing (refused by promote, quarantined). Blind manifest: no
+    `manaCost` field; the DSL README lacks the legal `passUntil` step names (upkeep, draw, main1, combat-begin,
+    declare-attackers, declare-blockers, first-strike-damage, combat-damage, combat-end, main2, end, cleanup) and its
+    section 7 is not in the embedded cheat sheet.
+
 ## 4. Remaining Phase 8 slices
 
 - ~~8c `scripts:verify`~~ — **merged** (a9ef523): `npm run scripts:verify -- --batch <file> | --ids … | --changed | --stale`,
@@ -820,3 +842,25 @@ Plan D6, brief docs/workflows/briefs/process-slice.md, run through `tooling-slic
   keeps an explicit max); every reader's comment updated; `--judges N` still forces a run. README rules 5 and 8
   rewritten; table rows for renderer-slice.js, tooling-slice.js and script-wave's new args.
 - Open: §3 item 35.
+
+## 11. Phase 10.1.1 — group 1 of the EDHREC queue (2026-09-06)
+
+- Batches 001–020 (416 cards) ran twice: run 1 (wf_067ec9e7-a47) was contaminated by plan mode (every blind-scenario
+  author and the authors of batches 017–020 wrote nothing); run 2 (wf_40d78cb2-214) used the script-wave `resume`
+  option (author rows of 001–016 reused, 017–020 re-authored, `blindRate: 3`, one judge, `rerun: 2`). The merged
+  report is data/scripts/reports/10.1-g1.json (gitignored; run 1 kept as 10.1-g1-run1.json).
+- Promoted with the 6a83844 promoter: **judged 11 / tested 0 / verified 4 / scripted 50 / blocked 302 / rejected 14 /
+  refused 4 / missing 18**. The 18 missing are unverified author scripts the orchestrator quarantined before the
+  renderer slice (unclaimed Madness / Miracle / Spectacle / Fuse / offering lines — cover-rule feedstock); the 4
+  refused are the "Season of …" paradox cards (unclaimable `{P}` modes), quarantined by `scripts:check --changed`.
+  Blind sampling: 16 of the 29 verified cards got a scenario (1 in 3 plus the one owner-deck card).
+- Yield where authors worked: 101 written / 29 verified of ~400 cards, 302 blocked with 188 needs (needs.json now
+  ranks 228 families over 421 blocked cards; top: generic 19). Judges rejected 14 of 29: reflexive "when you do"
+  flattened, "target" dropped in favour of resolution-time choice, cascade source MV, dead `condition` on a trigger,
+  missing second face, token naming — see §3 item 36 for the engine/harness half of those.
+- Gate: scripts:check 140 scripts 0 problems; lint-op-coverage shrank the allowlist by `altCosts: buyback` (now
+  exercised by the Constant Mists blind scenario); verify:quick green; coverage:pool 13,128 / 34,513 overall with
+  scripts (paper 12,974 = 40.4%), parser-alone unchanged at 12,877.
+- Groups 2+ (batches 021–112) are NOT launched: the parser wave runs first, then 10.1 is re-queued with
+  `--only-unlocked`, `blindRate: 3`, `alwaysSample` (owner ids), and promoted per group of 20 batches.
+

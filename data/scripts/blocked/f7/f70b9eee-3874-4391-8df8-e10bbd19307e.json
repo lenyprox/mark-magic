@@ -1,0 +1,16 @@
+{
+  "oracleId": "f70b9eee-3874-4391-8df8-e10bbd19307e",
+  "name": "Bucknard's Everfull Purse",
+  "clause": "The player to your right gains control of ~.",
+  "needs": [
+    {
+      "opFamily": "seating-order",
+      "proposedSignature": "ScopeWho += 'player-to-your-left' | 'player-to-your-right'; control-gain.who += the same two",
+      "semantics": "The player seated next in / against turn order from the acting player, skipping players who have left the game. Needed wherever a card hands a permanent or an effect to a neighbour rather than to a target.",
+      "cr": "103.5, 802.1",
+      "clause": "The player to your right gains control of ~."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "eda11077-b2ce-408b-b982-def2da8fe599",
+  "name": "Ojer Kaslem, Deepest Growth // Temple of Cultivation",
+  "clause": "Whenever ~ deals combat damage to a player, reveal that many cards from the top of your library. You may put a creature card and/or a land card from among them onto the battlefield. Put the rest on the bottom in a random order.",
+  "needs": [
+    {
+      "opFamily": "reveal-and-put",
+      "proposedSignature": "{ op: 'choose-objects'; chooser: ChoiceWho; from: ChoiceSet; picks: Filter[]; upTo?: boolean } - one optional pick per filter instead of one `count` over one pool",
+      "semantics": "'reveal that many cards from the top of your library. You may put A CREATURE CARD AND/OR A LAND CARD from among them onto the battlefield. Put the rest on the bottom in a random order.' - at most one object per listed filter, chosen from the same revealed set, with chosen-fate's existing `chosen` / `other` fates handling the battlefield half and the bottom-of-library half. Today `count` is a single number over a single filtered pool, so either the type restriction or 'the rest' has to be dropped.",
+      "cr": "701.20a, 608.2h",
+      "clause": "You may put a creature card and/or a land card from among them onto the battlefield. Put the rest on the bottom in a random order."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

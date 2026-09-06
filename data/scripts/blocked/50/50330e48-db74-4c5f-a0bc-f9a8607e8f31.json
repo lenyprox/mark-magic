@@ -1,0 +1,23 @@
+{
+  "oracleId": "50330e48-db74-4c5f-a0bc-f9a8607e8f31",
+  "name": "Lion Sash",
+  "clause": "Equipped creature gets +1/+1 for each +1/+1 counter on ~.",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "Amount-valued attachment bonuses: { kind: 'equipment'; power: Amount; toughness: Amount; ... } (and the same for anthem); plus a condition { kind: 'that-is-type'; type: CardType } that reads the card type of the object the frame bound.",
+      "semantics": "Lion Sash needs 'Equipped creature gets +1/+1 for each +1/+1 counter on ~' (equipment power / toughness are plain numbers today) and 'If it was a permanent card, put a +1/+1 counter on ~' after exiling a graveyard card (no condition reads what the bound object was).",
+      "cr": "613.4b, 608.2h",
+      "clause": "Equipped creature gets +1/+1 for each +1/+1 counter on ~."
+    },
+    {
+      "opFamily": "named-keyword:reconfigure",
+      "proposedSignature": "A face declaration { reconfigure: ManaCost } with a matching covers kind 'reconfigure' (anchored line ^reconfigure (\\{.+\\})$, value = reconfigure.raw), plus KEYWORD_EXPANSIONS 'reconfigure': '{cost}: attach ~ to target creature you control; or unattach ~. activate only as a sorcery. while attached, ~ is not a creature'.",
+      "semantics": "Equipment-creature attach / unattach at sorcery speed; while attached the permanent is not a creature. Scripting it as a plain sorcery-speed attach-self activated ability (what all four scripts do) is correct behaviour, but the printed line then has neither a declaration nor rules text, so it scores 0 and the card can never be verified.",
+      "cr": "702.151a-702.151e",
+      "clause": "Reconfigure {2}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 2
+}

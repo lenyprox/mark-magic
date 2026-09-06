@@ -1,0 +1,23 @@
+{
+  "oracleId": "8f3705ff-e8e5-48e7-ab68-df6849d78867",
+  "name": "Shadowgrange Archfiend",
+  "clause": "When ~ enters, each opponent sacrifices a creature with the greatest power among creatures they control. You gain life equal to the greatest power among creatures sacrificed this way.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "Conditions { kind: 'poison-ge'; who: 'you' | 'opponent' | 'any'; value: number }, { kind: 'x-ge'; value: number }, { kind: 'first-combat-phase' }; effect `sacrifice` gains amount: number | 'all'; Filter gains { extreme: 'greatest-power' | 'least-power'; among: ObjectSet }.",
+      "semantics": "Four independent holes this batch hit: 'As long as an opponent has three or more poison counters' (Skrelv's Hive), 'If X is 5 or more' (White Sun's Twilight), 'If it's the first combat phase of your turn' (Tifa), and 'sacrifice all creatures you control' / 'a creature with the greatest power among creatures they control' (Emrakul, Shadowgrange Archfiend).",
+      "cr": "104.3d, 601.2b, 506.1, 701.16a",
+      "clause": "As long as an opponent has three or more poison counters, creatures you control with toxic have lifelink."
+    },
+    {
+      "opFamily": "named-keyword:madness",
+      "proposedSignature": "AltCost.id gains 'madness' ({ id: 'madness', label: 'madness', cost, from: 'exile' }) plus a discard replacement static { kind: 'discard-replacement', instead: 'exile-then-may-cast' } that exiles the discarded card and creates a reflexive trigger to cast it for its madness cost.",
+      "semantics": "If a player would discard this card, they discard it into exile instead. When they do, they may cast it for its madness cost; if they don't, it goes to the graveyard.",
+      "cr": "702.35a-702.35c",
+      "clause": "Madness {1}{B}{B}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

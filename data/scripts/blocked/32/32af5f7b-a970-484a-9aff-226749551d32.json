@@ -1,0 +1,16 @@
+{
+  "oracleId": "32af5f7b-a970-484a-9aff-226749551d32",
+  "name": "Thousand Moons Smithy // Barracks of the Thousand",
+  "clause": "// Whenever you cast an artifact or creature spell using mana produced by ~, create a white Gnome Soldier artifact creature token with \"This token's power and toughness are each equal to the number of artifacts and/or creatures you control.\"",
+  "needs": [
+    {
+      "opFamily": "mana-provenance",
+      "proposedSignature": "add-mana gains `tag?: 'self'` (mark the mana as produced by this permanent); trigger { on: 'mana-spent'; from: 'self'; filter: Filter }; and a `withManaFrom?: 'self'` field on { on: 'cast' }",
+      "semantics": "Record, per mana in a player's pool, the permanent that produced it, so 'Whenever you cast an <x> spell using mana produced by ~' and '{T}: Add one mana of any color. When that mana is spent to cast an <x> spell, ...' fire exactly once per qualifying spend. Without it these lines can only be written as unrestricted cast triggers, strictly stronger than the printed card.",
+      "cr": "106.12, 601.2g",
+      "clause": "Whenever you cast an artifact or creature spell using mana produced by ~, create a white Gnome Soldier artifact creature token ..."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

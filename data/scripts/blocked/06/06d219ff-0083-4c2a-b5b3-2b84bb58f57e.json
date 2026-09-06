@@ -1,0 +1,23 @@
+{
+  "oracleId": "06d219ff-0083-4c2a-b5b3-2b84bb58f57e",
+  "name": "Skrelv's Hive",
+  "clause": "As long as an opponent has three or more poison counters, creatures you control with toxic have lifelink.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "Conditions { kind: 'poison-ge'; who: 'you' | 'opponent' | 'any'; value: number }, { kind: 'x-ge'; value: number }, { kind: 'first-combat-phase' }; effect `sacrifice` gains amount: number | 'all'; Filter gains { extreme: 'greatest-power' | 'least-power'; among: ObjectSet }.",
+      "semantics": "Four independent holes this batch hit: 'As long as an opponent has three or more poison counters' (Skrelv's Hive), 'If X is 5 or more' (White Sun's Twilight), 'If it's the first combat phase of your turn' (Tifa), and 'sacrifice all creatures you control' / 'a creature with the greatest power among creatures they control' (Emrakul, Shadowgrange Archfiend).",
+      "cr": "104.3d, 601.2b, 506.1, 701.16a",
+      "clause": "As long as an opponent has three or more poison counters, creatures you control with toxic have lifelink."
+    },
+    {
+      "opFamily": "named-keyword:toxic",
+      "proposedSignature": "Parameterised keyword grants wherever a Keyword[] is granted - anthem.keywords, token.keywords, grant-keyword.keywords, pump.keywords, set-pt.keywords - e.g. keywords: [{ name: 'toxic', n: 1 }] accepted alongside the bare 'toxic'.",
+      "semantics": "'Other Rats you control have toxic 1.' and 'a 1/1 colorless Phyrexian Mite artifact creature token with toxic 1' must carry the 1. Today only a CARD can have toxic N (def.toxic), so a granted or token toxic deals no poison at all (game.ts reads src.def.toxic, and a token's def is its creator's), and the printed 1 never reaches the rendering, scoring those lines 0 on the number gate.",
+      "cr": "702.180a",
+      "clause": "Other Rats you control have toxic 1."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

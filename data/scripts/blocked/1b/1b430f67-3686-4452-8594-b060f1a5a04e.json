@@ -1,0 +1,23 @@
+{
+  "oracleId": "1b430f67-3686-4452-8594-b060f1a5a04e",
+  "name": "Fortune Teller's Talent",
+  "clause": "As long as you've cast a spell this turn, you may play cards from the top of your library.",
+  "needs": [
+    {
+      "opFamily": "class-level-ability-gate",
+      "proposedSignature": "`Ability.atLevel?: number` on every Ability kind, read by abilitiesOf (activated / triggered / spell) and by computeStaticMods (static), so an ability printed below a Class's level-N bar functions only while the source's level is >= N",
+      "semantics": "CR 716.2e: an ability a Class gains from its level-N bar is active only while the Class is level N or greater. Today the only carriers of a level gate are the `condition` field on anthem / self-keywords / self-pt and on the cost-alter family's cost-alter static. Every other static kind under a level bar — extra-land, grant-ability, grant-mana-ability, damage-replacement, play-lands-from, counters-replacement, no-max-hand-size — is either unwritable or silently active from level 1. This is the single biggest blocker in the batch (5 of 12 blocked cards) and docs/vocabulary/piles-choices.md §5 already names it as deliberately absent.",
+      "cr": "716.2e, 716.4",
+      "clause": "Noncreature spells you cast cost {1} less to cast. / You may play an additional land on each of your turns. / Treasures you control have \"{T}, Sacrifice this artifact: Add two mana of any one color.\""
+    },
+    {
+      "opFamily": "play-from-library-top",
+      "proposedSignature": "static `{ kind: 'play-from'; zone: 'library-top'; filter?: Filter; count?: number; condition?: Condition }`",
+      "semantics": "'You may play cards from the top of your library' (Future Sight, Oracle of Mul Daya, Fortune Teller's Talent level 2). play-lands-from takes a zone but is lands-only, and cost-alter's cast-from covers graveyard and exile only, so the top-of-library permission — one of the most common blue/green statics — has no form. It pairs with look-top-anytime, which already exists.",
+      "cr": "601.2, 305.9, 118.6",
+      "clause": "As long as you've cast a spell this turn, you may play cards from the top of your library."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

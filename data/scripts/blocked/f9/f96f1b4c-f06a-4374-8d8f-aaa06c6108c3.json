@@ -1,0 +1,16 @@
+{
+  "oracleId": "f96f1b4c-f06a-4374-8d8f-aaa06c6108c3",
+  "name": "Eagle Vision",
+  "clause": "Freerunning {1}{U}",
+  "needs": [
+    {
+      "opFamily": "named-keyword-freerunning",
+      "proposedSignature": "AltCostId += 'freerunning'; Condition: { kind: 'dealt-combat-damage-this-turn'; who: 'you'; filter?: Filter }  // filter = { subtypes: ['Assassin'] } or commander",
+      "semantics": "'You may cast this spell for its freerunning cost if you or a creature you control dealt combat damage to a player this turn with an Assassin or commander.' AltCost already has an optional `condition`, so the family is really one new Condition (a per-turn record of which of your creatures connected, and whether the player themself did) plus the id and a covers shape for the printed line.",
+      "cr": "702.184",
+      "clause": "Freerunning {1}{U}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

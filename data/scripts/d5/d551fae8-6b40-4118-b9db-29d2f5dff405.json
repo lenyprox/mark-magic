@@ -1,0 +1,108 @@
+{
+  "oracleId": "d551fae8-6b40-4118-b9db-29d2f5dff405",
+  "name": "Burning-Rune Demon",
+  "oracleHash": "31349284",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [
+    "flying"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "may",
+          "effects": [
+            {
+              "op": "search",
+              "filter": {},
+              "to": "hand",
+              "count": 2,
+              "reveal": true
+            },
+            {
+              "op": "reveal-cards",
+              "what": "those"
+            },
+            {
+              "op": "choose-objects",
+              "chooser": "an-opponent",
+              "from": "those",
+              "count": 1
+            },
+            {
+              "op": "chosen-fate",
+              "chosen": {
+                "how": "move",
+                "to": "hand"
+              },
+              "other": {
+                "how": "move",
+                "to": "graveyard"
+              }
+            }
+          ]
+        }
+      ],
+      "text": "When ~ enters, you may search your library for exactly two cards not named ~ that have different names. If you do, reveal those cards. An opponent chooses one of them. Put the chosen card into your hand and the other into your graveyard, then shuffle."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flying",
+      "by": "keywords"
+    }
+  ],
+  "notes": "Both cards are searched into hand (the `search` op has no \"reveal and hold\" destination) and the unchosen one is then moved to the graveyard, which is the printed net result; `search` shuffles the library itself. \"not named ~\" and \"that have different names\" are not expressible — `Filter` has no card-name field — so the search filter is unrestricted.",
+  "verification": {
+    "at": "2026-09-06T10:06:03.841Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "31349284",
+    "scriptHash": "2ae929b0",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.703,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": [],
+      "sampled": false
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "search your library for exactly two cards not named Burning-Rune Demon that have different names — expected two cards with different names, neither named Burning-Rune Demon — scripted search {filter:{}} count:2 — no name restriction at all (Filter has no card-name field). You may fetch two copies of the same card, which makes the opponent's choice meaningless and removes the card's entire drawback; the restriction is the printed cost of the effect, not a cosmetic detail — CR 701.19c",
+          "If you do, reveal those cards. ... Put the chosen card into your hand and the other into your graveyard — expected cards revealed from the library, then split hand/graveyard — scripted both cards are searched to hand first (search binds 'those' via noteAffected, game.ts:1315), reveal-cards, choose-objects chooser:'an-opponent', chosen-fate chosen->hand / other->graveyard. Net zones are right; the unchosen card passes through hand (an extra hand zone-change the printed card never makes) — CR 400.7",
+          "then shuffle — expected shuffle after the search — scripted implicit in `search` (game.ts:1317) — correct, no separate shuffle needed — CR 701.19e"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

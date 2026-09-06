@@ -1,0 +1,16 @@
+{
+  "oracleId": "cd11c27b-9368-4622-bc5a-2e0b993cc42b",
+  "name": "Mystic Confluence",
+  "clause": "• Counter target spell unless its controller pays {3}.",
+  "needs": [
+    {
+      "opFamily": "modal-targets",
+      "proposedSignature": "{ op: 'choose-mode'; modes: Effect[][]; count: Amount; repeat?: boolean; upTo?: boolean; notChosen?: 'this-turn' | 'ever'; weights?: number[] } — the CORE modal op gains the family flags, and legal.ts:modeCombos(n, k) enumerates k-combinations (k-MULTIsets when `repeat`) instead of the pairs it returns today for every k >= 2",
+      "semantics": "A modal spell whose modes take targets and whose header says 'Choose three' / 'You may choose the same mode more than once' / 'choose up to five {P} worth of modes'. The core op already expands the chosen modes into the item's effect list before targets are chosen (legal.ts:expandModes), so a mode's `counter` / `bounce` / `damage` keeps a real target; today only the family `choose-modes` can say `repeat` / `weights` / `notChosen`, and its modes are never offered a target because legal.ts:nestedLists does not descend into a family op's lists. Either descend into `choose-modes.modes` for targeting (asking for every mode's targets at cast, CR 601.2b) or lift the flags onto the core op.",
+      "cr": "700.2, 700.2d, 700.2i, 601.2b",
+      "clause": "Choose three. You may choose the same mode more than once. • Counter target spell unless its controller pays {3}."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

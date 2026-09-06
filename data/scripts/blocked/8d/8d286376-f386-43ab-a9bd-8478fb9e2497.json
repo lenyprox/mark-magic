@@ -1,0 +1,16 @@
+{
+  "oracleId": "8d286376-f386-43ab-a9bd-8478fb9e2497",
+  "name": "Light Up the Stage",
+  "clause": "Spectacle {R}",
+  "needs": [
+    {
+      "opFamily": "alt-cost-keywords",
+      "proposedSignature": "AltCostIdRegistry += { spectacle: true }; AltCost { id: 'spectacle', label: 'spectacle', cost: { mana }, from: 'hand', condition: { kind: 'opponent-lost-life-this-turn' } }, plus a COVER_RULES.altCosts line shape /^spectacle (\\{.+\\})$/ matching cost.mana.raw and a KEYWORD_EXPANSIONS.spectacle entry",
+      "semantics": "an alternative cost that may be paid instead of the mana cost only while an opponent has lost life this turn; the condition already exists, only the id, the covers shape and the renderer expansion are missing, and without the covers shape the printed line 'Spectacle {R}' can be claimed by nothing",
+      "cr": "702.137a, 601.2b",
+      "clause": "Spectacle {R}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,53 @@
+{
+  "oracleId": "3c9faba7-f2d3-4978-be94-020dc8003dc0",
+  "name": "Intuition",
+  "scenarios": [
+    {
+      "name": "Intuition puts one of the three revealed cards into your hand and the other two into your graveyard",
+      "cr": "608.2",
+      "ruling": "Three cards leave the library, the targeted opponent picks one of them for your hand and the other two go to your graveyard, so the library is three cards smaller, the hand holds exactly one card and the graveyard holds two cards plus Intuition itself.",
+      "seats": [
+        { "bf": ["Island", "Island", "Island"], "hand": ["Intuition"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Intuition", "targets": [["P1"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "libraryCount": [0, 17] },
+        { "handCount": [0, 1] },
+        { "graveyardCount": [0, 3] },
+        { "zone": ["Intuition", "graveyard"] },
+        { "zoneCount": [1, "hand", 0] },
+        { "libraryCount": [1, 20] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Intuition can target either opponent and only that opponent makes the choice",
+      "cr": "601.2c",
+      "ruling": "Intuition targets an opponent, chosen as the spell is cast; the cards still come out of the caster's library and end up split one to hand and two to graveyard no matter which opponent was targeted, and neither opponent's own zones change.",
+      "seats": [
+        { "bf": ["Island", "Island", "Island"], "hand": ["Intuition"] },
+        {},
+        {}
+      ],
+      "script": [
+        { "cast": "Intuition", "targets": [["P2"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "libraryCount": [0, 17] },
+        { "handCount": [0, 1] },
+        { "graveyardCount": [0, 3] },
+        { "zone": ["Intuition", "graveyard"] },
+        { "handCount": [2, 0] },
+        { "graveyardCount": [2, 0] },
+        { "libraryCount": [2, 20] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

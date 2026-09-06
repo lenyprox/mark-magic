@@ -1,0 +1,101 @@
+{
+  "oracleId": "cce081eb-8820-415a-a7b2-3c5b9d4a2601",
+  "name": "Gala Greeters",
+  "scenarios": [
+    {
+      "name": "The first mode puts a +1/+1 counter on Gala Greeters when another creature enters",
+      "cr": "700.2",
+      "ruling": "Another creature entering under your control triggers the ability; with the first mode chosen the only thing that happens is one +1/+1 counter on Gala Greeters, so it is a 2/2, no Treasure is made and no life is gained.",
+      "seats": [
+        { "bf": ["Gala Greeters", "Forest", "Forest"], "hand": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "answer": "Put a +1/+1 counter on ~." },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "counters": ["Gala Greeters", { "+1/+1": 1 }] },
+        { "pt": ["Gala Greeters", 2, 2] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "life": [0, 20] },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The second mode creates a tapped Treasure token when another creature enters",
+      "cr": "111.1",
+      "ruling": "With the second mode chosen the trigger creates a Treasure token and that token enters tapped; Gala Greeters gets no counter and no life is gained.",
+      "seats": [
+        { "bf": ["Gala Greeters", "Forest", "Forest"], "hand": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "answer": "Create a tapped Treasure token." },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "log": "Treasure token" },
+        { "zone": ["Treasure", "battlefield"] },
+        { "tapped": ["Treasure", true] },
+        { "counters": ["Gala Greeters", { "+1/+1": 0 }] },
+        { "pt": ["Gala Greeters", 1, 1] },
+        { "life": [0, 20] },
+        { "zoneCount": [0, "battlefield", 5] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The third mode gains you 2 life when another creature enters",
+      "cr": "119.3",
+      "ruling": "With the third mode chosen the trigger only gains its controller 2 life: no counter goes on Gala Greeters and no Treasure token is created.",
+      "seats": [
+        { "bf": ["Gala Greeters", "Forest", "Forest"], "hand": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "answer": "You gain 2 life." },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [0, 22] },
+        { "life": [1, 20] },
+        { "counters": ["Gala Greeters", { "+1/+1": 0 }] },
+        { "pt": ["Gala Greeters", 1, 1] },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A mode already chosen this turn cannot be chosen again for the second trigger",
+      "cr": "700.2",
+      "ruling": "The ability says \"choose one that hasn't been chosen this turn\", so once the first trigger has taken the +1/+1 counter mode the second creature to enter that turn must use one of the two remaining modes; Gala Greeters therefore ends the turn with exactly one counter, not two.",
+      "seats": [
+        { "bf": ["Gala Greeters", "Forest", "Forest", "Mountain", "Mountain", "Mountain", "Mountain"], "hand": ["Grizzly Bears", "Hill Giant"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "answer": "Put a +1/+1 counter on ~." },
+        { "resolve": true },
+        { "cast": "Hill Giant" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "counters": ["Gala Greeters", { "+1/+1": 1 }] },
+        { "pt": ["Gala Greeters", 2, 2] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "zone": ["Hill Giant", "battlefield"] },
+        { "handCount": [0, 0] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

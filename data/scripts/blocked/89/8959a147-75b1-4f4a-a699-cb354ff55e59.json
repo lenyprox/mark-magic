@@ -1,0 +1,23 @@
+{
+  "oracleId": "8959a147-75b1-4f4a-a699-cb354ff55e59",
+  "name": "Joraga Warcaller",
+  "clause": "Other Elf creatures you control get +1/+1 for each +1/+1 counter on ~.",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "{ kind: 'anthem', power: Amount, toughness: Amount, ... } and { kind: 'aura', power: Amount, toughness: Amount, ... } - widen the two statics' P/T from number to Amount",
+      "semantics": "CR 613.4b: 'Other Elf creatures you control get +1/+1 for each +1/+1 counter on ~', 'Enchanted creature gets +1/+1 for each +1/+1 counter on this Aura', 'enchanted creature gets +X/+X, where X is the number of creature cards in all graveyards'. Only 'self-pt' takes an Amount today, so a scaling bonus can be given to the source alone.",
+      "cr": "613.4b",
+      "clause": "Other Elf creatures you control get +1/+1 for each +1/+1 counter on ~."
+    },
+    {
+      "opFamily": "named-keyword:multikicker",
+      "proposedSignature": "Amount { count: 'times-kicked' } backed by GameObject.castWith.timesKicked: number, and a cast action that may pay the kicker cost any number of times (cost.ts spellManaCost taking a kick count instead of a boolean)",
+      "semantics": "CR 702.33b: multikicker may be paid any number of times and cards count the payments ('a +1/+1 counter for each time it was kicked', 'X is the number of times it was kicked'). The engine's kicker is a boolean, so every such magnitude collapses to 1 and cannot be written honestly.",
+      "cr": "702.33b",
+      "clause": "~ enters with a +1/+1 counter on it for each time it was kicked. / where X is the number of times ~ was kicked."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

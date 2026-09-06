@@ -1,0 +1,103 @@
+{
+  "oracleId": "18e421c0-2879-4ad8-b027-397f168dfbc2",
+  "name": "Krark, the Thumbless",
+  "scenarios": [
+    {
+      "name": "Krark copies the instant you cast when you win the flip",
+      "cr": "707.10",
+      "ruling": "Winning the flip copies the spell on the stack. The copy is created on the stack and resolves before the original, so Lightning Bolt deals its 3 damage twice.",
+      "seats": [
+        { "bf": ["Krark, the Thumbless", "Mountain"], "hand": ["Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["P1"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "log": "flips a coin for Krark, the Thumbless: heads \\(wins the flip\\)" },
+        { "life": [1, 14] },
+        { "life": [0, 20] },
+        { "events": { "type": "damage", "min": 2, "max": 2 } },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "handCount": [0, 0] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Krark returns the spell to its owner's hand when you lose the flip",
+      "cr": "400.7",
+      "ruling": "Losing the flip moves the spell from the stack to its owner's hand, so it never resolves and deals no damage. The engine's flip sequence loses for the first time on the sixth flip of the game, so the first five Shocks are copied (2 + 2 damage each, 20 in total) and the sixth is returned to hand.",
+      "seats": [
+        {
+          "bf": ["Krark, the Thumbless", "Mountain", "Mountain", "Mountain", "Mountain", "Mountain", "Mountain"],
+          "hand": ["Shock", "Shock", "Shock", "Shock", "Shock", "Shock"]
+        },
+        { "life": 60 }
+      ],
+      "script": [
+        { "cast": "Shock", "targets": [["P1"]] },
+        { "resolve": true },
+        { "cast": "Shock", "targets": [["P1"]] },
+        { "resolve": true },
+        { "cast": "Shock", "targets": [["P1"]] },
+        { "resolve": true },
+        { "cast": "Shock", "targets": [["P1"]] },
+        { "resolve": true },
+        { "cast": "Shock", "targets": [["P1"]] },
+        { "resolve": true },
+        { "cast": "Shock", "targets": [["P1"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "log": "flips a coin for Krark, the Thumbless: tails \\(loses the flip\\)" },
+        { "life": [1, 40] },
+        { "zone": ["Shock", "hand"] },
+        { "handCount": [0, 1] },
+        { "graveyardCount": [0, 5] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Krark's ability does not trigger when you cast a creature spell",
+      "cr": "603.2",
+      "ruling": "The ability triggers only on an instant or sorcery spell, so a creature spell is neither copied nor returned to its owner's hand.",
+      "seats": [
+        { "bf": ["Krark, the Thumbless", "Forest", "Forest"], "hand": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "noLog": "flips a coin for Krark, the Thumbless" },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "handCount": [0, 0] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Krark has partner",
+      "cr": "702.124a",
+      "ruling": "Partner is a printed keyword ability of Krark, the Thumbless.",
+      "seats": [
+        { "bf": ["Krark, the Thumbless"] },
+        {}
+      ],
+      "script": [
+        { "sba": true }
+      ],
+      "expect": [
+        { "keywords": ["Krark, the Thumbless", ["partner"]] },
+        { "pt": ["Krark, the Thumbless", 2, 2] },
+        { "zone": ["Krark, the Thumbless", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

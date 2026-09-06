@@ -1,0 +1,23 @@
+{
+  "oracleId": "91df4cf5-d7ec-4fcd-87ed-e075ef6ceba9",
+  "name": "The Deck of Many Things",
+  "clause": "20 | Put a creature card from any graveyard onto the battlefield under your control. When that creature dies, its owner loses the game.",
+  "needs": [
+    {
+      "opFamily": "delayed-trigger",
+      "proposedSignature": "delayed-trigger.at += 'dies' | 'ltb' (no turn limit)",
+      "semantics": "The existing `this-turn:dies` / `this-turn:ltb` expire at this turn's cleanup (CR 603.7b). A 'When that creature dies, ...' created with no printed duration must watch the bound object for the rest of the game.",
+      "cr": "603.7a",
+      "clause": "When that creature dies, its owner loses the game."
+    },
+    {
+      "opFamily": "game-loss",
+      "proposedSignature": "{ op: 'lose-game', who: ScopeWho }",
+      "semantics": "The named player(s) lose the game immediately - a real loss, not a life change, so 'owner-of-that' can be named. Today the only approximation is `set-life 0`, whose `who` is limited to you / each-player.",
+      "cr": "104.3b",
+      "clause": "When that creature dies, its owner loses the game."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

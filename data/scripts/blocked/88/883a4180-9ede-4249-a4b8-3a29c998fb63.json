@@ -1,0 +1,16 @@
+{
+  "oracleId": "883a4180-9ede-4249-a4b8-3a29c998fb63",
+  "name": "Tithing Blade // Consuming Sepulcher",
+  "clause": "Craft with creature {4}{B}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:craft",
+      "proposedSignature": "AbilityCost part `exilePermanent?: { filter: Filter; count: number }` plus an either-or cost part `oneOf?: AbilityCost[]`; OR a face declaration `craft?: { cost: ManaCost; what: Filter }` with covers[].by kind 'craft' anchored /^craft with (.+?) (\\{.+\\})$/. Plus a KEYWORD_EXPANSIONS entry: craft: '{cost}, exile ~, exile a {what} you control or a {what} card from your graveyard: return this card transformed under its owner's control. activate only as a sorcery'.",
+      "semantics": "Craft is an activated ability of the permanent: pay the mana, exile the permanent itself, and exile EITHER a matching permanent you control OR a matching card from your graveyard; the card then returns to the battlefield transformed under its owner's control, sorcery speed only. The return half is already expressible (transform to:'back' asItEnters, then move to battlefield) and exileSelf already pays the self-exile; what is missing is a cost part that exiles a permanent you control and a cost part that offers a choice between two payment shapes.",
+      "cr": "702.171a, 712.14a, 601.2h",
+      "clause": "Craft with creature {4}{B}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,162 @@
+{
+  "oracleId": "196962f0-6aff-4198-9e0c-eaf42aeaf147",
+  "name": "Astor, Bearer of Blades",
+  "oracleHash": "bd620a29",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "dig",
+          "look": 7,
+          "take": 1,
+          "rest": "bottom",
+          "order": "random",
+          "filter": {
+            "subtypes": [
+              "Equipment",
+              "Vehicle"
+            ]
+          },
+          "optional": true,
+          "reveal": true
+        }
+      ],
+      "text": "When ~ enters, look at the top seven cards of your library. You may reveal an Equipment or Vehicle card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
+      "optional": false
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "grant-ability",
+        "filter": {
+          "subtypes": [
+            "Equipment"
+          ]
+        },
+        "scope": "you-control",
+        "ability": {
+          "kind": "activated",
+          "cost": {
+            "mana": {
+              "generic": 1,
+              "x": 0,
+              "pips": [],
+              "hybrid": [],
+              "phyrexian": [],
+              "raw": "{1}"
+            }
+          },
+          "effects": [
+            {
+              "op": "attach-self",
+              "target": {
+                "kind": "creature",
+                "controller": "you"
+              }
+            }
+          ],
+          "text": "Equip {1}",
+          "sorcerySpeed": true
+        }
+      },
+      "text": "Equipment you control have equip {1}."
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "grant-ability",
+        "filter": {
+          "subtypes": [
+            "Vehicle"
+          ]
+        },
+        "scope": "you-control",
+        "ability": {
+          "kind": "activated",
+          "cost": {
+            "tapCreaturesTotalPower": {
+              "power": 1,
+              "other": false
+            }
+          },
+          "effects": [
+            {
+              "op": "crew-self"
+            }
+          ],
+          "text": "Crew 1",
+          "instantSpeed": true
+        }
+      },
+      "text": "Vehicles you control have crew 1."
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "utility",
+    "value": 4,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-06T06:15:15.552Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "bd620a29",
+    "scriptHash": "edd2791b",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        },
+        {
+          "index": 2,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.333,
+      "lowest": [
+        {
+          "text": "Equipment you control have equip {1}.",
+          "rendered": "Equipment you control has \"{1}: attach ~ to target creature you control. activate only as a sorcery\"",
+          "score": 0.333
+        },
+        {
+          "text": "Vehicles you control have crew 1.",
+          "rendered": "Vehicle you control has \"tap any number of creatures you control with total power 1 or greater: crew ~\"",
+          "score": 0.353
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.33 < 0.55: \"Equipment you control have equip {1}.\" rendered as \"Equipment you control has \\\"{1}: attach ~ to target creature you control. activate only as a sorcery\\\"\""
+    ]
+  }
+}

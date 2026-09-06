@@ -1,0 +1,118 @@
+{
+  "oracleId": "c850a29e-dc40-4ab6-89f1-d501a1a350d1",
+  "name": "Constant Mists",
+  "scenarios": [
+    {
+      "name": "Constant Mists prevents an unblocked attacker's combat damage to the defending player",
+      "cr": "615.1",
+      "ruling": "Constant Mists sets up a prevention shield for the rest of the turn, so combat damage that would be dealt to the defending player in the combat damage step is prevented and their life total does not change.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest", "Forest", "Grizzly Bears"], "hand": ["Constant Mists"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Constant Mists" },
+        { "resolve": true },
+        { "attack": ["Grizzly Bears"] }
+      ],
+      "expect": [
+        { "life": [1, 20] },
+        { "life": [0, 20] },
+        { "events": { "type": "damage", "min": 0, "max": 0 } },
+        { "noLog": "deals 2 damage" },
+        { "zone": ["Constant Mists", "graveyard"] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Constant Mists leaves a blocked attacker and its blocker alive",
+      "cr": "615.1",
+      "ruling": "The prevention effect applies to all combat damage that turn, including the damage an attacker and a blocker would deal to each other, so a 2/2 blocked by a 3/3 survives and deals nothing back.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest", "Forest", "Grizzly Bears"], "hand": ["Constant Mists"] },
+        { "bf": ["Hill Giant"] }
+      ],
+      "script": [
+        { "cast": "Constant Mists" },
+        { "resolve": true },
+        { "attack": ["Grizzly Bears"], "blocks": [["Hill Giant", "Grizzly Bears"]] }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "zone": ["Hill Giant", "battlefield"] },
+        { "noLog": "Grizzly Bears is destroyed" },
+        { "noLog": "deals 3 damage" },
+        { "events": { "type": "damage", "min": 0, "max": 0 } },
+        { "life": [1, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Constant Mists prevents only combat damage, not a Lightning Bolt",
+      "cr": "615.1",
+      "ruling": "The shield covers combat damage only; damage from a spell is dealt normally, while the attack that follows still deals nothing.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest", "Forest", "Mountain", "Grizzly Bears"], "hand": ["Constant Mists", "Lightning Bolt"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Constant Mists" },
+        { "resolve": true },
+        { "cast": "Lightning Bolt", "targets": [["P1"]] },
+        { "resolve": true },
+        { "attack": ["Grizzly Bears"] }
+      ],
+      "expect": [
+        { "life": [1, 17] },
+        { "log": "deals 3 damage" },
+        { "noLog": "deals 2 damage" },
+        { "events": { "type": "damage", "min": 1, "max": 1 } },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Buyback returns Constant Mists to its owner's hand as it resolves",
+      "cr": "702.27a",
+      "ruling": "Buyback is an optional additional cost — here sacrificing a land — and a spell cast with it paid is put into its owner's hand instead of the graveyard as it resolves.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest", "Forest", "Forest"], "hand": ["Constant Mists"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Constant Mists", "alt": "buyback" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Constant Mists", "hand"] },
+        { "handCount": [0, 1] },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "graveyardCount": [0, 1] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A bought-back Constant Mists still prevents combat damage this turn",
+      "cr": "615.1",
+      "ruling": "Paying buyback changes only where the card goes as it resolves; the spell resolves and its prevention effect applies for the rest of the turn.",
+      "seats": [
+        { "bf": ["Forest", "Forest", "Forest", "Forest", "Forest", "Grizzly Bears"], "hand": ["Constant Mists"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Constant Mists", "alt": "buyback" },
+        { "resolve": true },
+        { "attack": ["Grizzly Bears"] }
+      ],
+      "expect": [
+        { "life": [1, 20] },
+        { "zone": ["Constant Mists", "hand"] },
+        { "noLog": "deals 2 damage" },
+        { "events": { "type": "damage", "min": 0, "max": 0 } },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "oracleId": "751f22bc-bcea-4213-a37b-b5f72448a4c4",
+  "name": "The Reality Chip",
+  "clause": "As long as ~ is attached to a creature, you may play lands and cast spells from the top of your library.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "Extend the static: { kind: 'cast-from'; zone: 'graveyard' | 'exile' | 'library-top'; filter?: Filter; free?: true; condition?: Condition }, and give play-lands-from a condition?: Condition.",
+      "semantics": "'As long as ~ is attached to a creature, you may play lands and cast spells from the top of your library' (The Reality Chip) needs both halves under one condition; today play-lands-from covers only lands and takes no condition, and cast-from cannot name the library.",
+      "cr": "601.3e, 305.9",
+      "clause": "As long as ~ is attached to a creature, you may play lands and cast spells from the top of your library."
+    },
+    {
+      "opFamily": "named-keyword:reconfigure",
+      "proposedSignature": "A face declaration { reconfigure: ManaCost } with a matching covers kind 'reconfigure' (anchored line ^reconfigure (\\{.+\\})$, value = reconfigure.raw), plus KEYWORD_EXPANSIONS 'reconfigure': '{cost}: attach ~ to target creature you control; or unattach ~. activate only as a sorcery. while attached, ~ is not a creature'.",
+      "semantics": "Equipment-creature attach / unattach at sorcery speed; while attached the permanent is not a creature. Scripting it as a plain sorcery-speed attach-self activated ability (what all four scripts do) is correct behaviour, but the printed line then has neither a declaration nor rules text, so it scores 0 and the card can never be verified.",
+      "cr": "702.151a-702.151e",
+      "clause": "Reconfigure {2}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

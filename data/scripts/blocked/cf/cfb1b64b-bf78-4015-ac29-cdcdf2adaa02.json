@@ -1,0 +1,16 @@
+{
+  "oracleId": "cfb1b64b-bf78-4015-ac29-cdcdf2adaa02",
+  "name": "Curtains' Call",
+  "clause": "Undaunted",
+  "needs": [
+    {
+      "opFamily": "named-keyword:undaunted",
+      "proposedSignature": "COVER_RULES.costModifiers gains the anchored shape /^undaunted$/ satisfied by a costModifiers entry { kind: 'reduce', amount: { count: 'opponents' } } + KEYWORD_EXPANSIONS.undaunted = 'this spell costs {1} less to cast for each opponent'",
+      "semantics": "This spell costs {1} less to cast for each opponent. No new engine op is needed at all - { kind: 'reduce', amount: { count: 'opponents' } } already works; only the covers shape and the renderer expansion are missing, which is why the card verifies at every stage except round trip.",
+      "cr": "702.125",
+      "clause": "Undaunted"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

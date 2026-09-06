@@ -1,0 +1,23 @@
+{
+  "oracleId": "1869eb1e-7786-4fea-8a92-2bd839de47df",
+  "name": "Flesh Duplicate",
+  "clause": "You may have ~ enter as a copy of any creature on the battlefield, except it has vanishing 3 if that creature doesn't have vanishing.",
+  "needs": [
+    {
+      "opFamily": "covers:enter-as-copy",
+      "proposedSignature": "COVER_RULES.asEnters gains the anchored shapes /^(?:you may have )?~ enters? as a copy of (.+?)(?:, except (.+?))?\\.?$/ satisfied by an asEnters entry of kind 'enter-as-copy' whose `optional`, `filter` and `except` match the printed words",
+      "semantics": "copy-clone ships `enter-as-copy` as an AsEnters (a replacement effect, deliberately not an ability), but no covers kind names it, so a script can never CLAIM the line it implements - every Clone-shaped card is unscriptable even when the declaration is exactly right. This blocks Flesh Duplicate independently of vanishing.",
+      "cr": "706.9",
+      "clause": "You may have ~ enter as a copy of any creature on the battlefield"
+    },
+    {
+      "opFamily": "named-keyword:vanishing",
+      "proposedSignature": "CopyException gains `vanishing?: number` (and the general form: AsEnters { kind: 'vanishing'; amount: number } + KeywordRegistry { vanishing: true }), plus a conditional exception form `exceptUnless?: { hasKeyword: Keyword }` for 'if that creature doesn't have vanishing'",
+      "semantics": "A permanent with vanishing N enters with N time counters; at the beginning of its controller's upkeep remove one; when the last is removed, sacrifice it. Flesh Duplicate needs it as a COPY EXCEPTION applied only when the copied creature does not already have vanishing (CR 707.9a).",
+      "cr": "702.61, 707.9a",
+      "clause": "except it has vanishing 3 if that creature doesn't have vanishing"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

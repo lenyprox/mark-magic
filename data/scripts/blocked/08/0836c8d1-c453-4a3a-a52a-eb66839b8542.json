@@ -1,0 +1,23 @@
+{
+  "oracleId": "0836c8d1-c453-4a3a-a52a-eb66839b8542",
+  "name": "Tifa, Martial Artist",
+  "clause": "Whenever one or more creatures you control with power 7 or greater deal combat damage to a player, untap all creatures you control. If it's the first combat phase of your turn, there is an additional combat phase after this phase.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "Conditions { kind: 'poison-ge'; who: 'you' | 'opponent' | 'any'; value: number }, { kind: 'x-ge'; value: number }, { kind: 'first-combat-phase' }; effect `sacrifice` gains amount: number | 'all'; Filter gains { extreme: 'greatest-power' | 'least-power'; among: ObjectSet }.",
+      "semantics": "Four independent holes this batch hit: 'As long as an opponent has three or more poison counters' (Skrelv's Hive), 'If X is 5 or more' (White Sun's Twilight), 'If it's the first combat phase of your turn' (Tifa), and 'sacrifice all creatures you control' / 'a creature with the greatest power among creatures they control' (Emrakul, Shadowgrange Archfiend).",
+      "cr": "104.3d, 601.2b, 506.1, 701.16a",
+      "clause": "As long as an opponent has three or more poison counters, creatures you control with toxic have lifelink."
+    },
+    {
+      "opFamily": "named-keyword:melee",
+      "proposedSignature": "Amount.count gains 'opponents-attacked-this-combat'; Keyword gains 'melee'; KEYWORD_EXPANSIONS gains 'melee': 'whenever ~ attacks, it gets +1/+1 until end of turn for each opponent you attacked this combat'.",
+      "semantics": "The count is the number of opponents the ability's controller attacked this combat, so melee becomes { on: 'attacks', self: true } -> { op: 'pump', target: 'self', power: { count: 'opponents-attacked-this-combat' }, toughness: the same, duration: 'eot' }. As a Keyword it can also be granted by an anthem ('Other creatures you control have melee.').",
+      "cr": "702.121a",
+      "clause": "Melee"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

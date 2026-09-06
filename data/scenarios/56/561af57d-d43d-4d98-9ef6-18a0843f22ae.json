@@ -1,0 +1,91 @@
+{
+  "oracleId": "561af57d-d43d-4d98-9ef6-18a0843f22ae",
+  "name": "Defend the Rider",
+  "scenarios": [
+    {
+      "name": "Defend the Rider's first mode makes the targeted creature indestructible against lethal combat damage",
+      "cr": "702.12b",
+      "ruling": "A permanent with indestructible isn't destroyed by lethal damage, so the 2/2 survives 3 combat damage from the blocking 3/3; the same mode also grants hexproof until end of turn.",
+      "seats": [
+        { "bf": ["Forest", "Grizzly Bears"], "hand": ["Defend the Rider"] },
+        { "bf": ["Hill Giant"] }
+      ],
+      "script": [
+        { "cast": "Defend the Rider", "modes": [0], "targets": [["Grizzly Bears"]] },
+        { "resolve": true },
+        { "attack": ["Grizzly Bears"], "blocks": [["Hill Giant", "Grizzly Bears"]] }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "keywords": ["Grizzly Bears", ["hexproof", "indestructible"]] },
+        { "noLog": "Grizzly Bears is destroyed" },
+        { "log": "deals 3 damage" },
+        { "zone": ["Defend the Rider", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Defend the Rider's first mode can target any permanent you control, not just a creature",
+      "cr": "601.2c",
+      "ruling": "The mode reads \"target permanent you control\", so a land is a legal target and it gains hexproof and indestructible until end of turn.",
+      "seats": [
+        { "bf": ["Forest", "Plains"], "hand": ["Defend the Rider"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Defend the Rider", "modes": [0], "targets": [["Plains"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Plains", "battlefield"] },
+        { "keywords": ["Plains", ["hexproof", "indestructible"]] },
+        { "zone": ["Defend the Rider", "graveyard"] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Defend the Rider's second mode creates one 1/1 colorless Pilot creature token",
+      "cr": "111.4",
+      "ruling": "The second mode creates exactly one token under its controller's control; a token whose text does not name it is named after its subtypes, so the token is a 1/1 Pilot.",
+      "seats": [
+        { "bf": ["Forest"], "hand": ["Defend the Rider"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Defend the Rider", "modes": [1] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zoneCount": [0, "battlefield", 2] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "pt": ["Pilot", 1, 1] },
+        { "control": ["Pilot", 0] },
+        { "log": "creates" },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The Pilot token crews a Vehicle with crew 3 on its own",
+      "cr": "702.122b",
+      "ruling": "The token's static ability makes it crew Vehicles as though its power were 2 greater, so the 1/1 alone pays crew 3; the crewed Bomat Bazaar Barge is then an artifact creature that can attack (a Hill Giant crewing the same Barge takes the defender from 20 to 15).",
+      "seats": [
+        { "bf": ["Forest", "Bomat Bazaar Barge"], "hand": ["Defend the Rider"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Defend the Rider", "modes": [1] },
+        { "resolve": true },
+        { "activate": "Bomat Bazaar Barge" },
+        { "resolve": true },
+        { "attack": ["Bomat Bazaar Barge"] }
+      ],
+      "expect": [
+        { "life": [1, 15] },
+        { "zone": ["Bomat Bazaar Barge", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

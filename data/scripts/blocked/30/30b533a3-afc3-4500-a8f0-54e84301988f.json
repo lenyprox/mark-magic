@@ -1,0 +1,16 @@
+{
+  "oracleId": "30b533a3-afc3-4500-a8f0-54e84301988f",
+  "name": "Stolen Identity",
+  "clause": "Cipher",
+  "needs": [
+    {
+      "opFamily": "named-keyword:cipher",
+      "proposedSignature": "a face declaration `cipher?: true` + a `covers[].by` kind 'cipher' (/^cipher$/); an effect { op: 'encode', target: TargetSpec } that exiles the resolving spell's card encoded on a creature you control (recording o.ext.encoded: cardId[] on that creature); a static that functions from the EXILE zone granting the encoded creature { on: 'combat-damage-player', self: true } -> { op: 'cast-copy-free', what: 'encoded' } (copy the encoded card and cast the copy without paying its mana cost); plus KEYWORD_EXPANSIONS['cipher']",
+      "semantics": "Cipher is a spell ability plus a static ability that functions while the card is in exile. The engine has no encode relationship, no static that runs from exile, and no 'copy a CARD and cast the copy' effect (cast-free casts the card itself, which would consume the encoded card instead of leaving it encoded).",
+      "cr": "702.99a, 702.99b, 707.12",
+      "clause": "Cipher"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

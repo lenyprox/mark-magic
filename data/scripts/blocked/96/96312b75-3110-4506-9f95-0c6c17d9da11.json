@@ -1,0 +1,16 @@
+{
+  "oracleId": "96312b75-3110-4506-9f95-0c6c17d9da11",
+  "name": "Securitron Squadron",
+  "clause": "Squad {3}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:squad",
+      "proposedSignature": "a face declaration `squad?: ManaCost` + a `covers[].by` kind 'squad' with the anchored shape /^squad (\\{.+\\})$/ (value check: squad.raw equals the printed cost); a cast-time repeatable optional additional cost recorded on the spell (castWith.squadPaid: number, payable any number of times under CR 601.2b/f-h); an Amount { count: 'squad-paid' }; and the linked ETB { on: 'etb', self: true } -> { op: 'token-copy', target: 'self', count: { count: 'squad-paid' } }; plus KEYWORD_EXPANSIONS['squad']",
+      "semantics": "Squad [cost] is a repeatable optional additional cost plus a linked ETB that creates one token copy of the creature per payment. `additionalCosts` can only state a cost once and no amount can read how many times an optional additional cost was paid, so both halves are unexpressible.",
+      "cr": "702.157a, 601.2b, 601.2f-h",
+      "clause": "Squad {1}{G}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

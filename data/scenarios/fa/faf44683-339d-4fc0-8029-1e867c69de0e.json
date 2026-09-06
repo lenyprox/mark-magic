@@ -1,0 +1,105 @@
+{
+  "oracleId": "faf44683-339d-4fc0-8029-1e867c69de0e",
+  "name": "Galadriel, Light of Valinor",
+  "scenarios": [
+    {
+      "name": "The first mode adds three green mana when another creature enters",
+      "cr": "106.1",
+      "ruling": "With the first mode chosen the trigger adds {G}{G}{G} to its controller's mana pool; that mana is still unspent when the trigger has finished resolving, and no counters are placed and no card is drawn.",
+      "seats": [
+        { "bf": ["Galadriel, Light of Valinor", "Forest", "Forest"], "hand": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "answer": "Add {G}{G}{G}." },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "mana": [0, "GGG"] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "counters": ["Galadriel, Light of Valinor", { "+1/+1": 0 }] },
+        { "pt": ["Galadriel, Light of Valinor", 3, 3] },
+        { "handCount": [0, 0] },
+        { "libraryCount": [0, 20] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The second mode puts a +1/+1 counter on every creature you control",
+      "cr": "700.2",
+      "ruling": "With the second mode chosen the trigger puts a +1/+1 counter on each creature its controller controls as it resolves, which includes Galadriel herself and the creature that just entered, but no creature an opponent controls.",
+      "seats": [
+        { "bf": ["Galadriel, Light of Valinor", "Forest", "Forest"], "hand": ["Grizzly Bears"] },
+        { "bf": ["Hill Giant"] }
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "answer": "Put a +1/+1 counter on each creature you control." },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "counters": ["Galadriel, Light of Valinor", { "+1/+1": 1 }] },
+        { "pt": ["Galadriel, Light of Valinor", 4, 4] },
+        { "counters": ["Grizzly Bears", { "+1/+1": 1 }] },
+        { "pt": ["Grizzly Bears", 3, 3] },
+        { "counters": ["Hill Giant", { "+1/+1": 0 }] },
+        { "pt": ["Hill Giant", 3, 3] },
+        { "mana": [0, ""] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The third mode scries 2 and then draws a card when another creature enters",
+      "cr": "121.1",
+      "ruling": "Scrying only reorders the top of the library, so the one card the trigger draws afterwards is the only change to the library: it goes from twenty cards to nineteen and the drawn card is the only card in hand.",
+      "seats": [
+        { "bf": ["Galadriel, Light of Valinor", "Forest", "Forest"], "hand": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "answer": "Scry 2, then draw a card." },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "handCount": [0, 1] },
+        { "libraryCount": [0, 19] },
+        { "counters": ["Galadriel, Light of Valinor", { "+1/+1": 0 }] },
+        { "mana": [0, ""] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Two creatures entering in the same turn use two different modes",
+      "cr": "700.2",
+      "ruling": "Each creature that enters triggers the ability separately and a mode that has already been chosen this turn cannot be chosen again, so the two triggers do two different things: the first scries and draws, the second puts a +1/+1 counter on each creature you control.",
+      "seats": [
+        { "bf": ["Galadriel, Light of Valinor", "Forest", "Forest", "Mountain", "Mountain", "Mountain", "Mountain"], "hand": ["Grizzly Bears", "Hill Giant"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "answer": "Scry 2, then draw a card." },
+        { "resolve": true },
+        { "cast": "Hill Giant" },
+        { "answer": "Put a +1/+1 counter on each creature you control." },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "libraryCount": [0, 19] },
+        { "handCount": [0, 1] },
+        { "counters": ["Galadriel, Light of Valinor", { "+1/+1": 1 }] },
+        { "pt": ["Galadriel, Light of Valinor", 4, 4] },
+        { "counters": ["Grizzly Bears", { "+1/+1": 1 }] },
+        { "pt": ["Grizzly Bears", 3, 3] },
+        { "pt": ["Hill Giant", 4, 4] },
+        { "zoneCount": [0, "battlefield", 9] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

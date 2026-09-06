@@ -1,0 +1,82 @@
+{
+  "oracleId": "55e4d4b2-1bd8-4c29-a21a-c014a974b715",
+  "name": "The First Sliver",
+  "scenarios": [
+    {
+      "name": "The First Sliver's own cascade exiles the top card and casts it for free",
+      "cr": "702.85a",
+      "ruling": "Cascade triggers when you cast the spell. It exiles cards from the top of your library until a nonland card with a lesser mana value is exiled, and you may cast that card without paying its mana cost. The cascade trigger and the free spell both resolve before the spell with cascade.",
+      "seats": [
+        {
+          "bf": ["Plains", "Island", "Swamp", "Mountain", "Forest"],
+          "hand": ["The First Sliver"],
+          "libraryTop": ["Divination"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "The First Sliver" },
+        { "answer": true },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["The First Sliver", "battlefield"] },
+        { "zone": ["Divination", "graveyard"] },
+        { "handCount": [0, 2] },
+        { "libraryCount": [0, 18] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A Sliver spell you cast gets cascade from The First Sliver",
+      "cr": "702.85a",
+      "ruling": "The First Sliver's last ability grants cascade to Sliver spells you cast, so casting a one-mana Sliver exiles cards until a nonland card with mana value 0 is exiled and lets you cast it free.",
+      "seats": [
+        {
+          "bf": ["The First Sliver", "Mountain"],
+          "hand": ["Metallic Sliver"],
+          "libraryTop": ["Ornithopter"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Metallic Sliver" },
+        { "answer": true },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Metallic Sliver", "battlefield"] },
+        { "zone": ["Ornithopter", "battlefield"] },
+        { "libraryCount": [0, 20] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A non-Sliver spell you cast gets no cascade from The First Sliver",
+      "cr": "702.85a",
+      "ruling": "The granted cascade applies only to Sliver spells; a Hill Giant spell has no cascade ability, so nothing is exiled from the library.",
+      "seats": [
+        {
+          "bf": ["The First Sliver", "Mountain", "Mountain", "Mountain", "Mountain"],
+          "hand": ["Hill Giant"],
+          "libraryTop": ["Ornithopter"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Hill Giant" },
+        { "answer": true },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Hill Giant", "battlefield"] },
+        { "zone": ["Ornithopter", "library"] },
+        { "libraryCount": [0, 21] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

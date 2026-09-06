@@ -1,0 +1,219 @@
+{
+  "oracleId": "00c1788d-c52f-4839-9cd8-11fb86c418b6",
+  "name": "Stormchaser's Talent",
+  "oracleHash": "d4169f8e",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 1,
+          "toughness": 1,
+          "colors": [
+            "U",
+            "R"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Otter"
+          ],
+          "keywords": [
+            "prowess"
+          ]
+        }
+      ],
+      "text": "When this Class enters, create a 1/1 blue and red Otter creature token with prowess."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 3,
+          "x": 0,
+          "pips": [
+            "U"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}{U}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 1
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 2
+        }
+      ],
+      "text": "{3}{U}: Level 2"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "became-level",
+        "level": 2
+      },
+      "effects": [
+        {
+          "op": "return-from-graveyard",
+          "what": {
+            "types": [
+              "Instant",
+              "Sorcery"
+            ]
+          },
+          "to": "hand",
+          "target": true
+        }
+      ],
+      "text": "When this Class becomes level 2, return target instant or sorcery card from your graveyard to your hand."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 5,
+          "x": 0,
+          "pips": [
+            "U"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{5}{U}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 2
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 3
+        }
+      ],
+      "text": "{5}{U}: Level 3"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "cast",
+        "filter": {
+          "types": [
+            "Instant",
+            "Sorcery"
+          ]
+        },
+        "who": "you"
+      },
+      "condition": {
+        "kind": "self-level",
+        "atLeast": 3
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 1,
+          "toughness": 1,
+          "colors": [
+            "U",
+            "R"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Otter"
+          ],
+          "keywords": [
+            "prowess"
+          ]
+        }
+      ],
+      "text": "Whenever you cast an instant or sorcery spell, create a 1/1 blue and red Otter creature token with prowess."
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "Level 1 and the level-2 bar's own trigger need no gate; the level-3 cast trigger carries the self-level condition (CR 716.2e).",
+  "verification": {
+    "at": "2026-09-06T10:02:10.030Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "d4169f8e",
+    "scriptHash": "1988b9cc",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": false
+        },
+        {
+          "index": 3,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 4,
+          "reached": true,
+          "how": "trigger fired in the 'spells' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "When this Class becomes level 2, return target instant or sorcery card from your graveyard to your hand.",
+          "rendered": "whenever became level, return target instant or sorcery card from your graveyard to your hand",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"When this Class becomes level 2, return target instant or sorcery card from your graveyard to your hand.\" rendered as \"whenever became level, return target instant or sorcery card from your graveyard to your hand\""
+    ]
+  }
+}

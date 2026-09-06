@@ -1,0 +1,204 @@
+{
+  "oracleId": "ac9d52b2-78a5-4b17-8aaf-1c1cb936a508",
+  "name": "Paladin Class",
+  "oracleHash": "cb796d3d",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "cost-alter",
+        "amount": 1,
+        "more": true,
+        "who": "opponent",
+        "condition": {
+          "kind": "your-turn"
+        }
+      },
+      "text": "Spells your opponents cast during your turn cost {1} more to cast."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [
+            "W"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}{W}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 1
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 2
+        }
+      ],
+      "text": "{2}{W}: Level 2"
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "anthem",
+        "power": 1,
+        "toughness": 1,
+        "filter": {
+          "types": [
+            "Creature"
+          ]
+        },
+        "scope": "you-control",
+        "condition": {
+          "kind": "self-level",
+          "atLeast": 2
+        }
+      },
+      "text": "Creatures you control get +1/+1."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 4,
+          "x": 0,
+          "pips": [
+            "W"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{4}{W}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 2
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 3
+        }
+      ],
+      "text": "{4}{W}: Level 3"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "you-attack"
+      },
+      "condition": {
+        "kind": "self-level",
+        "atLeast": 3
+      },
+      "effects": [
+        {
+          "op": "pump",
+          "target": {
+            "kind": "attacking-creature"
+          },
+          "power": {
+            "diff": [
+              {
+                "count": "creatures-attacking"
+              },
+              1
+            ]
+          },
+          "toughness": {
+            "diff": [
+              {
+                "count": "creatures-attacking"
+              },
+              1
+            ]
+          },
+          "keywords": [
+            "double strike"
+          ],
+          "duration": "eot"
+        }
+      ],
+      "text": "Whenever you attack, until end of turn, target attacking creature gets +1/+1 for each other attacking creature and gains double strike."
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "'during your turn' is the cost-alter family static's `condition` (the core `cost-adjust` has no condition field and would tax opponents on every turn). '+1/+1 for each OTHER attacking creature' is `diff` of creatures-attacking and 1, which never goes below 0.",
+  "verification": {
+    "at": "2026-09-06T10:02:10.030Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "cb796d3d",
+    "scriptHash": "e6687ee4",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": false
+        },
+        {
+          "index": 3,
+          "reached": false
+        },
+        {
+          "index": 4,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Spells your opponents cast during your turn cost {1} more to cast.",
+          "rendered": "cost alter",
+          "score": 0
+        },
+        {
+          "text": "{2}{W}: Level 2",
+          "rendered": "{2}{W}: Level 2. activate only if self level. activate only as a sorcery",
+          "score": 0.333
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Spells your opponents cast during your turn cost {1} more to cast.\" rendered as \"cost alter\""
+    ]
+  }
+}

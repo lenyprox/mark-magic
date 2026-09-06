@@ -1,0 +1,95 @@
+{
+  "oracleId": "945eaa8b-0ba5-45a6-a02a-763e5bfe3af8",
+  "name": "Mirror March",
+  "scenarios": [
+    {
+      "name": "Mirror March creates one token copy for each flip won before the first lost flip",
+      "cr": "707.2",
+      "ruling": "Flipping continues until a flip is lost, and one token copy of the creature that entered is created for each won flip. The tokens are tokens, so they do not trigger the ability again. The engine's flip sequence wins five times before its first loss, so five 2/2 copies of Grizzly Bears join the original.",
+      "seats": [
+        { "bf": ["Mirror March", "Forest", "Forest"], "hand": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "log": "creates a token copy of Grizzly Bears" },
+        { "log": "flips a coin for Mirror March: tails \\(loses the flip\\)" },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "zoneCount": [0, "battlefield", 9] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Mirror March's token copies gain haste and can attack the turn they are created",
+      "cr": "702.10b",
+      "ruling": "The tokens gain haste, so they can attack the turn they are created; the nontoken Grizzly Bears cast this turn cannot. Five hasty 2/2 copies deal 10 damage.",
+      "seats": [
+        { "bf": ["Mirror March", "Forest", "Forest"], "hand": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "resolve": true },
+        { "attack": ["Grizzly Bears", "Grizzly Bears", "Grizzly Bears", "Grizzly Bears", "Grizzly Bears"] }
+      ],
+      "expect": [
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "zoneCount": [0, "battlefield", 9] },
+        { "life": [1, 10] },
+        { "life": [0, 20] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Mirror March exiles its token copies at the beginning of the next end step",
+      "cr": "603.7a",
+      "ruling": "The delayed triggered ability exiles the tokens in the next end step; a token in a zone other than the battlefield ceases to exist (CR 111.7), so exile ends up empty and only the nontoken creature that entered is left.",
+      "seats": [
+        { "bf": ["Mirror March", "Forest", "Forest"], "hand": ["Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "resolve": true },
+        { "passUntil": "end" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "log": "creates a token copy of Grizzly Bears" },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "zoneCount": [0, "exile", 0] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Mirror March does not trigger for a creature an opponent controls",
+      "cr": "603.2",
+      "ruling": "The ability triggers only for a nontoken creature its controller controls, so an opponent's creature entering flips no coins and creates no tokens.",
+      "active": 1,
+      "seats": [
+        { "bf": ["Mirror March"] },
+        { "bf": ["Forest", "Forest"], "hand": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "cast": "Grizzly Bears", "by": 1 },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "noLog": "flips a coin for Mirror March" },
+        { "events": { "type": "create-token", "min": 0, "max": 0 } },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "zoneCount": [1, "battlefield", 3] },
+        { "zoneCount": [0, "battlefield", 1] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

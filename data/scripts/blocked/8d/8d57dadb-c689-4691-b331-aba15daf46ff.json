@@ -1,0 +1,16 @@
+{
+  "oracleId": "8d57dadb-c689-4691-b331-aba15daf46ff",
+  "name": "Delina, Wild Mage",
+  "clause": "15—20 | Create one of those tokens. You may roll again.",
+  "needs": [
+    {
+      "opFamily": "dice-coin",
+      "proposedSignature": "{ op: 'roll-again', optional?: boolean }  - re-runs the enclosing results table with a fresh roll, bounded by the family's existing 64-roll cap",
+      "semantics": "'You may roll again' inside a striation: roll the same die again and apply the whole results table to the new result, repeating while the roller keeps saying yes.",
+      "cr": "706.3c",
+      "clause": "15—20 | Create one of those tokens. You may roll again."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

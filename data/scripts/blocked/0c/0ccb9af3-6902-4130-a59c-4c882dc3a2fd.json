@@ -1,0 +1,23 @@
+{
+  "oracleId": "0ccb9af3-6902-4130-a59c-4c882dc3a2fd",
+  "name": "Legion Warboss",
+  "clause": "Mentor",
+  "needs": [
+    {
+      "opFamily": "combat-requirement",
+      "proposedSignature": "Effect: { op: 'must-attack'; target: TargetSpec | Ref | 'creatures-you-control'; defender?: 'that-player' | 'each-opponent'; duration: 'eot' | 'this-combat' }  and StaticEffect: { kind: 'attacks-if-able'; scope: 'self' | 'you-control'; filter?: Filter; defender?: 'that-player' }",
+      "semantics": "Adds an attack REQUIREMENT (CR 508.1a / 506.4) to objects the effect names, optionally naming which player they must attack. Today `mustAttack` is only read off a permanent's PRINTED static abilities (game.ts:2384), so no effect can impose it on a token it just created. Needed by encore's token copies ('attacks that opponent this turn if able') and by Legion Warboss's Goblin token ('attacks this combat if able'); goad (keyword-action) is the same machinery one step further.",
+      "cr": "508.1a",
+      "clause": "That token gains haste until end of turn and attacks this combat if able."
+    },
+    {
+      "opFamily": "named-keyword-mentor",
+      "proposedSignature": "Filter += { powerLtSource?: true; powerLeSource?: true; powerGtSource?: true }  (so mentor is `{ kind: 'triggered', event: { on: 'attacks', self: true }, effects: [{ op: 'counters', target: { kind: 'attacking-creature', filter: { powerLtSource: true } }, counter: '+1/+1', amount: 1 }] }`), plus a KEYWORD_EXPANSIONS entry for 'mentor'",
+      "semantics": "'Whenever this creature attacks, put a +1/+1 counter on target attacking creature with lesser power.' Everything but the target filter exists. Filter carries only absolute power comparisons; the relative form lives nowhere but combat-restr's `power: 'ge-source'` static, which is not a Filter field and cannot reach a TargetSpec. One Filter flag finishes mentor and every 'with lesser/greater power than' target in the pool.",
+      "cr": "702.122",
+      "clause": "Mentor"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

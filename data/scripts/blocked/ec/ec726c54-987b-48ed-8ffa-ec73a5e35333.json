@@ -1,0 +1,23 @@
+{
+  "oracleId": "ec726c54-987b-48ed-8ffa-ec73a5e35333",
+  "name": "Zhulodok, Void Gorger",
+  "clause": "Colorless spells you cast from your hand with mana value 7 or greater have \"Cascade, cascade.\"",
+  "needs": [
+    {
+      "opFamily": "named-keyword:cascade",
+      "proposedSignature": "widen the face declaration to `cascade?: boolean | number` (n instances) and add `COVER_LINE_RE.cascade = [/^cascade$/i, /^(?:cascade, )+cascade$/i]` with the value check `count(printed 'cascade' words) === (cascade === true ? 1 : cascade)`; game.ts:647 pushes the pending cascade trigger `n` times",
+      "semantics": "\"Cascade, cascade\" and \"Cascade, cascade, cascade, cascade\" are n separate instances of the keyword, each of which triggers separately when the spell is cast (CR 702.85b). `cascade` is a boolean today, so a card with more than one instance cannot be declared and its line cannot be covered. Scripting it as a self `{on:'cast'}` triggered ability is not an alternative: `queueTriggers` scans battlefield permanents only, so a spell's own cast trigger never fires, and on a permanent an unfiltered cast trigger would cascade on every spell its controller casts.",
+      "cr": "702.85a, 702.85b",
+      "clause": "Cascade, cascade, cascade, cascade"
+    },
+    {
+      "opFamily": "spell-ability-grant",
+      "proposedSignature": "StaticEffect `{ kind: 'grant-spell-ability'; filter: SpellFilter; ability: Ability; nthEachTurn?: number }` where `SpellFilter extends Filter { castFrom?: 'hand' | 'graveyard' | 'exile' | 'command'; manaSpentFrom?: Filter }`, plus `{ op: 'cascade' }` resolving its mana-value threshold from the SPELL whose granted ability triggered rather than from the ability's source",
+      "semantics": "\"<subset> spells you cast have <keyword>\" adds an ability to spells on the stack (CR 613.1f), which the format cannot express at all: `grant-ability`'s scope is 'you-control' / 'all' battlefield permanents. The nearest writable encoding is the cast trigger the granted cascade IS, and I used it for Imoti / The First Sliver / Maelstrom Nexus — but it drops every predicate about the CAST itself (from your hand, from exile, mana from a Treasure was spent, first each turn is only approximable by `oncePerTurn`), and the core `cascade` op reads `src.def.manaValue` (game.ts:1241), so a granted cascade uses the granting permanent's mana value instead of the cast spell's. Four cards in this batch are blocked outright on the missing cast-zone / mana-source predicates, and three more are written approximately.",
+      "cr": "702.85a, 613.1f, 601.2b",
+      "clause": "Enchantment spells you cast from your hand have cascade. / The first spell you cast from exile each turn has cascade. / The first spell you cast each turn that mana from a Treasure was spent to cast has cascade."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

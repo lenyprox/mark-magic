@@ -1,0 +1,16 @@
+{
+  "oracleId": "ebef6d84-b724-4a84-bcde-8eb6dc06717d",
+  "name": "Deadeye Navigator",
+  "clause": "Soulbond / As long as ~ is paired with another creature, each of those creatures has \"{1}{U}: Exile ~, then return it to the battlefield under your control.\"",
+  "needs": [
+    {
+      "opFamily": "named-keyword:soulbond",
+      "proposedSignature": "pairing state on the permanent (o.ext.pairedWith?: objectId), a face declaration `soulbond?: true` + a `covers[].by` kind 'soulbond' (/^soulbond$/) that installs the two CR triggers (self enters; another creature you control enters), each offering a { kind: 'may' } pairing decision; a Filter field `paired?: boolean` and a Ref 'paired-with'; a StaticEffect { kind: 'grant-ability', scope: 'self-and-paired', ability: Ability, condition?: { kind: 'paired' } } so \"each of those creatures has ...\" reaches both halves; plus KEYWORD_EXPANSIONS['soulbond']",
+      "semantics": "Soulbond pairs this creature with an unpaired creature you control when either enters, for as long as you control both; a static then grants an ability to both members of the pair. Nothing in the engine models a pair, so neither the keyword line nor the 'As long as ~ is paired ...' static can be written today.",
+      "cr": "702.95a, 702.95b",
+      "clause": "As long as ~ is paired with another creature, each of those creatures has \"...\""
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

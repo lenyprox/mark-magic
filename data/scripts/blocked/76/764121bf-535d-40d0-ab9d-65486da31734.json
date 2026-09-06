@@ -1,0 +1,16 @@
+{
+  "oracleId": "764121bf-535d-40d0-ab9d-65486da31734",
+  "name": "Jaxis, the Troublemaker",
+  "clause": "Blitz {1}{R}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:blitz",
+      "proposedSignature": "AltCost id 'blitz': { id: 'blitz', label: 'blitz', cost: { mana: <printed> }, from: 'hand', grantsKeywords: ['haste'], grantsAbilities: [{ kind: 'triggered', event: { on: 'dies', self: true }, effects: [{ op: 'draw', amount: 1, who: 'you' }], text: 'When ~ dies, draw a card.' }], sacrificeAt: 'next-end-step' } + COVER_RULES.altCosts shape /^blitz (\\{.+\\})$/ + KEYWORD_EXPANSIONS.blitz",
+      "semantics": "If the spell was cast for its blitz cost, the permanent gains haste and 'When this creature dies, draw a card.', and is sacrificed at the beginning of the next end step. `dash` is already an AltCost id with the haste rider, so blitz is dash's shape with a sacrifice instead of a bounce plus a granted dies trigger.",
+      "cr": "702.152",
+      "clause": "Blitz {1}{R} / Blitz {3}{R}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

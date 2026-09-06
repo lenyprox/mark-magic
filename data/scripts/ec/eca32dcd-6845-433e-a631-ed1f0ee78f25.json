@@ -1,0 +1,84 @@
+{
+  "oracleId": "eca32dcd-6845-433e-a631-ed1f0ee78f25",
+  "name": "Imoti, Celebrant of Bounty",
+  "oracleHash": "3d118e56",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "cascade": true,
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "cast",
+        "filter": {
+          "mvGE": 6
+        },
+        "who": "you"
+      },
+      "effects": [
+        {
+          "op": "cascade"
+        }
+      ],
+      "text": "Spells you cast with mana value 6 or greater have cascade."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Cascade",
+      "by": "cascade"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "Imoti's own printed Cascade is the `cascade` declaration (covers). The granted cascade is written as the cast trigger the granted ability IS (CR 702.85a: cascade triggers when you cast the spell that has it), with the grant's filter as the trigger filter — the script format has no way to hang an ability on a spell on the stack (`grant-ability` scope is battlefield permanents). Known engine shortfall: the core `cascade` op reads the mana value of the ABILITY'S SOURCE, so from Imoti it exiles until a card cheaper than Imoti rather than cheaper than the 6+ MV spell just cast; the op needs a source-spell binding (see this wave's needs, family named-keyword:cascade).",
+  "verification": {
+    "at": "2026-09-06T06:17:30.257Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "3d118e56",
+    "scriptHash": "d1b97dbf",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.833,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": [],
+      "sampled": false
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "Spells you cast with mana value 6 or greater have cascade. — expected The granted cascade belongs to the 6+ MV spell, so it exiles until a nonland card with mana value LESS THAN THAT SPELL's mana value (e.g. cast a MV 7 spell -> exile until MV <= 6). — scripted Modeled as a trigger on Imoti whose effect is {op:'cascade'}. src/engine/game.ts:1241 compares c.def.manaValue < src.def.manaValue, and src is the ABILITY'S SOURCE (Imoti, MV 5). So every granted cascade exiles until MV <= 4 regardless of the spell cast. Wrong number on every activation; the script's own notes admit this. — CR 702.85a",
+          "Spells you cast with mana value 6 or greater have cascade. — expected Cascade is granted to the spell; if Imoti leaves the battlefield after the spell is cast but the grant applied, the cascade still uses the spell's own mana value, and it exists as an ability of the spell, not of Imoti. — scripted The ability is a battlefield trigger on Imoti with the grant condition folded into the trigger filter (event.on='cast', filter.mvGE=6, who='you'). Structurally this is a substitution the notes acknowledge the format forces; it happens to fire at the same time, but the source binding is what produces the wrong MV above. — CR 702.85a",
+          "Cascade (… You may cast it without paying its mana cost …) — expected Casting the exiled card is optional (\"you may\"). — scripted The core cascade op at src/engine/game.ts:1239-1253 casts the hit card unconditionally — there is no ask/answer. Engine-wide rather than script-specific, but it applies to both this card's printed cascade:true and the granted cascade. — CR 702.85a",
+          "whole card — expected Behavioral evidence for the granted-cascade line. — scripted No blind scenario was sampled for Imoti this wave, and the script's own verification records sandbox abilities[0].reached=false — the one authored ability was never exercised. Render score 0.83 is text round-trip only and cannot see the MV binding bug."
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "oracleId": "6cb8b8c4-0674-4f14-9d89-010969fbb80e",
+  "name": "Grave Researcher // Reanimate",
+  "scenarios": [
+    {
+      "name": "Grave Researcher surveils 1 at upkeep and becomes prepared with three creature cards in the graveyard",
+      "cr": "701.42a",
+      "ruling": "Surveil 1 looks at the top card and may put it into the graveyard; the ability then checks the graveyard, and with three creature cards there Grave Researcher becomes prepared, which creates a copy of its prepare spell in exile.",
+      "active": 1,
+      "seats": [
+        {
+          "bf": ["Grave Researcher // Reanimate"],
+          "graveyard": ["Hill Giant", "Hill Giant", "Hill Giant"],
+          "libraryTop": ["Lightning Bolt"]
+        },
+        {}
+      ],
+      "script": [
+        { "passUntil": "upkeep" },
+        { "answer": ["Lightning Bolt"] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "graveyardCount": [0, 4] },
+        { "libraryCount": [0, 20] },
+        { "zoneCount": [0, "exile", 1] },
+        { "zone": ["Grave Researcher // Reanimate", "battlefield"] },
+        { "log": "surveil" },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Grave Researcher surveils but does not become prepared with only two creature cards in the graveyard",
+      "cr": "608.2",
+      "ruling": "The 'Then if' clause is checked as the ability resolves, after the surveil. A Lightning Bolt binned by the surveil is not a creature card, so the graveyard still holds only two creature cards and no copy of the prepare spell is created.",
+      "active": 1,
+      "seats": [
+        {
+          "bf": ["Grave Researcher // Reanimate"],
+          "graveyard": ["Hill Giant", "Grizzly Bears"],
+          "libraryTop": ["Lightning Bolt"]
+        },
+        {}
+      ],
+      "script": [
+        { "passUntil": "upkeep" },
+        { "answer": ["Lightning Bolt"] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "graveyardCount": [0, 3] },
+        { "libraryCount": [0, 20] },
+        { "zoneCount": [0, "exile", 0] },
+        { "log": "surveil" },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A creature card put into the graveyard by the surveil counts towards the three",
+      "cr": "608.2",
+      "ruling": "The ability follows its instructions in order: the surveil happens first, so a creature card it puts into your graveyard is already there when the ability checks for three or more creature cards.",
+      "active": 1,
+      "seats": [
+        {
+          "bf": ["Grave Researcher // Reanimate"],
+          "graveyard": ["Hill Giant", "Hill Giant"],
+          "libraryTop": ["Grizzly Bears"]
+        },
+        {}
+      ],
+      "script": [
+        { "passUntil": "upkeep" },
+        { "answer": ["Grizzly Bears"] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "graveyard"] },
+        { "graveyardCount": [0, 3] },
+        { "libraryCount": [0, 20] },
+        { "zoneCount": [0, "exile", 1] },
+        { "log": "surveil" },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Reanimate puts a creature card from an opponent's graveyard onto the battlefield under your control and you lose life equal to its mana value",
+      "cr": "608.2",
+      "ruling": "The prepare spell cast from exile puts the targeted creature card onto the battlefield under the caster's control, then its controller loses life equal to that card's mana value; Grizzly Bears has mana value 2.",
+      "active": 1,
+      "seats": [
+        {
+          "bf": ["Grave Researcher // Reanimate", "Swamp", "Swamp", "Swamp", "Swamp"],
+          "graveyard": ["Hill Giant", "Hill Giant", "Hill Giant"],
+          "libraryTop": ["Lightning Bolt"]
+        },
+        { "graveyard": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "passUntil": "upkeep" },
+        { "answer": ["Lightning Bolt"] },
+        { "resolve": true },
+        { "passUntil": "main1" },
+        { "cast": "Reanimate", "targets": [["Grizzly Bears"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "control": ["Grizzly Bears", 0] },
+        { "life": [0, 18] },
+        { "life": [1, 20] },
+        { "graveyardCount": [1, 0] },
+        { "zoneCount": [0, "exile", 0] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

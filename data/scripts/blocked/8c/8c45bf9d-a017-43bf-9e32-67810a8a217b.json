@@ -1,0 +1,16 @@
+{
+  "oracleId": "8c45bf9d-a017-43bf-9e32-67810a8a217b",
+  "name": "Talon Gates of Madara",
+  "clause": "When ~ enters, up to one target creature phases out.",
+  "needs": [
+    {
+      "opFamily": "phasing",
+      "proposedSignature": "Effect { op: 'phase-out'; target: TargetSpec | Ref | 'creatures-you-control'; until?: 'controllers-next-untap' | 'source-leaves'; tapOnPhaseIn?: true } ; Keyword 'phasing' (the static form) ; Filter { phasedOut?: boolean } ; a 502.1 untap-step hook that phases in every permanent that phased out under the untapping player's control",
+      "semantics": "CR 702.26a-d: a phased-out permanent keeps its zone and its controller but is treated as though it does not exist — it is not on the battlefield for any filter, count, anthem, attack or block, and phasing out/in is NOT a zone change, so no ETB/LTB/dies trigger fires, no counters or attachments are lost and no summoning sickness restarts. Auras, Equipment and Fortifications attached to it phase out with it (702.26g) and phase back in attached (702.26i). The default duration is 'phases in before its controller untaps during their next untap step' (502.1, the hook); 'until ~ leaves the battlefield' (Oubliette) is the source-bound form, and Oubliette also taps the creature as it phases in. Filter.phasedOut is needed so 'phased-out permanents' can be named by later cards.",
+      "cr": "702.26, 502.1, 702.26g, 702.26i",
+      "clause": "\"Target creature you control phases out.\" / \"Equipped creature phases out.\" / \"target creature phases out until ~ leaves the battlefield. Tap that creature as it phases in this way.\" / \"Up to X target creatures phase out.\""
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

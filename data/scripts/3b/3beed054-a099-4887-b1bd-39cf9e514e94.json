@@ -1,0 +1,133 @@
+{
+  "oracleId": "3beed054-a099-4887-b1bd-39cf9e514e94",
+  "name": "Scurry of Squirrels",
+  "oracleHash": "44189d7c",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "attacks",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "token-copy",
+          "target": "self",
+          "count": {
+            "count": "opponents",
+            "plus": -1
+          },
+          "attacking": "each-other-opponent"
+        },
+        {
+          "op": "delayed-trigger",
+          "at": "end-of-combat",
+          "bind": "that",
+          "effects": [
+            {
+              "op": "remove-those",
+              "how": "exile"
+            }
+          ]
+        },
+        {
+          "op": "token-copy",
+          "target": "self",
+          "count": {
+            "count": "opponents",
+            "plus": -1
+          },
+          "attacking": "each-other-opponent"
+        },
+        {
+          "op": "delayed-trigger",
+          "at": "end-of-combat",
+          "bind": "that",
+          "effects": [
+            {
+              "op": "remove-those",
+              "how": "exile"
+            }
+          ]
+        }
+      ],
+      "text": "Myriad, myriad"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "counters",
+          "target": {
+            "kind": "creature",
+            "controller": "you"
+          },
+          "counter": "+1/+1",
+          "amount": 1
+        }
+      ],
+      "text": "Whenever ~ deals combat damage to a player, put a +1/+1 counter on target creature you control.",
+      "optional": false
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "creature",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "\"Myriad, myriad\" is one oracle line printing the keyword twice (\"Then do it again\"), so the single triggered ability that claims it runs the myriad round twice.",
+  "verification": {
+    "at": "2026-09-06T06:15:15.552Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "44189d7c",
+    "scriptHash": "e06c165f",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Myriad, myriad",
+          "rendered": "whenever ~ attacks, create the number of opponents you have plus -1 tokens that's a copy of ~. at end of combat, exile them. create the number of opponents you have plus -1 tokens that's a copy of ~. at end of combat, exile them",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Myriad, myriad\" rendered as \"whenever ~ attacks, create the number of opponents you have plus -1 tokens that's a copy of ~. at end of combat, exile them. create the number of opponents you have plus -1 tokens that's a copy of ~. at end of combat, exile them\""
+    ]
+  }
+}

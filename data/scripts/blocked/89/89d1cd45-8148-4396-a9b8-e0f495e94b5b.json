@@ -1,0 +1,23 @@
+{
+  "oracleId": "89d1cd45-8148-4396-a9b8-e0f495e94b5b",
+  "name": "Savage Beating",
+  "clause": "Entwine {1}{R}",
+  "needs": [
+    {
+      "opFamily": "cast-restriction",
+      "proposedSignature": "CardDef field castRestriction?: { timing?: 'combat' | 'main' | 'your-turn' | 'opponents-turn' | 'before-attackers' | 'after-blockers'; condition?: Condition } plus a `covers` kind naming it, so 'Cast ~ only during combat on your turn.' is a declaration rather than an ability.",
+      "semantics": "Savage Beating's first line. No CardDef field and no ability shape carries a cast-timing restriction; `activateOnlyIf` is the activated-ability analogue and does not apply to a spell. This family name already carries 3 cards in data/scripts/needs.json — Savage Beating is a fourth, though entwine blocks it first.",
+      "cr": "601.2, 117.1a",
+      "clause": "Cast ~ only during combat on your turn."
+    },
+    {
+      "opFamily": "named-keyword:entwine",
+      "proposedSignature": "AltCostId 'entwine' plus a mode hook on the declaration: altCosts: [{ id: 'entwine', label: 'entwine {1}{R}', cost: { mana: <the INCREMENT> }, from: 'hand', chooseAllModes: true }] — and a ModeCostHook (the registry already has that hook shape) that, when the entwine cost was paid, resolves the spell's `choose-mode` with count = modes.length. A `covers` shape /^entwine[—-] ?(\\{.+\\})$/ over `altCosts` would then claim the printed line.",
+      "semantics": "CR 702.42a: 'Entwine [cost]' is a static ability of a modal spell that functions on the stack — 'You may choose all modes of this spell instead of just one as you cast it. If you do, you pay [cost] in addition to any other costs.' Entwine is an ADDITIONAL cost, not a replacement one, and what it buys is a change to the mode count, which nothing in the format can express today (`choose-mode.count` is a literal).",
+      "cr": "702.42a",
+      "clause": "Entwine {1}{R} / Entwine {2}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

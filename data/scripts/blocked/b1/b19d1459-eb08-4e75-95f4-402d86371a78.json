@@ -1,0 +1,23 @@
+{
+  "oracleId": "b19d1459-eb08-4e75-95f4-402d86371a78",
+  "name": "Wulfgar of Icewind Dale",
+  "clause": "If a creature you control attacking causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:melee",
+      "proposedSignature": "Amount.count gains 'opponents-attacked-this-combat'; Keyword gains 'melee'; KEYWORD_EXPANSIONS gains 'melee': 'whenever ~ attacks, it gets +1/+1 until end of turn for each opponent you attacked this combat'.",
+      "semantics": "The count is the number of opponents the ability's controller attacked this combat, so melee becomes { on: 'attacks', self: true } -> { op: 'pump', target: 'self', power: { count: 'opponents-attacked-this-combat' }, toughness: the same, duration: 'eot' }. As a Keyword it can also be granted by an anthem ('Other creatures you control have melee.').",
+      "cr": "702.121a",
+      "clause": "Melee"
+    },
+    {
+      "opFamily": "replacement",
+      "proposedSignature": "TriggerEvent 'cast' gains self: true ('When you cast this spell'); trigger-twice.event gains 'attacks'; a new event { on: 'untap-step'; whose: 'your' | 'each' | 'opponent' }.",
+      "semantics": "'When you cast this spell, ...' (Emrakul) cannot be written because `cast` takes a Filter that cannot mean 'this spell'; Wulfgar needs trigger doubling for attack triggers; Prop Room needs 'during each other player's untap step'.",
+      "cr": "603.2, 502.1",
+      "clause": "When you cast ~, gain control of all creatures target player controls."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

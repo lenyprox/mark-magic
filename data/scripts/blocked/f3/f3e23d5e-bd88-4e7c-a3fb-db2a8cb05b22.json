@@ -1,0 +1,16 @@
+{
+  "oracleId": "f3e23d5e-bd88-4e7c-a3fb-db2a8cb05b22",
+  "name": "Gisela, the Broken Blade",
+  "clause": "At the beginning of your end step, if you both own and control ~ and a creature named Bruna, the Fading Light, exile them, then meld them into Brisela, Voice of Nightmares.",
+  "needs": [
+    {
+      "opFamily": "meld",
+      "proposedSignature": "effect { op: 'meld'; with: Filter; into: string }  +  condition { kind: 'owns-and-controls'; filter: Filter }",
+      "semantics": "CR 701.39: if the controller both owns and controls the source and a permanent matching `with`, exile both and put the meld card named `into` onto the battlefield under that player's control, melded face up; otherwise nothing happens. The condition is the intervening-if / activation guard these cards print ('If you both own and control ~ and a creature named X'). Needs the card database to resolve the meld result by name, the way `transform` resolves a back face.",
+      "cr": "701.39",
+      "clause": "At the beginning of your end step, if you both own and control ~ and a creature named Bruna, the Fading Light, exile them, then meld them into Brisela, Voice of Nightmares."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,107 @@
+{
+  "oracleId": "8d35cef8-a52d-45fb-8f5f-cccea26826d0",
+  "name": "Wyll's Reversal",
+  "oracleHash": "400a9ffb",
+  "source": "llm",
+  "confidence": 0.6,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "roll-die",
+          "sides": 20,
+          "plus": {
+            "prop": "power",
+            "agg": "max",
+            "over": {
+              "types": [
+                "Creature"
+              ],
+              "who": "you"
+            }
+          }
+        },
+        {
+          "op": "change-targets",
+          "target": {
+            "kind": "spell-or-ability"
+          },
+          "how": "choose-new",
+          "optional": true
+        },
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "roll-result",
+            "least": 15
+          },
+          "then": [
+            {
+              "op": "copy-stack",
+              "target": "that",
+              "newTargets": "may"
+            }
+          ]
+        }
+      ],
+      "text": "Choose target spell or ability with one or more targets. Roll a d20 and add the greatest power among creatures you control.\n1—14 | You may choose new targets for that spell or ability.\n15+ | You may choose new targets for that spell or ability. Then copy it. You may choose new targets for the copy."
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 3,
+    "timing": "instant"
+  },
+  "verification": {
+    "at": "2026-09-06T10:00:56.042Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "400a9ffb",
+    "scriptHash": "f1a309cd",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "unreachable",
+      "seats4": "unreachable",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "1—14 | You may choose new targets for that spell or ability.",
+          "rendered": "Roll a d20 and add X. You may choose new targets for target spell or ability. if roll result, Copy it. You may choose new targets for the copy",
+          "score": 0
+        },
+        {
+          "text": "15+ | You may choose new targets for that spell or ability. Then copy it. You may choose new targets for the copy.",
+          "rendered": "Roll a d20 and add X. You may choose new targets for target spell or ability. if roll result, Copy it. You may choose new targets for the copy",
+          "score": 0
+        },
+        {
+          "text": "Choose target spell or ability with one or more targets. Roll a d20 and add the greatest power among creatures you control.",
+          "rendered": "Roll a d20 and add X. You may choose new targets for target spell or ability. if roll result, Copy it. You may choose new targets for the copy",
+          "score": 0.385
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"1—14 | You may choose new targets for that spell or ability.\" rendered as \"Roll a d20 and add X. You may choose new targets for target spell or ability. if roll result, Copy it. You may choose new targets for the copy\"; \"15+ | You may choose new targets for that spell or ability. Then copy it. You may choose new targets for the copy.\" rendered as \"Roll a d20 and add X. You may choose new targets for target spell or ability. if roll result, Copy it. You may choose new targets for the copy\""
+    ]
+  }
+}

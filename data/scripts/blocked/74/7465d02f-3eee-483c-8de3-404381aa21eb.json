@@ -1,0 +1,16 @@
+{
+  "oracleId": "7465d02f-3eee-483c-8de3-404381aa21eb",
+  "name": "Dancer's Chakrams",
+  "clause": "Equipped creature gets +2/+2, has lifelink and \"Other commanders you control get +2/+2 and have lifelink,\" and is a Performer in addition to its other types.",
+  "needs": [
+    {
+      "opFamily": "filter-commander",
+      "proposedSignature": "Filter += { commander?: boolean }  (and its negation via the existing not* convention)",
+      "semantics": "'Other commanders you control get +2/+2 and have lifelink.' The engine knows which objects are commanders (the `controls-commander` Condition and `commander-casts` amount already exist) but Filter cannot say it, so no anthem, target spec or object set can be about commanders.",
+      "cr": "903.3",
+      "clause": "Other commanders you control get +2/+2 and have lifelink,"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

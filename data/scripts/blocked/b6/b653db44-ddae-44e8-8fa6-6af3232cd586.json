@@ -1,0 +1,16 @@
+{
+  "oracleId": "b653db44-ddae-44e8-8fa6-6af3232cd586",
+  "name": "Railway Brawler",
+  "clause": "Plot {3}{G}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:plot",
+      "proposedSignature": "CardDef.plot?: ManaCost with a new covers kind 'plot' for the anchored line /^plot (\\{.+\\})$/; a special action { type: 'plot', cardId } offered from hand at sorcery speed that pays the mana and exiles the card marked plotted; effect { op: 'plot', target?: Ref | TargetSpec } for 'It becomes plotted.'; a plotted card is castable by its OWNER as a sorcery on a later turn without paying its mana cost",
+      "semantics": "CR 702.169: plot is a special action from hand, not an alternative cost - the card is exiled plotted and cast later for free. 'It becomes plotted.' (Aven Interrupter) marks a card someone else owns, so the existing play-exiled op is wrong: it grants the permission to the ability's controller.",
+      "cr": "702.169",
+      "clause": "Plot {3}{G} / It becomes plotted."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

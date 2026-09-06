@@ -1,0 +1,23 @@
+{
+  "oracleId": "042c01ec-9f1f-432b-bea9-d64d822cd91e",
+  "name": "The Emperor of Palamecia // The Lord Master of Hell",
+  "clause": "{T}: Add {U} or {R}. Spend this mana only to cast a noncreature spell. | Whenever you cast a noncreature spell, if at least four mana was spent to cast it, put a +1/+1 counter on ~. Then if it has three or more +1/+1 counters on it, transform it.",
+  "needs": [
+    {
+      "opFamily": "counter-threshold",
+      "proposedSignature": "{ kind: 'self-has-counters'; counter: string; atLeast?: number }  (extend the existing condition; equivalently a new { kind: 'counters-on-source-ge'; counter: string; value: number })",
+      "semantics": "True when the source has at least `atLeast` counters of that kind on it, evaluated as the effect applies. Today `self-has-counters` is a name-only >= 1 test and no Condition accepts an Amount, so the very common 'Then if there are N or more <x> counters on it, ...' transform trigger cannot be written at all - any encoding flips the permanent on the first counter. Pairs with the existing removeCounters cost / a negative `counters` amount for the 'remove those counters' half.",
+      "cr": "122.1, 603.2, 608.2h",
+      "clause": "Then if there are three or more landmark counters on it, remove those counters, transform ~, and create three Treasure tokens."
+    },
+    {
+      "opFamily": "mana-spend-restriction",
+      "proposedSignature": "add-mana `restriction` gains 'noncreature-spell' (ideally becomes a Filter); condition { kind: 'mana-spent-ge'; value: number } reading the triggering spell's total mana paid",
+      "semantics": "'Spend this mana only to cast a noncreature spell.' - the restriction enum today is only creature-spell / instant-sorcery / chosen-type-creature / colorless-eldrazi. 'if at least four mana was spent to cast it' needs the amount of mana actually paid for the triggering spell (X and cost increases included), which nothing records.",
+      "cr": "106.6, 202.3a",
+      "clause": "{T}: Add {U} or {R}. Spend this mana only to cast a noncreature spell. | Whenever you cast a noncreature spell, if at least four mana was spent to cast it, ..."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

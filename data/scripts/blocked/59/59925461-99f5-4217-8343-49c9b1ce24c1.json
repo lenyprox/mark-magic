@@ -1,0 +1,16 @@
+{
+  "oracleId": "59925461-99f5-4217-8343-49c9b1ce24c1",
+  "name": "Rise and Shine",
+  "clause": "Overload {4}{U}{U}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:overload",
+      "proposedSignature": "AltCostId += 'overload' (augment AltCostIdRegistry from the family module): { id: 'overload', label: 'overload', cost: AbilityCost, from: 'hand', retarget: 'each' }. Engine: a spell whose castWith.id === 'overload' requires no targets (legal.ts ownTargetSpecs returns none for it) and, on resolution, every TargetSpec in its effects is applied as a for-each over that spec's own filter/controller restriction instead of a chosen target. Tooling: COVER_RULES.altCosts gains the anchored shape /^overload (\\{.+\\})$/ whose value check is cost.mana.raw === the printed symbols, and render.ts KEYWORD_EXPANSIONS['overload'] = 'you may cast this spell for its overload cost. if you do, change \"target\" in its text to \"each\"'.",
+      "semantics": "Overload is two static abilities that function while the spell is on the stack: an alternative cost, plus a text-changing effect replacing each instance of 'target' with 'each' - the overloaded spell chooses no targets and affects every object the original target spec described, including objects that could not have been legally targeted. Without it no declaration exists for a script to carry, no covers shape matches the printed line, and the round trip has no rules text, so every overload card scores 0 and can never be verified.",
+      "cr": "702.96a, 702.96b, 702.96c, 612 (text-changing effects), 601.2b",
+      "clause": "Overload {6}{U}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

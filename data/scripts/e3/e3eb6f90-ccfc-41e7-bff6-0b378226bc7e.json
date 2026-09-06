@@ -1,0 +1,125 @@
+{
+  "oracleId": "e3eb6f90-ccfc-41e7-bff6-0b378226bc7e",
+  "name": "Abundant Countryside",
+  "oracleHash": "a5f59e4c",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": [
+            "C"
+          ]
+        }
+      ],
+      "manaAbility": true,
+      "text": "{T}: Add {C}."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": "any",
+          "amount": 1,
+          "restriction": "creature-spell"
+        }
+      ],
+      "manaAbility": true,
+      "text": "{T}: Add one mana of any color. Spend this mana only to cast a creature spell."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 6,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{6}"
+        },
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 1,
+          "toughness": 1,
+          "colors": [],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Shapeshifter"
+          ],
+          "keywords": [],
+          "name": "Shapeshifter"
+        },
+        {
+          "op": "become",
+          "target": "those",
+          "everyCreatureType": true,
+          "duration": "permanent"
+        }
+      ],
+      "text": "{6}, {T}: Create a 1/1 colorless Shapeshifter creature token with changeling."
+    }
+  ],
+  "notes": "The two mana abilities are the parser's; changeling on the token is `become everyCreatureType`.",
+  "verification": {
+    "at": "2026-09-06T06:16:28.918Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "a5f59e4c",
+    "scriptHash": "b1dad76f",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.5,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.50 < 0.55: \"{T}: Add one mana of any color. Spend this mana only to cast a creature spell.\" rendered as \"{T}: add one mana of any color\"; \"{6}, {T}: Create a 1/1 colorless Shapeshifter creature token with changeling.\" rendered as \"{6}, {T}: create a 1/1 Shapeshifter creature token. it becomes an every creature type\""
+    ]
+  }
+}

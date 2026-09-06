@@ -1,0 +1,106 @@
+{
+  "oracleId": "561af57d-d43d-4d98-9ef6-18a0843f22ae",
+  "name": "Defend the Rider",
+  "oracleHash": "2ef0751b",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "choose-mode",
+          "count": 1,
+          "modes": [
+            [
+              {
+                "op": "grant-keyword",
+                "target": {
+                  "kind": "permanent",
+                  "controller": "you"
+                },
+                "keywords": [
+                  "hexproof",
+                  "indestructible"
+                ],
+                "duration": "eot"
+              }
+            ],
+            [
+              {
+                "op": "token",
+                "count": 1,
+                "power": 1,
+                "toughness": 1,
+                "colors": [],
+                "types": [
+                  "Creature"
+                ],
+                "subtypes": [
+                  "Pilot"
+                ],
+                "keywords": [],
+                "text": "This token saddles Mounts and crews Vehicles as though its power were 2 greater."
+              }
+            ]
+          ]
+        }
+      ],
+      "text": "Choose one —"
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "protection",
+    "value": 3,
+    "timing": "instant"
+  },
+  "notes": "The two \"• …\" bullets belong to the \"Choose one —\" line the spell ability claims (faceLines drops bullets). The Pilot token's own ability is carried as the token's `text` only.",
+  "verification": {
+    "at": "2026-09-06T06:15:15.552Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "2ef0751b",
+    "scriptHash": "9c8c4779",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 1,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/56/561af57d-d43d-4d98-9ef6-18a0843f22ae.json",
+      "passed": 0,
+      "failed": 4,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "• Create a 1/1 colorless Pilot creature token with \"This token saddles Mounts and crews Vehicles as though its power were 2 greater.\" — expected The created token carries a functional static ability: when tapped to pay a crew cost (or to saddle a Mount) its power counts as 2 greater, so a lone 1/1 Pilot can pay crew 3 / saddle 3. — scripted The quoted ability is carried only as the token op's decorative `text` field. schema-core.ts:639-641 lets `text` through, but TokenSpec (state.ts:10) has no text/abilities member and game.ts:1373-1382 builds tok.token from name/power/toughness/colors/types/subtypes/keywords only — the string is dropped at runtime. Nothing in the engine implements an 'as though its power were N greater' adjustment either: cost.ts:103-104 and game.ts:695 (pickCrew) sum raw power(s,o). The clause is therefore 100% non-functional; the renderer scores this bullet LOW 0.00 ('the rendering does not print 2') yet the card still scores 1.00 through the gate. Blind scenario 4 ('The Pilot token crews a Vehicle with crew 3 on its own') fails at the crew activation with 'no legal action matched for P0 (have: pass)', which is exactly this gap. — CR CR 702.122b (crew), 702.190b (saddle), 613.1 / 611 (as-though effects)",
+          "• Create a 1/1 colorless Pilot creature token … — expected A token with no name in its text is named for its subtypes — this token's name is 'Pilot' (CR 111.4). — scripted `name` is omitted, so game.ts:1377 falls back to `${e.subtypes.join(' ')} token` = 'Pilot token'. Blind scenario 3 fails both the pt and control expectations with 'no object named Pilot'. Arguably an engine naming convention rather than a rules error (the emit at game.ts:1383 does use the bare 'Pilot'), but the script could have pinned name:'Pilot' and did not, and it is the proximate cause of a second blind-scenario failure. — CR CR 111.4",
+          "covers / notes — expected A script that cannot express a clause should surface it as an open need, not pass verification as 'verified' with an empty `covers`. — scripted covers: [] and the note only says the ability is 'carried as the token's `text` only'. Honest, but the script is marked status 'verified' with problems: [] while a full printed ability does nothing; 2/4 blind scenarios fail. — CR n/a",
+          "Choose one — • Target permanent you control gains hexproof and indestructible until end of turn. — expected Exactly one mode chosen on cast; a single targeted permanent you control gains both keywords until end of turn. — scripted choose-mode count 1 with two mode arrays, and grant-keyword target {kind:'permanent',controller:'you'} keywords ['hexproof','indestructible'] duration 'eot' — correct, including that a noncreature permanent is a legal target. Both blind scenarios covering this mode pass. No defect here. — CR CR 700.2, 601.2c, 702.11b, 702.12b"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "20053847-6623-493c-8cdb-a69cda3b1577",
+  "name": "Skrelv, Defector Mite",
+  "clause": "{W/P}, {T}: Choose a color. Another target creature you control gains toxic 1 and hexproof from that color until end of turn. It can't be blocked by creatures of that color this turn.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:toxic",
+      "proposedSignature": "Parameterised keyword grants wherever a Keyword[] is granted - anthem.keywords, token.keywords, grant-keyword.keywords, pump.keywords, set-pt.keywords - e.g. keywords: [{ name: 'toxic', n: 1 }] accepted alongside the bare 'toxic'.",
+      "semantics": "'Other Rats you control have toxic 1.' and 'a 1/1 colorless Phyrexian Mite artifact creature token with toxic 1' must carry the 1. Today only a CARD can have toxic N (def.toxic), so a granted or token toxic deals no poison at all (game.ts reads src.def.toxic, and a token's def is its creator's), and the printed 1 never reaches the rendering, scoring those lines 0 on the number gate.",
+      "cr": "702.180a",
+      "clause": "Other Rats you control have toxic 1."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

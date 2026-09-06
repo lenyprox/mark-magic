@@ -1,0 +1,150 @@
+{
+  "oracleId": "7973820b-fdaf-46ec-9e3e-d4c0e77b5067",
+  "name": "Fanatic of Rhonas",
+  "oracleHash": "4e6b0012",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": [
+            "G"
+          ]
+        }
+      ],
+      "manaAbility": true,
+      "text": "{T}: Add {G}."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": [
+            "G",
+            "G",
+            "G",
+            "G"
+          ]
+        }
+      ],
+      "manaAbility": true,
+      "activateOnlyIf": {
+        "kind": "controls",
+        "who": "you",
+        "filter": {
+          "types": [
+            "Creature"
+          ],
+          "powerGE": 4
+        },
+        "atLeast": 1
+      },
+      "text": "{T}: Add {G}{G}{G}{G}. Activate only if you control a creature with power 4 or greater."
+    },
+    {
+      "kind": "activated",
+      "fromGraveyard": true,
+      "sorcerySpeed": true,
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [
+            "G",
+            "G"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}{G}{G}"
+        },
+        "exileSelfFromGraveyard": true
+      },
+      "effects": [
+        {
+          "op": "copy-permanent",
+          "target": "self",
+          "except": {
+            "power": 4,
+            "toughness": 4,
+            "colors": [
+              "B"
+            ],
+            "subtypes": [
+              "Zombie",
+              "Snake",
+              "Druid"
+            ]
+          }
+        }
+      ],
+      "text": "Eternalize {2}{G}{G}"
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "mana",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "Eternalize (CR 702.129a) is written out as the activated ability it is: {2}{G}{G} plus exiling the card from your graveyard, sorcery speed only, creating a token copy that is a 4/4 black Zombie Snake Druid. copy-permanent's 'except' carries the P/T, colour and subtype overwrite; the token has no mana cost because it is a token copy of the exiled card with those exceptions. The second mana ability is written out because the parser left 'Add {G}{G}{G}{G}' unknown.",
+  "verification": {
+    "at": "2026-09-06T06:01:12.172Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "4e6b0012",
+    "scriptHash": "0617c3c2",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": false
+        },
+        {
+          "index": 2,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Eternalize {2}{G}{G}",
+          "rendered": "{2}{G}{G}, exileSelfFromGraveyard: Create a token that's a copy of ~, except it's a 4/4 black Zombie Snake Druid. activate only as a sorcery",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Eternalize {2}{G}{G}\" rendered as \"{2}{G}{G}, exileSelfFromGraveyard: Create a token that's a copy of ~, except it's a 4/4 black Zombie Snake Druid. activate only as a sorcery\""
+    ]
+  }
+}

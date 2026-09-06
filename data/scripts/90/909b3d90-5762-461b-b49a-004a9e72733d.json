@@ -1,0 +1,171 @@
+{
+  "oracleId": "909b3d90-5762-461b-b49a-004a9e72733d",
+  "name": "Black Mage's Rod",
+  "oracleHash": "95af6d4e",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 1,
+          "toughness": 1,
+          "colors": [],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Hero"
+          ],
+          "keywords": [],
+          "name": "Hero"
+        },
+        {
+          "op": "attach-to-that"
+        }
+      ],
+      "text": "Job select"
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "grant-ability",
+        "enchanted": true,
+        "scope": "you-control",
+        "ability": {
+          "kind": "triggered",
+          "event": {
+            "on": "cast",
+            "filter": {
+              "notTypes": [
+                "Creature"
+              ]
+            },
+            "who": "you"
+          },
+          "effects": [
+            {
+              "op": "damage",
+              "amount": 1,
+              "target": "each-opponent"
+            }
+          ],
+          "text": "Whenever you cast a noncreature spell, ~ deals 1 damage to each opponent."
+        }
+      },
+      "text": "Equipped creature gets +1/+0, has \"Whenever you cast a noncreature spell, ~ deals 1 damage to each opponent,\" and is a Wizard in addition to its other types."
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "type-change",
+        "scope": "equipped",
+        "subtypes": [
+          "Wizard"
+        ]
+      },
+      "text": "Equipped creature is a Wizard in addition to its other types."
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "equipment",
+        "power": 1,
+        "toughness": 0,
+        "equipCost": {
+          "generic": 3,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}"
+        }
+      },
+      "text": "Equip {3}"
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "utility",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "Job select is scripted as the living-weapon shaped ETB (token, then attach). The +1/+0 rides on the equipment static that claims 'Equip {3}'; the granted trigger claims the equipped-creature line and the type change is declared beside it.",
+  "verification": {
+    "at": "2026-09-06T06:13:18.224Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "95af6d4e",
+    "scriptHash": "f6a18184",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        },
+        {
+          "index": 2,
+          "reached": false
+        },
+        {
+          "index": 3,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Job select",
+          "rendered": "when ~ enters, create a 1/1 Hero creature token. attach ~ to that creature",
+          "score": 0
+        },
+        {
+          "text": "Equipped creature gets +1/+0, has \"Whenever you cast a noncreature spell, ~ deals 1 damage to each opponent,\" and is a Wizard in addition to its other types.",
+          "rendered": "enchanted permanent you control has \"whenever you casts noncreature spell, ~ deals 1 damage to each opponent\"",
+          "score": 0
+        },
+        {
+          "text": "Equipped creature is a Wizard in addition to its other types.",
+          "rendered": "type change",
+          "score": 0.091
+        },
+        {
+          "text": "Equip {3}",
+          "rendered": "equipped creature gets +1/+0. equip {3}",
+          "score": 0.167
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Job select\" rendered as \"when ~ enters, create a 1/1 Hero creature token. attach ~ to that creature\"; \"Equipped creature gets +1/+0, has \\\"Whenever you cast a noncreature spell, ~ deals 1 damage to each opponent,\\\" and is a Wizard in addition to its other types.\" rendered as \"enchanted permanent you control has \\\"whenever you casts noncreature spell, ~ deals 1 damage to each opponent\\\"\""
+    ]
+  }
+}

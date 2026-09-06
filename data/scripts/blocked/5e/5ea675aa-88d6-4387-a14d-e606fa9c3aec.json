@@ -1,0 +1,23 @@
+{
+  "oracleId": "5ea675aa-88d6-4387-a14d-e606fa9c3aec",
+  "name": "Seasoned Dungeoneer",
+  "clause": "When ~ enters, you take the initiative.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:initiative",
+      "proposedSignature": "Per-player state pl.ext.dungeon = { card: 'undercity' | 'lost-mine' | 'tomb' | 'dungeon-of-the-mad-mage'; room: string; completed: string[] } and pl.ext.hasInitiative, plus Effect { op: 'take-initiative' }, Effect { op: 'venture'; dungeon?: string }, Condition { kind: 'completed-dungeon'; who?: 'you' }, Condition { kind: 'has-initiative'; who }, TriggerEvent { on: 'initiative-taken'; who: 'you' | 'opponent' } and the three inherent initiative triggers of CR 726.2 as a step hook.",
+      "semantics": "'You take the initiative' (CR 726.1) makes you the initiative player, ventures you into the Undercity, and installs the inherent triggers: at the beginning of your upkeep you venture again, and whenever an opponent deals combat damage to the initiative player they take it. Nothing in the vocabulary tracks a dungeon, a room, a venture marker, or the initiative designation, so both cards in this batch that print it are dead. 'If you've completed a dungeon' (White Plume Adventurer's second line) needs the same slice.",
+      "cr": "726.1, 726.2, 309, 701.49",
+      "clause": "When ~ enters, you take the initiative."
+    },
+    {
+      "opFamily": "parameterised-keyword-grant",
+      "proposedSignature": "{ op: 'grant-keyword'; target; keywords: (Keyword | { keyword: 'protection'; from: string[] } | { keyword: 'ward'; cost: AbilityCost } | { keyword: 'landwalk'; types: string[] })[]; duration } — a keyword entry that may carry its parameter.",
+      "semantics": "'target attacking Cleric, Rogue, Warrior, or Wizard gains protection from creatures until end of turn' (Seasoned Dungeoneer). `grant-keyword` takes bare `Keyword[]`, and 'protection' alone says nothing about what it protects from, so the grant is either meaningless or silently wrong. This family name already carries 1 card in data/scripts/needs.json.",
+      "cr": "702.16a",
+      "clause": "Whenever you attack, target attacking Cleric, Rogue, Warrior, or Wizard gains protection from creatures until end of turn. It explores."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

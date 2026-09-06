@@ -1,0 +1,16 @@
+{
+  "oracleId": "ed58a617-cf86-4c2e-8044-1af37b1a1465",
+  "name": "Sporocyst",
+  "clause": "Ravenous",
+  "needs": [
+    {
+      "opFamily": "named-keyword:ravenous",
+      "proposedSignature": "a face declaration `ravenous?: true` + a `covers[].by` kind 'ravenous' with the anchored shape /^ravenous$/, implemented as an asEnters entry { kind: 'counters', counter: '+1/+1', amount: 'X' } plus an { on: 'etb', self: true } trigger gated on a NEW core condition { kind: 'x-ge', value: number } that reads the spell's chosen X (o.castWith.x); plus KEYWORD_EXPANSIONS['ravenous'] = 'this permanent enters with X +1/+1 counters on it. when this permanent enters, if X is 5 or more, draw a card' in src/cards/render.ts",
+      "semantics": "Ravenous is a replacement effect and a triggered ability on a creature with {X} in its cost: it enters with X +1/+1 counters, and when it enters, if X is 5 or more, its controller draws a card. asEnters can already carry the counters; the reusable missing piece is a condition on the X that was paid, which no Condition in the core union expresses.",
+      "cr": "702.156a, 107.3m",
+      "clause": "Ravenous"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

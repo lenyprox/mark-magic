@@ -1,0 +1,16 @@
+{
+  "oracleId": "163baf58-b35d-4f2b-aa53-8384b8b5800a",
+  "name": "Replication Technique",
+  "clause": "Demonstrate",
+  "needs": [
+    {
+      "opFamily": "named-keyword:demonstrate",
+      "proposedSignature": "a face declaration `demonstrate?: true` + a `covers[].by` kind 'demonstrate' (/^demonstrate$/) installing { on: 'cast', self: true } -> [{ op: 'may', effects: [{ op: 'copy-stack', target: 'self', newTargets: true }, { op: 'copy-stack', target: 'self', newTargets: true, controller: 'chosen-opponent' }] }]; the two new pieces are (a) copy-stack / copy-spell accepting the Ref 'self' (the spell being cast - today `target` is a TargetSpec only, and a spell cannot target itself) and (b) a `controller?: ScopeWho | 'chosen-opponent'` field so the second copy is controlled by an opponent the caster chooses; plus KEYWORD_EXPANSIONS['demonstrate']",
+      "semantics": "Demonstrate is a cast trigger: you may copy the spell, and if you do you choose an opponent who also copies it, each copier may choose new targets for their copy. Neither self-copying of the spell being cast nor an opponent-controlled copy is expressible.",
+      "cr": "702.144a, 707.10, 601.2",
+      "clause": "Demonstrate"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

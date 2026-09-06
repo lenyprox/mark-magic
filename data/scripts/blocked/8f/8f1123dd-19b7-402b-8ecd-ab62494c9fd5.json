@@ -1,0 +1,16 @@
+{
+  "oracleId": "8f1123dd-19b7-402b-8ecd-ab62494c9fd5",
+  "name": "Wand of Wonder",
+  "clause": "Each opponent exiles cards from the top of their library until they exile an instant or sorcery card, then shuffles the rest into their library.",
+  "needs": [
+    {
+      "opFamily": "library-search",
+      "proposedSignature": "{ op: 'exile-until', who: ScopeWho, from: 'library', filter: Filter, rest: 'shuffle-into-library' | 'library-bottom' | 'graveyard' }",
+      "semantics": "Each named player exiles cards from the top of their library one at a time until they exile a card matching `filter` (or the library is empty), then does `rest` with the non-matching cards. Binds the matching cards as `those` so a following effect can cast or move them.",
+      "cr": "701.19, 400.7",
+      "clause": "Each opponent exiles cards from the top of their library until they exile an instant or sorcery card, then shuffles the rest into their library."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

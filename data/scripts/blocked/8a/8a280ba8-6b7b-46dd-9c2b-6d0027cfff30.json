@@ -1,0 +1,23 @@
+{
+  "oracleId": "8a280ba8-6b7b-46dd-9c2b-6d0027cfff30",
+  "name": "Fighter Class",
+  "clause": "Equip abilities you activate cost {2} less to activate. / Whenever a creature you control attacks, up to one target creature blocks it this combat if able.",
+  "needs": [
+    {
+      "opFamily": "ability-cost-alter",
+      "proposedSignature": "static `{ kind: 'ability-cost-alter'; amount: Amount; more?: true; who?: 'you' | 'opponent' | 'any'; ability?: 'equip' | 'activated' | 'loyalty'; filter?: Filter; condition?: Condition }`",
+      "semantics": "'Equip abilities you activate cost {2} less to activate', 'Abilities you activate of creatures cost {1} less'. The cost-alter family's cost-alter static hangs off the CAST cost path only, so nothing today changes what an activated ability costs (CR 601.2f is reached through 602.2b for abilities).",
+      "cr": "118.7, 601.2f, 602.2b",
+      "clause": "Equip abilities you activate cost {2} less to activate."
+    },
+    {
+      "opFamily": "blocks-that-attacker",
+      "proposedSignature": "`{ op: 'blocks-if-able', target: TargetSpec | Ref, attacker?: Ref, duration: 'eot' }` — with `attacker`, the requirement is 'blocks THAT creature if able' rather than 'blocks if able'",
+      "semantics": "'Up to one target creature blocks it this combat if able' names both the blocker and the attacker it must block. Today blocks-if-able (combat-restr) gives the blocker the first attacker it can block, and lure is the attacker-side 'all creatures able to block it do so'; the paired form has no expression. blockFixup already resolves requirements per attacker, so this is a new marker rather than a new pass.",
+      "cr": "509.1c, 508.1, 509.1a",
+      "clause": "Whenever a creature you control attacks, up to one target creature blocks it this combat if able."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,163 @@
+{
+  "oracleId": "3adbd963-e85d-4569-963a-4472594f06f9",
+  "name": "Woe Strider",
+  "oracleHash": "cfabaf67",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 0,
+          "toughness": 1,
+          "colors": [
+            "W"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Goat"
+          ],
+          "keywords": []
+        }
+      ],
+      "text": "When ~ enters, create a 0/1 white Goat creature token."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "sacrifice": {
+          "types": [
+            "Creature"
+          ],
+          "other": true
+        }
+      },
+      "effects": [
+        {
+          "op": "scry",
+          "amount": 1
+        }
+      ],
+      "text": "Sacrifice another creature: Scry 1."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "condition": {
+        "kind": "escaped"
+      },
+      "effects": [
+        {
+          "op": "counters",
+          "target": "self",
+          "counter": "+1/+1",
+          "amount": 2
+        }
+      ],
+      "text": "~ escapes with two +1/+1 counters on it."
+    }
+  ],
+  "altCosts": [
+    {
+      "id": "escape",
+      "label": "escape {3}{B}{B}",
+      "cost": {
+        "mana": {
+          "generic": 3,
+          "x": 0,
+          "pips": [
+            "B",
+            "B"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}{B}{B}"
+        },
+        "exileOtherFromGraveyard": {
+          "count": 4
+        }
+      },
+      "from": "graveyard"
+    }
+  ],
+  "covers": [
+    {
+      "line": "Escape—{3}{B}{B}, Exile four other cards from your graveyard.",
+      "by": "altCosts"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "The escape alternative cost is the parser's own reading, kept because the script replaces the face. 'This creature escapes with two +1/+1 counters on it.' is a replacement effect (CR 702.138d) that this format cannot cover: the asEnters 'counters' cover shape is anchored on 'enters with', so the line has no covers kind, and asEnters could not claim it anyway. It is scripted as an enters trigger gated on the 'escaped' intervening-if condition (characteristics.ts:447 = castWith.alt === 'escape'), which puts the same two +1/+1 counters on it the moment it escapes; the difference is observable only against effects that read counters AS it enters (counter-doubling replacements, 'entered with a counter').",
+  "verification": {
+    "at": "2026-09-06T06:01:12.172Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "cfabaf67",
+    "scriptHash": "7159daa4",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.556,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/3a/3adbd963-e85d-4569-963a-4472594f06f9.json",
+      "passed": 0,
+      "failed": 5,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "This creature escapes with two +1/+1 counters on it. — expected Two +1/+1 counters are applied ONLY when the card was cast for its escape cost, and as a replacement as it enters. Correct encoding available in this format: asEnters: [{kind:'counters', counter:'+1/+1', amount:2, condition:{kind:'escaped'}}] — src/engine/game.ts:746 explicitly honors a.condition on the asEnters 'counters' kind, and src/cards/types.ts:189 declares condition? on CoreAsEnters 'counters'. — scripted Scripted as abilities[2]: a triggered ability {event:{on:'etb',self:true}} carrying a top-level \"condition\":{\"kind\":\"escaped\"}. That field is DEAD on triggered abilities — the only gate the engine consults when putting a trigger on the stack is ability.intervening (src/engine/game.ts:2311); no code path reads TriggeredAbility.condition. Result: the trigger fires on EVERY enter. Blind scenario 'Woe Strider cast from hand enters without +1/+1 counters' fails exactly this way: counters 2 !== 0, P/T [5,4] instead of [3,2]. The escape scenario 'passing' is a false positive — it passes because the counters are unconditional, not because the condition works. — CR 702.139b (escape replacement), 603.6 / 614.1c (replacement vs. triggered ETB)",
+          "This creature escapes with two +1/+1 counters on it. (encoding class) — expected A replacement effect applied as the object enters, so counter-doubling replacements (Doubling Season, Corpsejack Menace) and 'entered with a counter' checks see it. — scripted A trigger that resolves after the permanent is already on the battlefield. The script's own notes concede the observable difference but justify it with a false claim: 'asEnters could not claim it anyway' / 'the asEnters counters cover shape is anchored on enters with'. asEnters 'counters' takes an optional condition and is applied at enter time (game.ts:746), so the correct shape was available and unused. The notes also assert the line 'is scripted as an enters trigger gated on the escaped intervening-if condition' — it is not gated at all, since the field written is condition, not intervening. — CR 702.139b, 614.1c, 121.6",
+          "When this creature enters, create a 0/1 white Goat creature token. — expected Token named 'Goat' (op token with name:'Goat'). — scripted op token with power 0, toughness 1, colors [W], types [Creature], subtypes [Goat] but no name field, so the engine names it '<subtypes> token' = 'Goat token' (game.ts:1378). Minor/cosmetic: 25 of 44 token effects in the corpus set an explicit name. NOT the cause of the blind scenario failure — src/verify/scenarioDsl.ts findByName (line 424-429) matches only x.def.name and has no token awareness at all, so a token can never be found by name by that harness regardless of this field; the create-token event and zoneCount 6 assertions in that scenario did pass, i.e. the token is created correctly. — CR 111.1"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "oracleId": "56fd8895-3be2-4591-86fa-87567d9cdc14",
+  "name": "Commit // Memory",
+  "clause": "Aftermath  /  Put target spell or nonland permanent into its owner's library second from the top.",
+  "needs": [
+    {
+      "opFamily": "composition:library-position",
+      "proposedSignature": "`move` gains `posFromTop?: number` (or `pos: 'top' | 'bottom' | { fromTop: number }`): { op: 'move', what: { kind: 'spell-or-nonland-permanent' }, to: 'library', posFromTop: 2 }",
+      "semantics": "Put an object into its owner's library that many cards from the top (Commit, Time Ebb variants, Condescend-style tuck effects). Today `pos` is only 'top' | 'bottom', so the clause can only be written by playing a different card.",
+      "cr": "701.20, 401.1",
+      "clause": "Put target spell or nonland permanent into its owner's library second from the top."
+    },
+    {
+      "opFamily": "named-keyword:aftermath",
+      "proposedSignature": "AltCost id 'aftermath': { id: 'aftermath', label: 'aftermath', cost: { mana: <that half's own mana cost> }, from: 'graveyard', exileAfter: true, onlyFrom: 'graveyard' } declared on the script's `secondFace` + COVER_RULES.altCosts shape /^aftermath$/ + KEYWORD_EXPANSIONS.aftermath = 'cast ~ only from your graveyard. then exile it'",
+      "semantics": "Cast this half only from your graveyard (never from hand), for its own mana cost, and exile it as it leaves the stack. Mechanically flashback with the printed cost and a 'graveyard only' restriction; `cast-from` is not a substitute (it is a battlefield static and would permit casting every card from the graveyard).",
+      "cr": "702.127",
+      "clause": "Aftermath"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

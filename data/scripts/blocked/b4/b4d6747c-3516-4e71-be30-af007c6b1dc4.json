@@ -1,0 +1,16 @@
+{
+  "oracleId": "b4d6747c-3516-4e71-be30-af007c6b1dc4",
+  "name": "Apex Devastator",
+  "clause": "Cascade, cascade, cascade, cascade",
+  "needs": [
+    {
+      "opFamily": "named-keyword:cascade",
+      "proposedSignature": "widen the face declaration to `cascade?: boolean | number` (n instances) and add `COVER_LINE_RE.cascade = [/^cascade$/i, /^(?:cascade, )+cascade$/i]` with the value check `count(printed 'cascade' words) === (cascade === true ? 1 : cascade)`; game.ts:647 pushes the pending cascade trigger `n` times",
+      "semantics": "\"Cascade, cascade\" and \"Cascade, cascade, cascade, cascade\" are n separate instances of the keyword, each of which triggers separately when the spell is cast (CR 702.85b). `cascade` is a boolean today, so a card with more than one instance cannot be declared and its line cannot be covered. Scripting it as a self `{on:'cast'}` triggered ability is not an alternative: `queueTriggers` scans battlefield permanents only, so a spell's own cast trigger never fires, and on a permanent an unfiltered cast trigger would cascade on every spell its controller casts.",
+      "cr": "702.85a, 702.85b",
+      "clause": "Cascade, cascade, cascade, cascade"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "acf4d685-a718-42f7-9a7a-dee069ae8db2",
+  "name": "Council's Judgment",
+  "clause": "Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes.",
+  "needs": [
+    {
+      "opFamily": "vote-for-object",
+      "proposedSignature": "{ op: 'vote-object'; over: { filter?: Filter; who?: ChoiceWho; controller?: 'you' | 'opponent' }; tie?: 'all' | 'first'; then: Effect[] } — each player votes for one object of the set, the winners (most votes, every tied one with `tie: 'all'`) are bound as `those` and `then` acts on them",
+      "semantics": "'Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes.' The existing `vote` op takes a FIXED list of labelled option/effect pairs written into the script, so a vote whose options are the objects on the battlefield right now — and whose consequence acts on the winners — cannot be expressed at all.",
+      "cr": "701.38a, 701.38b, 701.38c",
+      "clause": "Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "c13079d5-6749-43e5-a8ee-ef3af31ff679",
+  "name": "Blast-Furnace Hellkite",
+  "clause": "Artifact offering",
+  "needs": [
+    {
+      "opFamily": "alt-cost-keywords",
+      "proposedSignature": "AltCostIdRegistry += { offering: true }; AltCost { id: 'offering', label: '<quality> offering', cost: { sacrifice: Filter }, from: 'hand', reduceBySacrificedManaCost: true, asThoughFlash: true }, plus a COVER_RULES.altCosts shape /^(.+?) offering$/ matching cost.sacrifice",
+      "semantics": "as an additional/alternative cost you may sacrifice a permanent matching the quality; if you do, the spell's total cost is reduced by the sacrificed permanent's mana cost (colour included) and it may be cast any time you could cast an instant",
+      "cr": "702.48a",
+      "clause": "Artifact offering"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

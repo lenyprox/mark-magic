@@ -1,0 +1,23 @@
+{
+  "oracleId": "3635e4e5-e655-45f4-a444-39756f55129a",
+  "name": "Eldrazi Conscription",
+  "clause": "Enchanted creature gets +10/+10 and has trample and annihilator 2.",
+  "needs": [
+    {
+      "opFamily": "grant-parameterised-keyword",
+      "proposedSignature": "`grant-keyword`, `pump.keywords`, `anthem.keywords`, `aura.keywords`, `equipment.keywords` and `self-keywords.keywords` accept `Keyword | { keyword: Keyword; n: Amount }` instead of bare `Keyword`, so a parameterised keyword can be granted with its number.",
+      "semantics": "Every keyword-granting slot in the format is `Keyword[]`, a bare name with no parameter. That silently drops the number of every keyword that has one — 'gains firebending 5 until end of turn' (Sozin's Comet), 'has trample and annihilator 2' (Eldrazi Conscription), 'gains trample, annihilator 2, and haste until end of turn' (Flayer of Loyalties, Hideous Taskmaster), 'has menace, deathtouch, annihilator 1' (Nazgûl Battle-Mace). Round-trip rule 1 then scores the line 0 for the missing number even when the rest of the grant is right, so the line cannot be claimed honestly.",
+      "cr": "613.1f, 702.86a, 702.180a",
+      "clause": "Each creature you control gains firebending 5 until end of turn."
+    },
+    {
+      "opFamily": "named-keyword:annihilator",
+      "proposedSignature": "A face declaration `annihilator?: number | Amount`; a `covers[].by` kind `annihilator` whose anchored line shape is /^annihilator (\\d+|x)$/; the Keyword union gains 'annihilator' with a parameter slot so `grant-keyword` / `pump.keywords` / `anthem.keywords` / `aura.keywords` / `equipment.keywords` can grant it as `{ keyword: 'annihilator', n: Amount }`; a ScopeWho (or sacrifice `who`) value `'defending-player'`; and a KEYWORD_EXPANSIONS entry `annihilator: 'whenever ~ attacks, defending player sacrifices {n} permanents of their choice'`.",
+      "semantics": "CR 702.86a. Whenever a creature with annihilator N attacks, the DEFENDING PLAYER sacrifices N permanents of their choice. Three separate gaps: (1) no Keyword / declaration / covers kind names it, so the printed line 'Annihilator N' can be claimed by nothing; (2) the renderer has no rules text for it, so any ability that claims the line scores 0 and the card is capped below the 0.55 gate (measured on Ulamog's Crusher: a correct attacks trigger rendered as 'whenever ~ attacks, each opponent sacrifices 2 creatures' still scored 0.00 with gap keyword:annihilator); (3) 'defending player' is not a ScopeWho — `each-opponent` is the only approximation and is wrong at three or more seats. Ulamog, the Defiler needs the amount to be an Amount (a +1/+1 counter count), and Eldrazi Conscription / Flayer of Loyalties / Hideous Taskmaster / Nazgûl Battle-Mace need it GRANTED with its number to another permanent.",
+      "cr": "702.86a, 509.1, 613.1f",
+      "clause": "Annihilator 2 (Whenever this creature attacks, defending player sacrifices two permanents of their choice.)"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

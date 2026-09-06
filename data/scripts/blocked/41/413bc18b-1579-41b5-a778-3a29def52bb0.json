@@ -1,0 +1,16 @@
+{
+  "oracleId": "413bc18b-1579-41b5-a778-3a29def52bb0",
+  "name": "K-9, Mark I",
+  "clause": "As long as ~ is untapped, other legendary creatures you control have ward {1}.",
+  "needs": [
+    {
+      "opFamily": "granted-keyword-params",
+      "proposedSignature": "`anthem.keywordParams?: { ward?: ManaCost | AbilityCost; toxic?: number; bushido?: number; rampage?: number; protectionFrom?: string[] }` (and the same optional field on the `grant-keyword` effect and on `self-keywords`), plus an engine implementation of ward that triggers on a spell or ability AN OPPONENT CONTROLS",
+      "semantics": "Every parameterised keyword loses its parameter when it is GRANTED: `anthem.keywords` / `grant-keyword.keywords` are bare `Keyword`s, and `wardCost` / `toxic` / `bushido` are face-level fields describing only the card's own copy of the keyword. 'other legendary creatures you control have ward {1}' therefore cannot carry the {1}, and the round-trip gate scores it a hard 0 because the rendering never prints the number. Writing ward out as a granted triggered ability is not a substitute: the `targeted` trigger event has no 'by an opponent' form, so it would also fire on its controller's own spells. (Ward is also not simulated anywhere in src/engine today — see keyword-action.ts:420 — so the engine half is missing as well as the declaration half.)",
+      "cr": "702.21b, 613.1f",
+      "clause": "As long as ~ is untapped, other legendary creatures you control have ward {1}."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

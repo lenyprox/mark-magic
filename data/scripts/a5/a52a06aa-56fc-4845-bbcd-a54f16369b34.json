@@ -1,0 +1,116 @@
+{
+  "oracleId": "a52a06aa-56fc-4845-bbcd-a54f16369b34",
+  "name": "Timeless Witness",
+  "oracleHash": "e27a3eaf",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "return-from-graveyard",
+          "what": {},
+          "to": "hand",
+          "target": true
+        }
+      ],
+      "text": "When ~ enters, return target card from your graveyard to your hand."
+    },
+    {
+      "kind": "activated",
+      "fromGraveyard": true,
+      "sorcerySpeed": true,
+      "cost": {
+        "mana": {
+          "generic": 5,
+          "x": 0,
+          "pips": [
+            "G",
+            "G"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{5}{G}{G}"
+        },
+        "exileSelfFromGraveyard": true
+      },
+      "effects": [
+        {
+          "op": "copy-permanent",
+          "target": "self",
+          "except": {
+            "power": 4,
+            "toughness": 4,
+            "colors": [
+              "B"
+            ],
+            "subtypes": [
+              "Zombie",
+              "Human",
+              "Shaman"
+            ]
+          }
+        }
+      ],
+      "text": "Eternalize {5}{G}{G}"
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "recursion",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "Eternalize (CR 702.129a) written out as the activated ability it is: {5}{G}{G} plus exiling the card from your graveyard, sorcery speed only, creating a token copy that is a 4/4 black Zombie Human Shaman. The enters trigger is the parser's own reading, kept because the script replaces the face.",
+  "verification": {
+    "at": "2026-09-06T06:01:12.172Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "e27a3eaf",
+    "scriptHash": "7635ddfc",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Eternalize {5}{G}{G}",
+          "rendered": "{5}{G}{G}, exileSelfFromGraveyard: Create a token that's a copy of ~, except it's a 4/4 black Zombie Human Shaman. activate only as a sorcery",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Eternalize {5}{G}{G}\" rendered as \"{5}{G}{G}, exileSelfFromGraveyard: Create a token that's a copy of ~, except it's a 4/4 black Zombie Human Shaman. activate only as a sorcery\""
+    ]
+  }
+}

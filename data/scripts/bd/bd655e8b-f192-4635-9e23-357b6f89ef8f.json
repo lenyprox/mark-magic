@@ -1,0 +1,128 @@
+{
+  "oracleId": "bd655e8b-f192-4635-9e23-357b6f89ef8f",
+  "name": "Uncivil Unrest",
+  "oracleHash": "0c2bcc33",
+  "source": "llm",
+  "confidence": 0.6,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "grant-ability",
+        "scope": "you-control",
+        "filter": {
+          "types": [
+            "Creature"
+          ],
+          "nontoken": true
+        },
+        "ability": {
+          "kind": "triggered",
+          "event": {
+            "on": "etb",
+            "self": true
+          },
+          "effects": [
+            {
+              "op": "choose-mode",
+              "count": 1,
+              "modes": [
+                [
+                  {
+                    "op": "counters",
+                    "target": "self",
+                    "counter": "+1/+1",
+                    "amount": 1
+                  }
+                ],
+                [
+                  {
+                    "op": "grant-keyword",
+                    "target": "self",
+                    "keywords": [
+                      "haste"
+                    ],
+                    "duration": "permanent"
+                  }
+                ]
+              ]
+            }
+          ],
+          "text": "Riot"
+        }
+      },
+      "text": "Nontoken creatures you control have riot."
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "damage-replacement",
+        "from": {
+          "filter": {
+            "types": [
+              "Creature"
+            ],
+            "withCounter": "+1/+1"
+          },
+          "who": "you"
+        },
+        "instead": {
+          "mode": "times",
+          "factor": 2
+        }
+      },
+      "text": "If a creature you control with a +1/+1 counter on it would deal damage to a permanent or player, it deals double that damage instead."
+    }
+  ],
+  "aiHints": {
+    "role": "anthem",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "Riot (CR 702.135) is granted as an enters trigger with the choice, the closest form the engine has: there is no as-enters kind for 'enters with your choice of a +1/+1 counter or haste'.",
+  "verification": {
+    "at": "2026-09-06T06:15:32.095Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "0c2bcc33",
+    "scriptHash": "a52d6454",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "If a creature you control with a +1/+1 counter on it would deal damage to a permanent or player, it deals double that damage instead.",
+          "rendered": "If creature you control would deal damage, it deals double that damage instead",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"If a creature you control with a +1/+1 counter on it would deal damage to a permanent or player, it deals double that damage instead.\" rendered as \"If creature you control would deal damage, it deals double that damage instead\""
+    ]
+  }
+}

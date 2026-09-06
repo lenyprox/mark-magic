@@ -1,0 +1,23 @@
+{
+  "oracleId": "cbd76b22-d04e-48e7-bcab-c7f5466d67d8",
+  "name": "Lux Artillery",
+  "clause": "Whenever you cast an artifact creature spell, it gains sunburst.",
+  "needs": [
+    {
+      "opFamily": "condition-amount",
+      "proposedSignature": "{ kind: 'amount-ge', amount: Amount, value: number } (and its 'amount-le' twin)",
+      "semantics": "CR 603.4 intervening-if clauses that compare a count against a number: 'if two or more creatures died this turn' (Amount.count 'creatures-died-this-turn'), 'if there are thirty or more counters among artifacts and creatures you control' (Amount.count 'counters-on-permanents' with a filter). Both counts already exist as Amounts; no Condition kind compares one against a value, so these lines are unknown.",
+      "cr": "603.4",
+      "clause": "if two or more creatures died this turn"
+    },
+    {
+      "opFamily": "named-keyword:sunburst",
+      "proposedSignature": "AsEnters { kind: 'sunburst' } (charge counters on a noncreature, +1/+1 counters on a creature, one per colour of mana spent) plus { op: 'grant-keyword-to-spell', target: TargetSpec | Ref, keywords: Keyword[] } and a delayed-trigger point 'next-cast-this-turn' with a filter",
+      "semantics": "CR 702.44. The enters-with half is already expressible as counters with { count: 'colors-spent' }, but nothing can GRANT sunburst to a spell on the stack (grant-keyword acts on permanents) and there is no 'when you next cast a <filter> spell this turn' firing point.",
+      "cr": "702.44",
+      "clause": "Whenever you cast an artifact creature spell, it gains sunburst."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

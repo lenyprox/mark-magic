@@ -1,0 +1,90 @@
+{
+  "oracleId": "6ee51134-c4ad-4101-8ce2-23dde9359cd4",
+  "name": "Drift of Phantasms",
+  "oracleHash": "24b53754",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [
+    "defender",
+    "flying"
+  ],
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [
+            "U",
+            "U"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}{U}{U}"
+        },
+        "discardSelf": true
+      },
+      "sorcerySpeed": true,
+      "effects": [
+        {
+          "op": "search",
+          "filter": {
+            "mvEQ": 3
+          },
+          "to": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      ],
+      "text": "Transmute {1}{U}{U}"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 2,
+    "timing": "main"
+  },
+  "notes": "Transmute (CR 702.49) as the activated-from-hand ability it is: {1}{U}{U}, discard this card, search for a card with the same mana value (3).",
+  "verification": {
+    "at": "2026-09-06T06:15:32.095Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "24b53754",
+    "scriptHash": "29982ac6",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Transmute {1}{U}{U}",
+          "rendered": "{1}{U}{U}, discard ~: search your library for a card with mana value 3, put it into your hand, then shuffle. activate only as a sorcery",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Transmute {1}{U}{U}\" rendered as \"{1}{U}{U}, discard ~: search your library for a card with mana value 3, put it into your hand, then shuffle. activate only as a sorcery\""
+    ]
+  }
+}

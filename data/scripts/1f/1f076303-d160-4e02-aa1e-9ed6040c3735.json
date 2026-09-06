@@ -1,0 +1,186 @@
+{
+  "oracleId": "1f076303-d160-4e02-aa1e-9ed6040c3735",
+  "name": "Cool but Rude",
+  "oracleHash": "77a57c23",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "you-attack"
+      },
+      "effects": [
+        {
+          "op": "loot",
+          "draw": 1,
+          "discard": 1,
+          "discardFirst": true,
+          "optional": true
+        }
+      ],
+      "text": "Whenever you attack, you may discard a card. If you do, draw a card."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [
+            "R"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}{R}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 1
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 2
+        }
+      ],
+      "text": "{1}{R}: Level 2"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "discard"
+      },
+      "condition": {
+        "kind": "self-level",
+        "atLeast": 2
+      },
+      "effects": [
+        {
+          "op": "damage",
+          "amount": 2,
+          "target": "each-opponent"
+        }
+      ],
+      "text": "Whenever you discard a card, this Class deals 2 damage to each opponent."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [
+            "R"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}{R}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 2
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 3
+        }
+      ],
+      "text": "{1}{R}: Level 3"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "became-level",
+        "level": 3
+      },
+      "effects": [
+        {
+          "op": "search",
+          "filter": {},
+          "to": "hand",
+          "count": 1
+        },
+        {
+          "op": "discard",
+          "amount": 1,
+          "who": "you",
+          "random": true
+        }
+      ],
+      "text": "When this Class becomes level 3, search your library for a card, put it into your hand, shuffle, then discard a card at random."
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "The level-1 line is a discard-first loot: the draw only happens because the discard did (CR 603.12 'If you do' inside one resolution). Both level bars cost {1}{R}; the level-3 bar is only activatable from level 2, which activateOnlyIf and set-level both enforce.",
+  "verification": {
+    "at": "2026-09-06T10:02:10.030Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "77a57c23",
+    "scriptHash": "6f824576",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 3,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 4,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "When this Class becomes level 3, search your library for a card, put it into your hand, shuffle, then discard a card at random.",
+          "rendered": "whenever became level, search your library for a card, put it into your hand, then shuffle. you discard a card at random",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"When this Class becomes level 3, search your library for a card, put it into your hand, shuffle, then discard a card at random.\" rendered as \"whenever became level, search your library for a card, put it into your hand, then shuffle. you discard a card at random\""
+    ]
+  }
+}

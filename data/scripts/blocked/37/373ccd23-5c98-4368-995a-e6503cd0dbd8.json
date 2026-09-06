@@ -1,0 +1,23 @@
+{
+  "oracleId": "373ccd23-5c98-4368-995a-e6503cd0dbd8",
+  "name": "Elturel Survivors",
+  "clause": "As long as ~ is attacking, it gets +X/+0, where X is the number of lands defending player controls.",
+  "needs": [
+    {
+      "opFamily": "defending-player",
+      "proposedSignature": "`ScopeWho` (and with it `ObjectSet.who` / `Amount.who` / `Amount.of`) gains `'defending-player'` — the player the source is attacking, or the controller of the attacked planeswalker / battle, read from the combat state; the line is then `{ kind: 'self-pt', power: { count: 'objects', filter: { types: ['Land'] }, who: 'defending-player' }, toughness: 0, condition: { kind: 'self-attacking' } }`",
+      "semantics": "\"the number of lands defending player controls\" needs a player word for the defending player. Every other piece already exists: the `self-pt` static takes `Amount`s, `self-attacking` is a condition, and `count: 'objects'` with a `who` is the standard count. `who: 'each-opponent'` is wrong (it counts every opponent's lands) and there is no other candidate, so the whole line is unwritable. The word also unlocks the common \"defending player loses N life\" and \"target creature defending player controls\" wordings.",
+      "cr": "506.2, 509.1a, 613.4b, 608.2h",
+      "clause": "As long as ~ is attacking, it gets +X/+0, where X is the number of lands defending player controls."
+    },
+    {
+      "opFamily": "named-keyword:myriad",
+      "proposedSignature": "Add `'myriad'` to the `Keyword` union with a `keywordHooks.attacks` implementation (the parse.ts:1887 expansion — `token-copy target:'self' count:{count:'opponents',plus:-1} attacking:'each-other-opponent'` plus an end-of-combat exile — moved behind the keyword), so `keywords: ['flying','myriad']` claims \"Flying, myriad\", and `self-keywords`, `anthem.keywords`, `equipment.keywords`, `grant-keyword` and `CopyException.keywords` can all hand it out; `KEYWORD_EXPANSIONS.myriad` already exists and would then score the line",
+      "semantics": "Myriad (CR 702.115) is a printed keyword ability, but the format has no way to DECLARE it: it is not in the `Keyword` union, so a face that prints it can only write the trigger out by hand. That works behaviourally (all seven cards below are scripted and six are fullyParsed) but every such line is unscoreable — a comma-joined keyword line like \"Flying, myriad\" or \"Myriad, myriad\" is prose to `printedKeywordLine`, so it is scored by Jaccard against a 25-word trigger rendering and lands at 0.00-0.20. As a real Keyword those lines become one-line declarations scored against the keyword's own reminder text. The same argument applies to the granted forms (\"Creatures you control have myriad.\", \"Equipped creature has myriad.\"), which then become `anthem.keywords` / `equipment.keywords` instead of a `grant-ability` carrying a hand-written trigger.",
+      "cr": "702.115a, 702.115b, 113.3b",
+      "clause": "Flying, myriad / Trample, myriad / Myriad, myriad / Equipped creature has myriad. / Creatures you control have myriad. / Nonlegendary artifact creatures you control have myriad."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

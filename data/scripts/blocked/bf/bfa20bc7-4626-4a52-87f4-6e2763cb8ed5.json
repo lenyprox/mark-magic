@@ -1,0 +1,16 @@
+{
+  "oracleId": "bfa20bc7-4626-4a52-87f4-6e2763cb8ed5",
+  "name": "Archway of Innovation",
+  "clause": "{U}, {T}: The next spell you cast this turn has improvise.",
+  "needs": [
+    {
+      "opFamily": "grant-cost-modifier",
+      "proposedSignature": "StaticEffect { kind: 'grant-cost-modifier'; who: 'you' | 'opponent' | 'any'; filter?: Filter; modifier: CostModifier } for the continuous form, plus Effect { op: 'grant-cost-modifier'; modifier: CostModifier; scope: 'next-spell-this-turn' } for the one-shot form.",
+      "semantics": "'Nonartifact spells you cast have improvise.' (Inspiring Statuary) and '{U}, {T}: The next spell you cast this turn has improvise.' (Archway of Innovation). `{ kind: 'improvise' }` already exists as a `costModifiers` entry and cost.ts already pays it, so the family is a hook that adds a CostModifier to a spell that does not print one, plus a per-turn 'next spell you cast' scope. `cost-adjust` cannot stand in: it is a signed generic-mana adjustment, and improvise is 'each artifact you tap after mana abilities pays for {1}'.",
+      "cr": "702.126a, 601.2f",
+      "clause": "Nonartifact spells you cast have improvise."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

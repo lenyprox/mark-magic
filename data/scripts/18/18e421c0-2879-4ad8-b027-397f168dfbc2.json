@@ -1,0 +1,110 @@
+{
+  "oracleId": "18e421c0-2879-4ad8-b027-397f168dfbc2",
+  "name": "Krark, the Thumbless",
+  "oracleHash": "f919abad",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "cast",
+        "filter": {
+          "types": [
+            "Instant",
+            "Sorcery"
+          ]
+        },
+        "who": "you"
+      },
+      "effects": [
+        {
+          "op": "flip-coin"
+        },
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "coin-flip",
+            "outcome": "lost"
+          },
+          "then": [
+            {
+              "op": "move",
+              "what": "triggering",
+              "to": "hand"
+            }
+          ]
+        },
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "coin-flip",
+            "outcome": "won"
+          },
+          "then": [
+            {
+              "op": "copy-stack",
+              "target": "triggering",
+              "newTargets": "may"
+            }
+          ]
+        }
+      ],
+      "text": "Whenever you cast an instant or sorcery spell, flip a coin. If you lose the flip, return that spell to its owner's hand. If you win the flip, copy that spell, and you may choose new targets for the copy."
+    }
+  ],
+  "ignore": [
+    {
+      "line": "Partner",
+      "reason": "deck-construction"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 4,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-06T10:00:56.042Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "f919abad",
+    "scriptHash": "ec978f3d",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'spells' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.852,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/18/18e421c0-2879-4ad8-b027-397f168dfbc2.json",
+      "passed": 0,
+      "failed": 4,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "Partner (blind-scenario failure, not a script defect) — expected Partner is a deck-construction ability only (CR 702.124a); it has no battlefield-visible behaviour. The engine has no `partner` Keyword (the Keyword enum in the batch vocabulary omits it) and commander legality is read from oracle text in src/decks/validate.ts:19-39, never from the script. src/cards/scripts.ts:81 lists /^partner\\b/ explicitly under the `deck-construction` ignore reason. — scripted ignore: [{ line: 'Partner', reason: 'deck-construction' }] — correct. The failing scenario asserts a `partner` keyword on the permanent, an expectation the vocabulary cannot satisfy; the scenario should be corrected, not the script. — CR 702.124a"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

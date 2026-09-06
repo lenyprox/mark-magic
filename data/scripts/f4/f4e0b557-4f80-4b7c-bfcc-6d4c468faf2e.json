@@ -1,0 +1,135 @@
+{
+  "oracleId": "f4e0b557-4f80-4b7c-bfcc-6d4c468faf2e",
+  "name": "Tivit, Seller of Secrets",
+  "oracleHash": "ddd0fb0f",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [
+    "flying",
+    "ward"
+  ],
+  "wardCost": 3,
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "or",
+        "events": [
+          {
+            "on": "etb",
+            "self": true
+          },
+          {
+            "on": "combat-damage-player",
+            "self": true
+          }
+        ]
+      },
+      "effects": [
+        {
+          "op": "vote",
+          "resolve": "per-vote",
+          "options": [
+            {
+              "label": "evidence",
+              "effects": [
+                {
+                  "op": "investigate",
+                  "amount": 1
+                }
+              ]
+            },
+            {
+              "label": "bribery",
+              "effects": [
+                {
+                  "op": "token",
+                  "count": 1,
+                  "power": 0,
+                  "toughness": 0,
+                  "colors": [],
+                  "types": [
+                    "Artifact"
+                  ],
+                  "subtypes": [
+                    "Treasure"
+                  ],
+                  "keywords": [],
+                  "treasure": true,
+                  "name": "Treasure"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "text": "Whenever ~ enters or deals combat damage to a player, starting with you, each player votes for evidence or bribery. For each evidence vote, investigate. For each bribery vote, create a Treasure token."
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "extra-votes",
+        "amount": 1
+      },
+      "text": "While voting, you may vote an additional time."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flying, ward {3}",
+      "by": "keywords"
+    }
+  ],
+  "notes": "Council's dilemma is `vote` with `resolve: 'per-vote'` (CR 701.38). The `extra-votes` static has no entry in the family's `render` map, so the round trip scores its line against the humanised kind name (\"extra votes\") — a renderer gap, not a defect of the script.",
+  "verification": {
+    "at": "2026-09-06T10:06:03.841Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "ddd0fb0f",
+    "scriptHash": "9a031b58",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Whenever ~ enters or deals combat damage to a player, starting with you, each player votes for evidence or bribery. For each evidence vote, investigate. For each bribery vote, create a Treasure token.",
+          "rendered": "when ~ enters or whenever ~ deals combat damage to a player, Starting with you, each player votes for evidence or bribery.",
+          "score": 0
+        },
+        {
+          "text": "While voting, you may vote an additional time.",
+          "rendered": "extra votes",
+          "score": 0.125
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Whenever ~ enters or deals combat damage to a player, starting with you, each player votes for evidence or bribery. For each evidence vote, investigate. For each bribery vote, create a Treasure token.\" rendered as \"when ~ enters or whenever ~ deals combat damage to a player, Starting with you, each player votes for evidence or bribery.\""
+    ]
+  }
+}

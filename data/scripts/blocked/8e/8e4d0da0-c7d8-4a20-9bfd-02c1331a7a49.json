@@ -1,0 +1,23 @@
+{
+  "oracleId": "8e4d0da0-c7d8-4a20-9bfd-02c1331a7a49",
+  "name": "Primal Amulet // Primal Wellspring",
+  "clause": "// {T}: Add one mana of any color. When that mana is spent to cast an instant or sorcery spell, copy that spell and you may choose new targets for the copy.",
+  "needs": [
+    {
+      "opFamily": "counter-threshold",
+      "proposedSignature": "{ kind: 'self-has-counters'; counter: string; atLeast?: number }  (extend the existing condition; equivalently a new { kind: 'counters-on-source-ge'; counter: string; value: number })",
+      "semantics": "True when the source has at least `atLeast` counters of that kind on it, evaluated as the effect applies. Today `self-has-counters` is a name-only >= 1 test and no Condition accepts an Amount, so the very common 'Then if there are N or more <x> counters on it, ...' transform trigger cannot be written at all - any encoding flips the permanent on the first counter. Pairs with the existing removeCounters cost / a negative `counters` amount for the 'remove those counters' half.",
+      "cr": "122.1, 603.2, 608.2h",
+      "clause": "Then if there are three or more landmark counters on it, remove those counters, transform ~, and create three Treasure tokens."
+    },
+    {
+      "opFamily": "mana-provenance",
+      "proposedSignature": "add-mana gains `tag?: 'self'` (mark the mana as produced by this permanent); trigger { on: 'mana-spent'; from: 'self'; filter: Filter }; and a `withManaFrom?: 'self'` field on { on: 'cast' }",
+      "semantics": "Record, per mana in a player's pool, the permanent that produced it, so 'Whenever you cast an <x> spell using mana produced by ~' and '{T}: Add one mana of any color. When that mana is spent to cast an <x> spell, ...' fire exactly once per qualifying spend. Without it these lines can only be written as unrestricted cast triggers, strictly stronger than the printed card.",
+      "cr": "106.12, 601.2g",
+      "clause": "Whenever you cast an artifact or creature spell using mana produced by ~, create a white Gnome Soldier artifact creature token ..."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

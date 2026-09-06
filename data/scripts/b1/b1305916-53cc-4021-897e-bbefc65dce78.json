@@ -1,0 +1,99 @@
+{
+  "oracleId": "b1305916-53cc-4021-897e-bbefc65dce78",
+  "name": "Springleaf Parade",
+  "oracleHash": "5db5f66b",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": "X",
+          "power": 1,
+          "toughness": 1,
+          "colors": [],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Shapeshifter"
+          ],
+          "keywords": [],
+          "name": "Shapeshifter"
+        },
+        {
+          "op": "become",
+          "target": "those",
+          "everyCreatureType": true,
+          "duration": "permanent"
+        }
+      ],
+      "text": "When ~ enters, create X 1/1 colorless Shapeshifter creature tokens with changeling."
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "grant-mana-ability",
+        "filter": {
+          "types": [
+            "Creature"
+          ],
+          "token": true
+        },
+        "effect": {
+          "op": "add-mana",
+          "mana": "any",
+          "amount": 1
+        }
+      },
+      "text": "Creature tokens you control have \"{T}: Add one mana of any color.\""
+    }
+  ],
+  "notes": "Changeling on the tokens is `become everyCreatureType` over the tokens the `token` effect bound. `count: \"X\"` is the literal X amount of the core Amount union; src/cards/lint.ts rejects it (\"unknown amount count 'X'\") because it tests every string `count` against AMOUNT_COUNT_VOCAB without exempting the documented literal - a lint defect, not a defect of this script.",
+  "verification": {
+    "at": "2026-09-06T06:16:28.918Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "5db5f66b",
+    "scriptHash": "22911f40",
+    "schema": "ok",
+    "lint": "fail",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.563,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "no amount count 'X' is registered",
+      "lint: unknown amount count 'X'"
+    ]
+  }
+}

@@ -1,0 +1,170 @@
+{
+  "oracleId": "f7d8b91b-6541-4d3e-af51-7e000eac69c1",
+  "name": "Legion's Landing // Adanto, the First Fort",
+  "oracleHash": "a4f09007",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 1,
+          "toughness": 1,
+          "colors": [
+            "W"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Vampire"
+          ],
+          "keywords": [
+            "lifelink"
+          ]
+        }
+      ],
+      "text": "When ~ enters, create a 1/1 white Vampire creature token with lifelink.",
+      "optional": false
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "you-attack"
+      },
+      "intervening": {
+        "kind": "attacked-with-ge",
+        "value": 3
+      },
+      "effects": [
+        {
+          "op": "transform",
+          "target": "self"
+        }
+      ],
+      "text": "When you attack with three or more creatures, transform ~.",
+      "optional": false
+    }
+  ],
+  "backFace": {
+    "keywords": [],
+    "abilities": [
+      {
+        "kind": "activated",
+        "cost": {
+          "tap": true
+        },
+        "effects": [
+          {
+            "op": "add-mana",
+            "mana": [
+              "W"
+            ]
+          }
+        ],
+        "text": "{T}: Add {W}.",
+        "manaAbility": true
+      },
+      {
+        "kind": "activated",
+        "cost": {
+          "mana": {
+            "generic": 2,
+            "x": 0,
+            "pips": [
+              "W"
+            ],
+            "hybrid": [],
+            "phyrexian": [],
+            "raw": "{2}{W}"
+          },
+          "tap": true
+        },
+        "effects": [
+          {
+            "op": "token",
+            "count": 1,
+            "power": 1,
+            "toughness": 1,
+            "colors": [
+              "W"
+            ],
+            "types": [
+              "Creature"
+            ],
+            "subtypes": [
+              "Vampire"
+            ],
+            "keywords": [
+              "lifelink"
+            ]
+          }
+        ],
+        "text": "{2}{W}, {T}: Create a 1/1 white Vampire creature token with lifelink."
+      }
+    ]
+  },
+  "aiHints": {
+    "role": "token",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "The flip condition is the once-per-combat you-attack event with an intervening-if on attacked-with-ge 3 (the engine sets attackedWithThisTurn before it queues the trigger, game.ts:2404).",
+  "verification": {
+    "at": "2026-09-06T10:03:39.677Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "a4f09007",
+    "scriptHash": "8d3ed531",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.6,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/f7/f7d8b91b-6541-4d3e-af51-7e000eac69c1.json",
+      "passed": 0,
+      "failed": 3,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "When you attack with three or more creatures, transform Legion's Landing. — expected declaring three or more attackers transforms the permanent into Adanto, the First Fort, which then has {T}: Add {W} and {2}{W},{T}: create a Vampire — scripted triggered you-attack + intervening attacked-with-ge 3. The condition is never true on the path the harness uses: Game.simulateCombat (src/engine/game.ts:185-222) queues 'you-attack' at line 221 but never sets players[ap].attackedWithThisTurn — that assignment exists only in the real declare-attackers step (game.ts:2404, immediately before the queue at 2409), and characteristics.ts:462 reads exactly that field. Result: the ability is unreached in the sandbox (verification.sandbox.abilities[1].reached=false) and 2 of the 3 blind scenarios throw 'no legal action matched' because the permanent is still an enchantment producing no mana and offering no back-face activation. The card's second printed line does not function. — CR 603.2 / 508.1",
+          "When you attack with three or more creatures, transform Legion's Landing. — expected the count is a condition of the trigger event (checked once, at declare attackers) — scripted modelled as an intervening-if, which the engine also re-checks on resolution. Harmless in practice here (attackedWithThisTurn is not cleared mid-turn), but it is a second, non-printed check; the schema (schema-core.ts:726 `{on:'you-attack'}` strictObject) offers no count on the event, so this shape is the only one available — the defect is the engine gap above, not the choice. — CR 603.4",
+          "When Legion's Landing enters, create a 1/1 white Vampire creature token with lifelink. — expected a token named \"Vampire\", 1/1 white, lifelink — scripted token op is correct (1/1, W, Vampire, lifelink) and the create-token event fires; the token is only unaddressable because game.ts:1379 names it \"Vampire token\" when the script omits `name`. Shared harness/convention artifact, not counted against the verdict. — CR 111.4"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

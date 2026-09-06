@@ -1,0 +1,16 @@
+{
+  "oracleId": "69e12b1f-0fd9-43a9-b3db-fe08290442c6",
+  "name": "Invert Polarity",
+  "clause": "If you win the flip, gain control of that spell and you may choose new targets for it.",
+  "needs": [
+    {
+      "opFamily": "control",
+      "proposedSignature": "{ op: 'control-gain', target: TargetSpec /* kind: 'spell' | 'spell-or-ability' */ } - accept a stack TargetRef",
+      "semantics": "Gain control of a spell or ability on the stack: it resolves under the new controller, who makes every choice it calls for and may be offered new targets. control-gain today resolves its target through the battlefield only.",
+      "cr": "609.4, 115.7b",
+      "clause": "If you win the flip, gain control of that spell and you may choose new targets for it."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,23 @@
+{
+  "oracleId": "9fdad42a-9db5-4d91-9e80-9d5ce19038b8",
+  "name": "Blacksmith's Talent",
+  "clause": "When this Class enters, create a colorless Equipment artifact token named Sword with \"Equipped creature gets +1/+1\" and equip {2}. / At the beginning of combat on your turn, attach target Equipment you control to up to one target creature you control. / During your turn, equipped creatures you control have double strike and haste.",
+  "needs": [
+    {
+      "opFamily": "attach",
+      "proposedSignature": "`{ op: 'attach', what: TargetSpec | Ref, to: TargetSpec | Ref, upTo?: boolean }`",
+      "semantics": "'Attach target Equipment you control to up to one target creature you control' (and 'attach target Aura to …'). attach-self attaches the SOURCE and attach-to-that attaches the source to the bound object; nothing moves a third object's attachment, so every 'attach target Equipment' card is unwritable.",
+      "cr": "701.3, 301.5c",
+      "clause": "At the beginning of combat on your turn, attach target Equipment you control to up to one target creature you control."
+    },
+    {
+      "opFamily": "token-printed-abilities",
+      "proposedSignature": "`token` gains `abilities?: Ability[]` (and, for the common Equipment case, an `equipCost?: ManaCost` shorthand that expands to the `equipment` static plus its equip ability)",
+      "semantics": "'Create a colorless Equipment artifact token named Sword with \"Equipped creature gets +1/+1\" and equip {2}', and every Role / Map / custom-text token. The token op carries P/T, colors, types, subtypes, keywords and the predefined-token flags only; a token whose printed text is an ABILITY cannot be created, and _tokens.ts's BUILTIN_TOKEN_ABILITIES is a fixed by-name table a card cannot extend.",
+      "cr": "111.4, 702.6, 301.5",
+      "clause": "When this Class enters, create a colorless Equipment artifact token named Sword with \"Equipped creature gets +1/+1\" and equip {2}."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

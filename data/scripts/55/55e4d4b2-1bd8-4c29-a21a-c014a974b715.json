@@ -1,0 +1,85 @@
+{
+  "oracleId": "55e4d4b2-1bd8-4c29-a21a-c014a974b715",
+  "name": "The First Sliver",
+  "oracleHash": "046f1020",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "cascade": true,
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "cast",
+        "filter": {
+          "subtypes": [
+            "Sliver"
+          ]
+        },
+        "who": "you"
+      },
+      "effects": [
+        {
+          "op": "cascade"
+        }
+      ],
+      "text": "Sliver spells you cast have cascade."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Cascade",
+      "by": "cascade"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 7,
+    "timing": "main"
+  },
+  "notes": "The printed Cascade line is the `cascade` declaration (covers). The grant to Sliver spells is written as the cast trigger the granted ability IS (CR 702.85a), filtered on the Sliver subtype — a Sliver spell is any spell with the Sliver subtype, creature or Kindred. The script format cannot attach an ability to a spell on the stack (`grant-ability` scope is battlefield permanents). Known engine shortfall: the core `cascade` op reads the mana value of the ability's SOURCE (The First Sliver, MV 7) rather than of the Sliver spell just cast.",
+  "verification": {
+    "at": "2026-09-06T06:17:30.257Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "046f1020",
+    "scriptHash": "e860935b",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.571,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "data/scenarios/55/55e4d4b2-1bd8-4c29-a21a-c014a974b715.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "tested",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "Sliver spells you cast have cascade. — expected Each Sliver spell you cast cascades off ITS OWN mana value — cast Metallic Sliver (MV 1) and you exile until a nonland card of MV 0. — scripted {op:'cascade'} on a trigger sourced by The First Sliver (MV 7); src/engine/game.ts:1241 uses src.def.manaValue, so every granted cascade exiles until a nonland card of MV <= 6 no matter how cheap the Sliver was. Massively too generous, and wrong in the opposite direction from Imoti. — CR 702.85a",
+          "Sliver spells you cast have cascade. — expected A discriminating test would cast a cheap Sliver over a library whose top nonland card has MV between the Sliver's MV and 7. — scripted Blind scenario 2 casts Metallic Sliver (MV 1) over Ornithopter (MV 0). MV 0 < 1 and MV 0 < 7, so it passes identically under correct and buggy semantics — the 3/3 pass does not clear this line. Scenario 1 tests only the printed cascade:true; scenario 3 tests only the negative subtype filter. — CR 702.85a",
+          "Sliver spells you cast have cascade. — expected \"Sliver spells\" = any spell with the Sliver subtype (creature or Kindred/Tribal). — scripted filter.subtypes=['Sliver'] — this part is correct, and the negative case is covered by scenario 3. — CR 702.85a",
+          "Cascade (… You may cast it without paying its mana cost …) — expected Casting the exiled card is optional. — scripted The cascade op casts unconditionally with no ask; the scenario's {answer:true} step is not consumed by cascade. Engine-wide shortfall affecting both the printed and granted cascade. — CR 702.85a"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

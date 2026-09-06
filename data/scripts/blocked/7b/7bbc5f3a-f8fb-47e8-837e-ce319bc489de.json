@@ -1,0 +1,23 @@
+{
+  "oracleId": "7bbc5f3a-f8fb-47e8-837e-ce319bc489de",
+  "name": "Whispering Madness",
+  "clause": "Cipher / Each player discards their hand, then draws cards equal to the greatest number of cards a player discarded this way.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "an Amount form that reads the LARGEST per-player amount an effect produced, e.g. { count: 'that-many', across: 'players', agg: 'max' } (a `scoped` each-player block records item.lastAmount per player instead of overwriting one slot)",
+      "semantics": "'Each player discards their hand, then draws cards equal to the greatest number of cards a player discarded this way' needs the maximum over the per-player discard counts. { count: 'that-many' } is only the last amount the item evaluated, so a scoped each-player discard leaves the LAST player's count, not the greatest.",
+      "cr": "608.2h, 101.4",
+      "clause": "Each player discards their hand, then draws cards equal to the greatest number of cards a player discarded this way."
+    },
+    {
+      "opFamily": "named-keyword:cipher",
+      "proposedSignature": "a face declaration `cipher?: true` + a `covers[].by` kind 'cipher' (/^cipher$/); an effect { op: 'encode', target: TargetSpec } that exiles the resolving spell's card encoded on a creature you control (recording o.ext.encoded: cardId[] on that creature); a static that functions from the EXILE zone granting the encoded creature { on: 'combat-damage-player', self: true } -> { op: 'cast-copy-free', what: 'encoded' } (copy the encoded card and cast the copy without paying its mana cost); plus KEYWORD_EXPANSIONS['cipher']",
+      "semantics": "Cipher is a spell ability plus a static ability that functions while the card is in exile. The engine has no encode relationship, no static that runs from exile, and no 'copy a CARD and cast the copy' effect (cast-free casts the card itself, which would consume the encoded card instead of leaving it encoded).",
+      "cr": "702.99a, 702.99b, 707.12",
+      "clause": "Cipher"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

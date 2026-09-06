@@ -1,0 +1,16 @@
+{
+  "oracleId": "cbf09050-39d0-463b-96db-9e22011ae0d8",
+  "name": "Aang, Swift Savior // Aang and La, Ocean's Fury",
+  "clause": "When ~ enters, airbend up to one other target creature or spell. | Waterbend {8}: Transform ~.",
+  "needs": [
+    {
+      "opFamily": "bending-keyword-actions",
+      "proposedSignature": "{ op: 'airbend'; target: TargetSpec } (exile it; while exiled its owner may cast it for {2} rather than its mana cost); AbilityCost key `waterbend?: ManaCost`; TargetSpec.kind 'permanent-or-spell'",
+      "semantics": "The Avatar set's bending keyword actions. Airbend is a targeted exile plus a persistent alternative-cost permission for the owner (a `cast-from` static scoped to the exiled card would do it); waterbend is an activation cost the AbilityCost union has no key for. 'up to one other target creature or spell' also needs a target kind spanning a permanent and a stack object.",
+      "cr": "118.9, 701 (Avatar set keyword actions)",
+      "clause": "When ~ enters, airbend up to one other target creature or spell. | Waterbend {8}: Transform ~."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

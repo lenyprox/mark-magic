@@ -1,0 +1,104 @@
+{
+  "oracleId": "2987c385-011a-4032-a516-a46d1e9dc9e8",
+  "name": "Crib Swap",
+  "oracleHash": "9a132bf6",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "type-change",
+        "scope": "self",
+        "everyCreatureType": true
+      },
+      "text": "Changeling"
+    },
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "exile",
+          "target": {
+            "kind": "creature"
+          }
+        },
+        {
+          "op": "scoped",
+          "who": "controller-of-that",
+          "do": [
+            {
+              "op": "token",
+              "count": 1,
+              "power": 1,
+              "toughness": 1,
+              "colors": [],
+              "types": [
+                "Creature"
+              ],
+              "subtypes": [
+                "Shapeshifter"
+              ],
+              "keywords": [],
+              "name": "Shapeshifter"
+            },
+            {
+              "op": "become",
+              "target": "those",
+              "everyCreatureType": true,
+              "duration": "permanent"
+            }
+          ]
+        }
+      ],
+      "text": "Exile target creature. Its controller creates a 1/1 colorless Shapeshifter creature token with changeling."
+    }
+  ],
+  "notes": "Changeling on the card itself is the `type-change` static with scope 'self'; on the token it is `become everyCreatureType`. The token is created by the exiled creature's controller (`scoped` on `controller-of-that`, which reads the object `exile` bound).",
+  "verification": {
+    "at": "2026-09-06T06:16:28.918Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "9a132bf6",
+    "scriptHash": "0c233801",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Changeling",
+          "rendered": "type change",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Changeling\" rendered as \"type change\""
+    ]
+  }
+}

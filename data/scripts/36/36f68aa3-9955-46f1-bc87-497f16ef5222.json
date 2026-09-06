@@ -1,0 +1,179 @@
+{
+  "oracleId": "36f68aa3-9955-46f1-bc87-497f16ef5222",
+  "name": "Wizard Class",
+  "oracleHash": "7ecfac4d",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "no-max-hand-size"
+      },
+      "text": "You have no maximum hand size."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [
+            "U"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}{U}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 1
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 2
+        }
+      ],
+      "text": "{2}{U}: Level 2"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "became-level",
+        "level": 2
+      },
+      "effects": [
+        {
+          "op": "draw",
+          "amount": 2,
+          "who": "you"
+        }
+      ],
+      "text": "When this Class becomes level 2, draw two cards."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 4,
+          "x": 0,
+          "pips": [
+            "U"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{4}{U}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 2
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 3
+        }
+      ],
+      "text": "{4}{U}: Level 3"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "draw",
+        "who": "you"
+      },
+      "condition": {
+        "kind": "self-level",
+        "atLeast": 3
+      },
+      "effects": [
+        {
+          "op": "counters",
+          "target": {
+            "kind": "creature",
+            "controller": "you"
+          },
+          "counter": "+1/+1",
+          "amount": 1
+        }
+      ],
+      "text": "Whenever you draw a card, put a +1/+1 counter on target creature you control."
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "CR 716.2a: each level bar is a sorcery-speed activated ability whose set-level only fires from level N-1 (activateOnlyIf pins the same restriction at activation time). The level-3 draw trigger is gated with the self-level condition (CR 716.2e); the level-1 static and the level-2 became-level trigger need no gate.",
+  "verification": {
+    "at": "2026-09-06T10:02:10.030Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "7ecfac4d",
+    "scriptHash": "46ed05a2",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": false
+        },
+        {
+          "index": 3,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 4,
+          "reached": true,
+          "how": "trigger fired in the 'turn' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "When this Class becomes level 2, draw two cards.",
+          "rendered": "whenever became level, you draw 2 cards",
+          "score": 0
+        },
+        {
+          "text": "{2}{U}: Level 2",
+          "rendered": "{2}{U}: Level 2. activate only if self level. activate only as a sorcery",
+          "score": 0.333
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"When this Class becomes level 2, draw two cards.\" rendered as \"whenever became level, you draw 2 cards\""
+    ]
+  }
+}

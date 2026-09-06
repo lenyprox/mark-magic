@@ -1,0 +1,16 @@
+{
+  "oracleId": "fecbbc79-2f74-46b3-a049-45736f904f58",
+  "name": "Prisoner's Dilemma",
+  "clause": "Each opponent secretly chooses silence or snitch, then the choices are revealed. If each opponent chose silence, ~ deals 4 damage to each of them.",
+  "needs": [
+    {
+      "opFamily": "secret-choice",
+      "proposedSignature": "{ op: 'secret-choice'; who: ScopeWho; what: { options: string[] } | { number: { min: number } }; then: Effect[] } plus the readers { count: 'chose-highest' | 'chose-lowest' | 'choice-tally', choice?: string } (Amount) and { kind: 'all-chose' | 'chose', choice: string, who: ScopeWho } (Condition), with `that-player` bound per player inside `then`",
+      "semantics": "Every player (or opponent) records a hidden answer — one of a printed list, or a number 0 or greater — the answers are revealed simultaneously, and later clauses branch on the tally: 'deals damage equal to the highest number to each player who chose that number', 'each player who didn't choose the lowest number discards their hand', 'if each opponent chose silence … otherwise … to each opponent who chose silence'. The engine has no decision kind that hides an answer until every player has given one.",
+      "cr": "608.2f, 104.3, 701.38 (contrast: a vote is public and sequential)",
+      "clause": "Each player secretly chooses a number 0 or greater, then all players reveal those numbers simultaneously and determine the highest and lowest numbers revealed this way."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

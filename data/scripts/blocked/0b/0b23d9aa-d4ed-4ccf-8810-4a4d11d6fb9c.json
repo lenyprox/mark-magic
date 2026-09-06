@@ -1,0 +1,16 @@
+{
+  "oracleId": "0b23d9aa-d4ed-4ccf-8810-4a4d11d6fb9c",
+  "name": "Lively Dirge",
+  "clause": "Spree / + {1} — Search your library for a card, put it into your graveyard, then shuffle. / + {2} — Return up to two creature cards with total mana value 4 or less from your graveyard to the battlefield.",
+  "needs": [
+    {
+      "opFamily": "spree",
+      "proposedSignature": "`ModeSpec` gains `cost?: ManaCost`; `{ op: 'choose-mode', modes: ModeSpec[], count: 'one-or-more' }`; plus a face declaration `spree: true` with a `covers` kind `by: 'spree'` for the printed `^spree$` line",
+      "semantics": "Spree is an additional cost: as the spell is cast its controller chooses at least one mode, and the chosen modes' `cost` values are added to the total cost — the `modeCost` registry hook already contemplated at src/engine/cost.ts:50 and src/engine/legal.ts:313. Only the chosen modes' effects resolve, in printed order, and targets are chosen per chosen mode. The '+ {N} — …' oracle lines are the modes, so the covers / claiming rules should let the `choose-mode` ability that claims 'Spree' claim them the way a 'Choose one —' line claims its bullets (they are NOT '• ' bullets, so `faceLines` currently demands a claim for each). Six cards in this batch, plus the two already blocked in wave 10.0 (Three Steps Ahead, Return the Favor).",
+      "cr": "702.172 (702.172a, 702.172b), 601.2b",
+      "clause": "Spree (Choose one or more additional costs.) / + {1} — Destroy target artifact. / + {2}{R} — Untap all creatures you control."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "6dccf583-1045-4058-86cc-ebbcc8de080e",
+  "name": "Artificer Class",
+  "clause": "When this Class becomes level 2, reveal cards from the top of your library until you reveal an artifact card. Put that card into your hand and the rest on the bottom of your library in a random order.",
+  "needs": [
+    {
+      "opFamily": "reveal-until",
+      "proposedSignature": "`{ op: 'reveal-until', filter: Filter, to: 'hand' | 'battlefield' | 'graveyard', rest: 'bottom' | 'top' | 'graveyard', order?: 'random' | 'any', tapped?: boolean }`",
+      "semantics": "'Reveal cards from the top of your library until you reveal an artifact card. Put that card into your hand and the rest on the bottom of your library in a random order.' dig looks at a FIXED `look` count; nothing walks down a library until a match, which is a large and very common family (every 'until you reveal' tutor).",
+      "cr": "701.16, 701.20, 401.4",
+      "clause": "When this Class becomes level 2, reveal cards from the top of your library until you reveal an artifact card. Put that card into your hand and the rest on the bottom of your library in a random order."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

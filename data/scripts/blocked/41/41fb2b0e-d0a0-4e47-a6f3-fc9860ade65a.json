@@ -1,0 +1,16 @@
+{
+  "oracleId": "41fb2b0e-d0a0-4e47-a6f3-fc9860ade65a",
+  "name": "Marshal's Anthem",
+  "clause": "When ~ enters, return up to X target creature cards from your graveyard to the battlefield, where X is the number of times ~ was kicked.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:multikicker",
+      "proposedSignature": "Amount { count: 'times-kicked' } backed by GameObject.castWith.timesKicked: number, and a cast action that may pay the kicker cost any number of times (cost.ts spellManaCost taking a kick count instead of a boolean)",
+      "semantics": "CR 702.33b: multikicker may be paid any number of times and cards count the payments ('a +1/+1 counter for each time it was kicked', 'X is the number of times it was kicked'). The engine's kicker is a boolean, so every such magnitude collapses to 1 and cannot be written honestly.",
+      "cr": "702.33b",
+      "clause": "~ enters with a +1/+1 counter on it for each time it was kicked. / where X is the number of times ~ was kicked."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

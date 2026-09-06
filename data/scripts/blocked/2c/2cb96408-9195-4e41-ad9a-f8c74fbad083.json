@@ -1,0 +1,16 @@
+{
+  "oracleId": "2cb96408-9195-4e41-ad9a-f8c74fbad083",
+  "name": "Torens, Fist of the Angels",
+  "clause": "Training / create a 1/1 green and white Human Soldier creature token with training.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:training",
+      "proposedSignature": "KeywordRegistry: { training: true } (so it is legal in CardDef.keywords, token.keywords and grant-keyword) + KEYWORD_EXPANSIONS.training = 'whenever ~ attacks with another creature with greater power, put a +1/+1 counter on ~'; the behaviour needs an attacks trigger with a new condition { kind: 'attacking-with-greater-power' }",
+      "semantics": "Whenever this creature attacks together with at least one other attacking creature whose power is greater than this creature's, put a +1/+1 counter on this creature. Also has to be expressible as a keyword ON A TOKEN, which is what Torens' second line creates.",
+      "cr": "702.149",
+      "clause": "Training"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

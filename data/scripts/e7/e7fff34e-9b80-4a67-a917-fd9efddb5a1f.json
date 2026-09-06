@@ -1,0 +1,179 @@
+{
+  "oracleId": "e7fff34e-9b80-4a67-a917-fd9efddb5a1f",
+  "name": "Machinist's Arsenal",
+  "oracleHash": "0e6036aa",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 1,
+          "toughness": 1,
+          "colors": [],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Hero"
+          ],
+          "keywords": [],
+          "name": "Hero"
+        },
+        {
+          "op": "attach-to-that"
+        }
+      ],
+      "text": "Job select"
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "grant-ability",
+        "enchanted": true,
+        "scope": "you-control",
+        "ability": {
+          "kind": "static",
+          "effect": {
+            "kind": "self-pt",
+            "power": {
+              "count": "permanents-you-control",
+              "filter": {
+                "types": [
+                  "Artifact"
+                ]
+              },
+              "times": 2
+            },
+            "toughness": {
+              "count": "permanents-you-control",
+              "filter": {
+                "types": [
+                  "Artifact"
+                ]
+              },
+              "times": 2
+            }
+          },
+          "text": "~ gets +2/+2 for each artifact you control."
+        }
+      },
+      "text": "Equipped creature gets +2/+2 for each artifact you control and is an Artificer in addition to its other types."
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "type-change",
+        "scope": "equipped",
+        "subtypes": [
+          "Artificer"
+        ]
+      },
+      "text": "Equipped creature is an Artificer in addition to its other types."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 4,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{4}"
+        }
+      },
+      "effects": [
+        {
+          "op": "attach-self",
+          "target": {
+            "kind": "creature",
+            "controller": "you"
+          }
+        }
+      ],
+      "text": "Equip {4}",
+      "sorcerySpeed": true
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "utility",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "Job select is the living-weapon shaped ETB. The +2/+2-per-artifact is granted to the equipped creature as a self-pt static (the equipment static's power is a plain number and cannot carry a count), so the equip line is scripted as its rules text - an activated sorcery-speed attach - rather than as a +0/+0 equipment static, which carries no magnitude and would claim nothing.",
+  "verification": {
+    "at": "2026-09-06T06:13:18.224Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "0e6036aa",
+    "scriptHash": "cd6f4ae4",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 2,
+          "reached": false
+        },
+        {
+          "index": 3,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Job select",
+          "rendered": "when ~ enters, create a 1/1 Hero creature token. attach ~ to that creature",
+          "score": 0
+        },
+        {
+          "text": "Equipped creature is an Artificer in addition to its other types.",
+          "rendered": "type change",
+          "score": 0.091
+        },
+        {
+          "text": "Equipped creature gets +2/+2 for each artifact you control and is an Artificer in addition to its other types.",
+          "rendered": "enchanted permanent you control has \"~ gets +twice the number of artifacts you control/+twice the number of artifacts you control\"",
+          "score": 0.154
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Job select\" rendered as \"when ~ enters, create a 1/1 Hero creature token. attach ~ to that creature\""
+    ]
+  }
+}

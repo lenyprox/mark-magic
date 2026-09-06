@@ -1,0 +1,23 @@
+{
+  "oracleId": "b981af39-4ee6-4fbc-9a89-618dcad9dfbf",
+  "name": "The Necrobloom",
+  "clause": "Land cards in your graveyard have dredge 2. // and: If you control seven or more lands with different names, create a 2/2 black Zombie creature token instead.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "Amount `{ count: 'objects'; filter; who; zone; distinct: 'name' | 'subtype' | 'mana-value' }` and Condition `{ kind: 'controls-distinct'; by: 'name'; filter: Filter; atLeast: number }`.",
+      "semantics": "\"If you control seven or more lands with different names\" — every Amount count and every controls-style condition in the vocabulary counts OBJECTS; none counts distinct values of a characteristic across a set. Approximating it as lands-ge 7 is a different rule (seven Wastes would satisfy it), so the line cannot be scripted without faking the condition. The same shape appears on 'creatures with different names' and 'cards with different mana values'.",
+      "cr": "700.2, 201.2, 108.3",
+      "clause": "If you control seven or more lands with different names, create a 2/2 black Zombie creature token instead."
+    },
+    {
+      "opFamily": "named-keyword:dredge",
+      "proposedSignature": "StaticEffect `{ kind: 'grant-keyword-value'; zone: 'graveyard' | 'hand' | 'exile'; filter: Filter; keyword: 'dredge' | 'cycling' | 'flashback'; amount: number }` — a static that gives cards in a non-battlefield zone a PARAMETERISED keyword the engine currently reads only off CardDef.",
+      "semantics": "\"Land cards in your graveyard have dredge 2.\" The engine reads dredge off CardDef.dredge (a number), and the only granting static, grant-ability, grants an Ability — dredge is not one. Nothing on the battlefield can therefore give a replacement-draw ability to cards sitting in a graveyard, and no covers kind can claim the line either (COVER_RULES.dredge matches the bare printed line 'Dredge N' on the card that HAS it).",
+      "cr": "702.52a, 613.1f, 400.7",
+      "clause": "Land cards in your graveyard have dredge 2."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

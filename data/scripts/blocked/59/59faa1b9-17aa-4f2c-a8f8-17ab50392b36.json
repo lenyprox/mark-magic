@@ -1,0 +1,16 @@
+{
+  "oracleId": "59faa1b9-17aa-4f2c-a8f8-17ab50392b36",
+  "name": "Barbarian Class",
+  "clause": "If you would roll one or more dice, instead roll that many dice plus one and ignore the lowest roll.",
+  "needs": [
+    {
+      "opFamily": "roll-replacement",
+      "proposedSignature": "static `{ kind: 'roll-replacement'; extra?: number; ignore?: 'lowest' | 'highest'; condition?: Condition }`, applied by the dice-coin family's roll path",
+      "semantics": "'If you would roll one or more dice, instead roll that many dice plus one and ignore the lowest roll'. roll-die carries count / keep on the effect that rolls, but a continuous effect that replaces SOMEBODY ELSE's roll has no shape — the dice-coin family registers no replacement hook at all.",
+      "cr": "705.3, 614.1, 614.1a",
+      "clause": "If you would roll one or more dice, instead roll that many dice plus one and ignore the lowest roll."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

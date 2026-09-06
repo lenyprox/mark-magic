@@ -1,0 +1,106 @@
+{
+  "oracleId": "945eaa8b-0ba5-45a6-a02a-763e5bfe3af8",
+  "name": "Mirror March",
+  "oracleHash": "ad8485f0",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": false,
+        "filter": {
+          "types": [
+            "Creature"
+          ],
+          "nontoken": true
+        },
+        "controller": "you"
+      },
+      "effects": [
+        {
+          "op": "bind",
+          "as": "that",
+          "from": "triggering"
+        },
+        {
+          "op": "flip-coin",
+          "until": "lose"
+        },
+        {
+          "op": "token-copy",
+          "target": "that",
+          "count": {
+            "count": "flips-won"
+          }
+        },
+        {
+          "op": "grant-keyword",
+          "target": "those",
+          "keywords": [
+            "haste"
+          ],
+          "duration": "permanent"
+        },
+        {
+          "op": "delayed-trigger",
+          "at": "next-end-step",
+          "bind": "those",
+          "effects": [
+            {
+              "op": "remove-those",
+              "how": "exile"
+            }
+          ]
+        }
+      ],
+      "text": "Whenever a nontoken creature you control enters, flip a coin until you lose a flip. For each flip you won, create a token that's a copy of that creature. Those tokens gain haste. Exile them at the beginning of the next end step."
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 4,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-06T10:00:56.042Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "ad8485f0",
+    "scriptHash": "681b09a3",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.871,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/94/945eaa8b-0ba5-45a6-a02a-763e5bfe3af8.json",
+      "passed": 4,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

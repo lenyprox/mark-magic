@@ -1,0 +1,102 @@
+{
+  "oracleId": "53d58401-c318-47e0-aab0-60001c071dbb",
+  "name": "Rammas Echor, Ancient Shield",
+  "scenarios": [
+    {
+      "name": "Casting your second spell in a turn draws a card and creates a 0/3 Wall with defender",
+      "cr": "603.2",
+      "ruling": "\"Whenever you cast your second spell each turn\" is a triggered ability: it goes on the stack above the spell that triggered it and resolves first, drawing a card and then creating the token.",
+      "seats": [
+        { "bf": ["Rammas Echor, Ancient Shield", "Mountain", "Mountain"], "hand": ["Lightning Bolt", "Shock"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["P1"]] },
+        { "resolve": true },
+        { "cast": "Shock", "targets": [["P1"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "handCount": [0, 1] },
+        { "libraryCount": [0, 19] },
+        { "pt": ["Wall", 0, 3] },
+        { "keywords": ["Wall", ["defender"]] },
+        { "zoneCount": [0, "battlefield", 4] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "life": [1, 15] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Only the second spell of the turn triggers Rammas Echor, not the third",
+      "cr": "603.2a",
+      "ruling": "The trigger condition is casting your second spell that turn, so casting three spells in one turn triggers it exactly once: one card drawn from the trigger and one Wall token.",
+      "seats": [
+        { "bf": ["Rammas Echor, Ancient Shield", "Mountain", "Mountain", "Island", "Island", "Island"], "hand": ["Lightning Bolt", "Shock", "Divination"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["P1"]] },
+        { "resolve": true },
+        { "cast": "Shock", "targets": [["P1"]] },
+        { "resolve": true },
+        { "cast": "Divination" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "handCount": [0, 3] },
+        { "libraryCount": [0, 17] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "zoneCount": [0, "battlefield", 7] },
+        { "life": [1, 15] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Defenders gain exalted at the beginning of combat, so a lone attacker gets +1/+1 for each of them",
+      "cr": "702.90a",
+      "ruling": "Each instance of exalted among permanents you control triggers when a creature you control attacks alone and gives that creature +1/+1 until end of turn, so two exalted Walls make an attacking Grizzly Bears a 4/4 and it deals 4 damage.",
+      "seats": [
+        { "bf": ["Rammas Echor, Ancient Shield", "Steel Wall", "Wall of Wood", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "combat-begin" },
+        { "resolve": true },
+        { "attack": ["Grizzly Bears"] }
+      ],
+      "expect": [
+        { "keywords": ["Steel Wall", ["defender", "exalted"]] },
+        { "keywords": ["Wall of Wood", ["defender", "exalted"]] },
+        { "pt": ["Grizzly Bears", 4, 4] },
+        { "life": [1, 16] },
+        { "log": "deals 4 damage" },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A creature without defender does not gain exalted from Rammas Echor",
+      "cr": "611.2c",
+      "ruling": "The ability grants exalted only to the creatures you control that have defender as it resolves, so a Hill Giant you control adds no instance of exalted and the lone attacker gets only the +1/+1 from the single Wall.",
+      "seats": [
+        { "bf": ["Rammas Echor, Ancient Shield", "Steel Wall", "Hill Giant", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "passUntil": "combat-begin" },
+        { "resolve": true },
+        { "attack": ["Grizzly Bears"] }
+      ],
+      "expect": [
+        { "keywords": ["Steel Wall", ["defender", "exalted"]] },
+        { "pt": ["Grizzly Bears", 3, 3] },
+        { "pt": ["Hill Giant", 3, 3] },
+        { "life": [1, 17] },
+        { "log": "deals 3 damage" },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

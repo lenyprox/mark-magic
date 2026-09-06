@@ -1,0 +1,108 @@
+{
+  "oracleId": "3c22e031-4804-4c31-bd3c-c3f29d456b34",
+  "name": "Fiery Confluence",
+  "oracleHash": "be773686",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "choose-modes",
+          "count": 3,
+          "repeat": true,
+          "labels": [
+            "~ deals 1 damage to each creature.",
+            "~ deals 2 damage to each opponent.",
+            "Destroy target artifact."
+          ],
+          "modes": [
+            [
+              {
+                "op": "damage",
+                "amount": 1,
+                "target": "each-creature"
+              }
+            ],
+            [
+              {
+                "op": "damage",
+                "amount": 2,
+                "target": "each-opponent"
+              }
+            ],
+            [
+              {
+                "op": "choose-objects",
+                "chooser": "you",
+                "from": {
+                  "filter": {
+                    "types": [
+                      "Artifact"
+                    ]
+                  },
+                  "who": "each-player"
+                },
+                "count": 1
+              },
+              {
+                "op": "chosen-fate",
+                "chosen": {
+                  "how": "destroy"
+                }
+              }
+            ]
+          ]
+        }
+      ],
+      "text": "Choose three. You may choose the same mode more than once."
+    }
+  ],
+  "notes": "\"You may choose the same mode more than once\" is the family `choose-modes` with `repeat` — the core `choose-mode` cannot say it, and repeating a mode is the whole card. The third mode's \"target artifact\" is therefore a `choose-objects` pick plus `chosen-fate destroy`: an effect inside a family mode is never offered a target at cast time (docs/vocabulary/piles-choices.md 5), so the artifact is chosen as the spell resolves.",
+  "verification": {
+    "at": "2026-09-06T10:06:03.841Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "be773686",
+    "scriptHash": "95a4bdf4",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 1,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": [],
+      "sampled": false
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "• Destroy target artifact. — expected a target artifact chosen on cast, checked for shroud/protection and for legality (the mode cannot be chosen with no legal target) — scripted choose-objects {types:[Artifact], who:each-player} + chosen-fate {chosen:{how:'destroy'}} — no target; chosen at resolution, and the mode can be picked with no artifact in play and simply do nothing — CR 115.1, 700.2c",
+          "Choose three. You may choose the same mode more than once. — expected three modes (repeats allowed) declared as the spell is cast, before anyone responds — scripted family choose-modes count:3 repeat:true chooses on resolution. `repeat` is only in the family op and targets are only in the core `choose-mode` (piles-choices.md §5), so no currently expressible script covers both clauses — an open vocabulary need, not an author slip. Modes 1 and 2 (1 damage to each creature / 2 damage to each opponent) are exact — CR 700.2d, 601.2b"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

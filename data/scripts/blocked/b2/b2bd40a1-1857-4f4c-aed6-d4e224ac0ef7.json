@@ -1,0 +1,16 @@
+{
+  "oracleId": "b2bd40a1-1857-4f4c-aed6-d4e224ac0ef7",
+  "name": "Thrumming Stone",
+  "clause": "Spells you cast have ripple 4.",
+  "needs": [
+    {
+      "opFamily": "spell-keywords",
+      "proposedSignature": "{ kind: 'spell-keyword'; keyword: 'ripple'; n: Amount; who: 'you' | 'any'; filter?: Filter } (StaticEffect) + { op: 'ripple'; amount: Amount } (Effect)",
+      "semantics": "'Spells you cast have ripple 4': when a spell you cast goes on the stack, you may reveal the top N cards of your library, cast any revealed card with the same name as that spell without paying its mana cost, then put the rest on the bottom in any order",
+      "cr": "702.60a",
+      "clause": "Spells you cast have ripple 4."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "fcdfe9d5-2743-4d3e-ab57-bf0f96beaa15",
+  "name": "Aclazotz, Deepest Betrayal // Temple of the Dead",
+  "clause": "Whenever an opponent discards a land card, create a 1/1 black Bat creature token with flying.",
+  "needs": [
+    {
+      "opFamily": "discard-trigger-who",
+      "proposedSignature": "{ on: 'discard'; who?: 'you' | 'opponent' | 'any'; filter?: Filter }",
+      "semantics": "'Whenever an opponent discards a land card, ...'. game.ts:2279 folds `discard` in with `life-gain` and hardcodes `ctx.player === perm.controller`, so the event can only ever be about the ability's own controller - an opponent-facing discard trigger fires on the wrong player rather than not at all.",
+      "cr": "701.8, 603.2",
+      "clause": "Whenever an opponent discards a land card, create a 1/1 black Bat creature token with flying."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

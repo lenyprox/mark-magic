@@ -1,0 +1,16 @@
+{
+  "oracleId": "e8ff6780-5f22-42fa-a7c1-7406e8203063",
+  "name": "Redress Fate",
+  "clause": "Miracle {3}{W}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:miracle",
+      "proposedSignature": "`AltCost.id` gains `'miracle'`: `{ id: 'miracle', label: 'miracle', cost: { mana: ManaCost }, from: 'hand' }`; `COVER_RULES.altCosts.lines` gains `^miracle (\\{.+\\})$` whose value check is `altCost.cost.mana.raw` against the printed symbols; `KEYWORD_EXPANSIONS.miracle = 'when you draw ~, if it is the first card you drew this turn, you may reveal it. when you do, you may cast it for {cost}'`",
+      "semantics": "Miracle (CR 702.94): as you draw the FIRST card you drew this turn you may reveal it from your hand; that reveal creates a triggered ability, and as it resolves you may cast the card for its miracle cost. The alternative-cost machinery already casts a card for a different cost, so the engine work is the reveal-on-draw replacement plus the first-card-this-turn gate (`cards-drawn-this-turn` already exists as an Amount count). For a script AUTHOR the missing halves are the `altCosts` id and the covers shape: today a printed `Miracle {cost}` line is claimable by nothing at all — no altCost, no covers kind, and no keyword rules text to score an expanded ability against — so seven otherwise-finished cards in this batch alone cannot be fullyParsed.",
+      "cr": "702.94a, 702.94b, 121.1, 601.2b",
+      "clause": "Miracle {1}{B} / Miracle {1}{R} / Miracle {1}{U} / Miracle {3}{W} / Miracle {W} / Miracle {X}{W}{W}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

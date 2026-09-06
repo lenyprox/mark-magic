@@ -1,0 +1,23 @@
+{
+  "oracleId": "441b51b0-ecd0-466d-9ca8-e754eb563aec",
+  "name": "Eidolon of Countless Battles",
+  "clause": "Bestow {2}{W}{W}",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "{ kind: 'anthem', power: Amount, toughness: Amount, ... } and { kind: 'aura', power: Amount, toughness: Amount, ... } - widen the two statics' P/T from number to Amount",
+      "semantics": "CR 613.4b: 'Other Elf creatures you control get +1/+1 for each +1/+1 counter on ~', 'Enchanted creature gets +1/+1 for each +1/+1 counter on this Aura', 'enchanted creature gets +X/+X, where X is the number of creature cards in all graveyards'. Only 'self-pt' takes an Amount today, so a scaling bonus can be given to the source alone.",
+      "cr": "613.4b",
+      "clause": "Other Elf creatures you control get +1/+1 for each +1/+1 counter on ~."
+    },
+    {
+      "opFamily": "named-keyword:bestow",
+      "proposedSignature": "AltCost.id 'bestow': { id: 'bestow', label: 'bestow', cost: { mana: ManaCost }, from: 'hand' } + GameObject.bestowed, which makes the permanent an Aura (enchant creature) that is not a creature while attached and a creature again when it becomes unattached",
+      "semantics": "CR 702.103: casting a creature card for its bestow cost makes it an Aura spell with enchant creature; it enters attached, is not a creature while attached, and becomes a creature again if the enchanted creature leaves. Today AltCost.id has no bestow and nothing switches an object between creature and Aura, so the printed 'Bestow {cost}' line can be claimed by no declaration and by no ability.",
+      "cr": "702.103",
+      "clause": "Bestow {2}{W}{W}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

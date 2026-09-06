@@ -1,0 +1,97 @@
+{
+  "oracleId": "f7d8b91b-6541-4d3e-af51-7e000eac69c1",
+  "name": "Legion's Landing // Adanto, the First Fort",
+  "scenarios": [
+    {
+      "name": "Legion's Landing entering makes a 1/1 white Vampire with lifelink",
+      "cr": "603.6b",
+      "ruling": "The enters trigger resolves and creates one 1/1 white Vampire creature token with lifelink.",
+      "seats": [
+        { "bf": ["Plains"], "hand": ["Legion's Landing // Adanto, the First Fort"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Legion's Landing // Adanto, the First Fort" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Legion's Landing // Adanto, the First Fort", "battlefield"] },
+        { "zone": ["Vampire", "battlefield"] },
+        { "pt": ["Vampire", 1, 1] },
+        { "keywords": ["Vampire", ["lifelink"]] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "zoneCount": [0, "battlefield", 3] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Attacking with three creatures transforms Legion's Landing into a land that taps for white",
+      "cr": "508.1",
+      "ruling": "Declaring three attackers triggers the transform, so in the postcombat main phase the permanent is Adanto, the First Fort and its {T}: Add {W} supplies the fourth mana for Hill Giant's {3}{R}, which the three Mountains alone cannot pay.",
+      "seats": [
+        {
+          "bf": [
+            "Legion's Landing // Adanto, the First Fort",
+            "Grizzly Bears",
+            "Grizzly Bears",
+            "Grizzly Bears",
+            "Mountain",
+            "Mountain",
+            "Mountain"
+          ],
+          "hand": ["Hill Giant"]
+        },
+        {}
+      ],
+      "script": [
+        { "attack": ["Grizzly Bears", "Grizzly Bears", "Grizzly Bears"] },
+        { "passUntil": "main2" },
+        { "cast": "Hill Giant" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [1, 14] },
+        { "zone": ["Hill Giant", "battlefield"] },
+        { "tapped": ["Legion's Landing // Adanto, the First Fort", true] },
+        { "handCount": [0, 0] },
+        { "mana": [0, ""] },
+        { "zoneCount": [0, "battlefield", 8] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Adanto, the First Fort pays {2}{W} and taps for another lifelinking Vampire",
+      "cr": "111.1",
+      "ruling": "Once Legion's Landing has transformed, the back face's activated ability creates one more 1/1 white Vampire creature token with lifelink.",
+      "seats": [
+        {
+          "bf": [
+            "Legion's Landing // Adanto, the First Fort",
+            "Grizzly Bears",
+            "Grizzly Bears",
+            "Grizzly Bears",
+            "Plains",
+            "Plains",
+            "Plains"
+          ]
+        },
+        {}
+      ],
+      "script": [
+        { "attack": ["Grizzly Bears", "Grizzly Bears", "Grizzly Bears"] },
+        { "passUntil": "main2" },
+        { "activate": "Legion's Landing // Adanto, the First Fort", "ability": 1 },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Vampire", "battlefield"] },
+        { "pt": ["Vampire", 1, 1] },
+        { "keywords": ["Vampire", ["lifelink"]] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "zoneCount": [0, "battlefield", 8] },
+        { "tapped": ["Legion's Landing // Adanto, the First Fort", true] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

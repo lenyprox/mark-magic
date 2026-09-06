@@ -1,0 +1,23 @@
+{
+  "oracleId": "b1461f2a-2f12-49ae-8821-d934dddcb567",
+  "name": "Notorious Throng",
+  "clause": "Prowl {5}{U}",
+  "needs": [
+    {
+      "opFamily": "combat-damage-history",
+      "proposedSignature": "Amount count 'damage-dealt-to-opponents-this-turn' (and the general per-turn ledger it reads: s.ext.damageThisTurn = { by: sourceId, to: PlayerId | objectId, n, combat }[], wiped at cleanup).",
+      "semantics": "'Create X 1/1 black Faerie Rogue creature tokens with flying, where X is the damage dealt to your opponents this turn' (Notorious Throng). `life-lost-this-turn` is the nearest existing count and is a different quantity (life loss from any source, damage prevented / replaced excluded). The same ledger is what a `prowl-enabled` condition would read, so the two needs share one slice.",
+      "cr": "120.3, 608.2h",
+      "clause": "Create X 1/1 black Faerie Rogue creature tokens with flying, where X is the damage dealt to your opponents this turn."
+    },
+    {
+      "opFamily": "named-keyword:prowl",
+      "proposedSignature": "AltCostId 'prowl' — altCosts: [{ id: 'prowl', label: 'prowl {5}{U}', cost: { mana }, from: 'hand', condition: { kind: 'prowl-enabled', filter: { subtypes: ['Rogue'] } } }] — with a new Condition { kind: 'prowl-enabled'; filter?: Filter } that reads a per-turn record of which creatures dealt combat damage to a player (default: a creature sharing a type with the spell), and Condition { kind: 'prowled' } for the 'if this spell's prowl cost was paid' rider, alongside the existing `kicked` / `evoked` / `escaped`.",
+      "semantics": "CR 702.76a: 'Prowl [cost]' means 'You may pay [cost] rather than pay this spell's mana cost if a player was dealt combat damage this turn by a source that, at the time it dealt that damage, was a creature that shares a creature type with this spell.' Neither the alternative-cost id nor the combat-damage-history condition exists; `escaped` shows the shape a `prowled` condition would take.",
+      "cr": "702.76a",
+      "clause": "Prowl {5}{U} / Dinosaur spells you cast have prowl {2}{R}."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

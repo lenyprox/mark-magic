@@ -1,0 +1,30 @@
+{
+  "oracleId": "fa43077b-5d8b-4fb1-8dda-2a9185e6715e",
+  "name": "Kaito, Bane of Nightmares",
+  "clause": "Ninjutsu {1}{U}{B}",
+  "needs": [
+    {
+      "opFamily": "ninjutsu",
+      "proposedSignature": "CardDef field `ninjutsu?: { cost: ManaCost; commander?: boolean }` + a new `covers[].by: 'ninjutsu'` whose anchored line shape is `^(commander )?ninjutsu (\\{.+\\})$` and whose matched VALUE is `ninjutsu.cost.raw` (plus `commander === true` for the 'Commander ninjutsu' wording); a `KEYWORD_EXPANSIONS.ninjutsu` entry in src/cards/render.ts reading \"{cost}, return an unblocked attacker you control to hand: put ~ onto the battlefield from your hand tapped and attacking\"; engine side a LEGAL_PROVIDER offering `{ type: 'ninjutsu', card }` from the HAND (or the command zone when `commander`) during the declare-blockers step while the player controls an unblocked attacking creature, paying `cost.mana` plus returning that creature to hand, then putting the card onto the battlefield tapped and attacking the same defender. Also needs `Filter.unblocked?: boolean` so the cost can be stated at all.",
+      "semantics": "Ninjutsu is an activated ability that functions only while the card is in its owner's hand (CR 702.49b) and whose effect puts that card onto the battlefield tapped and attacking without it having been declared as an attacker. Nothing in the format expresses any of its three halves: an ability gated to the hand (ActivatedAbility carries only `fromGraveyard`), an 'unblocked attacker' cost subject (Filter has `attacking` but no `unblocked`), or an effect that puts the source onto the battlefield attacking (`move` has `tapped` but no `attacking`). Verified empirically: a replace-mode script that claims every line of Ingenious Infiltrator still scores round trip 0.00 on 'Ninjutsu {U}{B}' with rendererGaps ['keyword:ninjutsu'], so the KEYWORD_EXPANSIONS entry is required in addition to any behaviour.",
+      "cr": "702.49a-c (ninjutsu), 702.49d + 903 (commander ninjutsu), 509.1h (unblocked), 506.4/508.1 (attacking without being declared an attacker)",
+      "clause": "Ninjutsu {U}{B} ({U}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)"
+    },
+    {
+      "opFamily": "opponents-lost-life-this-turn",
+      "proposedSignature": "A new `AmountCount` value `'opponents-who-lost-life-this-turn'`, evaluated as the number of opponents who have lost life this turn (the counterpart of the existing `opponent-lost-life-this-turn` Condition).",
+      "semantics": "Kaito's '0: Surveil 2. Then draw a card for each opponent who lost life this turn.' The Condition union has `opponent-lost-life-this-turn` (a boolean) but Amount.count has no way to COUNT those opponents, so the draw amount cannot be written; `opponents` counts every opponent regardless of life loss.",
+      "cr": "118 (life loss), 107.3 (a variable number)",
+      "clause": "0: Surveil 2. Then draw a card for each opponent who lost life this turn."
+    },
+    {
+      "opFamily": "self-animate-static",
+      "proposedSignature": "StaticEffect `{ kind: 'self-becomes'; power: number; toughness: number; types?: CardType[]; subtypes?: string[]; keywords?: Keyword[]; condition?: Condition }`, plus an `and` combinator for conditions: `{ kind: 'and'; conditions: Condition[] }` (only `or` exists today).",
+      "semantics": "Kaito, Bane of Nightmares: 'During your turn, as long as Kaito has one or more loyalty counters on him, he's a 3/4 Ninja creature and has hexproof.' `set-pt` (static) has no `condition` and cannot add card types or subtypes; `self-pt` and `self-keywords` carry a condition but neither makes a planeswalker a creature; `animate` is an effect with a target and a duration, not a continuous self-static. The condition itself also needs `your-turn` AND `self-has-counters {counter:'loyalty'}` conjoined, and the Condition union has only `or`.",
+      "cr": "205.1b, 613.1c/613.1d (type- and P/T-changing continuous effects), 306 (planeswalkers that become creatures)",
+      "clause": "During your turn, as long as ~ has one or more loyalty counters on him, he's a 3/4 Ninja creature and has hexproof."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

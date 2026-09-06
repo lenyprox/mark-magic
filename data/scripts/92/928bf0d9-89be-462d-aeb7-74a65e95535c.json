@@ -1,0 +1,93 @@
+{
+  "oracleId": "928bf0d9-89be-462d-aeb7-74a65e95535c",
+  "name": "Reckless Endeavor",
+  "oracleHash": "4edb8bf8",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "roll-die",
+          "sides": 12,
+          "count": 2,
+          "keep": "choose-one"
+        },
+        {
+          "op": "damage",
+          "amount": {
+            "count": "roll-result"
+          },
+          "target": "each-creature"
+        },
+        {
+          "op": "token",
+          "count": {
+            "count": "roll-other-result"
+          },
+          "power": 0,
+          "toughness": 0,
+          "colors": [],
+          "types": [
+            "Artifact"
+          ],
+          "subtypes": [
+            "Treasure"
+          ],
+          "keywords": [],
+          "treasure": true,
+          "name": "Treasure"
+        }
+      ],
+      "text": "Roll two d12 and choose one result. ~ deals damage equal to that result to each creature. Then create a number of Treasure tokens equal to the other result."
+    }
+  ],
+  "aiHints": {
+    "role": "removal",
+    "value": 4,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-06T10:00:56.042Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "4edb8bf8",
+    "scriptHash": "021e1c4b",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.826,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": [],
+      "sampled": false
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

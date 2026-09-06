@@ -1,0 +1,92 @@
+{
+  "oracleId": "8ce74097-97b1-493d-9585-bd1336f95927",
+  "name": "Ancient Bronze Dragon",
+  "oracleHash": "f9787bde",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [
+    "flying"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "roll-die",
+          "sides": 20
+        },
+        {
+          "op": "counters",
+          "target": {
+            "kind": "creature",
+            "count": 2,
+            "optional": true
+          },
+          "counter": "+1/+1",
+          "amount": {
+            "count": "roll-result"
+          }
+        }
+      ],
+      "text": "Whenever ~ deals combat damage to a player, roll a d20. When you do, put X +1/+1 counters on each of up to two target creatures, where X is the result."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flying",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 5,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-06T10:00:56.042Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "f9787bde",
+    "scriptHash": "256aa0ae",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.704,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/8c/8ce74097-97b1-493d-9585-bd1336f95927.json",
+      "passed": 3,
+      "failed": 0,
+      "names": []
+    },
+    "status": "tested",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "When you do, put X +1/+1 counters on each of up to two target creatures, where X is the result. — expected A reflexive triggered ability: { op: 'reflexive', when: 'you-do', effects: [ { op:'counters', target: { kind:'creature', count:2, optional:true }, counter:'+1/+1', amount:{count:'roll-result'} } ] }. The reflexive trigger goes on the stack AFTER the roll, its targets are chosen at that point (with the result known), and players get priority between the roll and the counters. The op exists in this vocabulary (src/cards/types.ts:304 `{ op: 'reflexive'; when: 'you-do'; effects }`). — scripted The \"When you do\" clause is dropped: the counters effect is flattened into the same combat-damage trigger's effect list, so up to two targets are chosen when the combat-damage trigger is put on the stack — before the d20 is rolled — and no second trigger/priority window exists. The per-target math itself is right (game.ts:1388-1393 applies amt(amount) to each of the up-to-two targets; count:2 + optional:true is exactly \"up to two target creatures\"). — CR 603.12, 603.3d, 601.2c"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

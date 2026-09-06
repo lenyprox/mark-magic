@@ -1,0 +1,16 @@
+{
+  "oracleId": "37dc566e-a91a-448c-9967-b178a93ffb62",
+  "name": "The Master of Keys",
+  "clause": "Each enchantment card in your graveyard has escape. The escape cost is equal to the card's mana cost plus exile three other cards from your graveyard.",
+  "needs": [
+    {
+      "opFamily": "grant-alt-cost",
+      "proposedSignature": "StaticEffect { kind: 'grant-alt-cost'; scope: 'you-control' | 'all'; zone: 'graveyard' | 'hand' | 'exile'; filter: Filter; who?: 'you' | 'opponent' | 'any'; alt: { id: AltCostId; label?: string; cost: AbilityCost | 'card-mana-cost'; plus?: AbilityCost; from: CastZone } } — 'card-mana-cost' is the new cost form for 'the escape cost is equal to the card's mana cost plus …'.",
+      "semantics": "A static that gives OTHER cards an alternative cost they do not print: 'Each enchantment card in your graveyard has escape. The escape cost is equal to the card's mana cost plus exile three other cards from your graveyard.' (The Master of Keys), 'Dinosaur spells you cast have prowl {2}{R}.' (Hunting Velociraptor). `altCosts` is a per-card declaration on `CardDef`; legal.ts reads it from the card being cast only, so nothing can inject one into a set of cards in another zone. This family name already carries 3 cards in data/scripts/needs.json.",
+      "cr": "702.138a (escape), 702.76a (prowl), 113.6",
+      "clause": "Each enchantment card in your graveyard has escape. The escape cost is equal to the card's mana cost plus exile three other cards from your graveyard."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "a011aefe-5853-4435-b686-179e931ba897",
+  "name": "Joraga Treespeaker",
+  "clause": "Level up {1}{G} / LEVEL 1-4 / 1/2 / LEVEL 5+ / 1/4",
+  "needs": [
+    {
+      "opFamily": "level-up",
+      "proposedSignature": "`levelUp?: { cost: ManaCost }` on CardDef (claiming the printed `Level up {cost}` line), a `level` counter the ability adds, `levelBands?: [{ from: number; to?: number; power: number; toughness: number; abilities: Ability[] }]` claiming the `LEVEL a-b` and `p/t` lines, and a condition `{ kind: 'level-counters-ge'; value: number }`",
+      "semantics": "CR 711: 'Level up [cost]' is a sorcery-speed activated ability that puts a level counter on the permanent; while the number of level counters falls inside a printed LEVEL band the creature has that band's power/toughness (a layer-7b characteristic-setting effect) and that band's abilities, replacing the ones below it. This is a DIFFERENT mechanic from CR 716 Class levels, which set-level / self-level / became-level already model — a Class level is a designation raised one step at a time, a leveler's level is a counter count. The `LEVEL 1-4` and `1/2` band lines reach a script as separate oracle lines and need declarations of their own to be claimed.",
+      "cr": "711.2, 711.3, 711.4, 613.4b",
+      "clause": "Level up {1}{G} / LEVEL 1-4 / 1/2 / LEVEL 5+ / 1/4"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

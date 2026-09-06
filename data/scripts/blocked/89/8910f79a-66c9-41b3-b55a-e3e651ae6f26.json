@@ -1,0 +1,23 @@
+{
+  "oracleId": "8910f79a-66c9-41b3-b55a-e3e651ae6f26",
+  "name": "Amphin Mutineer",
+  "clause": "Encore {4}{U}{U}",
+  "needs": [
+    {
+      "opFamily": "combat-requirement",
+      "proposedSignature": "Effect: { op: 'must-attack'; target: TargetSpec | Ref | 'creatures-you-control'; defender?: 'that-player' | 'each-opponent'; duration: 'eot' | 'this-combat' }  and StaticEffect: { kind: 'attacks-if-able'; scope: 'self' | 'you-control'; filter?: Filter; defender?: 'that-player' }",
+      "semantics": "Adds an attack REQUIREMENT (CR 508.1a / 506.4) to objects the effect names, optionally naming which player they must attack. Today `mustAttack` is only read off a permanent's PRINTED static abilities (game.ts:2384), so no effect can impose it on a token it just created. Needed by encore's token copies ('attacks that opponent this turn if able') and by Legion Warboss's Goblin token ('attacks this combat if able'); goad (keyword-action) is the same machinery one step further.",
+      "cr": "508.1a",
+      "clause": "That token gains haste until end of turn and attacks this combat if able."
+    },
+    {
+      "opFamily": "named-keyword-encore",
+      "proposedSignature": "AbilityCost part is already there (exileSelfFromGraveyard); what is missing is Effect: { op: 'encore' } — or, compositionally, `{ op: 'token-copy', target: 'self', count: { count: 'opponents' }, attacking: 'each-opponent', mustAttack: true }`",
+      "semantics": "'{cost}, Exile this card from your graveyard: For each opponent, create a token copy of this card that attacks that opponent this turn if able. They gain haste. Sacrifice them at the beginning of the next end step. Activate only as a sorcery.' Everything but the attack requirement and the per-opponent attack assignment composes today (activated + fromGraveyard + token-copy + grant-keyword haste + delayed-trigger next-end-step + remove-those). `token-copy.attacking` is honoured only during declare-attackers, and encore is sorcery-speed, so the tokens must be given a standing requirement instead.",
+      "cr": "702.140",
+      "clause": "Encore {3}{R}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

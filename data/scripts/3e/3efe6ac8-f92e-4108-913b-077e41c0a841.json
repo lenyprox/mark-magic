@@ -1,0 +1,147 @@
+{
+  "oracleId": "3efe6ac8-f92e-4108-913b-077e41c0a841",
+  "name": "Lae'zel's Acrobatics",
+  "oracleHash": "d956d765",
+  "source": "llm",
+  "confidence": 0.65,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "move",
+          "what": {
+            "filter": {
+              "types": [
+                "Creature"
+              ],
+              "nontoken": true
+            },
+            "zone": "battlefield",
+            "who": "you",
+            "count": "all"
+          },
+          "to": "exile"
+        },
+        {
+          "op": "roll-die",
+          "sides": 20
+        },
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "roll-result",
+            "least": 1,
+            "most": 9
+          },
+          "then": [
+            {
+              "op": "delayed-trigger",
+              "at": "next-end-step",
+              "bind": "those",
+              "effects": [
+                {
+                  "op": "move",
+                  "what": "those",
+                  "to": "battlefield",
+                  "controller": "owner"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "roll-result",
+            "least": 10,
+            "most": 20
+          },
+          "then": [
+            {
+              "op": "move",
+              "what": "those",
+              "to": "battlefield",
+              "controller": "owner"
+            },
+            {
+              "op": "move",
+              "what": "those",
+              "to": "exile"
+            },
+            {
+              "op": "delayed-trigger",
+              "at": "next-end-step",
+              "bind": "those",
+              "effects": [
+                {
+                  "op": "move",
+                  "what": "those",
+                  "to": "battlefield",
+                  "controller": "owner"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "text": "Exile all nontoken creatures you control, then roll a d20.\n1—9 | Return those cards to the battlefield under their owner's control at the beginning of the next end step.\n10—20 | Return those cards to the battlefield under their owner's control, then exile them again. Return those cards to the battlefield under their owner's control at the beginning of the next end step."
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 3,
+    "timing": "instant"
+  },
+  "verification": {
+    "at": "2026-09-06T10:00:56.042Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "d956d765",
+    "scriptHash": "416ee3b7",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "1—9 | Return those cards to the battlefield under their owner's control at the beginning of the next end step.",
+          "rendered": "exile all nontoken creatures from the battlefield. Roll a d20. if roll result, at the beginning of the next end step, put those permanents onto the battlefield. if roll result, put those permanents onto the battlefield. exile those permanents. at the beginning of the next end step, put those permanents onto the battlefield",
+          "score": 0
+        },
+        {
+          "text": "10—20 | Return those cards to the battlefield under their owner's control, then exile them again. Return those cards to the battlefield under their owner's control at the beginning of the next end step.",
+          "rendered": "exile all nontoken creatures from the battlefield. Roll a d20. if roll result, at the beginning of the next end step, put those permanents onto the battlefield. if roll result, put those permanents onto the battlefield. exile those permanents. at the beginning of the next end step, put those permanents onto the battlefield",
+          "score": 0
+        },
+        {
+          "text": "Exile all nontoken creatures you control, then roll a d20.",
+          "rendered": "exile all nontoken creatures from the battlefield. Roll a d20. if roll result, at the beginning of the next end step, put those permanents onto the battlefield. if roll result, put those permanents onto the battlefield. exile those permanents. at the beginning of the next end step, put those permanents onto the battlefield",
+          "score": 0.261
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"1—9 | Return those cards to the battlefield under their owner's control at the beginning of the next end step.\" rendered as \"exile all nontoken creatures from the battlefield. Roll a d20. if roll result, at the beginning of the next end step, put those permanents onto the battlefield. if roll result, put those permanents onto the battlefield. exile those permanents. at the beginning of the next end step, put those permanents onto the battlefield\"; \"10—20 | Return those cards to the battlefield under their owner's control, then exile them again. Return those cards to the battlefield under their owner's control at the beginning of the next end step.\" rendered as \"exile all nontoken creatures from the battlefield. Roll a d20. if roll result, at the beginning of the next end step, put those permanents onto the battlefield. if roll result, put those permanents onto the battlefield. exile those permanents. at the beginning of the next end step, put those permanents onto the battlefield\""
+    ]
+  }
+}

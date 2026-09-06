@@ -1,0 +1,23 @@
+{
+  "oracleId": "f224db3d-cdd2-43f2-b625-4b861efa6449",
+  "name": "Lier, Disciple of the Drowned",
+  "clause": "Spells can't be countered.",
+  "needs": [
+    {
+      "opFamily": "cant-be-countered-scope",
+      "proposedSignature": "StaticEffect: { kind: 'cant-be-countered'; scope?: 'self' | 'you-control' | 'all'; filter?: Filter; who?: 'you' | 'any' }",
+      "semantics": "'Spells can't be countered.' (every spell) and 'Noncreature spells you control can't be countered.' The existing `cant-be-countered` static carries no fields and the engine reads it only off the countered spell's own source (game.ts:1108 and 1316), so a permanent cannot protect other spells at all. Adding scope/filter/who and checking every battlefield source in the counter path covers both cards.",
+      "cr": "701.5a",
+      "clause": "Spells can't be countered."
+    },
+    {
+      "opFamily": "grant-alt-cost",
+      "proposedSignature": "Effect: { op: 'grant-alt-cost'; target: TargetSpec | Ref | { filter: Filter; zone: SetZone; who: ScopeWho }; altCost: AltCost | 'flashback-equal-to-mana-cost' | 'mayhem-equal-to-mana-cost'; duration: 'eot' | 'permanent' }  and StaticEffect: { kind: 'grant-alt-cost'; zone: SetZone; filter?: Filter; altCost: ... }",
+      "semantics": "Hands an alternative cost to OTHER cards, in a zone, either for a duration (Snapcaster Mage, Past in Flames) or as a static (Lier, Green Goblin). 'The flashback cost is equal to its mana cost' needs the cost to be derived per card rather than printed. Today `gain-ability` writes only on the source (game.ts:1327) and cost-alter's `cast-from` is an unconditional, non-exiling static with no duration, so every card of this shape either fails or would be scripted far stronger than it is.",
+      "cr": "702.34",
+      "clause": "Each instant and sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,65 @@
+{
+  "oracleId": "b1c346a4-fc9b-474a-9d51-cac168e363fa",
+  "name": "Maelstrom Nexus",
+  "oracleHash": "c8d4e828",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "cast",
+        "filter": {},
+        "who": "you"
+      },
+      "oncePerTurn": true,
+      "effects": [
+        {
+          "op": "cascade"
+        }
+      ],
+      "text": "The first spell you cast each turn has cascade."
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "\"The first spell you cast each turn has cascade\" is written as the cast trigger the granted ability IS (CR 702.85a), gated by `oncePerTurn` so it fires on the first spell you cast in a turn and no later one. `nth: 1` on the event is the same thing (spellsCastThisTurn is incremented before the trigger check) but renders worse; either way the format cannot attach an ability to a spell on the stack. Known engine shortfall: the core `cascade` op reads the mana value of the ability's SOURCE (Maelstrom Nexus, MV 5) rather than of the spell just cast.",
+  "verification": {
+    "at": "2026-09-06T06:17:30.257Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "c8d4e828",
+    "scriptHash": "c96d87f0",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'spells' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.429,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.43 < 0.55: \"The first spell you cast each turn has cascade.\" rendered as \"whenever you casts spell, cascade. this ability triggers only once each turn\""
+    ]
+  }
+}

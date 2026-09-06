@@ -1,0 +1,16 @@
+{
+  "oracleId": "f432eb6a-f1bf-4ce7-b915-1488dccb4bb9",
+  "name": "Oscorp Industries",
+  "clause": "Mayhem",
+  "needs": [
+    {
+      "opFamily": "named-keyword-mayhem",
+      "proposedSignature": "AltCostId += 'mayhem'; Condition: { kind: 'discarded-this-turn'; of?: 'self' | 'that' }; and for the land form a gate on `play-lands-from`: { kind: 'play-lands-from'; zone: 'graveyard'; condition?: Condition }",
+      "semantics": "'You may cast this card from your graveyard for its mayhem cost if you discarded it this turn. Timing rules still apply.' Needs a per-turn record on the card object of having been discarded this turn (surviving the move to the graveyard), an AltCost id with `from: 'graveyard'` and that condition, and the same gate for the land ('Mayhem' with no cost) through `play-lands-from`.",
+      "cr": "702.185",
+      "clause": "Mayhem {2}{U}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

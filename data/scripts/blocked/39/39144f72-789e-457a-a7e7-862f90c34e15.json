@@ -1,0 +1,23 @@
+{
+  "oracleId": "39144f72-789e-457a-a7e7-862f90c34e15",
+  "name": "Felisa, Fang of Silverquill",
+  "clause": "Mentor",
+  "needs": [
+    {
+      "opFamily": "amount-counters-on-that",
+      "proposedSignature": "AmountCount += 'counters-on-that-any' | 'counters-on-that'  (with `counter?` for the named form), and Condition: { kind: 'that-had-counters'; counter?: string }",
+      "semantics": "'Whenever a nontoken creature you control dies, IF IT HAD COUNTERS ON IT, create X ... tokens, where X is the number of counters IT had on it.' Both the intervening condition and the amount are about the bound dying creature; the existing `counters-on-source-any` and `self-had-counters` read the SOURCE, so the parser mis-binds them to Felisa herself. Last-known-information (the binding frame already snapshots values on zone change) makes this a small addition.",
+      "cr": "608.2h",
+      "clause": "Whenever a nontoken creature you control dies, if it had counters on it, create X tapped 2/1 white and black Inkling creature tokens with flying, where X is the number of counters it had on it."
+    },
+    {
+      "opFamily": "named-keyword-mentor",
+      "proposedSignature": "Filter += { powerLtSource?: true; powerLeSource?: true; powerGtSource?: true }  (so mentor is `{ kind: 'triggered', event: { on: 'attacks', self: true }, effects: [{ op: 'counters', target: { kind: 'attacking-creature', filter: { powerLtSource: true } }, counter: '+1/+1', amount: 1 }] }`), plus a KEYWORD_EXPANSIONS entry for 'mentor'",
+      "semantics": "'Whenever this creature attacks, put a +1/+1 counter on target attacking creature with lesser power.' Everything but the target filter exists. Filter carries only absolute power comparisons; the relative form lives nowhere but combat-restr's `power: 'ge-source'` static, which is not a Filter field and cannot reach a TargetSpec. One Filter flag finishes mentor and every 'with lesser/greater power than' target in the pool.",
+      "cr": "702.122",
+      "clause": "Mentor"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,23 @@
+{
+  "oracleId": "3e1b32a9-27a4-4550-a644-ebe254e1f512",
+  "name": "Clockspinning",
+  "clause": "Choose a counter on target permanent or suspended card. Remove that counter from that permanent or card or put another of those counters on it.",
+  "needs": [
+    {
+      "opFamily": "counters-choose-kind",
+      "proposedSignature": "`{ op: 'choose-counter', target: TargetSpec | Ref, then: 'remove' | 'add-another' | 'either', amount?: Amount }` — a `{ kind: 'choose-counter' }` decision listing the counter kinds actually on the object, then `addCounters(obj, chosen, ±amount)`.",
+      "semantics": "'Choose a counter on X. Remove that counter from X or put another of those counters on it.' The kind is picked at resolution out of whatever is on the object; every existing op (`counters`, `multi-counters`, `move-counters`) takes a counter name fixed at authoring time from the closed vocabulary in src/cards/lint.ts:84, so the choice cannot be scripted. Time travel (CR 701.56a) needs the same primitive.",
+      "cr": "122.1",
+      "clause": "Remove that counter from that permanent or card or put another of those counters on it."
+    },
+    {
+      "opFamily": "named-keyword:suspend",
+      "proposedSignature": "TargetSpec kind `'suspended-card'`, and a disjunctive spec for one target that may be in either zone: `{ kind: 'permanent-or-suspended-card' }` (or a general `{ kind: 'any-of', specs: [...] }` distinct from the existing multi-target `multi`), with `targetOptionsFor` answering exiled cards that have suspend and at least one time counter.",
+      "semantics": "Clockspinning targets 'permanent or suspended card' — ONE target that may be a permanent on the battlefield or a suspended card in exile. TargetSpec.kind has no member for a card in exile, and `multi` is several independent instances of the word 'target', not one target with a disjunctive quality (CR 115.3).",
+      "cr": "702.62b",
+      "clause": "Choose a counter on target permanent or suspended card."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

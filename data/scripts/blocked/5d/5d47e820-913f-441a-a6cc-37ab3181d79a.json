@@ -1,0 +1,16 @@
+{
+  "oracleId": "5d47e820-913f-441a-a6cc-37ab3181d79a",
+  "name": "Swift Reconfiguration",
+  "clause": "Enchanted permanent is a Vehicle artifact with crew 5 and it loses all other card types.",
+  "needs": [
+    {
+      "opFamily": "layers",
+      "proposedSignature": "`StaticEffect { kind: 'set-types', scope: 'enchanted' | 'equipped' | 'self' | 'you-control' | 'all', filter?: Filter, types?: CardType[], addTypes?: CardType[], subtypes?: string[], addSubtypes?: string[], loseOtherTypes?: true, abilities?: Ability[] }` — layer 4, applied in `computeStaticMods` next to the existing `set-pt` static",
+      "semantics": "\"Enchanted permanent is a Vehicle artifact with crew 5 and it loses all other card types.\" is a continuous type-changing effect on an Aura: layer 4 sets the card types (Artifact only), adds the subtype Vehicle, and layer 6 grants the crew activated ability. The vocabulary has layer 7b (`set-pt` op and static) and layer 6 loss (`lose-abilities`) but nothing that writes TYPES, and the one-shot `animate` op cannot be an Aura's static ability. `abilities` on the same static is what carries \"with crew 5\" without needing a second declaration.",
+      "cr": "613.1c (layer 4), 613.1f (layer 6), 205.1b, 702.122a",
+      "clause": "Enchanted permanent is a Vehicle artifact with crew 5 and it loses all other card types."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

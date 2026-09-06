@@ -1,0 +1,111 @@
+{
+  "oracleId": "84e7be36-b8cd-4111-a91b-3628f421d5d5",
+  "name": "Murmuration",
+  "oracleHash": "955f1d68",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "anthem",
+        "power": 1,
+        "toughness": 1,
+        "filter": {
+          "subtypes": [
+            "Bird"
+          ]
+        },
+        "scope": "you-control",
+        "keywords": [
+          "vigilance"
+        ]
+      },
+      "text": "Birds you control get +1/+1 and have vigilance."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "end-step",
+        "whose": "your"
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": {
+            "count": "spells-cast-this-turn"
+          },
+          "power": 1,
+          "toughness": 2,
+          "colors": [
+            "U"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Bird"
+          ],
+          "keywords": [
+            "flying"
+          ],
+          "name": "Storm Crow"
+        }
+      ],
+      "text": "At the beginning of your end step, for each spell you've cast this turn, create a 1/2 blue Bird creature token with flying named Storm Crow.",
+      "optional": false
+    }
+  ],
+  "aiHints": {
+    "role": "token",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "The anthem is the parser's own reading, re-declared because the mode is 'replace'. 'For each spell you've cast this turn' is the token count: the named count 'spells-cast-this-turn' reads the ability controller's own spellsCastThisTurn (characteristics.ts), which is exactly 'you've cast', and an Amount on token.count is evaluated once as the ability resolves (CR 608.2h). The token is the printed 1/2 blue Bird with flying named Storm Crow.",
+  "verification": {
+    "at": "2026-09-06T05:58:31.619Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "955f1d68",
+    "scriptHash": "d4290f19",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "trigger fired in the 'turn' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.692,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/84/84e7be36-b8cd-4111-a91b-3628f421d5d5.json",
+      "passed": 0,
+      "failed": 4,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

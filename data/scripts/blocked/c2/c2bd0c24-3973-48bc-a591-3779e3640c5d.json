@@ -1,0 +1,23 @@
+{
+  "oracleId": "c2bd0c24-3973-48bc-a591-3779e3640c5d",
+  "name": "Battle Angels of Tyr",
+  "clause": "Whenever ~ deals combat damage to a player, draw a card if that player has more cards in hand than each other player. Then you create a Treasure token if that player controls more lands than each other player. Then you gain 3 life if that player has more life than each other player.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:myriad",
+      "proposedSignature": "Add `'myriad'` to the `Keyword` union with a `keywordHooks.attacks` implementation (the parse.ts:1887 expansion — `token-copy target:'self' count:{count:'opponents',plus:-1} attacking:'each-other-opponent'` plus an end-of-combat exile — moved behind the keyword), so `keywords: ['flying','myriad']` claims \"Flying, myriad\", and `self-keywords`, `anthem.keywords`, `equipment.keywords`, `grant-keyword` and `CopyException.keywords` can all hand it out; `KEYWORD_EXPANSIONS.myriad` already exists and would then score the line",
+      "semantics": "Myriad (CR 702.115) is a printed keyword ability, but the format has no way to DECLARE it: it is not in the `Keyword` union, so a face that prints it can only write the trigger out by hand. That works behaviourally (all seven cards below are scripted and six are fullyParsed) but every such line is unscoreable — a comma-joined keyword line like \"Flying, myriad\" or \"Myriad, myriad\" is prose to `printedKeywordLine`, so it is scored by Jaccard against a 25-word trigger rendering and lands at 0.00-0.20. As a real Keyword those lines become one-line declarations scored against the keyword's own reminder text. The same argument applies to the granted forms (\"Creatures you control have myriad.\", \"Equipped creature has myriad.\"), which then become `anthem.keywords` / `equipment.keywords` instead of a `grant-ability` carrying a hand-written trigger.",
+      "cr": "702.115a, 702.115b, 113.3b",
+      "clause": "Flying, myriad / Trample, myriad / Myriad, myriad / Equipped creature has myriad. / Creatures you control have myriad. / Nonlegendary artifact creatures you control have myriad."
+    },
+    {
+      "opFamily": "player-extreme-comparison",
+      "proposedSignature": "`Condition { kind: 'player-extreme', of: 'that-player' | 'you' | 'target-player' | 'controller-of-that', prop: 'cards-in-hand' | 'life' | 'lands' | 'creatures' | 'permanents', extreme: 'most' | 'least', strict?: true }` — true when that player's value beats (`strict`) or ties every other player's",
+      "semantics": "\"draw a card if that player has more cards in hand than each other player\" compares ONE named player against EVERY other player. The pool's conditions only compare the controller against an opponent (`opponent-more-life`, `opponent-more-lands`, `more-life-than-opponent`, `cards-in-hand-ge` against a fixed value), so a multiplayer \"has the most X\" clause cannot be written at all. Battle Angels of Tyr needs it three times in one trigger, and the wording class (\"more … than each other player\", \"the most\", \"tied for the most\") is common on Commander cards.",
+      "cr": "104.2, 608.2, 107.1b",
+      "clause": "Whenever ~ deals combat damage to a player, draw a card if that player has more cards in hand than each other player. Then you create a Treasure token if that player controls more lands than each other player. Then you gain 3 life if that player has more life than each other player."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

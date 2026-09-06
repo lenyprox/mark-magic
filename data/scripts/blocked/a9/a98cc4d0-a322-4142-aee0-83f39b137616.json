@@ -1,0 +1,16 @@
+{
+  "oracleId": "a98cc4d0-a322-4142-aee0-83f39b137616",
+  "name": "Aurora Phoenix",
+  "clause": "Whenever you cast a spell with cascade, return ~ from your graveyard to your hand.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:cascade",
+      "proposedSignature": "`Filter.withNamedKeyword?: string` — a keyword-ability predicate that accepts the named keywords living outside the `Keyword` enum (cascade, storm, flashback, kicker, …), answered from the object's `CardDef` flags and from any grant in effect; plus `TriggeredAbility.functionsFrom?: 'graveyard'` so `queueTriggers` scans graveyard cards that declare it",
+      "semantics": "\"Whenever you cast a spell with cascade, return ~ from your graveyard to your hand\" needs both halves: `Filter.withKeyword` is typed to the `Keyword` enum, which has no `cascade` (cascade is `CardDef.cascade`, not a member of `keywords`), and the trigger has to work while the card is in the graveyard, which only the `anthem` static's `whileInGraveyard` flag approaches today (`triggerPerms` scans battlefield permanents plus registry trigger sources).",
+      "cr": "702.85, 113.6d, 603.6",
+      "clause": "Whenever you cast a spell with cascade, return ~ from your graveyard to your hand."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

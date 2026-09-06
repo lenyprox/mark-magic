@@ -1,0 +1,103 @@
+{
+  "oracleId": "f6314e50-a610-4fff-8f60-803d23460ff0",
+  "name": "Lizard Blades",
+  "oracleHash": "351762a8",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [
+    "double strike"
+  ],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "equipment",
+        "power": 0,
+        "toughness": 0,
+        "keywords": [
+          "double strike"
+        ],
+        "equipCost": {
+          "generic": 2,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}"
+        }
+      },
+      "text": "Equipped creature has double strike."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}"
+        }
+      },
+      "effects": [
+        {
+          "op": "attach-self",
+          "target": {
+            "kind": "creature",
+            "controller": "you"
+          }
+        }
+      ],
+      "sorcerySpeed": true,
+      "text": "Reconfigure {2}"
+    }
+  ],
+  "notes": "Reconfigure {2} is scripted as its rules text (sorcery-speed attach); the equipment static carries the same cost so the engine's attach route agrees with it.",
+  "verification": {
+    "at": "2026-09-06T06:16:28.918Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "351762a8",
+    "scriptHash": "35a154a9",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Reconfigure {2}",
+          "rendered": "{2}: attach ~ to target creature you control. activate only as a sorcery",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Reconfigure {2}\" rendered as \"{2}: attach ~ to target creature you control. activate only as a sorcery\""
+    ]
+  }
+}

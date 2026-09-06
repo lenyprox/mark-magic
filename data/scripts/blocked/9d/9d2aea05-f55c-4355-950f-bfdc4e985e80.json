@@ -1,0 +1,16 @@
+{
+  "oracleId": "9d2aea05-f55c-4355-950f-bfdc4e985e80",
+  "name": "Selvala's Stampede",
+  "clause": "Reveal cards from the top of your library until you reveal a creature card for each wild vote. Put those creature cards onto the battlefield, then shuffle the rest into your library.",
+  "needs": [
+    {
+      "opFamily": "reveal-until",
+      "proposedSignature": "{ op: 'reveal-until'; filter: Filter; count: Amount; who?: ScopeWho; found: PileFate; rest: PileFate } — reveal from the top of the library until `count` cards matching `filter` have been revealed (or the library runs out), then apply `found` to those and `rest` to everything else revealed; binds the found cards as `those`",
+      "semantics": "'Reveal cards from the top of your library until you reveal a creature card for each wild vote. Put those creature cards onto the battlefield, then shuffle the rest into your library.' Every existing look/dig op reads a FIXED number of cards, so an unbounded search of the library top with a per-card stopping condition cannot be written.",
+      "cr": "701.20a, 701.19, 608.2f",
+      "clause": "Reveal cards from the top of your library until you reveal a creature card for each wild vote. Put those creature cards onto the battlefield, then shuffle the rest into your library."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

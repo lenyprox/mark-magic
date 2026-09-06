@@ -1,0 +1,103 @@
+{
+  "oracleId": "678ef5e4-800d-4d3a-8761-2abaad70e0c9",
+  "name": "Envoy of the Ancestors",
+  "oracleHash": "2a626bf6",
+  "source": "llm",
+  "confidence": 0.9,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 0,
+          "x": 0,
+          "pips": [
+            "W"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{W}"
+        },
+        "tap": true
+      },
+      "sorcerySpeed": true,
+      "effects": [
+        {
+          "op": "counters",
+          "target": "self",
+          "counter": "+1/+1",
+          "amount": 1
+        }
+      ],
+      "text": "Outlast {W}"
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "anthem",
+        "power": 0,
+        "toughness": 0,
+        "filter": {
+          "modified": true
+        },
+        "scope": "you-control",
+        "keywords": [
+          "lifelink"
+        ]
+      },
+      "text": "Modified creatures you control have lifelink."
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "Outlast (CR 702.107) written out: {W}, {T}, sorcery speed, put a +1/+1 counter on ~.",
+  "verification": {
+    "at": "2026-09-06T06:15:32.095Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "2a626bf6",
+    "scriptHash": "e6f223b3",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Outlast {W}",
+          "rendered": "{W}, {T}: put a +1/+1 counter on ~. activate only as a sorcery",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Outlast {W}\" rendered as \"{W}, {T}: put a +1/+1 counter on ~. activate only as a sorcery\""
+    ]
+  }
+}

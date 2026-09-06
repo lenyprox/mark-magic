@@ -1,0 +1,16 @@
+{
+  "oracleId": "5d96170f-14dd-496e-a485-bd3b9eedfe02",
+  "name": "Maddening Hex",
+  "clause": "Whenever enchanted player casts a noncreature spell, roll a d6. ~ deals damage to that player equal to the result. Then attach ~ to another one of your opponents chosen at random.",
+  "needs": [
+    {
+      "opFamily": "aura-player",
+      "proposedSignature": "TriggerEvent 'cast'.who += 'enchanted-player'  +  { op: 'attach-self', target: { kind: 'player' | 'opponent', choose: 'random' } }",
+      "semantics": "An Aura that enchants a PLAYER needs a trigger scope for that player, and 'attach ~ to another one of your opponents chosen at random' needs a random chooser on attach-self (from g.rng, the way move's choose: 'random' works).",
+      "cr": "303.4h, 702.5, 701.3",
+      "clause": "Whenever enchanted player casts a noncreature spell, ... Then attach ~ to another one of your opponents chosen at random."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

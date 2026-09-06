@@ -1,0 +1,97 @@
+{
+  "oracleId": "72e8d67a-41e6-4074-bcbd-b54ead995237",
+  "name": "Pentad Prism",
+  "oracleHash": "8131f6ed",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "counters",
+          "target": "self",
+          "counter": "charge",
+          "amount": {
+            "count": "colors-spent"
+          }
+        }
+      ],
+      "text": "Sunburst"
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "removeCounters": {
+          "counter": "charge",
+          "amount": 1
+        }
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": "any",
+          "amount": 1
+        }
+      ],
+      "text": "Remove a charge counter from ~: Add one mana of any color.",
+      "manaAbility": true
+    }
+  ],
+  "aiHints": {
+    "role": "ramp",
+    "value": 2,
+    "timing": "main"
+  },
+  "notes": "Sunburst (CR 702.44) as an enters trigger: a charge counter for each color of mana spent to cast it.",
+  "verification": {
+    "at": "2026-09-06T06:15:32.095Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "8131f6ed",
+    "scriptHash": "f31fea5a",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Sunburst",
+          "rendered": "when ~ enters, put the number of colors of mana spent to cast it charge counters on ~",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Sunburst\" rendered as \"when ~ enters, put the number of colors of mana spent to cast it charge counters on ~\""
+    ]
+  }
+}

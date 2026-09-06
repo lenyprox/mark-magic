@@ -1,0 +1,105 @@
+{
+  "oracleId": "0a79237e-0811-4a8a-bd4d-db3ca91bff22",
+  "name": "Everflowing Chalice",
+  "oracleHash": "cf19b4a3",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [],
+  "kicker": {
+    "generic": 2,
+    "x": 0,
+    "pips": [],
+    "hybrid": [],
+    "phyrexian": [],
+    "raw": "{2}"
+  },
+  "asEnters": [
+    {
+      "kind": "counters",
+      "counter": "charge",
+      "amount": 1,
+      "condition": {
+        "kind": "kicked"
+      }
+    }
+  ],
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": [
+            "C"
+          ],
+          "perEach": {
+            "count": "counters-on-source",
+            "counter": "charge"
+          }
+        }
+      ],
+      "text": "{T}: Add {C} for each charge counter on ~.",
+      "manaAbility": true
+    }
+  ],
+  "covers": [
+    {
+      "line": "Multikicker {2}",
+      "by": "kicker"
+    },
+    {
+      "line": "~ enters with a charge counter on it for each time it was kicked.",
+      "by": "asEnters"
+    }
+  ],
+  "aiHints": {
+    "role": "ramp",
+    "value": 2,
+    "timing": "main"
+  },
+  "notes": "Multikicker is declared as kicker: the engine's kicker is a boolean, so one kick = one charge counter.",
+  "verification": {
+    "at": "2026-09-06T06:15:32.095Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "cf19b4a3",
+    "scriptHash": "98964d74",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.364,
+      "lowest": [
+        {
+          "text": "{T}: Add {C} for each charge counter on ~.",
+          "rendered": "{T}: add {C} for each the number of counters on ~",
+          "score": 0.364
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.36 < 0.55: \"{T}: Add {C} for each charge counter on ~.\" rendered as \"{T}: add {C} for each the number of counters on ~\""
+    ]
+  }
+}

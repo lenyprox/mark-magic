@@ -1,0 +1,16 @@
+{
+  "oracleId": "3620ab8f-b693-4225-bb96-5ca3cb3fa465",
+  "name": "Desperate Ritual",
+  "clause": "Splice onto Arcane {1}{R}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:splice",
+      "proposedSignature": "AltCost id 'splice': { id: 'splice', label: 'splice onto Arcane', cost: AbilityCost, from: 'hand', spliceOnto: Filter, keepInHand: true } + COVER_RULES.altCosts line shape /^splice onto (.+?) (\\{.+\\})$/ matching cost.mana.raw and the printed subject, + KEYWORD_EXPANSIONS['splice onto arcane'] = 'as you cast a spell that matches, you may reveal ~ from your hand and pay {cost}. if you do, add ~\\'s effects to that spell'",
+      "semantics": "As a player casts a spell matching `spliceOnto`, they may reveal this card from hand and pay the splice cost; if they do, this card's effects are added to that spell's effects. The spliced card stays in hand and is not cast.",
+      "cr": "702.47",
+      "clause": "Splice onto Arcane {1}{R}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

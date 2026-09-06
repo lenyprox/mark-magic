@@ -1,0 +1,23 @@
+{
+  "oracleId": "258f5045-3aa7-4b95-a15f-3172577294a8",
+  "name": "Prismari, the Inspiration",
+  "clause": "Instant and sorcery spells you cast have storm. / Ward—Pay 5 life.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:storm",
+      "proposedSignature": "a StaticEffect { kind: 'grant-spell-ability', who: 'you' | 'each-player', filter: Filter, keyword?: 'storm' | 'cascade', ability?: Ability } that attaches an ability to SPELLS a player casts (applied as the spell is put on the stack), so 'Instant and sorcery spells you cast have storm.' installs the existing storm trigger on each matching spell and reuses the storm-copies op",
+      "semantics": "The engine already has storm as a face declaration (+ covers kind 'storm' + the storm-copies effect), but only for the card that prints it. Prismari grants storm to other spells its controller casts, and no static reaches objects on the stack; grant-ability only reaches permanents.",
+      "cr": "702.40a, 613.1d",
+      "clause": "Instant and sorcery spells you cast have storm."
+    },
+    {
+      "opFamily": "named-keyword:ward",
+      "proposedSignature": "widen the face declaration to `ward?: AbilityCost` (keeping wardCost: number as the mana shorthand) with the covers kind 'ward' accepting the non-mana shape /^ward\\s*[-—]\\s*(.+?)\\.?$/ and matching the declared cost against the printed one; alternatively open the trigger route by adding `byOpponent?: true` to the { on: 'targeted' } event and letting `counter.target` take a Ref ('triggering')",
+      "semantics": "'Ward-Pay 5 life.' is 'whenever this becomes the target of a spell or ability an opponent controls, counter it unless that player pays 5 life'. wardCost is a number so no covers entry can claim the line (the README says script it as a trigger), but the trigger route is also closed: the targeted event has no opponent qualifier and counter.target is a TargetSpec only, so nothing can name the triggering spell.",
+      "cr": "702.21b, 603.2",
+      "clause": "Ward—Pay 5 life."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

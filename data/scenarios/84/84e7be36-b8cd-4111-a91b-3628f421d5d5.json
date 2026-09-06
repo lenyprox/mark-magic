@@ -1,0 +1,94 @@
+{
+  "oracleId": "84e7be36-b8cd-4111-a91b-3628f421d5d5",
+  "name": "Murmuration",
+  "scenarios": [
+    {
+      "name": "Murmuration gives Birds you control +1/+1 and vigilance, and nothing else",
+      "cr": "613.4c",
+      "ruling": "The anthem is a static ability that applies in layers 6 (vigilance) and 7c (+1/+1) to Bird creatures its controller controls; a non-Bird you control and a Bird an opponent controls are untouched.",
+      "seats": [
+        { "bf": ["Murmuration", "Storm Crow", "Grizzly Bears"] },
+        { "bf": ["Suntail Hawk"] }
+      ],
+      "script": [
+        { "sba": true }
+      ],
+      "expect": [
+        { "pt": ["Storm Crow", 2, 3] },
+        { "keywords": ["Storm Crow", ["flying", "vigilance"]] },
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "pt": ["Suntail Hawk", 1, 1] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A Bird you control attacks without tapping and hits for its boosted power",
+      "cr": "702.20b",
+      "ruling": "Vigilance from Murmuration means attacking does not cause the Bird to tap, and the +1/+1 makes the 1/2 Storm Crow deal 2 combat damage.",
+      "seats": [
+        { "bf": ["Murmuration", "Storm Crow"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Storm Crow"] }
+      ],
+      "expect": [
+        { "tapped": ["Storm Crow", false] },
+        { "life": [1, 18] },
+        { "pt": ["Storm Crow", 2, 3] },
+        { "keywords": ["Storm Crow", ["vigilance"]] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "At the beginning of your end step Murmuration creates one Storm Crow token per spell you cast this turn",
+      "cr": "603.2",
+      "ruling": "The trigger counts the spells cast this turn as it resolves; two spells cast this turn make two 1/2 blue Bird tokens with flying named Storm Crow, each of which is itself a Bird you control and so is 2/3 with vigilance.",
+      "seats": [
+        { "bf": ["Murmuration", "Mountain", "Mountain"], "hand": ["Lightning Bolt", "Shock"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["P1"]] },
+        { "resolve": true },
+        { "cast": "Shock", "targets": [["P1"]] },
+        { "resolve": true },
+        { "passUntil": "end" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [1, 15] },
+        { "zoneCount": [0, "battlefield", 5] },
+        { "pt": ["Storm Crow", 2, 3] },
+        { "keywords": ["Storm Crow", ["flying", "vigilance"]] },
+        { "control": ["Storm Crow", 0] },
+        { "events": { "type": "create-token", "min": 1 } },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "A spell that was countered still counts for Murmuration's end step trigger",
+      "cr": "601.2i",
+      "ruling": "Murmuration counts spells you cast this turn even if they were countered or otherwise did not resolve, so the countered Lightning Bolt still makes one Storm Crow token.",
+      "seats": [
+        { "bf": ["Murmuration", "Mountain"], "hand": ["Lightning Bolt"] },
+        { "bf": ["Island", "Island"], "hand": ["Counterspell"] }
+      ],
+      "script": [
+        { "cast": "Lightning Bolt", "targets": [["P1"]] },
+        { "cast": "Counterspell", "by": 1, "targets": [["Lightning Bolt"]] },
+        { "resolve": true },
+        { "passUntil": "end" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [1, 20] },
+        { "zone": ["Lightning Bolt", "graveyard"] },
+        { "zoneCount": [0, "battlefield", 3] },
+        { "pt": ["Storm Crow", 2, 3] },
+        { "control": ["Storm Crow", 0] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

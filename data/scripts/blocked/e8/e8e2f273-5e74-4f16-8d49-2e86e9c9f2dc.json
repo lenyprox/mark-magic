@@ -1,0 +1,16 @@
+{
+  "oracleId": "e8e2f273-5e74-4f16-8d49-2e86e9c9f2dc",
+  "name": "Solar Array",
+  "clause": "{T}: Add one mana of any color. When you next cast an artifact spell this turn, that spell gains sunburst.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:sunburst",
+      "proposedSignature": "AsEnters { kind: 'sunburst' } (charge counters on a noncreature, +1/+1 counters on a creature, one per colour of mana spent) plus { op: 'grant-keyword-to-spell', target: TargetSpec | Ref, keywords: Keyword[] } and a delayed-trigger point 'next-cast-this-turn' with a filter",
+      "semantics": "CR 702.44. The enters-with half is already expressible as counters with { count: 'colors-spent' }, but nothing can GRANT sunburst to a spell on the stack (grant-keyword acts on permanents) and there is no 'when you next cast a <filter> spell this turn' firing point.",
+      "cr": "702.44",
+      "clause": "Whenever you cast an artifact creature spell, it gains sunburst."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

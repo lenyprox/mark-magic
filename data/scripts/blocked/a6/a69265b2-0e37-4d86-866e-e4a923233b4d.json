@@ -1,0 +1,16 @@
+{
+  "oracleId": "a69265b2-0e37-4d86-866e-e4a923233b4d",
+  "name": "Expropriate",
+  "clause": "For each money vote, choose a permanent owned by the voter and gain control of it.",
+  "needs": [
+    {
+      "opFamily": "vote-voter-binding",
+      "proposedSignature": "`{ op: 'vote', resolve: 'per-vote' }` runs each option's effects once per vote WITH the voter bound: `item.triggeringPlayer` (so `that-player` names them) and `item.actor` inside a `scoped who: 'that-player'` block; add `{ filter: { ownedBy: 'that-player' } }` so an object set can be narrowed to the voter's own permanents",
+      "semantics": "'For each money vote, choose a permanent owned by the voter and gain control of it.' Council's dilemma cards pay out per vote and the payout is about the player who cast it; today the per-vote loop in src/engine/ops/piles-choices.ts re-applies the option's effects as the item's controller with no record of the voter, so 'owned by the voter' has no word.",
+      "cr": "701.38c, 701.38d",
+      "clause": "For each money vote, choose a permanent owned by the voter and gain control of it."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

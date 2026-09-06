@@ -1,0 +1,16 @@
+{
+  "oracleId": "d3b7b541-6f05-46c1-8031-c848c4bd4635",
+  "name": "Ojer Axonil, Deepest Might // Temple of Power",
+  "clause": "If a red source you control would deal an amount of noncombat damage less than ~'s power to an opponent, that source deals damage equal to ~'s power instead.",
+  "needs": [
+    {
+      "opFamily": "damage-minimum",
+      "proposedSignature": "DamageInstead gains { mode: 'min'; amount: Amount }, and every DamageInstead amount widens from number to Amount; plus condition { kind: 'damage-dealt-this-turn'; who: 'you' | 'opponent'; filter?: Filter; combat?: 'combat' | 'noncombat'; value: number }",
+      "semantics": "'raise the damage to at least N instead' where N is a live Amount ({ count: 'power-of-source' }) - the Ojer Axonil shape. The condition is 'red sources you controlled dealt 4 or more noncombat damage this turn', which needs a per-turn damage tally per controller with a source filter.",
+      "cr": "614.1a, 609.7",
+      "clause": "If a red source you control would deal an amount of noncombat damage less than ~'s power to an opponent, that source deals damage equal to ~'s power instead."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

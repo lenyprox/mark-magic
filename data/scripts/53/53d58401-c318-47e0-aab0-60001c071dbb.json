@@ -1,0 +1,134 @@
+{
+  "oracleId": "53d58401-c318-47e0-aab0-60001c071dbb",
+  "name": "Rammas Echor, Ancient Shield",
+  "oracleHash": "ff9660ff",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "cast",
+        "filter": {},
+        "who": "you",
+        "nth": 2
+      },
+      "optional": false,
+      "effects": [
+        {
+          "op": "draw",
+          "amount": 1,
+          "who": "you"
+        },
+        {
+          "op": "token",
+          "count": 1,
+          "power": 0,
+          "toughness": 3,
+          "colors": [
+            "W"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Wall"
+          ],
+          "keywords": [
+            "defender"
+          ],
+          "attacking": false
+        }
+      ],
+      "text": "Whenever you cast your second spell each turn, draw a card, then create a 0/3 white Wall creature token with defender."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-begin",
+        "whose": "your"
+      },
+      "optional": false,
+      "effects": [
+        {
+          "op": "for-each",
+          "over": {
+            "types": [
+              "Creature"
+            ],
+            "withKeyword": "defender",
+            "who": "you"
+          },
+          "do": [
+            {
+              "op": "grant-keyword",
+              "target": "that",
+              "keywords": [
+                "exalted"
+              ],
+              "duration": "eot"
+            }
+          ]
+        }
+      ],
+      "text": "At the beginning of combat on your turn, creatures you control with defender gain exalted until end of turn."
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "utility",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "The second-spell trigger is the parser's own reading, kept verbatim. \"creatures you control with defender gain exalted until end of turn\" is not a targeted grant, so it is a for-each over the set (Filter.withKeyword 'defender', who 'you') with grant-keyword on the bound object — grant-keyword's group word 'creatures-you-control' carries no filter and would grant exalted to every creature.",
+  "verification": {
+    "at": "2026-09-06T05:59:02.327Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "ff9660ff",
+    "scriptHash": "2b56bd6b",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'spells' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "trigger fired in the 'turn' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.727,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/53/53d58401-c318-47e0-aab0-60001c071dbb.json",
+      "passed": 0,
+      "failed": 4,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "Whenever you cast your second spell each turn, draw a card, then create a 0/3 white Wall creature token with defender. — expected a token named \"Wall\" (CR 111.4: a token's name is its subtype unless stated otherwise) — token effect should carry name: \"Wall\" alongside subtypes [\"Wall\"], as 25 of 44 token effects in the corpus do (\"Eldrazi Scion\", \"Phyrexian Mite\", \"Treasure\") — scripted token effect has power 0, toughness 3, colors [\"W\"], types [\"Creature\"], subtypes [\"Wall\"], keywords [\"defender\"] but NO name field; src/engine/game.ts:1379 then names it `${subtypes.join(' ')} token` = \"Wall token\". Confirmed by instrumented run: the created object's token.name is \"Wall token\", so the blind scenario's name-keyed assertions (pt [Wall,0,3], keywords [Wall,[defender]]) both report \"no object named Wall\". Everything else about the token (0/3, white, Wall, defender) and the draw-then-create ordering is correct. — CR 111.4",
+          "At the beginning of combat on your turn, creatures you control with defender gain exalted until end of turn. — expected NOT a script defect — recorded so the mechanical gate is not misread. The one-shot grant to the set of your defenders as the ability resolves is correctly encoded (for-each over {types [Creature], withKeyword defender, who you} + grant-keyword target 'that', duration eot), and an instrumented runScenario confirms Steel Wall and Wall of Wood end with eotKeywords [\"exalted\"] while Hill Giant does not. — scripted The two failing exalted scenarios (Grizzly Bears 2/2 instead of 4/4 / 3/3) fail in the harness, not the script: the scenario `attack` step routes through declareCombat -> Game.simulateCombat (src/verify/scenarioDsl.ts), and simulateCombat (src/engine/game.ts ~218-222) omits the lone-attacker exalted bonus that the real declare-attackers path applies at src/engine/game.ts:2406. Any card granting exalted would fail these scenarios identically. — CR 702.90a, 611.2c"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

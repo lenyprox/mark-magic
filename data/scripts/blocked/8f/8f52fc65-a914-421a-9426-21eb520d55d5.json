@@ -1,0 +1,23 @@
+{
+  "oracleId": "8f52fc65-a914-421a-9426-21eb520d55d5",
+  "name": "Zenos yae Galvus // Shinryu, Transcendent Rival",
+  "clause": "When ~ enters, choose a creature an opponent controls. Until end of turn, creatures other than ~ and the chosen creature get -2/-2. | When the chosen creature leaves the battlefield, transform ~. | // When the chosen player loses the game, you win the game.",
+  "needs": [
+    {
+      "opFamily": "as-transforms-replacement",
+      "proposedSignature": "AsEnters gains { kind: 'as-transforms'; to?: 'front' | 'back'; effects: Effect[] } - a replacement applied as the permanent turns over, not a trigger after it",
+      "semantics": "'As this creature transforms into Sephiroth, One-Winged Angel, you get an emblem with ...' and 'As this creature transforms into Shinryu, choose an opponent.' The transform family has the `transforms` TRIGGER, which is 'when', so anything printed as 'As ... transforms' can only be approximated after the fact.",
+      "cr": "701.28, 614.12",
+      "clause": "// As ~ transforms into ~, you get an emblem with \"Whenever a creature dies, target opponent loses 1 life and you gain 1 life.\""
+    },
+    {
+      "opFamily": "designated-object",
+      "proposedSignature": "{ op: 'choose-objects'; ...; remember?: string } writing a durable designation on the source; Filter gains `chosen?: string` / `notChosen?: string`; trigger { on: 'ltb'; chosen: string }; plus { on: 'player-loses'; chosen: string } and { op: 'win-game'; who: ScopeWho }",
+      "semantics": "Designations that outlive the resolution that made them: 'choose a creature an opponent controls ... creatures other than ~ and THE CHOSEN CREATURE get -2/-2', 'When THE CHOSEN CREATURE leaves the battlefield, transform ~', 'As this creature transforms into X, choose an opponent. When THE CHOSEN PLAYER loses the game, you win the game.' piles-choices records pcChosen on the source but only `chosen-fate` reads it, and it is not a filter term, a trigger subject or a player designation. A win-the-game effect does not exist at all.",
+      "cr": "700.2, 104.2a, 104.3",
+      "clause": "When the chosen creature leaves the battlefield, transform ~. // When the chosen player loses the game, you win the game."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

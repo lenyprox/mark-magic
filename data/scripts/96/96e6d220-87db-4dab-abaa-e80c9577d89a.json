@@ -1,0 +1,212 @@
+{
+  "oracleId": "96e6d220-87db-4dab-abaa-e80c9577d89a",
+  "name": "Gossip's Talent",
+  "oracleHash": "e5cf6c83",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": false,
+        "filter": {
+          "types": [
+            "Creature"
+          ]
+        },
+        "controller": "you"
+      },
+      "effects": [
+        {
+          "op": "surveil",
+          "amount": 1
+        }
+      ],
+      "text": "Whenever a creature you control enters, surveil 1."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [
+            "U"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}{U}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 1
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 2
+        }
+      ],
+      "text": "{1}{U}: Level 2"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "you-attack"
+      },
+      "condition": {
+        "kind": "self-level",
+        "atLeast": 2
+      },
+      "effects": [
+        {
+          "op": "grant-keyword",
+          "target": {
+            "kind": "attacking-creature",
+            "filter": {
+              "powerLE": 3
+            }
+          },
+          "keywords": [
+            "unblockable"
+          ],
+          "duration": "eot"
+        }
+      ],
+      "text": "Whenever you attack, target attacking creature with power 3 or less can't be blocked this turn."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 3,
+          "x": 0,
+          "pips": [
+            "U"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}{U}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 2
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 3
+        }
+      ],
+      "text": "{3}{U}: Level 3"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": false,
+        "filter": {
+          "types": [
+            "Creature"
+          ]
+        }
+      },
+      "condition": {
+        "kind": "self-level",
+        "atLeast": 3
+      },
+      "effects": [
+        {
+          "op": "may",
+          "effects": [
+            {
+              "op": "move",
+              "what": "triggering",
+              "to": "exile"
+            },
+            {
+              "op": "move",
+              "what": "those",
+              "to": "battlefield",
+              "controller": "owner"
+            }
+          ]
+        }
+      ],
+      "text": "Whenever a creature you control deals combat damage to a player, you may exile it, then return it to the battlefield under its owner's control."
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "The blink is two `move`s inside one `may`: the first binds `those` to the exiled card, the second returns it under its owner's control (composition.md: a bound object is still reachable in a public zone). A non-self combat-damage-player trigger already restricts the damaging creature to one its controller controls, so the filter only says 'creature'.",
+  "verification": {
+    "at": "2026-09-06T10:02:10.030Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "e5cf6c83",
+    "scriptHash": "cb04b751",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 3,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 4,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.333,
+      "lowest": [
+        {
+          "text": "{3}{U}: Level 3",
+          "rendered": "{3}{U}: Level 3. activate only if self level. activate only as a sorcery",
+          "score": 0.333
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.33 < 0.55: \"{3}{U}: Level 3\" rendered as \"{3}{U}: Level 3. activate only if self level. activate only as a sorcery\""
+    ]
+  }
+}

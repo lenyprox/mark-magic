@@ -1,0 +1,23 @@
+{
+  "oracleId": "e31235f0-1f25-4158-b46e-cacde2f58b7e",
+  "name": "Overpowering Attack",
+  "clause": "Freerunning {2}{R}",
+  "needs": [
+    {
+      "opFamily": "extra-phases",
+      "proposedSignature": "Effect: { op: 'extra-phase'; phase: 'combat' | 'main'; after?: 'this-phase' | 'that-combat'; count?: number }  (combat-restr's `extra-combat` generalised)",
+      "semantics": "'If it's your main phase, there is an additional combat phase after this phase, followed by an additional main phase.' combat-restr's `extra-combat` inserts a combat only; there is no additional MAIN phase and no way to chain the two, and the 'if it's your main phase' gate has no Condition either. Also needed here: Filter += { attackedThisTurn?: true } for 'all creatures you control that attacked this turn'.",
+      "cr": "500.8",
+      "clause": "If it's your main phase, there is an additional combat phase after this phase, followed by an additional main phase."
+    },
+    {
+      "opFamily": "named-keyword-freerunning",
+      "proposedSignature": "AltCostId += 'freerunning'; Condition: { kind: 'dealt-combat-damage-this-turn'; who: 'you'; filter?: Filter }  // filter = { subtypes: ['Assassin'] } or commander",
+      "semantics": "'You may cast this spell for its freerunning cost if you or a creature you control dealt combat damage to a player this turn with an Assassin or commander.' AltCost already has an optional `condition`, so the family is really one new Condition (a per-turn record of which of your creatures connected, and whether the player themself did) plus the id and a covers shape for the printed line.",
+      "cr": "702.184",
+      "clause": "Freerunning {1}{U}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

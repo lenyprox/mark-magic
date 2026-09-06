@@ -1,0 +1,16 @@
+{
+  "oracleId": "0b55eac6-a745-4bf4-8926-5ce83bc38d7d",
+  "name": "Treasure Map // Treasure Cove",
+  "clause": "{1}, {T}: Scry 1. Put a landmark counter on ~. Then if there are three or more landmark counters on it, remove those counters, transform ~, and create three Treasure tokens.",
+  "needs": [
+    {
+      "opFamily": "counter-threshold",
+      "proposedSignature": "{ kind: 'self-has-counters'; counter: string; atLeast?: number }  (extend the existing condition; equivalently a new { kind: 'counters-on-source-ge'; counter: string; value: number })",
+      "semantics": "True when the source has at least `atLeast` counters of that kind on it, evaluated as the effect applies. Today `self-has-counters` is a name-only >= 1 test and no Condition accepts an Amount, so the very common 'Then if there are N or more <x> counters on it, ...' transform trigger cannot be written at all - any encoding flips the permanent on the first counter. Pairs with the existing removeCounters cost / a negative `counters` amount for the 'remove those counters' half.",
+      "cr": "122.1, 603.2, 608.2h",
+      "clause": "Then if there are three or more landmark counters on it, remove those counters, transform ~, and create three Treasure tokens."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

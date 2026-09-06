@@ -1,0 +1,66 @@
+{
+  "oracleId": "8ce74097-97b1-493d-9585-bd1336f95927",
+  "name": "Ancient Bronze Dragon",
+  "scenarios": [
+    {
+      "name": "Ancient Bronze Dragon's flying cannot be blocked by a ground creature",
+      "cr": "702.9b",
+      "ruling": "A creature with flying can only be blocked by creatures with flying or reach, so a 2/2 ground blocker is refused and all 7 combat damage reaches the defending player.",
+      "seats": [
+        { "bf": ["Ancient Bronze Dragon"] },
+        { "bf": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "attack": ["Ancient Bronze Dragon"], "refused": [["Grizzly Bears", "Ancient Bronze Dragon"]] }
+      ],
+      "expect": [
+        { "keywords": ["Ancient Bronze Dragon", ["flying"]] },
+        { "life": [1, 13] },
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "zone": ["Ancient Bronze Dragon", "battlefield"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Ancient Bronze Dragon puts a d20 result worth of +1/+1 counters on each of two target creatures",
+      "cr": "603.12",
+      "ruling": "Combat damage to a player triggers the roll; the reflexive trigger then puts X +1/+1 counters on each of up to two target creatures, where X is the result of the one d20 roll, so both targets get the same number of counters. The engine's first roll of a game is 4.",
+      "seats": [
+        { "bf": ["Ancient Bronze Dragon", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "attack": ["Ancient Bronze Dragon"] }
+      ],
+      "expect": [
+        { "log": "rolls a d20 for Ancient Bronze Dragon: 4" },
+        { "life": [1, 13] },
+        { "counters": ["Grizzly Bears", { "+1/+1": 4 }] },
+        { "counters": ["Ancient Bronze Dragon", { "+1/+1": 4 }] },
+        { "pt": ["Grizzly Bears", 6, 6] },
+        { "pt": ["Ancient Bronze Dragon", 11, 11] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Ancient Bronze Dragon does not roll when its combat damage is dealt to a blocking creature",
+      "cr": "603.2",
+      "ruling": "The ability triggers only on combat damage dealt to a player. Damage dealt to a blocker does not trigger it, so no d20 is rolled and no +1/+1 counters appear.",
+      "seats": [
+        { "bf": ["Ancient Bronze Dragon"] },
+        { "bf": ["Serra Angel"] }
+      ],
+      "script": [
+        { "attack": ["Ancient Bronze Dragon"], "blocks": [["Serra Angel", "Ancient Bronze Dragon"]] }
+      ],
+      "expect": [
+        { "noLog": "rolls a d20 for Ancient Bronze Dragon" },
+        { "life": [1, 20] },
+        { "zone": ["Serra Angel", "graveyard"] },
+        { "counters": ["Ancient Bronze Dragon", { "+1/+1": 0 }] },
+        { "pt": ["Ancient Bronze Dragon", 7, 7] },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

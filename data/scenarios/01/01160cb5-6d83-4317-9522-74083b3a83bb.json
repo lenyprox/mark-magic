@@ -1,0 +1,101 @@
+{
+  "oracleId": "01160cb5-6d83-4317-9522-74083b3a83bb",
+  "name": "Eldrazi Confluence",
+  "scenarios": [
+    {
+      "name": "The first mode chosen three times gives three creatures +3/-3 and kills the ones left with no toughness",
+      "cr": "700.2",
+      "ruling": "Choose three, and the same mode may be chosen more than once; each instance of the first mode is its own targeting clause, so three different creatures each get +3/-3. A creature whose toughness is 0 or less is put into its owner's graveyard as a state-based action.",
+      "seats": [
+        { "bf": ["Wastes", "Wastes", "Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Eldrazi Confluence"] },
+        { "bf": ["Grizzly Bears", "Hill Giant", "Colossal Dreadmaw"] }
+      ],
+      "script": [
+        { "cast": "Eldrazi Confluence", "modes": [0, 0, 0], "targets": [["Grizzly Bears"], ["Hill Giant"], ["Colossal Dreadmaw"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "graveyard"] },
+        { "zone": ["Hill Giant", "graveyard"] },
+        { "zone": ["Colossal Dreadmaw", "battlefield"] },
+        { "pt": ["Colossal Dreadmaw", 9, 3] },
+        { "zoneCount": [1, "battlefield", 1] },
+        { "graveyardCount": [1, 2] },
+        { "zone": ["Eldrazi Confluence", "graveyard"] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The second mode chosen three times blinks three permanents back tapped and without their counters",
+      "cr": "400.7",
+      "ruling": "A permanent exiled and returned to the battlefield is a new object: it comes back tapped under its owner's control with none of the counters that were on it and none of the effects that applied to it.",
+      "seats": [
+        { "bf": ["Wastes", "Wastes", "Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Eldrazi Confluence"] },
+        { "bf": ["Grizzly Bears", "Hill Giant", "Colossal Dreadmaw"], "counters": { "Grizzly Bears": { "+1/+1": 2 } } }
+      ],
+      "script": [
+        { "cast": "Eldrazi Confluence", "modes": [1, 1, 1], "targets": [["Grizzly Bears"], ["Hill Giant"], ["Colossal Dreadmaw"]] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "tapped": ["Grizzly Bears", true] },
+        { "counters": ["Grizzly Bears", { "+1/+1": 0 }] },
+        { "pt": ["Grizzly Bears", 2, 2] },
+        { "control": ["Grizzly Bears", 1] },
+        { "zone": ["Hill Giant", "battlefield"] },
+        { "tapped": ["Hill Giant", true] },
+        { "zone": ["Colossal Dreadmaw", "battlefield"] },
+        { "tapped": ["Colossal Dreadmaw", true] },
+        { "zoneCount": [1, "battlefield", 3] },
+        { "graveyardCount": [1, 0] },
+        { "zone": ["Eldrazi Confluence", "graveyard"] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "The third mode chosen three times creates three 1/1 Eldrazi Scion tokens",
+      "cr": "111.1",
+      "ruling": "Each instance of the third mode creates its own token, so choosing it three times puts three 1/1 colorless Eldrazi Scion creature tokens onto the battlefield.",
+      "seats": [
+        { "bf": ["Wastes", "Wastes", "Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Eldrazi Confluence"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Eldrazi Confluence", "modes": [2, 2, 2] },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Eldrazi Scion", "battlefield"] },
+        { "pt": ["Eldrazi Scion", 1, 1] },
+        { "zoneCount": [0, "battlefield", 9] },
+        { "events": { "type": "create-token", "min": 3, "max": 3 } },
+        { "zone": ["Eldrazi Confluence", "graveyard"] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "An Eldrazi Scion token can be sacrificed for one colorless mana",
+      "cr": "605.1a",
+      "ruling": "The token is created with \"Sacrifice this token: Add {C}\", a mana ability that does not use the stack; sacrificing one of the three Scions leaves two on the battlefield and one colorless mana in the pool.",
+      "seats": [
+        { "bf": ["Wastes", "Wastes", "Wastes", "Wastes", "Wastes", "Wastes"], "hand": ["Eldrazi Confluence"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Eldrazi Confluence", "modes": [2, 2, 2] },
+        { "resolve": true },
+        { "activate": "Eldrazi Scion" }
+      ],
+      "expect": [
+        { "mana": [0, "C"] },
+        { "zoneCount": [0, "battlefield", 8] },
+        { "zone": ["Eldrazi Scion", "battlefield"] },
+        { "events": { "type": "create-token", "min": 3, "max": 3 } },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

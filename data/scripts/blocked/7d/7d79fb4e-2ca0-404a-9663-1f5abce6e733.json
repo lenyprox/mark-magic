@@ -1,0 +1,16 @@
+{
+  "oracleId": "7d79fb4e-2ca0-404a-9663-1f5abce6e733",
+  "name": "Ancient Brass Dragon",
+  "clause": "When you do, put any number of target creature cards with total mana value X or less from graveyards onto the battlefield under your control, where X is the result.",
+  "needs": [
+    {
+      "opFamily": "targeting",
+      "proposedSignature": "TargetSpec += { totalMvLE?: Amount }",
+      "semantics": "A constraint over the whole set of picks rather than per pick: 'any number of target creature cards with total mana value X or less'. legal.ts would check the running total as picks are added.",
+      "cr": "601.2c, 115.1",
+      "clause": "put any number of target creature cards with total mana value X or less from graveyards onto the battlefield under your control, where X is the result"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

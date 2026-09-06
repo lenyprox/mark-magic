@@ -1,0 +1,124 @@
+{
+  "oracleId": "3adbd963-e85d-4569-963a-4472594f06f9",
+  "name": "Woe Strider",
+  "scenarios": [
+    {
+      "name": "Woe Strider entering the battlefield creates a 0/1 Goat token",
+      "cr": "603.6b",
+      "ruling": "The enters-the-battlefield trigger creates a 0/1 white Goat creature token under the controller of Woe Strider, so a sixth permanent named Goat joins the battlefield.",
+      "seats": [
+        { "bf": ["Swamp", "Swamp", "Swamp", "Swamp"], "hand": ["Woe Strider"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Woe Strider" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Woe Strider", "battlefield"] },
+        { "zone": ["Goat", "battlefield"] },
+        { "pt": ["Goat", 0, 1] },
+        { "control": ["Goat", 0] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "zoneCount": [0, "battlefield", 6] },
+        { "handCount": [0, 0] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Sacrificing another creature to Woe Strider scries 1",
+      "cr": "701.17a",
+      "ruling": "The activated ability costs the sacrifice of another creature, so Grizzly Bears goes to the graveyard, Woe Strider itself stays on the battlefield, and the ability looks at the top card of the library without drawing it.",
+      "seats": [
+        { "bf": ["Woe Strider", "Grizzly Bears"] },
+        {}
+      ],
+      "script": [
+        { "activate": "Woe Strider" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "graveyard"] },
+        { "zone": ["Woe Strider", "battlefield"] },
+        { "graveyardCount": [0, 1] },
+        { "zoneCount": [0, "battlefield", 1] },
+        { "events": { "type": "library", "min": 1, "max": 1 } },
+        { "libraryCount": [0, 20] },
+        { "handCount": [0, 0] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Woe Strider escapes from the graveyard by exiling four other cards",
+      "cr": "702.139a",
+      "ruling": "Escape lets you cast the card from your graveyard for {3}{B}{B} plus exiling four other cards from your graveyard; all four exiled cards leave the graveyard as a cost and Woe Strider itself goes to the battlefield.",
+      "seats": [
+        {
+          "bf": ["Swamp", "Swamp", "Swamp", "Swamp", "Swamp"],
+          "graveyard": ["Woe Strider", "Hill Giant", "Grizzly Bears", "Lightning Bolt", "Shock"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Woe Strider", "alt": "escape" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Woe Strider", "battlefield"] },
+        { "zone": ["Hill Giant", "exile"] },
+        { "zone": ["Grizzly Bears", "exile"] },
+        { "zone": ["Lightning Bolt", "exile"] },
+        { "zone": ["Shock", "exile"] },
+        { "graveyardCount": [0, 0] },
+        { "zoneCount": [0, "exile", 4] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Woe Strider escapes with two +1/+1 counters on it",
+      "cr": "702.139b",
+      "ruling": "The last ability is a replacement effect that applies as the escaped permanent enters, so it arrives as a 3/2 with two +1/+1 counters, a 5/4.",
+      "seats": [
+        {
+          "bf": ["Swamp", "Swamp", "Swamp", "Swamp", "Swamp"],
+          "graveyard": ["Woe Strider", "Hill Giant", "Grizzly Bears", "Lightning Bolt", "Shock"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Woe Strider", "alt": "escape" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Woe Strider", "battlefield"] },
+        { "counters": ["Woe Strider", { "+1/+1": 2 }] },
+        { "pt": ["Woe Strider", 5, 4] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Woe Strider cast from hand enters without +1/+1 counters",
+      "cr": "702.139c",
+      "ruling": "An \"escapes with two +1/+1 counters on it\" ability applies only if the permanent escaped, that is, only if the card was cast for its escape cost. A Woe Strider cast normally from hand is a plain 3/2 with no counters.",
+      "seats": [
+        { "bf": ["Swamp", "Swamp", "Swamp", "Swamp"], "hand": ["Woe Strider"] },
+        {}
+      ],
+      "script": [
+        { "cast": "Woe Strider" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Woe Strider", "battlefield"] },
+        { "counters": ["Woe Strider", { "+1/+1": 0 }] },
+        { "pt": ["Woe Strider", 3, 2] },
+        { "stack": 0 },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "fb81e4d3-1d8c-4779-be62-87cf49277e51",
+  "name": "Birgi, God of Storytelling // Harnfel, Horn of Bounty",
+  "clause": "Creatures you control can boast twice during each of your turns rather than once.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:boast",
+      "proposedSignature": "activated-ability flag `boast?: true` (activate only if this creature attacked this turn, and only once each turn), plus StaticEffect { kind: 'boast-limit', scope: 'you-control' | 'all', filter?: Filter, times: number }",
+      "semantics": "Boast (CR 702.141a) is an activation restriction the engine has no shape for: `oncePerTurn` exists but 'only if this creature attacked this turn' does not, and there is no per-turn activation COUNT that another permanent can raise. Birgi's line raises that count from one to two for every creature its controller controls, so the limit has to be a named quantity a static can modify rather than a boolean on the ability.",
+      "cr": "702.141a, 602.5",
+      "clause": "Creatures you control can boast twice during each of your turns rather than once."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

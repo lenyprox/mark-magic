@@ -1,0 +1,23 @@
+{
+  "oracleId": "51233ade-70cd-4539-9f41-5ffab761da54",
+  "name": "Malevolent Hermit // Benevolent Geist",
+  "clause": "Disturb {2}{U}",
+  "needs": [
+    {
+      "opFamily": "cant-be-countered-scope",
+      "proposedSignature": "StaticEffect: { kind: 'cant-be-countered'; scope?: 'self' | 'you-control' | 'all'; filter?: Filter; who?: 'you' | 'any' }",
+      "semantics": "'Spells can't be countered.' (every spell) and 'Noncreature spells you control can't be countered.' The existing `cant-be-countered` static carries no fields and the engine reads it only off the countered spell's own source (game.ts:1108 and 1316), so a permanent cannot protect other spells at all. Adding scope/filter/who and checking every battlefield source in the counter path covers both cards.",
+      "cr": "701.5a",
+      "clause": "Spells can't be countered."
+    },
+    {
+      "opFamily": "named-keyword-disturb",
+      "proposedSignature": "AltCost: { id: 'disturb'; label: string; cost: AbilityCost; from: 'graveyard'; transformed: true }  // plus AltCostId += 'disturb' and a COVER_RULES shape ^disturb (\\{.+\\})$",
+      "semantics": "An alternative cost that casts the card from its owner's graveyard with its BACK face up (CR 702.147a); if it would leave the stack it is exiled instead. Needs a `transformed` flag on AltCost (or an `entersAs: 'back'`) so `castSpell` puts the back face onto the battlefield, and a covers kind so the printed 'Disturb {1}{W}' line is claimed by the declaration rather than by an ability.",
+      "cr": "702.147",
+      "clause": "Disturb {1}{W}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

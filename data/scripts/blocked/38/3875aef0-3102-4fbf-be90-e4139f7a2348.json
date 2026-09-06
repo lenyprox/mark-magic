@@ -1,0 +1,16 @@
+{
+  "oracleId": "3875aef0-3102-4fbf-be90-e4139f7a2348",
+  "name": "Wayward Swordtooth",
+  "clause": "Ascend / \"~ can't attack or block unless you have the city's blessing.\"",
+  "needs": [
+    {
+      "opFamily": "ascend",
+      "proposedSignature": "Effect { op: 'ascend' } (the instant/sorcery form) ; StaticEffect { kind: 'ascend' } (the permanent form, re-checked whenever permanents change) ; Condition { kind: 'city-blessing'; who?: ScopeWho } ; a per-player sticky designation slot on Player (e.g. designations: Set<'city-blessing' | 'monarch' | 'initiative'>) ; a KEYWORD_EXPANSIONS entry for 'ascend'",
+      "semantics": "CR 702.131a/b: on an instant or sorcery Ascend is a spell ability checked on resolution; on a permanent it is a static ability checked continuously (any time you control ten or more permanents). The city's blessing is a DESIGNATION, not a counter or a permanent state, and once gained it is never lost — that stickiness is exactly why { kind: 'controls', who: 'you', filter: {}, atLeast: 10 } is not a faithful stand-in. Once the Condition exists it plugs into every place this batch needs it: a triggered ability's intervening (Twilight Prophet), anthem.condition (Tendershoot Dryad, Illustrious Wanderglyph), activateOnlyIf (Arch of Orazca), a conditional inside an effect list (Anduril, Vona's Hunger) and self-keywords.condition (Wayward Swordtooth). A shared designation slot would also give the existing become-monarch op a readable Condition, which it lacks today.",
+      "cr": "702.131a, 702.131b, 800.4",
+      "clause": "\"Ascend\" and every \"if you have the city's blessing\" / \"as long as you have the city's blessing\" / \"unless you have the city's blessing\" / \"Activate only if you have the city's blessing\" clause"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

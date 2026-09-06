@@ -1,0 +1,23 @@
+{
+  "oracleId": "ffe13100-99dd-41e3-82ba-eaead6fd0113",
+  "name": "Rootcast Apprenticeship",
+  "clause": "• Target player creates a 1/1 green Squirrel creature token. • Target opponent sacrifices a nontoken artifact of their choice.",
+  "needs": [
+    {
+      "opFamily": "modal-targets",
+      "proposedSignature": "{ op: 'choose-mode'; modes: Effect[][]; count: Amount; repeat?: boolean; upTo?: boolean; notChosen?: 'this-turn' | 'ever'; weights?: number[] } — the CORE modal op gains the family flags, and legal.ts:modeCombos(n, k) enumerates k-combinations (k-MULTIsets when `repeat`) instead of the pairs it returns today for every k >= 2",
+      "semantics": "A modal spell whose modes take targets and whose header says 'Choose three' / 'You may choose the same mode more than once' / 'choose up to five {P} worth of modes'. The core op already expands the chosen modes into the item's effect list before targets are chosen (legal.ts:expandModes), so a mode's `counter` / `bounce` / `damage` keeps a real target; today only the family `choose-modes` can say `repeat` / `weights` / `notChosen`, and its modes are never offered a target because legal.ts:nestedLists does not descend into a family op's lists. Either descend into `choose-modes.modes` for targeting (asking for every mode's targets at cast, CR 601.2b) or lift the flags onto the core op.",
+      "cr": "700.2, 700.2d, 700.2i, 601.2b",
+      "clause": "Choose three. You may choose the same mode more than once. • Counter target spell unless its controller pays {3}."
+    },
+    {
+      "opFamily": "player-choice-scope",
+      "proposedSignature": "{ op: 'scoped'; who: ScopeWho | 'an-opponent' | 'a-player'; do: Effect[] } — the family ChoiceWho words accepted by `scoped` (and by `sacrifice` / `draw` / `discard`'s `who`), resolved by asking the acting player which opponent as the effect applies",
+      "semantics": "Make a player who is NOT a target do something: 'Target player creates a 1/1 green Squirrel creature token', 'Target opponent sacrifices a nontoken artifact of their choice' inside a modal list, and every 'an opponent <verb>s' clause. Today only the piles-choices choice ops take 'an-opponent', and none of them makes a player act; `scoped 'target-player'` needs a target requirement that a family mode never raises.",
+      "cr": "700.2e, 608.2f, 701.16",
+      "clause": "• Target player creates a 1/1 green Squirrel creature token."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

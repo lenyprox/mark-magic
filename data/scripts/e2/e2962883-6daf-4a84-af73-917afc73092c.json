@@ -1,0 +1,115 @@
+{
+  "oracleId": "e2962883-6daf-4a84-af73-917afc73092c",
+  "name": "Shorikai, Genesis Engine",
+  "oracleHash": "fd1f02dd",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}"
+        },
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "loot",
+          "draw": 2,
+          "discard": 1
+        },
+        {
+          "op": "token",
+          "count": 1,
+          "power": 1,
+          "toughness": 1,
+          "colors": [],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Pilot"
+          ],
+          "keywords": [],
+          "text": "This token crews Vehicles as though its power were 2 greater."
+        }
+      ],
+      "text": "{1}, {T}: Draw two cards, then discard a card. Create a 1/1 colorless Pilot creature token with \"This token crews Vehicles as though its power were 2 greater.\""
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "tapCreaturesTotalPower": {
+          "power": 8,
+          "other": false
+        }
+      },
+      "effects": [
+        {
+          "op": "crew-self"
+        }
+      ],
+      "text": "Crew 8",
+      "instantSpeed": true
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "draw",
+    "value": 5,
+    "timing": "main"
+  },
+  "notes": "PARTIAL. The Pilot token's own ability (\"crews Vehicles as though its power were 2 greater\") is carried only as the token's `text`: the `token` op has no `abilities` field and the engine has no crew-power modifier, so the token is a plain 1/1 Pilot. Everything else — the {1},{T} loot, the token, Crew 8 — is real.",
+  "verification": {
+    "at": "2026-09-06T06:15:15.552Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "fd1f02dd",
+    "scriptHash": "027e913e",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "{1}, {T}: Draw two cards, then discard a card. Create a 1/1 colorless Pilot creature token with \"This token crews Vehicles as though its power were 2 greater.\"",
+          "rendered": "{1}, {T}: draw 2 cards, then discard 1 card. create a 1/1 Pilot creature token",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"{1}, {T}: Draw two cards, then discard a card. Create a 1/1 colorless Pilot creature token with \\\"This token crews Vehicles as though its power were 2 greater.\\\"\" rendered as \"{1}, {T}: draw 2 cards, then discard 1 card. create a 1/1 Pilot creature token\""
+    ]
+  }
+}

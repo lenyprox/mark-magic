@@ -1,0 +1,143 @@
+{
+  "oracleId": "04eeb9ad-5c59-411b-8809-db8349838588",
+  "name": "Westvale Abbey // Ormendahl, Profane Prince",
+  "scenarios": [
+    {
+      "name": "Westvale Abbey taps for the colorless mana that pays a creature spell",
+      "cr": "605.1a",
+      "ruling": "{T}: Add {C} is a mana ability, so the Abbey can be tapped for the generic half of Grizzly Bears' {1}{G} while the Forest pays the {G}.",
+      "seats": [
+        {
+          "bf": ["Westvale Abbey // Ormendahl, Profane Prince", "Forest"],
+          "hand": ["Grizzly Bears"]
+        },
+        {}
+      ],
+      "script": [
+        { "cast": "Grizzly Bears" },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "zone": ["Grizzly Bears", "battlefield"] },
+        { "tapped": ["Westvale Abbey // Ormendahl, Profane Prince", true] },
+        { "tapped": ["Forest", true] },
+        { "mana": [0, ""] },
+        { "handCount": [0, 0] },
+        { "zoneCount": [0, "battlefield", 3] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Westvale Abbey pays five mana, taps and pays 1 life for a 1/1 Human Cleric",
+      "cr": "111.1",
+      "ruling": "{5}, {T}, Pay 1 life creates one 1/1 white and black Human Cleric creature token, so the controller drops to 19 life and gains a 1/1 Human Cleric.",
+      "seats": [
+        {
+          "bf": [
+            "Westvale Abbey // Ormendahl, Profane Prince",
+            "Mountain",
+            "Mountain",
+            "Mountain",
+            "Mountain",
+            "Mountain"
+          ]
+        },
+        {}
+      ],
+      "script": [
+        { "activate": "Westvale Abbey // Ormendahl, Profane Prince", "ability": 1 },
+        { "resolve": true }
+      ],
+      "expect": [
+        { "life": [0, 19] },
+        { "zone": ["Human Cleric", "battlefield"] },
+        { "pt": ["Human Cleric", 1, 1] },
+        { "events": { "type": "create-token", "min": 1, "max": 1 } },
+        { "zoneCount": [0, "battlefield", 7] },
+        { "tapped": ["Westvale Abbey // Ormendahl, Profane Prince", true] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Sacrificing five creatures transforms Westvale Abbey into Ormendahl and untaps it",
+      "cr": "701.28a",
+      "ruling": "The five creatures are sacrificed as a cost, then the ability turns the permanent over so its Ormendahl face is up and untaps it, even though {T} was part of the cost.",
+      "seats": [
+        {
+          "bf": [
+            "Westvale Abbey // Ormendahl, Profane Prince",
+            "Mountain",
+            "Mountain",
+            "Mountain",
+            "Mountain",
+            "Mountain",
+            "Grizzly Bears",
+            "Grizzly Bears",
+            "Grizzly Bears",
+            "Grizzly Bears",
+            "Grizzly Bears"
+          ]
+        },
+        {}
+      ],
+      "script": [
+        { "activate": "Westvale Abbey // Ormendahl, Profane Prince", "ability": 2 },
+        { "resolve": true }
+      ],
+      "expect": [
+        {
+          "keywords": [
+            "Westvale Abbey // Ormendahl, Profane Prince",
+            ["flying", "lifelink", "indestructible", "haste"]
+          ]
+        },
+        { "tapped": ["Westvale Abbey // Ormendahl, Profane Prince", false] },
+        { "graveyardCount": [0, 5] },
+        { "zoneCount": [0, "battlefield", 6] },
+        { "unsimulated": 0 }
+      ]
+    },
+    {
+      "name": "Ormendahl's flying refuses a ground blocker",
+      "cr": "702.9b",
+      "ruling": "The transformed face is a Demon with flying, lifelink, indestructible and haste, so a creature without flying or reach cannot block it.",
+      "seats": [
+        {
+          "bf": [
+            "Westvale Abbey // Ormendahl, Profane Prince",
+            "Mountain",
+            "Mountain",
+            "Mountain",
+            "Mountain",
+            "Mountain",
+            "Grizzly Bears",
+            "Grizzly Bears",
+            "Grizzly Bears",
+            "Grizzly Bears",
+            "Grizzly Bears"
+          ]
+        },
+        { "bf": ["Grizzly Bears"] }
+      ],
+      "script": [
+        { "activate": "Westvale Abbey // Ormendahl, Profane Prince", "ability": 2 },
+        { "resolve": true },
+        {
+          "attack": ["Westvale Abbey // Ormendahl, Profane Prince"],
+          "refused": [["Grizzly Bears", "Westvale Abbey // Ormendahl, Profane Prince"]]
+        }
+      ],
+      "expect": [
+        {
+          "keywords": [
+            "Westvale Abbey // Ormendahl, Profane Prince",
+            ["flying", "lifelink", "indestructible", "haste"]
+          ]
+        },
+        { "zone": ["Westvale Abbey // Ormendahl, Profane Prince", "battlefield"] },
+        { "events": { "type": "damage", "min": 1 } },
+        { "unsimulated": 0 }
+      ]
+    }
+  ]
+}

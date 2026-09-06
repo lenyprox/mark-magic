@@ -1,0 +1,23 @@
+{
+  "oracleId": "bcbe879a-4609-4493-bd7d-47c26d27e83c",
+  "name": "Bandit's Talent",
+  "clause": "When this Class enters, each opponent discards two cards unless they discard a nonland card. / At the beginning of your draw step, draw an additional card for each opponent who has one or fewer cards in hand.",
+  "needs": [
+    {
+      "opFamily": "filtered-discard-cost",
+      "proposedSignature": "`AbilityCost.discard` widens from a number to `number | { count: number; filter?: Filter }`, so an unless-pays cost can be 'discard a nonland card'",
+      "semantics": "'… unless they discard a nonland card' is a cost with a filter on what may pay it. AbilityCost.discard is NUMX today, so unless-pays can only ask for a count of arbitrary cards and the card's actual choice (which card qualifies) is lost.",
+      "cr": "118.12, 701.8, 601.2h",
+      "clause": "When this Class enters, each opponent discards two cards unless they discard a nonland card."
+    },
+    {
+      "opFamily": "players-matching-count",
+      "proposedSignature": "`Amount` gains `{ count: 'players'; who: ScopeWho; where: Condition }` — the number of the named players for whom the condition holds",
+      "semantics": "'Draw an additional card for each opponent who has one or fewer cards in hand.' count:'opponents' is every opponent unconditionally and count:'objects' counts objects, so a per-player predicate ('each opponent with no cards in hand', 'each player who lost life this turn') cannot be counted. The condition vocabulary already has the predicates (cards-in-hand-le, life-le, …); only the aggregation over players is missing.",
+      "cr": "107.1a, 101.4",
+      "clause": "At the beginning of your draw step, draw an additional card for each opponent who has one or fewer cards in hand."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

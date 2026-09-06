@@ -1,0 +1,130 @@
+{
+  "oracleId": "8d72ddb3-ef6e-4847-b6d4-5d85b1dd5802",
+  "name": "Starscape Cleric",
+  "oracleHash": "07c40f50",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "kicker": {
+    "generic": 2,
+    "x": 0,
+    "pips": [
+      "B"
+    ],
+    "hybrid": [],
+    "phyrexian": [],
+    "raw": "{2}{B}"
+  },
+  "keywords": [
+    "flying",
+    "cant block"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "kicked"
+          },
+          "then": [
+            {
+              "op": "token-copy",
+              "target": "self",
+              "count": 1
+            },
+            {
+              "op": "set-pt",
+              "target": "that",
+              "power": 1,
+              "toughness": 1,
+              "base": true,
+              "duration": "permanent"
+            }
+          ]
+        }
+      ],
+      "text": "Offspring {2}{B}"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "life-gain"
+      },
+      "effects": [
+        {
+          "op": "lose-life",
+          "amount": 1,
+          "who": "each-opponent"
+        }
+      ],
+      "text": "Whenever you gain life, each opponent loses 1 life."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flying",
+      "by": "keywords"
+    },
+    {
+      "line": "~ can't block.",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "Offspring {N} is an optional additional cost (the `kicker` declaration) plus an ETB trigger conditional on `kicked` that creates a token copy of this creature and sets its base power and toughness to 1/1 (CR 702.175a). The renderer has no rules text for the printed keyword `offspring`, so the line scores 0 in the round trip and the card cannot reach `verified` however faithful the script is — see toolProblems for wave 10.1.1 batch 011.",
+  "verification": {
+    "at": "2026-09-06T06:12:45.428Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "07c40f50",
+    "scriptHash": "78d81dbb",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "trigger fired in the 'misc' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Offspring {2}{B}",
+          "rendered": "when ~ enters, if it was kicked, create a token that's a copy of ~. that permanent has base power and toughness 1/1",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Offspring {2}{B}\" rendered as \"when ~ enters, if it was kicked, create a token that's a copy of ~. that permanent has base power and toughness 1/1\""
+    ]
+  }
+}

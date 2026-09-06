@@ -1,0 +1,16 @@
+{
+  "oracleId": "486bb9a5-73f1-4cec-b097-fb07ac80b72e",
+  "name": "Ojer Taq, Deepest Foundation // Temple of Civilization",
+  "clause": "If one or more creature tokens would be created under your control, three times that many of those tokens are created instead.",
+  "needs": [
+    {
+      "opFamily": "token-multiplier",
+      "proposedSignature": "{ kind: 'tokens-replacement'; mode: 'double' | 'times'; factor?: number; filter?: Filter; who?: 'you' | 'all' }",
+      "semantics": "CR 614.1a on token creation with an arbitrary multiplier plus a filter on which tokens and whose. game.ts:1372 currently hardcodes `n *= 2` for every tokens-replacement static on the battlefield, with no filter and no controller test, so 'If one or more CREATURE tokens would be created UNDER YOUR CONTROL, three times that many ... instead' has no form.",
+      "cr": "614.1a",
+      "clause": "If one or more creature tokens would be created under your control, three times that many of those tokens are created instead."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

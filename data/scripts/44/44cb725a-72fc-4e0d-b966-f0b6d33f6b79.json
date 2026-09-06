@@ -1,0 +1,101 @@
+{
+  "oracleId": "44cb725a-72fc-4e0d-b966-f0b6d33f6b79",
+  "name": "Ancient Gold Dragon",
+  "oracleHash": "4c059c61",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [
+    "flying"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "roll-die",
+          "sides": 20
+        },
+        {
+          "op": "token",
+          "count": {
+            "count": "roll-result"
+          },
+          "power": 1,
+          "toughness": 1,
+          "colors": [
+            "U"
+          ],
+          "types": [
+            "Creature"
+          ],
+          "subtypes": [
+            "Faerie",
+            "Dragon"
+          ],
+          "keywords": [
+            "flying"
+          ],
+          "name": "Faerie Dragon"
+        }
+      ],
+      "text": "Whenever ~ deals combat damage to a player, roll a d20. You create a number of 1/1 blue Faerie Dragon creature tokens with flying equal to the result."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flying",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 5,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-06T10:00:56.042Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "4c059c61",
+    "scriptHash": "ba612a95",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.913,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": [],
+      "sampled": false
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

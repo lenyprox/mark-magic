@@ -1,0 +1,97 @@
+{
+  "oracleId": "48daee9d-ddaf-410f-8c3a-12fa1064ab56",
+  "name": "Ancient Copper Dragon",
+  "oracleHash": "7484c402",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [
+    "flying"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "roll-die",
+          "sides": 20
+        },
+        {
+          "op": "token",
+          "count": {
+            "count": "roll-result"
+          },
+          "power": 0,
+          "toughness": 0,
+          "colors": [],
+          "types": [
+            "Artifact"
+          ],
+          "subtypes": [
+            "Treasure"
+          ],
+          "keywords": [],
+          "treasure": true,
+          "name": "Treasure"
+        }
+      ],
+      "text": "Whenever ~ deals combat damage to a player, roll a d20. You create a number of Treasure tokens equal to the result."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flying",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 5,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-06T10:00:56.042Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "7484c402",
+    "scriptHash": "fb170696",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.833,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": [],
+      "sampled": false
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

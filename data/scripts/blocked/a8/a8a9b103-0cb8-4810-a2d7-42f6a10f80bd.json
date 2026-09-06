@@ -1,0 +1,16 @@
+{
+  "oracleId": "a8a9b103-0cb8-4810-a2d7-42f6a10f80bd",
+  "name": "Hunter's Talent",
+  "clause": "When this Class enters, target creature you control deals damage equal to its power to target creature you don't control.",
+  "needs": [
+    {
+      "opFamily": "damage-source-select",
+      "proposedSignature": "`{ op: 'bite', source?: TargetSpec | Ref, target: TargetSpec }` — when `source` is given, that object deals the damage instead of `src`",
+      "semantics": "'Target creature you control deals damage equal to its power to target creature you don't control' is a one-way fight between two objects the ability chooses. game.ts:1471 reads `const a = src.zone === 'battlefield' ? src : this.objs(T)[1]`, so the two-target form only works for a spell; a permanent's triggered ability always bites with the permanent itself. fight (game.ts:1470) is two-way and is not a substitute.",
+      "cr": "701.13, 119.3, 608.2h",
+      "clause": "When this Class enters, target creature you control deals damage equal to its power to target creature you don't control."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "9842734c-1eac-4509-a731-4c22017ae586",
+  "name": "Wear // Tear",
+  "clause": "Fuse",
+  "needs": [
+    {
+      "opFamily": "named-keyword:fuse",
+      "proposedSignature": "Face declaration `fuse?: true` on a split card + covers[].by kind 'fuse' anchored /^fuse$/ (the line is printed on BOTH faces, so the kind must claim it on the face and on secondFace), plus a cast plan in legal.ts:castActionsFor that offers faces[0]+faces[1] as one spell whose mana cost is the sum and whose resolution runs both faces' effect lists in printed order, each choosing its own targets. Plus KEYWORD_EXPANSIONS: fuse: 'you may cast one or both halves of this card from your hand'.",
+      "semantics": "Fuse lets a split card be cast from hand as a single spell that is both halves at once; it is neither an alternative cost (altCosts is one cost for one face) nor an additional cost, and secondFace today holds text no cast plan ever reaches. Without it every fused split card carries an unclaimable printed line on each of its two faces.",
+      "cr": "702.102a, 601.2b, 608.2, 709.4",
+      "clause": "Fuse"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

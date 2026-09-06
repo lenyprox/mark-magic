@@ -1,0 +1,23 @@
+{
+  "oracleId": "bb9bb65e-504f-4edd-8d47-d0efa03e7d17",
+  "name": "Spectral Deluge",
+  "clause": "Foretell {1}{U}{U}",
+  "needs": [
+    {
+      "opFamily": "filter-amount-thresholds",
+      "proposedSignature": "`Filter.toughnessLE` / `toughnessGE` / `toughnessEQ` / `powerLE` / `powerGE` / `powerEQ` widen from `number` to `Amount` (as `mvLE` / `mvEQ` already are).",
+      "semantics": "'Return each creature your opponents control with toughness X or less to its owner's hand, where X is the number of Islands you control.' The power/toughness thresholds on Filter are plain numbers, so a threshold that is a count expression cannot be written; only mana value already accepts an Amount.",
+      "cr": "608.2h, 107.1b",
+      "clause": "Return each creature your opponents control with toughness X or less to its owner's hand, where X is the number of Islands you control."
+    },
+    {
+      "opFamily": "named-keyword:foretell",
+      "proposedSignature": "`ALT_COST_IDS` gains 'foretell' so a face can declare `altCosts: [{ id: 'foretell', label: 'foretell', cost: { mana: <foretell cost> }, from: 'exile' }]`; `COVER_LINE_RE.altCosts` gains /^foretell (\\{.+\\})$/ so a `covers` entry `{ by: 'altCosts' }` claims the printed line; a special action (during your turn, pay {2}, exile the card from hand face down) registered by the family; conditions `{ kind: 'foretold' }` and `{ kind: 'cast-from', zone: 'exile' }`; a trigger `{ on: 'foretell', who: 'you' | 'any' }`; and a KEYWORD_EXPANSIONS entry `foretell: 'during your turn, you may pay {2} and exile ~ from your hand face down. cast it on a later turn for {cost}'`.",
+      "semantics": "CR 702.143a-c. Foretell is an alternative cast from exile plus a hand→exile-face-down special action gated to your own turn. None of it exists: AltCost.id has no 'foretell' (only ALT_COST_FROM was widened to 'exile' for it), no covers shape matches 'Foretell {1}{U}', and the renderer has no rules text, so the printed line scores 0 and every foretell card is capped below the 0.55 gate (measured on Doomskar: schema/lint/sandbox all ok, roundTrip 0.00, gap keyword:foretell). Four of the batch's spells also branch on how they were cast ('If this spell was cast from exile', 'If this spell was foretold'), which needs the two conditions; Dream Devourer GRANTS foretell with a derived cost and triggers on 'whenever you foretell a card'.",
+      "cr": "702.143a-c, 601.2, 118.9, 116.2b",
+      "clause": "Foretell {1}{W}{W} (During your turn, you may pay {2} and exile this card from your hand face down. Cast it on a later turn for its foretell cost.)"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

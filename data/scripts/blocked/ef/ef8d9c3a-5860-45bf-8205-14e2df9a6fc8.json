@@ -1,0 +1,23 @@
+{
+  "oracleId": "ef8d9c3a-5860-45bf-8205-14e2df9a6fc8",
+  "name": "Nulldrifter",
+  "clause": "Annihilator 1",
+  "needs": [
+    {
+      "opFamily": "cast-trigger-self",
+      "proposedSignature": "The existing `cast` trigger event gains a self form: `{ on: 'cast'; self: true }` (mutually exclusive with `filter` / `who`), fired as the spell is put on the stack, its ability going on the stack ABOVE the spell so it resolves first.",
+      "semantics": "'When you cast this spell, draw four cards.' The trigger is about the spell ITSELF, so no Filter can name it: `{ on: 'cast', filter, who }` matches other spells the player casts and would fire on every one of them. Eight cards in this batch alone print the wording, and every one of those lines is unparsed today. It is the standard Eldrazi cast trigger (Kozilek, Artisan of Kozilek, Ulamog, Nulldrifter, Flayer of Loyalties, Hideous Taskmaster, Breaker of Creation) and appears far beyond this batch.",
+      "cr": "603.2, 601.2i, 608.2",
+      "clause": "When you cast ~, draw four cards."
+    },
+    {
+      "opFamily": "named-keyword:annihilator",
+      "proposedSignature": "A face declaration `annihilator?: number | Amount`; a `covers[].by` kind `annihilator` whose anchored line shape is /^annihilator (\\d+|x)$/; the Keyword union gains 'annihilator' with a parameter slot so `grant-keyword` / `pump.keywords` / `anthem.keywords` / `aura.keywords` / `equipment.keywords` can grant it as `{ keyword: 'annihilator', n: Amount }`; a ScopeWho (or sacrifice `who`) value `'defending-player'`; and a KEYWORD_EXPANSIONS entry `annihilator: 'whenever ~ attacks, defending player sacrifices {n} permanents of their choice'`.",
+      "semantics": "CR 702.86a. Whenever a creature with annihilator N attacks, the DEFENDING PLAYER sacrifices N permanents of their choice. Three separate gaps: (1) no Keyword / declaration / covers kind names it, so the printed line 'Annihilator N' can be claimed by nothing; (2) the renderer has no rules text for it, so any ability that claims the line scores 0 and the card is capped below the 0.55 gate (measured on Ulamog's Crusher: a correct attacks trigger rendered as 'whenever ~ attacks, each opponent sacrifices 2 creatures' still scored 0.00 with gap keyword:annihilator); (3) 'defending player' is not a ScopeWho — `each-opponent` is the only approximation and is wrong at three or more seats. Ulamog, the Defiler needs the amount to be an Amount (a +1/+1 counter count), and Eldrazi Conscription / Flayer of Loyalties / Hideous Taskmaster / Nazgûl Battle-Mace need it GRANTED with its number to another permanent.",
+      "cr": "702.86a, 509.1, 613.1f",
+      "clause": "Annihilator 2 (Whenever this creature attacks, defending player sacrifices two permanents of their choice.)"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

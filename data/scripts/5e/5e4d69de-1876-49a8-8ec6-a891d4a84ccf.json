@@ -1,0 +1,145 @@
+{
+  "oracleId": "5e4d69de-1876-49a8-8ec6-a891d4a84ccf",
+  "name": "Komainu Battle Armor",
+  "oracleHash": "37099c3d",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [
+    "menace"
+  ],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "equipment",
+        "power": 2,
+        "toughness": 2,
+        "keywords": [
+          "menace"
+        ],
+        "equipCost": {
+          "generic": 4,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{4}"
+        }
+      },
+      "text": "Equipped creature gets +2/+2 and has menace."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "or",
+        "events": [
+          {
+            "on": "combat-damage-player",
+            "self": true
+          },
+          {
+            "on": "combat-damage-player",
+            "self": false,
+            "filter": {
+              "attachedToSource": true
+            }
+          }
+        ]
+      },
+      "effects": [
+        {
+          "op": "for-each",
+          "over": {
+            "types": [
+              "Creature"
+            ],
+            "who": "that-player"
+          },
+          "do": [
+            {
+              "op": "goad",
+              "target": "that"
+            }
+          ]
+        }
+      ],
+      "text": "Whenever ~ or equipped creature deals combat damage to a player, goad each creature that player controls."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 4,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{4}"
+        }
+      },
+      "effects": [
+        {
+          "op": "attach-self",
+          "target": {
+            "kind": "creature",
+            "controller": "you"
+          }
+        }
+      ],
+      "sorcerySpeed": true,
+      "text": "Reconfigure {4}"
+    }
+  ],
+  "notes": "Reconfigure {4} scripted as its rules text (sorcery-speed attach).",
+  "verification": {
+    "at": "2026-09-06T06:16:28.918Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "37099c3d",
+    "scriptHash": "bc74a5b7",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Reconfigure {4}",
+          "rendered": "{4}: attach ~ to target creature you control. activate only as a sorcery",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Reconfigure {4}\" rendered as \"{4}: attach ~ to target creature you control. activate only as a sorcery\""
+    ]
+  }
+}

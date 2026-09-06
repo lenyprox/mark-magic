@@ -1,0 +1,16 @@
+{
+  "oracleId": "93056597-b964-421f-be2f-e92abef1c2a4",
+  "name": "Emeritus of Woe // Demonic Tutor",
+  "clause": "At the beginning of your end step, if two or more creatures died this turn, ~ becomes prepared.",
+  "needs": [
+    {
+      "opFamily": "condition-amount",
+      "proposedSignature": "{ kind: 'amount-ge', amount: Amount, value: number } (and its 'amount-le' twin)",
+      "semantics": "CR 603.4 intervening-if clauses that compare a count against a number: 'if two or more creatures died this turn' (Amount.count 'creatures-died-this-turn'), 'if there are thirty or more counters among artifacts and creatures you control' (Amount.count 'counters-on-permanents' with a filter). Both counts already exist as Amounts; no Condition kind compares one against a value, so these lines are unknown.",
+      "cr": "603.4",
+      "clause": "if two or more creatures died this turn"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

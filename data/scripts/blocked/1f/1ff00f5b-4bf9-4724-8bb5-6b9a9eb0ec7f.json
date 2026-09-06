@@ -1,0 +1,23 @@
+{
+  "oracleId": "1ff00f5b-4bf9-4724-8bb5-6b9a9eb0ec7f",
+  "name": "Replicating Ring",
+  "clause": "At the beginning of your upkeep, put a night counter on ~. Then if it has eight or more night counters on it, remove all of them and create eight colorless snow artifact tokens named Replicated Ring with \"{T}: Add one mana of any color.\"",
+  "needs": [
+    {
+      "opFamily": "counters-threshold",
+      "proposedSignature": "{ kind: 'counters-ge'; counter: string; value: number; of?: Ref } (Condition), with the matching removal amount { count: 'counters-on-source', counter } already available",
+      "semantics": "holds when the referenced object (default the source) carries `value` or more counters of that name — 'Then if it has eight or more night counters on it, remove all of them …'; the existing self-has-counters / self-no-counters / self-had-counters are presence-only and the lore/level variants are counter-specific",
+      "cr": "122.1, 603.4",
+      "clause": "At the beginning of your upkeep, put a night counter on ~. Then if it has eight or more night counters on it, remove all of them and create eight colorless snow artifact tokens named Replicated Ring with \"{T}: Add one mana of any color.\""
+    },
+    {
+      "opFamily": "token-abilities",
+      "proposedSignature": "{ op: 'token'; …; supertypes?: string[]; abilities?: Ability[] } — a created token that carries its own printed abilities (and supertypes) instead of the inert `text` string",
+      "semantics": "'create eight colorless snow artifact tokens named Replicated Ring with \"{T}: Add one mana of any color.\"': TOKEN_ABILITIES only knows the predefined tokens (_tokens.ts), so a token's `text` field is decorative and such tokens do nothing at all; `supertypes` is needed for 'snow' (and for snow-matters cards that count them)",
+      "cr": "111.4, 205.4a",
+      "clause": "create eight colorless snow artifact tokens named Replicated Ring with \"{T}: Add one mana of any color.\""
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

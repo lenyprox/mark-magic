@@ -1,0 +1,16 @@
+{
+  "oracleId": "bafc2e11-5f1c-46f1-a852-2330e099b8e2",
+  "name": "Markov Baron",
+  "clause": "Madness {2}{B}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:madness",
+      "proposedSignature": "AltCost.id gains 'madness' ({ id: 'madness', label: 'madness', cost, from: 'exile' }) plus a discard replacement static { kind: 'discard-replacement', instead: 'exile-then-may-cast' } that exiles the discarded card and creates a reflexive trigger to cast it for its madness cost.",
+      "semantics": "If a player would discard this card, they discard it into exile instead. When they do, they may cast it for its madness cost; if they don't, it goes to the graveyard.",
+      "cr": "702.35a-702.35c",
+      "clause": "Madness {1}{B}{B}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "73e7a2ad-d11c-4867-b97d-f971809da778",
+  "name": "Glacial Chasm",
+  "clause": "Cumulative upkeep—Pay 2 life.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:cumulative upkeep",
+      "proposedSignature": "widen the existing core op: { op: 'sacrifice-unless-pay'; cost: AbilityCost; perCounter?: string; addMana?: ManaSymbol[]; energy?: number; once?: 'echo' } — `cost` replaces today's `mana: ManaCost` so payLife / discard / sacrifice / exile upkeep costs are expressible, `perCounter` keeps scaling them per age counter, and `addMana` covers the one printed upkeep cost that is PAID BY producing mana (Braid of Fire).",
+      "semantics": "CR 702.24a: 'Cumulative upkeep [cost]' means 'At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay [cost] for each age counter on it.' The op already exists and already scales a MANA cost per age counter (`perCounter`), so this is a widening of one field plus one new cost form, not a new family. A script would then write the trigger itself: [{ op: 'counters', target: 'self', counter: 'age', amount: 1 }, { op: 'sacrifice-unless-pay', cost: { payLife: 2 }, perCounter: 'age' }].",
+      "cr": "702.24a",
+      "clause": "Cumulative upkeep—Pay 2 life. / Cumulative upkeep—Add {R}."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

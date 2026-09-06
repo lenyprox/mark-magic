@@ -1,0 +1,79 @@
+{
+  "oracleId": "1e51fab7-3ca5-4fbb-a1e9-b39c842895e8",
+  "name": "Cyberman Patrol",
+  "oracleHash": "6a652882",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "grant-ability",
+        "scope": "you-control",
+        "filter": {
+          "types": [
+            "Artifact",
+            "Creature"
+          ],
+          "typesAll": true
+        },
+        "ability": {
+          "kind": "triggered",
+          "event": {
+            "on": "becomes-blocked",
+            "self": true
+          },
+          "effects": [
+            {
+              "op": "lose-life",
+              "amount": 3,
+              "who": "defending-player"
+            }
+          ],
+          "text": "Whenever ~ becomes blocked, defending player loses 3 life."
+        }
+      },
+      "text": "Artifact creatures you control have afflict 3."
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "Afflict 3 (CR 702.131a) is exactly 'whenever this creature becomes blocked, defending player loses 3 life', so the line is a grant-ability static handing that trigger to every artifact creature its controller controls — Cyberman Patrol itself included, so the filter carries no 'other'. filter.typesAll makes 'Artifact, Creature' an AND (characteristics.ts:236); lose-life who 'defending-player' resolves to src.attacking (game.ts:1349), the player the granted creature was attacking when it became blocked. The engine has no 'afflict' keyword, so the trigger is written out.",
+  "verification": {
+    "at": "2026-09-06T06:01:45.669Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "6a652882",
+    "scriptHash": "80c9210d",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.4,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.40 < 0.55: \"Artifact creatures you control have afflict 3.\" rendered as \"artifact creature you control has \\\"whenever ~ becomes blocked, defending player loses 3 life\\\"\""
+    ]
+  }
+}

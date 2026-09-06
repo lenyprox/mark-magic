@@ -1,0 +1,16 @@
+{
+  "oracleId": "983caa3f-7089-4e66-825d-4086a5adb9bb",
+  "name": "Delay",
+  "clause": "Counter target spell. If the spell is countered this way, exile it with three time counters on it instead of putting it into its owner's graveyard. If it doesn't have suspend, it gains suspend.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:suspend",
+      "proposedSignature": "`{ op: 'suspend-object', what: Ref | TargetSpec, counters: Amount, grantSuspend?: true, from?: 'stack' | 'battlefield' | 'graveyard' | 'hand' }` — exile the named object with `counters` time counters and, with `grantSuspend`, give it suspend if it doesn't have it, so the two exile-zone triggers of CR 702.62a apply to it.",
+      "semantics": "Delay and Taigam suspend a card that never had suspend printed on it: the spell leaves the stack to exile with N time counters and gains the keyword. Today `counter` can only send the card to exile bare (`toExile`), `move` can add `withCounters: { counter: 'time', … }` but the counters are inert, and no op grants a keyword to a card outside the battlefield.",
+      "cr": "702.62a",
+      "clause": "If it doesn't have suspend, it gains suspend."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

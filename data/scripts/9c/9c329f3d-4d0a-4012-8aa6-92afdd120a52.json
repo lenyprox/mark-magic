@@ -1,0 +1,124 @@
+{
+  "oracleId": "9c329f3d-4d0a-4012-8aa6-92afdd120a52",
+  "name": "Blade of Selves",
+  "oracleHash": "7eb26e35",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "grant-ability",
+        "enchanted": true,
+        "scope": "you-control",
+        "ability": {
+          "kind": "triggered",
+          "event": {
+            "on": "attacks",
+            "self": true
+          },
+          "effects": [
+            {
+              "op": "token-copy",
+              "target": "self",
+              "count": {
+                "count": "opponents",
+                "plus": -1
+              },
+              "attacking": "each-other-opponent"
+            },
+            {
+              "op": "delayed-trigger",
+              "at": "end-of-combat",
+              "bind": "that",
+              "effects": [
+                {
+                  "op": "remove-those",
+                  "how": "exile"
+                }
+              ]
+            }
+          ],
+          "text": "Myriad"
+        }
+      },
+      "text": "Equipped creature has myriad."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 4,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{4}"
+        }
+      },
+      "effects": [
+        {
+          "op": "attach-self",
+          "target": {
+            "kind": "creature",
+            "controller": "you"
+          }
+        }
+      ],
+      "text": "Equip {4}",
+      "sorcerySpeed": true
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "utility",
+    "value": 4,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-06T06:15:15.552Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "7eb26e35",
+    "scriptHash": "5d028eee",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.038,
+      "lowest": [
+        {
+          "text": "Equipped creature has myriad.",
+          "rendered": "enchanted permanent you control has \"whenever ~ attacks, create the number of opponents you have plus -1 tokens that's a copy of ~. at end of combat, exile them\"",
+          "score": 0.038
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.04 < 0.55: \"Equipped creature has myriad.\" rendered as \"enchanted permanent you control has \\\"whenever ~ attacks, create the number of opponents you have plus -1 tokens that's a copy of ~. at end of combat, exile them\\\"\""
+    ]
+  }
+}

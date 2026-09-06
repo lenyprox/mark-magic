@@ -1,0 +1,23 @@
+{
+  "oracleId": "0623c51a-e829-413f-a3a0-817c0902821e",
+  "name": "Call Forth the Tempest",
+  "clause": "Cascade, cascade",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "`Amount { count: 'mv-of-spells-cast-this-turn'; who?: ScopeWho; other?: boolean; filter?: Filter }` — the sum of the mana values of the spells cast this turn, `other: true` excluding the source spell itself",
+      "semantics": "\"equal to the total mana value of other spells you've cast this turn\" is a SUM over the mana values of this turn's spells. `Amount.count` has `spells-cast-this-turn`, which is a count of spells, and `mv-of-that`, which is one object's mana value; nothing sums a set. The engine already keeps `spellsCastThisTurn` per player, so the store would have to grow into a list of mana values (or a running total) for the turn.",
+      "cr": "202.3, 608.2",
+      "clause": "~ deals damage to each creature your opponents control equal to the total mana value of other spells you've cast this turn."
+    },
+    {
+      "opFamily": "named-keyword:cascade",
+      "proposedSignature": "widen the face declaration to `cascade?: boolean | number` (n instances) and add `COVER_LINE_RE.cascade = [/^cascade$/i, /^(?:cascade, )+cascade$/i]` with the value check `count(printed 'cascade' words) === (cascade === true ? 1 : cascade)`; game.ts:647 pushes the pending cascade trigger `n` times",
+      "semantics": "\"Cascade, cascade\" and \"Cascade, cascade, cascade, cascade\" are n separate instances of the keyword, each of which triggers separately when the spell is cast (CR 702.85b). `cascade` is a boolean today, so a card with more than one instance cannot be declared and its line cannot be covered. Scripting it as a self `{on:'cast'}` triggered ability is not an alternative: `queueTriggers` scans battlefield permanents only, so a spell's own cast trigger never fires, and on a permanent an unfiltered cast trigger would cascade on every spell its controller casts.",
+      "cr": "702.85a, 702.85b",
+      "clause": "Cascade, cascade, cascade, cascade"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

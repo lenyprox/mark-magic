@@ -1,0 +1,16 @@
+{
+  "oracleId": "16d40f56-691b-42a7-a5ab-157568921e03",
+  "name": "Ral, Monsoon Mage // Ral, Leyline Prodigy",
+  "clause": "+1: Until your next turn, instant and sorcery spells you cast cost {1} less to cast.",
+  "needs": [
+    {
+      "opFamily": "cost-alter",
+      "proposedSignature": "{ op: 'cost-alter-until', filter: Filter, amount: Amount, who: 'you' | 'opponent' | 'any', more?: true, duration: 'eot' | 'your-next-turn' }",
+      "semantics": "A resolved effect (a loyalty ability's, a spell's) that creates a cost-reduction continuous effect for a duration. cost-alter exists only as a static ability today, so 'Until your next turn, instant and sorcery spells you cast cost {1} less' cannot be written.",
+      "cr": "611.2, 601.2f",
+      "clause": "+1: Until your next turn, instant and sorcery spells you cast cost {1} less to cast."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

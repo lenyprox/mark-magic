@@ -1,0 +1,93 @@
+{
+  "oracleId": "6cb8b8c4-0674-4f14-9d89-010969fbb80e",
+  "name": "Grave Researcher // Reanimate",
+  "oracleHash": "b620600f",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "upkeep",
+        "whose": "your"
+      },
+      "effects": [
+        {
+          "op": "surveil",
+          "amount": 1
+        },
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "graveyard-ge",
+            "value": 3,
+            "filter": {
+              "types": [
+                "Creature"
+              ]
+            }
+          },
+          "then": [
+            {
+              "op": "become-prepared"
+            }
+          ]
+        }
+      ],
+      "text": "At the beginning of your upkeep, surveil 1. Then if there are three or more creature cards in your graveyard, ~ becomes prepared."
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "layout 'prepare': faces[1] is not one of SECOND_FACE_LAYOUTS, so the sorcery half is not a face this format claims.",
+  "verification": {
+    "at": "2026-09-06T06:15:32.095Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "b620600f",
+    "scriptHash": "586e8c90",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'turn' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.905,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/6c/6cb8b8c4-0674-4f14-9d89-010969fbb80e.json",
+      "passed": 0,
+      "failed": 4,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "// Put target creature card from a graveyard onto the battlefield under your control. You lose life equal to that card's mana value. — expected The Reanimate half (face 2, Sorcery) must exist as a castable spell: a targeted 'move' of a creature card from ANY graveyard (not just yours) to the battlefield under the caster's control, followed by 'lose-life' (life loss, not damage) to the spell's controller equal to that card's mana value. — scripted Nothing. The script has exactly one ability (the upkeep trigger). The entire second face is absent, and there is no 'covers' or 'ignore' field claiming or disclaiming it. Blind scenario 4 confirms: threw 'scenario: Reanimate not found for P0'. — CR 712 / 601.2c (targets), 118.2 (life loss vs damage), 202.3b (mana value)",
+          "...this creature becomes prepared. (While it's prepared, you may cast a copy of its spell. Doing so unprepares it.) — expected Becoming prepared must create the playable copy of the card's spell (the reminder text is functional: it is what prepared DOES), and casting it must unprepare the permanent. — scripted {op:'become-prepared'} only sets an internal PREPARED marker (src/engine/ops/transform.ts:303-307) that nothing in the engine reads except a 'prepared' condition. No copy is created and nothing can ever be cast, so the clause is inert. Blind scenarios 1 and 3 fail on exactly this: 'P0 exile count 0 !== 1'. src/cards/rules/transform.ts:142-147 documents that the engine cannot build a CardDef for the prepare face at all — the script asserts a capability the core does not have. — CR 722.3a / 722.3b",
+          "script 'notes' + verification.status — expected A card whose second face and whose prepared-copy mechanism are both unimplementable should be blocked/needs-flagged, or at minimum carry an explicit 'ignore' entry for the unrepresented lines rather than a clean verified/0.85 record. — scripted notes rationalize the omission ('faces[1] is not one of SECOND_FACE_LAYOUTS, so the sorcery half is not a face this format claims'), yet verification.status = 'verified', confidence 0.85, roundTrip 0.905, covers/ignore absent. Renderer reports 0.91 and 'passes the 0.55 gate' because it only round-trips the one line that was scripted — the gate is blind to the dropped face. — CR n/a (process)",
+          "At the beginning of your upkeep, surveil 1. Then if there are three or more creature cards in your graveyard... — expected Correct as written — non-optional 'your upkeep' trigger, surveil 1 first, then an intervening-if-style check of YOUR graveyard for >= 3 creature cards, evaluated on resolution after the surveil. — scripted Faithful: event {on:'upkeep', whose:'your'}, surveil amount 1, then conditional graveyard-ge value 3 filter types [Creature] (characteristics.ts:467 scopes to me.graveyard, evaluated in order). This clause is NOT the defect; the verdict rests on the two clauses above. — CR 608.2, 701.42a"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

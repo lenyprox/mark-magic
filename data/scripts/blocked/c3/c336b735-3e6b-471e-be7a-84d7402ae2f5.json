@@ -1,0 +1,23 @@
+{
+  "oracleId": "c336b735-3e6b-471e-be7a-84d7402ae2f5",
+  "name": "Creative Technique",
+  "clause": "Demonstrate / Shuffle your library, then reveal cards from the top of it until you reveal a nonland card. Exile that card and put the rest on the bottom of your library in a random order.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "{ op: 'reveal-until', filter: Filter, who?: ScopeWho, take: 'exile' | 'hand' | 'battlefield', rest: 'bottom' | 'bottom-random' | 'graveyard' } - reveal cards from the top of the library until one matches `filter`, put that one where `take` says (binding it as `that`), and dispose of the rest",
+      "semantics": "'Reveal cards from the top of your library until you reveal a nonland card. Exile that card and put the rest on the bottom of your library in a random order.' has no op: `dig` looks at a FIXED number of cards, so an unbounded reveal-until-match is not expressible. The follow-up 'You may cast the exiled card without paying its mana cost' is already cast-free over exiled-with.",
+      "cr": "701.16, 701.19, 400.6",
+      "clause": "Shuffle your library, then reveal cards from the top of it until you reveal a nonland card. Exile that card and put the rest on the bottom of your library in a random order."
+    },
+    {
+      "opFamily": "named-keyword:demonstrate",
+      "proposedSignature": "a face declaration `demonstrate?: true` + a `covers[].by` kind 'demonstrate' (/^demonstrate$/) installing { on: 'cast', self: true } -> [{ op: 'may', effects: [{ op: 'copy-stack', target: 'self', newTargets: true }, { op: 'copy-stack', target: 'self', newTargets: true, controller: 'chosen-opponent' }] }]; the two new pieces are (a) copy-stack / copy-spell accepting the Ref 'self' (the spell being cast - today `target` is a TargetSpec only, and a spell cannot target itself) and (b) a `controller?: ScopeWho | 'chosen-opponent'` field so the second copy is controlled by an opponent the caster chooses; plus KEYWORD_EXPANSIONS['demonstrate']",
+      "semantics": "Demonstrate is a cast trigger: you may copy the spell, and if you do you choose an opponent who also copies it, each copier may choose new targets for their copy. Neither self-copying of the spell being cast nor an opponent-controlled copy is expressible.",
+      "cr": "702.144a, 707.10, 601.2",
+      "clause": "Demonstrate"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

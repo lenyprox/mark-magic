@@ -1,0 +1,23 @@
+{
+  "oracleId": "37c06f89-db36-4937-9404-2b07cd22e1a6",
+  "name": "Dawn's Truce",
+  "clause": "Gift a card",
+  "needs": [
+    {
+      "opFamily": "named-keyword:gift",
+      "proposedSignature": "a face declaration `gift?: { what: string; effects: Effect[] }` (the promise and what the promised opponent gets) + a `covers[].by` kind 'gift' anchored on /^gift (a|an) (.+)$/ + a Condition variant `{ kind: 'gift-promised'; not?: boolean }`; the promise is an optional cast-time choice recorded on the StackItem (alongside `kicked` / `castWith`) and the gift's effects resolve for the promised opponent before the spell's own effects",
+      "semantics": "As you cast the spell you may promise an opponent a gift (CR 702.176a). If you did, that opponent gets the named gift before the spell's other effects resolve, and later clauses on the same spell branch on whether the gift was promised (\"If the gift was promised, ...\" / \"If the gift wasn't promised, ...\"). Neither the promise nor the condition that reads it exists today, so both the printed keyword line and the conditional half of every gift card's body are unwritable. This is the same family already recorded for Bilbo's Gambit (data/scripts/blocked/ef/ef71ef07-8a35-41ec-a851-d95e9e3a221b.json); 11 more cards in this batch alone wait on it.",
+      "cr": "702.176",
+      "clause": "Gift a card / Gift a tapped Fish / Gift an Octopus / Gift an extra turn, and every \"If the gift was promised, ...\" clause"
+    },
+    {
+      "opFamily": "player-effects",
+      "proposedSignature": "`{ op: 'grant-player-keyword'; who: ScopeWho; keywords: ('hexproof' | 'shroud')[]; protectionFrom?: string[]; duration: 'eot' | 'until-your-next-turn' }` and `{ op: 'life-cant-change'; who: ScopeWho; duration: 'eot' | 'until-your-next-turn' }`",
+      "semantics": "A player — not a permanent — gains hexproof or protection from everything, and a player's life total is locked. Every keyword-granting op today (`pump`, `grant-keyword`, the `self-keywords` / `anthem` statics) targets objects; `ScopeWho` reaches players only for life, draw, discard and counters. \"Your life total can't change\" is a continuous effect that replaces every life change, for which there is no op at all.",
+      "cr": "702.11d, 702.16e, 118.5, 614.1",
+      "clause": "You and permanents you control gain hexproof until end of turn. / until your next turn, your life total can't change and you gain protection from everything"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

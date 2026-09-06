@@ -1,0 +1,16 @@
+{
+  "oracleId": "f434e266-d9d6-4058-96ff-a1bd4029d8dc",
+  "name": "Imposter Mech",
+  "clause": "You may have ~ enter as a copy of a creature an opponent controls, except it's a Vehicle artifact with crew 3 and it loses all other card types.",
+  "needs": [
+    {
+      "opFamily": "enter-as-copy-claim",
+      "proposedSignature": "`COVER_RULES.asEnters.lines` gains `^you may have ~ enter as a copy of (.+?)(?:, except .+?)?\\.?$`, satisfied by an `asEnters` entry of kind `enter-as-copy` (value check: `optional === true` plus the entry's `filter` / `who`); and `enter-as-copy.who` gains `'opponent'` for \"a creature an opponent controls\"",
+      "semantics": "The clone as-enters exists and works, but there is no way to CLAIM the line it implements: `covers[].by` has no kind for it (the `asEnters` kind's anchored shapes are all the tapped / counters / choose forms), and a replacement effect is not an ability, so no ability may claim it either. Every clone card therefore comes out `scripted` with a correct declaration and one permanently unclaimed line — Vizier of Many Faces (55bceb83) hit this in wave 10.0 and Auton Soldier hits it here with round trip 1.00. Separately, `who` is only 'you' | 'any', so Imposter Mech's \"a creature an OPPONENT controls\" cannot be declared at all without making the card strictly better than printed.",
+      "cr": "706.9, 614.1c, 601.3e",
+      "clause": "You may have ~ enter as a copy of any creature on the battlefield, except it isn't legendary, is an artifact in addition to its other types, and has myriad. / You may have ~ enter as a copy of a creature an opponent controls, except it's a Vehicle artifact with crew 3 and it loses all other card types."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

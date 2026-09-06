@@ -1,0 +1,16 @@
+{
+  "oracleId": "c4485bf9-e7ff-48b5-a983-02900939ee9d",
+  "name": "Spider-Sense",
+  "clause": "Web-slinging {U}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:web-slinging",
+      "proposedSignature": "AltCost id 'web-slinging': { id: 'web-slinging', label: 'web-slinging', cost: { mana: <printed>, returnToHand: { types: ['Creature'], tapped: true, controller: 'you' } }, from: 'hand' } + COVER_RULES.altCosts shape /^web-slinging (\\{.+\\})$/ + KEYWORD_EXPANSIONS['web-slinging'] = 'you may cast ~ for {cost} if you also return a tapped creature you control to its owner\\'s hand'",
+      "semantics": "An alternative cost (CR 118.9): pay the web-slinging mana cost and return a tapped creature you control to its owner's hand instead of paying the mana cost. AbilityCost.returnToHand already exists, so only the id, the covers shape and the expansion are missing.",
+      "cr": "702.184",
+      "clause": "Web-slinging {U}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "60c8a1d4-8d0a-4906-bcaf-d3a09d57c452",
+  "name": "Cryptolith Fragment // Aurora of Emrakul",
+  "clause": "At the beginning of your upkeep, if each player has 10 or less life, transform ~.",
+  "needs": [
+    {
+      "opFamily": "condition-quantifiers",
+      "proposedSignature": "{ kind: 'life-le' | 'life-ge'; who: 'you' | 'opponent' | 'any' | 'each-player' | 'each-opponent'; value: number }  plus a generic { kind: 'and'; conditions: Condition[] }",
+      "semantics": "characteristics.ts:411 `side` is `opps.some(...)`, so every 'opponent'/'any' condition is existential; there is no universal form and no AND combinator (only 'or'). 'if each player has 10 or less life' therefore has no faithful encoding - the closest one fires whenever a single player is low.",
+      "cr": "603.4, 101.4",
+      "clause": "At the beginning of your upkeep, if each player has 10 or less life, transform ~."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -118,7 +118,6 @@
     "tapped-unless"
   ],
   "altCosts": [
-    "buyback",
     "escape",
     "evoke",
     "impending",

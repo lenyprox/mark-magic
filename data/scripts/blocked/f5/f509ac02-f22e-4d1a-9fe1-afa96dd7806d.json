@@ -1,0 +1,23 @@
+{
+  "oracleId": "f509ac02-f22e-4d1a-9fe1-afa96dd7806d",
+  "name": "Thieving Skydiver",
+  "clause": "Kicker {X}. X can't be 0.",
+  "needs": [
+    {
+      "opFamily": "attachment",
+      "proposedSignature": "{ op: 'attach'; what: TargetSpec | Ref; to: TargetSpec | Ref | 'self' } plus a filter-shaped test on a bound object ({ kind: 'that-matches'; filter: Filter })",
+      "semantics": "attach a permanent the ability is already about to another permanent — 'If that artifact is an Equipment, attach it to ~' (Thieving Skydiver), 'attach that Equipment to it'; today attach-self attaches the SOURCE to a target and attach-to-that attaches the SOURCE to the bound object, and no condition asks whether the bound object matches a filter",
+      "cr": "701.3c, 702.6a",
+      "clause": "If that artifact is an Equipment, attach it to ~."
+    },
+    {
+      "opFamily": "filter-amounts",
+      "proposedSignature": "thread the item's X into filter evaluation: matchesFilter(s, o, f, source, x) so Filter.mvLE / mvEQ Amounts see the spell's or permanent's X (characteristics.ts:274 currently passes a literal 0, and legal.ts's target scan passes none)",
+      "semantics": "'gain control of target artifact with mana value X or less' — with the current evaluation mvLE:'X' silently means 'mana value 0 or less', so the clause cannot be written correctly; a lint rule rejecting an 'X' inside a Filter until this lands would also stop a script from claiming it wrongly",
+      "cr": "202.3b, 601.2b",
+      "clause": "gain control of target artifact with mana value X or less"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 2
+}

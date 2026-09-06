@@ -1,0 +1,23 @@
+{
+  "oracleId": "aa5e9269-b1db-4bf0-a548-24f999f60e44",
+  "name": "Inevitable Betrayal",
+  "clause": "Suspend 3—{1}{U}{U}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:suspend",
+      "proposedSignature": "AltCost `{ id: 'suspend', label, cost: ManaCost, from: 'hand', timeCounters: number }` (mirroring the existing `impending` altCost, which already carries `timeCounters` and is ticked in game.ts:462/765) + effect `{ op: 'suspend-self', counters: Amount }` + trigger `{ on: 'last-time-counter-removed', self: boolean }` + condition `{ kind: 'suspended', least?: number }` + TargetSpec kind `'suspended-card'` + covers kind `suspend` (or an extra altCosts row) with the anchored shape `^suspend (\\d+)[—-] ?(\\{.+\\})$`, matching on `timeCounters` and `cost.mana.raw`.",
+      "semantics": "Suspend N—[cost] is three abilities (CR 702.62a): a static ability in hand — if you could begin to cast this card from hand you may pay [cost] and exile it with N time counters on it, not using the stack; a triggered ability in exile — at the beginning of your upkeep, if this card is suspended, remove a time counter from it; and a triggered ability — when the last time counter is removed, if it's exiled, you may play it without paying its mana cost, and a creature spell cast this way gains haste until you lose control of it. A card is 'suspended' while it is in exile, has suspend and has a time counter on it (CR 702.62b).",
+      "cr": "702.62a",
+      "clause": "Suspend 3—{1}"
+    },
+    {
+      "opFamily": "search:other-players-library",
+      "proposedSignature": "widen `search` to `{ op: 'search'; …; who?: 'you' | 'that-controller' | 'target-opponent' | 'target-player'; controller?: 'you' | 'owner' }` — whose library is searched, and under whose control the found card is put.",
+      "semantics": "'Search target opponent's library for a creature card and put that card onto the battlefield under your control. Then that player shuffles.' `search` (src/cards/types.ts:231) can only search your own library (`who: 'you' | 'that-controller'`) and has no controller field, so the searcher and the controller of the found card cannot differ.",
+      "cr": "701.19a",
+      "clause": "Search target opponent's library for a creature card and put that card onto the battlefield under your control."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

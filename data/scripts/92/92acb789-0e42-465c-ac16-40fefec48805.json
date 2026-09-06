@@ -1,0 +1,132 @@
+{
+  "oracleId": "92acb789-0e42-465c-ac16-40fefec48805",
+  "name": "Llanowar Reborn",
+  "oracleHash": "cd343041",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "entersTapped": true,
+  "asEnters": [
+    {
+      "kind": "counters",
+      "counter": "+1/+1",
+      "amount": 1
+    }
+  ],
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": [
+            "G"
+          ]
+        }
+      ],
+      "text": "{T}: Add {G}.",
+      "manaAbility": true
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": false,
+        "filter": {
+          "types": [
+            "Creature"
+          ]
+        }
+      },
+      "effects": [
+        {
+          "op": "conditional",
+          "condition": {
+            "kind": "self-has-counters",
+            "counter": "+1/+1"
+          },
+          "then": [
+            {
+              "op": "may",
+              "effects": [
+                {
+                  "op": "counters",
+                  "target": "self",
+                  "counter": "+1/+1",
+                  "amount": -1
+                },
+                {
+                  "op": "counters",
+                  "target": "triggering",
+                  "counter": "+1/+1",
+                  "amount": 1
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "text": "Graft 1",
+      "optional": false
+    }
+  ],
+  "covers": [
+    {
+      "line": "~ enters tapped.",
+      "by": "entersTapped"
+    }
+  ],
+  "aiHints": {
+    "role": "mana",
+    "value": 2,
+    "timing": "main"
+  },
+  "notes": "Graft 1 (CR 702.58a) is two abilities and this format has no `graft` keyword: the static half is the asEnters `counters` entry (+1/+1, 1), the triggered half is the ability that claims the line. The move is spelled out as a pair of `counters` effects rather than `move-counters`, whose target is a chosen TargetSpec and which moves EVERY counter of that name — graft moves one, onto the creature that entered (`triggering`), and only while this land still has one (the `conditional`, CR 702.58a's intervening if). The line 'Graft 1' is a printed keyword line the renderer has no expansion for, so the round trip scores it 0 and reports the gap keyword:graft.",
+  "verification": {
+    "at": "2026-09-06T06:05:21.476Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "cd343041",
+    "scriptHash": "85c45b05",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Graft 1",
+          "rendered": "whenever creature enters, if ~ has a +1/+1 counter on it, you may put -1 +1/+1 counters on ~. put a +1/+1 counter on that permanent",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Graft 1\" rendered as \"whenever creature enters, if ~ has a +1/+1 counter on it, you may put -1 +1/+1 counters on ~. put a +1/+1 counter on that permanent\""
+    ]
+  }
+}

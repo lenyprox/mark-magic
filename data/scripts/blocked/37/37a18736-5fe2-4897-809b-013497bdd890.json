@@ -1,0 +1,16 @@
+{
+  "oracleId": "37a18736-5fe2-4897-809b-013497bdd890",
+  "name": "Past in Flames",
+  "clause": "Each instant and sorcery card in your graveyard gains flashback until end of turn.",
+  "needs": [
+    {
+      "opFamily": "grant-alt-cost",
+      "proposedSignature": "Effect: { op: 'grant-alt-cost'; target: TargetSpec | Ref | { filter: Filter; zone: SetZone; who: ScopeWho }; altCost: AltCost | 'flashback-equal-to-mana-cost' | 'mayhem-equal-to-mana-cost'; duration: 'eot' | 'permanent' }  and StaticEffect: { kind: 'grant-alt-cost'; zone: SetZone; filter?: Filter; altCost: ... }",
+      "semantics": "Hands an alternative cost to OTHER cards, in a zone, either for a duration (Snapcaster Mage, Past in Flames) or as a static (Lier, Green Goblin). 'The flashback cost is equal to its mana cost' needs the cost to be derived per card rather than printed. Today `gain-ability` writes only on the source (game.ts:1327) and cost-alter's `cast-from` is an unconditional, non-exiling static with no duration, so every card of this shape either fails or would be scripted far stronger than it is.",
+      "cr": "702.34",
+      "clause": "Each instant and sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,23 @@
+{
+  "oracleId": "722e23d5-4f2a-43cd-bbd5-baf56b76e68d",
+  "name": "Parapet Thrasher",
+  "clause": "Whenever one or more Dragons you control deal combat damage to an opponent, choose one that hasn't been chosen this turn — • ~ deals 4 damage to each other opponent.",
+  "needs": [
+    {
+      "opFamily": "damage-scope",
+      "proposedSignature": "{ op: 'damage'; amount: Amount; target: … | 'each-other-opponent' } — every opponent of the source's controller EXCEPT the player the current trigger was about (`item.triggeringPlayer`)",
+      "semantics": "'~ deals 4 damage to each other opponent' on a trigger about one opponent. The existing group word 'each-opponent' includes the player who was just dealt combat damage, which in a two-player game turns a mode that should do nothing into 4 damage to the only opponent.",
+      "cr": "118.3, 608.2f",
+      "clause": "• ~ deals 4 damage to each other opponent."
+    },
+    {
+      "opFamily": "trigger-batching",
+      "proposedSignature": "{ on: 'combat-damage-player'; self?: boolean; filter?: Filter; batched?: true } — with `batched`, the event fires ONCE per combat-damage step per damaged player however many matching creatures dealt damage in it",
+      "semantics": "'Whenever one or more Dragons you control deal combat damage to an opponent, …'. The engine queues one `combat-damage-player` trigger per damage assignment (game.ts:2493), so a filtered trigger fires once per creature; the printed card triggers once for the whole simultaneous batch (CR 510.2). Without it the modal choice is offered once per Dragon.",
+      "cr": "509.4, 510.2, 603.2",
+      "clause": "Whenever one or more Dragons you control deal combat damage to an opponent, choose one that hasn't been chosen this turn —"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

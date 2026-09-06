@@ -1,0 +1,16 @@
+{
+  "oracleId": "44443716-8356-40cd-a879-35264b29108c",
+  "name": "Scheming Silvertongue // Sign in Blood",
+  "clause": "At the beginning of your second main phase, if you gained 2 or more life this turn, ~ becomes prepared.",
+  "needs": [
+    {
+      "opFamily": "trigger-phase",
+      "proposedSignature": "{ on: 'main-phase', whose: 'your' | 'each', which?: 'first' | 'second' | 'any' }",
+      "semantics": "CR 505: 'At the beginning of your second main phase, ...'. The transform family registers 'first-main-phase' only, so a second-main-phase trigger head has no event and the whole ability stays unknown.",
+      "cr": "505.1",
+      "clause": "At the beginning of your second main phase, if you gained 2 or more life this turn, ~ becomes prepared."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

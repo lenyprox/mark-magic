@@ -1,0 +1,98 @@
+{
+  "oracleId": "939556c8-e363-4453-a624-ca52b151467e",
+  "name": "Ancient Silver Dragon",
+  "oracleHash": "aa2dfd64",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [
+    "flying"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "roll-die",
+          "sides": 20
+        },
+        {
+          "op": "draw",
+          "amount": {
+            "count": "roll-result"
+          },
+          "who": "you"
+        },
+        {
+          "op": "gain-ability",
+          "ability": {
+            "kind": "static",
+            "effect": {
+              "kind": "no-max-hand-size"
+            },
+            "text": "You have no maximum hand size."
+          }
+        }
+      ],
+      "text": "Whenever ~ deals combat damage to a player, roll a d20. Draw cards equal to the result. You have no maximum hand size for the rest of the game."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Flying",
+      "by": "keywords"
+    }
+  ],
+  "aiHints": {
+    "role": "creature",
+    "value": 5,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-06T10:00:56.042Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "aa2dfd64",
+    "scriptHash": "097c06b8",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.731,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": [],
+      "sampled": false
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "You have no maximum hand size for the rest of the game. — expected A rest-of-the-game continuous effect on the CONTROLLER (CR 611.2 — duration is stated in the effect and is independent of the source; the dragon dying, being exiled, or changing controller must not end it). — scripted { op: 'gain-ability', ability: { kind: 'static', effect: { kind: 'no-max-hand-size' } } } with no duration. src/engine/game.ts:1327 pushes the granted ability onto the SOURCE permanent's grantedAbilities and only if src.zone === 'battlefield'; src/engine/game.ts:471 then reads no-max-hand-size by scanning p.battlefield. So the effect silently ends the moment the Dragon leaves the battlefield (or its controller changes), and the trigger no-ops entirely if the Dragon is already gone when the trigger resolves. Renders as \"it gains ...\", i.e. the Dragon, not you. No emblem/player-static op exists in the 10.1 vocabulary, so the clause is approximated rather than expressed. — CR 611.2, 611.2b"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

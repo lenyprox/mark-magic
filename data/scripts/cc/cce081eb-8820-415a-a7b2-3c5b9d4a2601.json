@@ -1,0 +1,114 @@
+{
+  "oracleId": "cce081eb-8820-415a-a7b2-3c5b9d4a2601",
+  "name": "Gala Greeters",
+  "oracleHash": "001cae8d",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": false,
+        "filter": {
+          "types": [
+            "Creature"
+          ]
+        },
+        "controller": "you"
+      },
+      "effects": [
+        {
+          "op": "choose-modes",
+          "count": 1,
+          "notChosen": "this-turn",
+          "labels": [
+            "Put a +1/+1 counter on ~.",
+            "Create a tapped Treasure token.",
+            "You gain 2 life."
+          ],
+          "modes": [
+            [
+              {
+                "op": "counters",
+                "target": "self",
+                "counter": "+1/+1",
+                "amount": 1
+              }
+            ],
+            [
+              {
+                "op": "token",
+                "count": 1,
+                "power": 0,
+                "toughness": 0,
+                "colors": [],
+                "types": [
+                  "Artifact"
+                ],
+                "subtypes": [
+                  "Treasure"
+                ],
+                "keywords": [],
+                "treasure": true,
+                "name": "Treasure",
+                "tapped": true
+              }
+            ],
+            [
+              {
+                "op": "gain-life",
+                "amount": 2,
+                "who": "you"
+              }
+            ]
+          ]
+        }
+      ],
+      "text": "Whenever another creature you control enters, choose one that hasn't been chosen this turn —"
+    }
+  ],
+  "verification": {
+    "at": "2026-09-06T10:06:03.841Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "001cae8d",
+    "scriptHash": "9e177d44",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.933,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/cc/cce081eb-8820-415a-a7b2-3c5b9d4a2601.json",
+      "passed": 0,
+      "failed": 4,
+      "names": []
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "blind scenario failure 'no object Treasure' / tapped assertion — expected the created Treasure to be addressable by name in the scenario harness — scripted token op does set tapped (game.ts:1380 passes tapped to enterBattlefield) and token.name='Treasure'; the harness resolves expectations by def.name and a token's def is the source card's, so this is a scenario-harness lookup limit, not a script defect — the create-token event, battlefield count and log all passed — CR 111.1",
+          "Alliance — Whenever another creature you control enters — expected another creature (not itself), controlled by you — scripted etb self:false + controller:'you'; game.ts:2270 etb branch enforces ctx.obj!==perm and same controller — CR 603.2"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "oracleId": "923d44a9-774d-459c-9cec-1d5b081b51f0",
+  "name": "Biomancer's Familiar",
+  "clause": "Activated abilities of creatures you control cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana. / {T}: The next time target creature adapts this turn, it adapts as though it had no +1/+1 counters on it.",
+  "needs": [
+    {
+      "opFamily": "ability-cost-alter",
+      "proposedSignature": "StaticEffect { kind: 'ability-cost-alter', amount: Amount, more?: true, who?: 'you' | 'opponent' | 'any', filter?: Filter, abilityKind?: 'activated' | 'mana' | 'loyalty', floorMana?: number }",
+      "semantics": "Change what ACTIVATED abilities of matching permanents cost to activate, with an optional floor ('This effect can't reduce the mana in that cost to less than one mana'). Today `cost-alter` (src/engine/ops/cost-alter.ts) and the core `cost-adjust` static only alter the cost of a SPELL being cast — they are folded into the cast payment plans legal.ts enumerates — and nothing at all touches the cost of activating an ability, so 'Activated abilities of creatures you control cost {2} less to activate' has no expression. The floor is part of the same effect because CR 601.2f/118.7 apply it after every reduction, not per reduction.",
+      "cr": "118.7, 601.2f, 602.2b",
+      "clause": "Activated abilities of creatures you control cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana."
+    },
+    {
+      "opFamily": "named-keyword:adapt",
+      "proposedSignature": "Effect { op: 'adapt-ignoring-counters', target: TargetSpec, times?: number, duration: 'eot' }  // or the general form { op: 'keyword-action-replacement', action: 'adapt', target, ignoreCounters: true, times: 1, duration: 'eot' }",
+      "semantics": "Adapt N (CR 702.131a) does nothing if the creature already has a +1/+1 counter on it. This effect makes the next N adaptations of a target creature this turn behave as though it had no +1/+1 counters, i.e. it is a replacement effect over a later keyword action. The `adapt` EFFECT exists in the keyword-action family, but nothing can modify how a later adapt resolves, and no Ref survives from an activated ability to a keyword action performed afterwards by a different source.",
+      "cr": "702.131a, 614.1",
+      "clause": "{T}: The next time target creature adapts this turn, it adapts as though it had no +1/+1 counters on it."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

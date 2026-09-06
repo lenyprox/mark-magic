@@ -1,0 +1,186 @@
+{
+  "oracleId": "f0ead7f5-5c82-40fd-8e89-3e3c5d31fbad",
+  "name": "Cleric Class",
+  "oracleHash": "f8c674c0",
+  "source": "llm",
+  "confidence": 0.75,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "lifegain-multiplier",
+        "plus": 1
+      },
+      "text": "If you would gain life, you gain that much life plus 1 instead."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 3,
+          "x": 0,
+          "pips": [
+            "W"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}{W}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 1
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 2
+        }
+      ],
+      "text": "{3}{W}: Level 2"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "life-gain"
+      },
+      "condition": {
+        "kind": "self-level",
+        "atLeast": 2
+      },
+      "effects": [
+        {
+          "op": "counters",
+          "target": {
+            "kind": "creature",
+            "controller": "you"
+          },
+          "counter": "+1/+1",
+          "amount": 1
+        }
+      ],
+      "text": "Whenever you gain life, put a +1/+1 counter on target creature you control."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 4,
+          "x": 0,
+          "pips": [
+            "W"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{4}{W}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 2
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 3
+        }
+      ],
+      "text": "{4}{W}: Level 3"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "became-level",
+        "level": 3
+      },
+      "effects": [
+        {
+          "op": "return-from-graveyard",
+          "what": {
+            "types": [
+              "Creature"
+            ]
+          },
+          "to": "battlefield",
+          "target": true
+        },
+        {
+          "op": "gain-life",
+          "amount": {
+            "prop": "toughness",
+            "of": "that"
+          },
+          "who": "you"
+        }
+      ],
+      "text": "When this Class becomes level 3, return target creature card from your graveyard to the battlefield. You gain life equal to that creature's toughness."
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "lifegain-multiplier with `plus` ADDS that much rather than doubling (game.ts:1949: `plus ? gained + plus : gained * 2`), which is exactly the level-1 line. return-from-graveyard binds what it returned, so `that` in the gain-life amount is the creature that came back (CR 608.2h).",
+  "verification": {
+    "at": "2026-09-06T10:02:10.030Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "f8c674c0",
+    "scriptHash": "9c146dfb",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "trigger fired in the 'misc' probe"
+        },
+        {
+          "index": 3,
+          "reached": false
+        },
+        {
+          "index": 4,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "When this Class becomes level 3, return target creature card from your graveyard to the battlefield. You gain life equal to that creature's toughness.",
+          "rendered": "whenever became level, return target creature card from your graveyard to the battlefield. you gain that permanent's toughness life",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"When this Class becomes level 3, return target creature card from your graveyard to the battlefield. You gain life equal to that creature's toughness.\" rendered as \"whenever became level, return target creature card from your graveyard to the battlefield. you gain that permanent's toughness life\""
+    ]
+  }
+}

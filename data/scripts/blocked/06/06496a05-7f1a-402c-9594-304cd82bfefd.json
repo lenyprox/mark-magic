@@ -1,0 +1,23 @@
+{
+  "oracleId": "06496a05-7f1a-402c-9594-304cd82bfefd",
+  "name": "Scourge of the Throne",
+  "clause": "Dethrone / Whenever ~ attacks for the first time each turn, if it's attacking the player with the most life or tied for most life, untap all attacking creatures. After this phase, there is an additional combat phase.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "{ on: 'attacks', self: boolean, filter?: Filter, nth?: number } - the same `nth` qualifier the `cast` event already carries (game.ts:2276), counted per turn against the source's own attack count",
+      "semantics": "'Whenever ~ attacks for the first time each turn' cannot be written: the attacks event has no per-turn ordinal, so a script either fires the ability on every attack (wrong for Scourge of the Throne, whose extra combat would then chain) or not at all.",
+      "cr": "603.2, 508.1",
+      "clause": "Whenever ~ attacks for the first time each turn, ..."
+    },
+    {
+      "opFamily": "named-keyword:dethrone",
+      "proposedSignature": "add 'dethrone' to CoreKeyword (so face `keywords`, anthem.keywords, grant-keyword and self-keywords can all carry it, which 'Other creatures you control have dethrone.' needs), and add the predicate it is built on: either an attacks-event qualifier { on: 'attacks', self: true, defender: 'most-life' } or a Condition { kind: 'defending-player-most-life' } usable as an intervening-if; plus KEYWORD_EXPANSIONS['dethrone'] = 'whenever this creature attacks the player with the most life or tied for most life, put a +1/+1 counter on it'",
+      "semantics": "Dethrone is 'whenever this creature attacks the player with the most life or tied for most life, put a +1/+1 counter on it'. Nothing expresses 'the player with the most life or tied for most life' (more-life-than-opponent is about the ability's controller, control-leader is about permanent counts), and dethrone is not a Keyword so it cannot be granted to other creatures either.",
+      "cr": "702.105a, 603.2, 506.3c",
+      "clause": "Dethrone"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

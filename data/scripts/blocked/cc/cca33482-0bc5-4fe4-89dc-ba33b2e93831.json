@@ -1,0 +1,16 @@
+{
+  "oracleId": "cca33482-0bc5-4fe4-89dc-ba33b2e93831",
+  "name": "Feasting Hobbit",
+  "clause": "Devour Food 3",
+  "needs": [
+    {
+      "opFamily": "named-keyword-devour",
+      "proposedSignature": "AsEnters: { kind: 'devour'; filter: Filter; times: number }  // 'As this creature enters, you may sacrifice any number of <filter>. It enters with <times> times that many +1/+1 counters on it.'",
+      "semantics": "An as-enters replacement (CR 614.1c): before the permanent enters, its controller may sacrifice any number of permanents matching `filter`; the object then enters with `times * n` +1/+1 counters, through `addCounters` so counter replacements still apply. `filter` defaults to creatures ('Devour 2'), and the printed word supplies it for 'Devour land N' / 'Devour Food N'. The sacrificed set should be bound so a card can read it later.",
+      "cr": "702.81",
+      "clause": "Devour 2"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

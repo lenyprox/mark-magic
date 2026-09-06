@@ -1,0 +1,23 @@
+{
+  "oracleId": "49f2cbc3-bd03-48e6-b1c4-d7f315b8579d",
+  "name": "Taigam, Master Opportunist",
+  "clause": "Whenever you cast your second spell each turn, copy it, then exile the spell you cast with four time counters on it. If it doesn't have suspend, it gains suspend.",
+  "needs": [
+    {
+      "opFamily": "copy-clone:ref-target",
+      "proposedSignature": "widen `copy-spell` to `{ op: 'copy-spell'; target: TargetSpec | Ref; newTargets?: boolean }` so `target: 'triggering'` copies the spell a `cast` trigger was about, with no target requirement emitted by legal.ts.",
+      "semantics": "'Whenever you cast your second spell each turn, copy it' copies the triggering spell, already bound in the frame as `triggering`. `copy-spell` (src/cards/types.ts:270) accepts only a TargetSpec, so the only way to write it today is to ask for a fresh spell target — a different card. docs/vocabulary/composition.md section 4 lists the ops widened to take a Ref; `copy-spell` is not among them.",
+      "cr": "706.10",
+      "clause": "Whenever you cast your second spell each turn, copy it, …"
+    },
+    {
+      "opFamily": "named-keyword:suspend",
+      "proposedSignature": "`{ op: 'suspend-object', what: Ref | TargetSpec, counters: Amount, grantSuspend?: true, from?: 'stack' | 'battlefield' | 'graveyard' | 'hand' }` — exile the named object with `counters` time counters and, with `grantSuspend`, give it suspend if it doesn't have it, so the two exile-zone triggers of CR 702.62a apply to it.",
+      "semantics": "Delay and Taigam suspend a card that never had suspend printed on it: the spell leaves the stack to exile with N time counters and gains the keyword. Today `counter` can only send the card to exile bare (`toExile`), `move` can add `withCounters: { counter: 'time', … }` but the counters are inert, and no op grants a keyword to a card outside the battlefield.",
+      "cr": "702.62a",
+      "clause": "If it doesn't have suspend, it gains suspend."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

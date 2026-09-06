@@ -1,0 +1,23 @@
+{
+  "oracleId": "fb03befb-b4e4-4ae9-908d-a16d5b03b054",
+  "name": "Star Athlete",
+  "clause": "Blitz {3}{R}  /  Whenever ~ attacks, choose up to one target nonland permanent. Its controller may sacrifice it. If they don't, ~ deals 5 damage to that player.",
+  "needs": [
+    {
+      "opFamily": "composition:target-declaration",
+      "proposedSignature": "{ op: 'choose-target'; target: TargetSpec; bind: 'that' } - a real target requirement (legal.ts ownTargetSpecs finds it through `target`) whose only effect is to bind the pick as `that` / `controller-of-that`",
+      "semantics": "The printed word 'target' can sit on a clause that no op acts on ('choose up to one target nonland permanent. Its controller may sacrifice it. If they don't, ...'). Today a requirement only exists as the `target` field of an op that DOES something to the pick, so such a trigger is unwritable: `unless-pays who:'controller-of-that'` has nowhere to get its binding from, and `bind from targets` creates no requirement.",
+      "cr": "115.1, 603.3d",
+      "clause": "Whenever ~ attacks, choose up to one target nonland permanent. Its controller may sacrifice it. If they don't, ~ deals 5 damage to that player."
+    },
+    {
+      "opFamily": "named-keyword:blitz",
+      "proposedSignature": "AltCost id 'blitz': { id: 'blitz', label: 'blitz', cost: { mana: <printed> }, from: 'hand', grantsKeywords: ['haste'], grantsAbilities: [{ kind: 'triggered', event: { on: 'dies', self: true }, effects: [{ op: 'draw', amount: 1, who: 'you' }], text: 'When ~ dies, draw a card.' }], sacrificeAt: 'next-end-step' } + COVER_RULES.altCosts shape /^blitz (\\{.+\\})$/ + KEYWORD_EXPANSIONS.blitz",
+      "semantics": "If the spell was cast for its blitz cost, the permanent gains haste and 'When this creature dies, draw a card.', and is sacrificed at the beginning of the next end step. `dash` is already an AltCost id with the haste rider, so blitz is dash's shape with a sacrifice instead of a bounce plus a granted dies trigger.",
+      "cr": "702.152",
+      "clause": "Blitz {1}{R} / Blitz {3}{R}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

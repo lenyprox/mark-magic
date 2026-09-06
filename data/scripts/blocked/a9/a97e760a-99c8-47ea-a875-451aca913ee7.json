@@ -1,0 +1,16 @@
+{
+  "oracleId": "a97e760a-99c8-47ea-a875-451aca913ee7",
+  "name": "Collective Effort",
+  "clause": "Escalate—Tap an untapped creature you control.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:escalate",
+      "proposedSignature": "Face declaration `escalate?: AbilityCost` + covers[].by kind 'escalate' anchored /^escalate(?:[—-] ?| )(.+?)\\.?$/ matching the declared cost, AND a `choose-mode` count form `count: 'one-or-more'` (or `{ min: 1, max: 'modes' }`) with a MODE_COSTS hook that charges the escalate cost once per mode beyond the first.",
+      "semantics": "Escalate is an additional cost paid once per chosen mode beyond the first (Collective Effort's is the non-mana 'Tap an untapped creature you control', so AbilityCost, not ManaCost). It only means anything once choose-mode can express a VARIABLE number of modes: today choose-mode.count is a fixed number, so the parser records 'Choose one or more —' as count: 1 — a silently wrong verdict on a line it claims, not merely a missing declaration. Same family as the existing blocked note for Collective Resistance (bffdfe7b-f17a-41b6-a460-80280fe497d4).",
+      "cr": "702.120a, 700.2d, 601.2b, 601.2f",
+      "clause": "Escalate—Tap an untapped creature you control."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

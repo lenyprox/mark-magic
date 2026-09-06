@@ -1,0 +1,23 @@
+{
+  "oracleId": "c46a02db-13d6-477f-9da0-822599470168",
+  "name": "Dazzling Theater // Prop Room",
+  "clause": "Creature spells you cast have convoke. // Untap each creature you control during each other player's untap step.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:convoke",
+      "proposedSignature": "A static { kind: 'grant-cost-modifier'; scope: 'your-spells'; filter?: Filter; from?: CastZone; modifier: CostModifier }, and a binding for the convoking creatures: ObjectSet word 'convoked' ({ op: 'for-each', over: 'convoked' }) and Filter { convokedSource: true }.",
+      "semantics": "First half: 'Spells you cast from exile have convoke' / 'Creature spells you cast have convoke' - a permanent granting a cost modifier to a class of spells. Second half: the engine must remember which creatures were tapped to convoke a spell, so 'Each creature that convoked this spell connives' and 'shares a creature type with a creature that convoked this spell' can name them.",
+      "cr": "702.51a, 702.51c",
+      "clause": "Spells you cast from exile have convoke. / Each creature that convoked ~ connives."
+    },
+    {
+      "opFamily": "replacement",
+      "proposedSignature": "TriggerEvent 'cast' gains self: true ('When you cast this spell'); trigger-twice.event gains 'attacks'; a new event { on: 'untap-step'; whose: 'your' | 'each' | 'opponent' }.",
+      "semantics": "'When you cast this spell, ...' (Emrakul) cannot be written because `cast` takes a Filter that cannot mean 'this spell'; Wulfgar needs trigger doubling for attack triggers; Prop Room needs 'during each other player's untap step'.",
+      "cr": "603.2, 502.1",
+      "clause": "When you cast ~, gain control of all creatures target player controls."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

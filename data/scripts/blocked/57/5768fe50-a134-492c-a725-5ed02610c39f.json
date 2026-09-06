@@ -1,0 +1,23 @@
+{
+  "oracleId": "5768fe50-a134-492c-a725-5ed02610c39f",
+  "name": "Mirrorhall Mimic // Ghastly Mimicry",
+  "clause": "Disturb {3}{U}{U}",
+  "needs": [
+    {
+      "opFamily": "named-keyword-disturb",
+      "proposedSignature": "AltCost: { id: 'disturb'; label: string; cost: AbilityCost; from: 'graveyard'; transformed: true }  // plus AltCostId += 'disturb' and a COVER_RULES shape ^disturb (\\{.+\\})$",
+      "semantics": "An alternative cost that casts the card from its owner's graveyard with its BACK face up (CR 702.147a); if it would leave the stack it is exiled instead. Needs a `transformed` flag on AltCost (or an `entersAs: 'back'`) so `castSpell` puts the back face onto the battlefield, and a covers kind so the printed 'Disturb {1}{W}' line is claimed by the declaration rather than by an ability.",
+      "cr": "702.147",
+      "clause": "Disturb {1}{W}"
+    },
+    {
+      "opFamily": "token-copy-of-attached",
+      "proposedSignature": "token-copy.target += Ref ('enchanted' | 'equipped' | 'that' | 'those' | 'triggering' | 'target:<n>')",
+      "semantics": "'At the beginning of your upkeep, create a token that's a copy of enchanted creature, except it's a Spirit in addition to its other types.' `token-copy.target` is `TargetSpec | 'that' | 'self'` only, so an Aura cannot copy the permanent it is attached to; widening it to the composition-core Ref union (which every other object op already accepts) is the whole fix, and `extraSubtypes` already covers the 'except' clause.",
+      "cr": "707.2",
+      "clause": "// At the beginning of your upkeep, create a token that's a copy of enchanted creature, except it's a Spirit in addition to its other types."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

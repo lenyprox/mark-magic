@@ -1,0 +1,23 @@
+{
+  "oracleId": "55bceb83-bbba-477f-98ce-6e0a80b91080",
+  "name": "Vizier of Many Faces",
+  "clause": "You may have ~ enter as a copy of any creature on the battlefield, except if ~ was embalmed, the token has no mana cost, it's white, and it's a Zombie in addition to its other types.",
+  "needs": [
+    {
+      "opFamily": "copy-clone",
+      "proposedSignature": "Add to COVER_RULES.asEnters the anchored shape /^(?:you may have )?~ enters? (?:the battlefield )?as a copy of (.+?)(?:, except (.+?))?\\.?$/ whose `value` check requires an asEnters entry of kind 'enter-as-copy' with the matching `optional` flag, so `covers: [{ line, by: 'asEnters' }]` can claim a clone line.",
+      "semantics": "enter-as-copy is a replacement effect, so it is not an ability and no ability may legitimately claim its printed line; and COVER_RULES.asEnters lists only the tapped / pay-life / counters / choose / discard-or-graveyard shapes, so no covers entry can claim it either. Every clone card whose printed clause the copy-clone parser rule declines (any 'except …' it cannot read — Vizier of Many Faces' 'except if ~ was embalmed …') is therefore permanently unfinishable however good its script is: the declaration gives real behaviour but claims nothing.",
+      "cr": "706.9, 614.1c, 707.9a",
+      "clause": "You may have ~ enter as a copy of any creature on the battlefield, except if ~ was embalmed, the token has no mana cost, it's white, and it's a Zombie in addition to its other types."
+    },
+    {
+      "opFamily": "named-keyword:embalm",
+      "proposedSignature": "Face declaration `embalm?: { cost: ManaCost }` (shaped like `cycling`) + covers[].by kind 'embalm' anchored /^embalm (\\{.+\\})$/ requiring embalm.cost.raw to equal the printed cost, plus `CopyException.noManaCost?: true`, plus a KEYWORD_EXPANSIONS entry: embalm: '{cost}, exile ~ from your graveyard: create a token that's a copy of ~, except it's a white Zombie with no mana cost. activate only as a sorcery'. (Eternalize is the same shape with a 4/4 black exception.)",
+      "semantics": "The BEHAVIOUR of embalm is already writable — an activated ability with fromGraveyard: true, sorcerySpeed: true, cost { mana, exileSelfFromGraveyard: true } and copy-permanent target 'self' except { colors: ['W'], addSubtypes: ['Zombie'] } — and that is what the script written here does. Two things block it from ever being VERIFIED: the printed declaration line 'Embalm {3}{U}{U}' has no entry in KEYWORD_EXPANSIONS, so the round trip scores it 0 as a renderer gap and the card score (a minimum over lines) is 0; and CopyException cannot say 'has no mana cost'.",
+      "cr": "702.90a, 707.9a, 113.6b",
+      "clause": "Embalm {3}{U}{U}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

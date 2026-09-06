@@ -1,0 +1,16 @@
+{
+  "oracleId": "3dfb0c0a-b68f-43b9-8475-28d0192fc4ed",
+  "name": "Gemrazer",
+  "clause": "Mutate {1}{G}{G}",
+  "needs": [
+    {
+      "opFamily": "named-keyword:mutate",
+      "proposedSignature": "AltCostId 'mutate' with a target on the cast (altCosts: [{ id: 'mutate', cost: { mana }, from: 'hand', mutateTarget: { kind: 'creature', controller: 'you', filter: { notSubtypes: ['Human'] } } }]), merged-permanent state o.ext.mutateStack: { cards: number[]; top: number } read by characteristics.ts (top card supplies name / P-T / types, the whole pile supplies abilities), and TriggerEvent { on: 'mutates'; self: true }.",
+      "semantics": "CR 702.140a-c: casting a spell for its mutate cost puts it over or under a target non-Human creature you own; the merged permanent has the top card's characteristics plus every ability from the cards under it, and 'Whenever this creature mutates' triggers for each such merge. The engine has no merged-permanent concept at all, and no `mutates` event, so both mutate-layout cards in this batch are dead on their first line.",
+      "cr": "702.140a",
+      "clause": "Mutate {1}{G}{G} / Mutate {1}{U}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

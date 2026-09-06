@@ -1,0 +1,16 @@
+{
+  "oracleId": "9ceac4c6-e62e-4445-852c-b2c621e4a83b",
+  "name": "Wildsear, Scouring Maw",
+  "clause": "Enchantment spells you cast from your hand have cascade.",
+  "needs": [
+    {
+      "opFamily": "spell-ability-grant",
+      "proposedSignature": "StaticEffect `{ kind: 'grant-spell-ability'; filter: SpellFilter; ability: Ability; nthEachTurn?: number }` where `SpellFilter extends Filter { castFrom?: 'hand' | 'graveyard' | 'exile' | 'command'; manaSpentFrom?: Filter }`, plus `{ op: 'cascade' }` resolving its mana-value threshold from the SPELL whose granted ability triggered rather than from the ability's source",
+      "semantics": "\"<subset> spells you cast have <keyword>\" adds an ability to spells on the stack (CR 613.1f), which the format cannot express at all: `grant-ability`'s scope is 'you-control' / 'all' battlefield permanents. The nearest writable encoding is the cast trigger the granted cascade IS, and I used it for Imoti / The First Sliver / Maelstrom Nexus — but it drops every predicate about the CAST itself (from your hand, from exile, mana from a Treasure was spent, first each turn is only approximable by `oncePerTurn`), and the core `cascade` op reads `src.def.manaValue` (game.ts:1241), so a granted cascade uses the granting permanent's mana value instead of the cast spell's. Four cards in this batch are blocked outright on the missing cast-zone / mana-source predicates, and three more are written approximately.",
+      "cr": "702.85a, 613.1f, 601.2b",
+      "clause": "Enchantment spells you cast from your hand have cascade. / The first spell you cast from exile each turn has cascade. / The first spell you cast each turn that mana from a Treasure was spent to cast has cascade."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

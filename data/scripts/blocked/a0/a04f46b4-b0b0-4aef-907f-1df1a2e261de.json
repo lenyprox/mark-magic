@@ -1,0 +1,16 @@
+{
+  "oracleId": "a04f46b4-b0b0-4aef-907f-1df1a2e261de",
+  "name": "Chaos Dragon",
+  "clause": "At the beginning of combat on your turn, each player rolls a d20. If one or more opponents had the highest result, ~ can't attack those players or planeswalkers they control this combat.",
+  "needs": [
+    {
+      "opFamily": "dice-coin",
+      "proposedSignature": "{ op: 'roll-die', ..., rollers?: ScopeWho }  +  { kind: 'roll-highest', who: 'you' | 'opponent' | 'each-opponent', least?: number }  +  Amount.count += 'roll-result-of'",
+      "semantics": "Several players roll for one ability and the ability compares their results. Needs s.ext.diceCoin to hold a result PER PLAYER instead of one { srcId, result } row, plus a condition asking who had the highest.",
+      "cr": "706.1, 706.5",
+      "clause": "each player rolls a d20. If one or more opponents had the highest result, ..."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

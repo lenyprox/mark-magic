@@ -1,0 +1,16 @@
+{
+  "oracleId": "51f091a7-9b0b-4362-8e9c-c174752f369b",
+  "name": "White Plume Adventurer",
+  "clause": "When ~ enters, you take the initiative.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:initiative",
+      "proposedSignature": "Per-player state pl.ext.dungeon = { card: 'undercity' | 'lost-mine' | 'tomb' | 'dungeon-of-the-mad-mage'; room: string; completed: string[] } and pl.ext.hasInitiative, plus Effect { op: 'take-initiative' }, Effect { op: 'venture'; dungeon?: string }, Condition { kind: 'completed-dungeon'; who?: 'you' }, Condition { kind: 'has-initiative'; who }, TriggerEvent { on: 'initiative-taken'; who: 'you' | 'opponent' } and the three inherent initiative triggers of CR 726.2 as a step hook.",
+      "semantics": "'You take the initiative' (CR 726.1) makes you the initiative player, ventures you into the Undercity, and installs the inherent triggers: at the beginning of your upkeep you venture again, and whenever an opponent deals combat damage to the initiative player they take it. Nothing in the vocabulary tracks a dungeon, a room, a venture marker, or the initiative designation, so both cards in this batch that print it are dead. 'If you've completed a dungeon' (White Plume Adventurer's second line) needs the same slice.",
+      "cr": "726.1, 726.2, 309, 701.49",
+      "clause": "When ~ enters, you take the initiative."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

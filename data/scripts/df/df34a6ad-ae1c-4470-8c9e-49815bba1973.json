@@ -1,0 +1,197 @@
+{
+  "oracleId": "df34a6ad-ae1c-4470-8c9e-49815bba1973",
+  "name": "Dowsing Dagger // Lost Vale",
+  "oracleHash": "4d5c7427",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "scoped",
+          "who": "target-opponent",
+          "do": [
+            {
+              "op": "token",
+              "count": 2,
+              "power": 0,
+              "toughness": 2,
+              "colors": [
+                "G"
+              ],
+              "types": [
+                "Creature"
+              ],
+              "subtypes": [
+                "Plant"
+              ],
+              "keywords": [
+                "defender"
+              ]
+            }
+          ]
+        }
+      ],
+      "text": "When ~ enters, target opponent creates two 0/2 green Plant creature tokens with defender.",
+      "optional": false
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "equipment",
+        "power": 2,
+        "toughness": 1,
+        "keywords": [],
+        "equipCost": {
+          "generic": 2,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}"
+        }
+      },
+      "text": "Equipped creature gets +2/+1."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": false,
+        "filter": {
+          "attachedToSource": true
+        }
+      },
+      "effects": [
+        {
+          "op": "may",
+          "effects": [
+            {
+              "op": "transform",
+              "target": "self"
+            }
+          ]
+        }
+      ],
+      "text": "Whenever equipped creature deals combat damage to a player, you may transform ~.",
+      "optional": true
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}"
+        }
+      },
+      "effects": [
+        {
+          "op": "attach-self",
+          "target": {
+            "kind": "creature",
+            "controller": "you"
+          }
+        }
+      ],
+      "text": "Equip {2}",
+      "sorcerySpeed": true
+    }
+  ],
+  "backFace": {
+    "keywords": [],
+    "abilities": [
+      {
+        "kind": "activated",
+        "cost": {
+          "tap": true
+        },
+        "effects": [
+          {
+            "op": "add-mana",
+            "mana": "any-one",
+            "amount": 3
+          }
+        ],
+        "text": "{T}: Add three mana of any one color.",
+        "manaAbility": true
+      }
+    ]
+  },
+  "aiHints": {
+    "role": "utility",
+    "value": 3,
+    "timing": "main"
+  },
+  "notes": "Front: the ETB gives the opponent two Plant walls; the flip trigger uses filter attachedToSource (CR 702.6a) so it fires only on the equipped creature's combat damage to a player, and 'you may transform' is a may around the transform op. 'Equip {2}' is claimed by its own activated ability (attach-self) because the format has no covers kind for equip. Back: Lost Vale's three mana of one colour is add-mana 'any-one' with amount 3.",
+  "verification": {
+    "at": "2026-09-06T10:03:39.677Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "4d5c7427",
+    "scriptHash": "8aad747d",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "static: the board differs with and without this ability"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        },
+        {
+          "index": 3,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.667,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": [],
+      "sampled": false
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "Whenever equipped creature deals combat damage to a player, you may transform this Equipment. — expected fires whenever the creature this Equipment is attached to deals combat damage to a player, regardless of who controls that creature (CR 702.6a: \"equipped creature\" is defined by the attachment, not by control) — scripted event combat-damage-player + filter.attachedToSource is the right expression, but game.ts:2271 gates the filter branch on `ctx.obj.controller === perm.controller` as well, so a creature whose control an opponent gained while the Dagger stayed attached would not trigger. Engine-side restriction, not a mis-expression; noted, not verdict-flipping. — CR 702.6a / 301.5c",
+          "When this Equipment enters, target opponent creates two 0/2 green Plant creature tokens with defender. — expected the tokens are created (and controlled/owned) by the targeted opponent; each token is named \"Plant\" — scripted scoped who=target-opponent + token is correct — legal.ts:84 derives the {kind:'opponent'} target requirement from the scoped who, and game.ts:1062 makes the token op use item.actor as controller/owner. Only gap: token.name is left undefined, so the engine calls it \"Plant token\" (game.ts:1379) rather than \"Plant\". Corpus-wide convention (parse.ts:747 does the same), so not scored against this script. The renderer's 0.86 line is a render gap only — it drops \"target opponent\". — CR 111.4",
+          "// {T}: Add three mana of any one color. — expected three mana all of the SAME chosen color — scripted add-mana mana:'any-one', amount:3 — mana.ts:54-56 pushes one option per color of Array(3).fill(c), i.e. three of one color. Correct despite the renderer printing the awkward \"add 3 one mana of any color\". — CR 106.1b"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

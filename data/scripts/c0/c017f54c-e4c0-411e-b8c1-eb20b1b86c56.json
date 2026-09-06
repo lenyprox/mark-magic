@@ -1,0 +1,107 @@
+{
+  "oracleId": "c017f54c-e4c0-411e-b8c1-eb20b1b86c56",
+  "name": "Karumonix, the Rat King",
+  "oracleHash": "5d9f2616",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [
+    "toxic"
+  ],
+  "toxic": 1,
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "anthem",
+        "power": 0,
+        "toughness": 0,
+        "filter": {
+          "subtypes": [
+            "Rat"
+          ]
+        },
+        "scope": "other-you-control",
+        "keywords": [
+          "toxic"
+        ]
+      },
+      "text": "Other Rats you control have toxic 1."
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "dig",
+          "look": 5,
+          "take": 5,
+          "rest": "bottom",
+          "order": "random",
+          "reveal": true,
+          "filter": {
+            "subtypes": [
+              "Rat"
+            ]
+          },
+          "optional": true
+        }
+      ],
+      "text": "When ~ enters, look at the top five cards of your library. You may reveal any number of Rat cards from among them and put the revealed cards into your hand. Put the rest on the bottom of your library in a random order."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Toxic 1",
+      "by": "toxic"
+    }
+  ],
+  "notes": "The anthem grants the toxic keyword; the format has no way to give a granted keyword its parameter (`toxic` is a number on the card, not on an anthem), so \"toxic 1\" is granted as bare toxic.",
+  "verification": {
+    "at": "2026-09-06T06:16:28.918Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "5d9f2616",
+    "scriptHash": "ea893f14",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Other Rats you control have toxic 1.",
+          "rendered": "other Rat you control have toxic",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Other Rats you control have toxic 1.\" rendered as \"other Rat you control have toxic\""
+    ]
+  }
+}

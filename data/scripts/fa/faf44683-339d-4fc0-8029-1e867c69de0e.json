@@ -1,0 +1,106 @@
+{
+  "oracleId": "faf44683-339d-4fc0-8029-1e867c69de0e",
+  "name": "Galadriel, Light of Valinor",
+  "oracleHash": "825006b2",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": false,
+        "filter": {
+          "types": [
+            "Creature"
+          ]
+        },
+        "controller": "you"
+      },
+      "effects": [
+        {
+          "op": "choose-modes",
+          "count": 1,
+          "notChosen": "this-turn",
+          "labels": [
+            "Add {G}{G}{G}.",
+            "Put a +1/+1 counter on each creature you control.",
+            "Scry 2, then draw a card."
+          ],
+          "modes": [
+            [
+              {
+                "op": "add-mana",
+                "mana": [
+                  "G",
+                  "G",
+                  "G"
+                ]
+              }
+            ],
+            [
+              {
+                "op": "counters",
+                "target": "creatures-you-control",
+                "counter": "+1/+1",
+                "amount": 1
+              }
+            ],
+            [
+              {
+                "op": "scry",
+                "amount": 2
+              },
+              {
+                "op": "draw",
+                "amount": 1,
+                "who": "you"
+              }
+            ]
+          ]
+        }
+      ],
+      "text": "Whenever another creature you control enters, choose one that hasn't been chosen this turn —"
+    }
+  ],
+  "verification": {
+    "at": "2026-09-06T10:06:03.841Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "825006b2",
+    "scriptHash": "eb921242",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.933,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/fa/faf44683-339d-4fc0-8029-1e867c69de0e.json",
+      "passed": 4,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

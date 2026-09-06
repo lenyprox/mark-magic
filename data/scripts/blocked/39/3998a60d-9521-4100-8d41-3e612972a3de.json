@@ -1,0 +1,16 @@
+{
+  "oracleId": "3998a60d-9521-4100-8d41-3e612972a3de",
+  "name": "Kuja, Genome Sorcerer // Trance Kuja, Fate Defied",
+  "clause": "At the beginning of your end step, create a tapped 0/1 black Wizard creature token with \"Whenever you cast a noncreature spell, this token deals 1 damage to each opponent.\" Then if you control four or more Wizards, transform ~.",
+  "needs": [
+    {
+      "opFamily": "token-abilities",
+      "proposedSignature": "{ op: 'token'; ...; abilities?: Ability[] } carried onto TokenSpec.abilities and read by abilitiesOf()",
+      "semantics": "'create a 0/1 black Wizard creature token with \"Whenever you cast a noncreature spell, this token deals 1 damage to each opponent.\"'. The `token` effect already declares a `text` field but game.ts:1372 drops it and TokenSpec (state.ts:10) has no abilities list, so a quoted-ability token is created vanilla. `gain-ability` is not a workaround - it grants to the SOURCE (game.ts:1327). `dynamicPT` already covers the P/T-only variant.",
+      "cr": "111.4, 113.2",
+      "clause": "create a tapped 0/1 black Wizard creature token with \"Whenever you cast a noncreature spell, this token deals 1 damage to each opponent.\""
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

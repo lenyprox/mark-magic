@@ -1,0 +1,16 @@
+{
+  "oracleId": "a38828be-781e-4340-9c6f-f40b1d34773f",
+  "name": "White Sun's Twilight",
+  "clause": "You gain X life. Create X 1/1 colorless Phyrexian Mite artifact creature tokens with toxic 1 and \"This token can't block.\" If X is 5 or more, destroy all other creatures.",
+  "needs": [
+    {
+      "opFamily": "generic",
+      "proposedSignature": "Conditions { kind: 'poison-ge'; who: 'you' | 'opponent' | 'any'; value: number }, { kind: 'x-ge'; value: number }, { kind: 'first-combat-phase' }; effect `sacrifice` gains amount: number | 'all'; Filter gains { extreme: 'greatest-power' | 'least-power'; among: ObjectSet }.",
+      "semantics": "Four independent holes this batch hit: 'As long as an opponent has three or more poison counters' (Skrelv's Hive), 'If X is 5 or more' (White Sun's Twilight), 'If it's the first combat phase of your turn' (Tifa), and 'sacrifice all creatures you control' / 'a creature with the greatest power among creatures they control' (Emrakul, Shadowgrange Archfiend).",
+      "cr": "104.3d, 601.2b, 506.1, 701.16a",
+      "clause": "As long as an opponent has three or more poison counters, creatures you control with toxic have lifelink."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

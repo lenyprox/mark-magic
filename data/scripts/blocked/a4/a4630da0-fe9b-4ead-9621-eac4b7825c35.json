@@ -1,0 +1,23 @@
+{
+  "oracleId": "a4630da0-fe9b-4ead-9621-eac4b7825c35",
+  "name": "Wash Away",
+  "clause": "Cleave {1}{U}{U} / Counter target spell [that wasn't cast from its owner's hand].",
+  "needs": [
+    {
+      "opFamily": "named-keyword:cleave",
+      "proposedSignature": "`AltCost.id` 'cleave' plus a face-level alternative effect list — `cleaveAbilities?: Ability[]`, the bracketed-words-removed reading used when the spell was cast for its cleave cost — and a `covers[].by` kind 'cleave' whose anchored line shape is /^cleave (\\{.+\\})$/",
+      "semantics": "Cleave (CR 702.148a) is an alternative cost that also CHANGES THE SPELL'S TEXT: casting for the cleave cost removes the words in square brackets, so one face has two different resolutions. `altCosts` today only replaces the cost; there is no way to say which effects a face has depending on how it was cast (the closest analogue, `alt-kicked-amount`, only swaps a magnitude).",
+      "cr": "702.148a, 601.2b",
+      "clause": "Cleave {1}{U}{U}"
+    },
+    {
+      "opFamily": "spell-cast-zone-filter",
+      "proposedSignature": "Filter { castFrom?: 'hand' | 'graveyard' | 'exile' | 'command' | 'library' | 'non-hand' } matched against a spell on the stack",
+      "semantics": "'Counter target spell that wasn't cast from its owner's hand' restricts a stack target by the zone the spell was cast from. GameObject already records the cast zone (`castWith` / the alt-cost `from`), but `Filter` has no field for it, so the target cannot be narrowed and the counter would hit any spell.",
+      "cr": "601.2, 400.7",
+      "clause": "Counter target spell [that wasn't cast from its owner's hand]."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

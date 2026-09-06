@@ -1,0 +1,16 @@
+{
+  "oracleId": "7bc3f92f-68a2-4934-afc4-89f6d0e8cf98",
+  "name": "Dusk // Dawn",
+  "clause": "Aftermath",
+  "needs": [
+    {
+      "opFamily": "named-keyword:aftermath",
+      "proposedSignature": "AltCost id 'aftermath': { id: 'aftermath', label: 'aftermath', cost: { mana: <that half's own mana cost> }, from: 'graveyard', exileAfter: true, onlyFrom: 'graveyard' } declared on the script's `secondFace` + COVER_RULES.altCosts shape /^aftermath$/ + KEYWORD_EXPANSIONS.aftermath = 'cast ~ only from your graveyard. then exile it'",
+      "semantics": "Cast this half only from your graveyard (never from hand), for its own mana cost, and exile it as it leaves the stack. Mechanically flashback with the printed cost and a 'graveyard only' restriction; `cast-from` is not a substitute (it is a battlefield static and would permit casting every card from the graveyard).",
+      "cr": "702.127",
+      "clause": "Aftermath"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

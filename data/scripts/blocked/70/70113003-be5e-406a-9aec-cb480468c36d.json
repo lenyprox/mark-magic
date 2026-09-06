@@ -1,0 +1,23 @@
+{
+  "oracleId": "70113003-be5e-406a-9aec-cb480468c36d",
+  "name": "Sephiroth, Fabled SOLDIER // Sephiroth, One-Winged Angel",
+  "clause": "Whenever another creature dies, target opponent loses 1 life and you gain 1 life. If this is the fourth time this ability has resolved this turn, transform ~.",
+  "needs": [
+    {
+      "opFamily": "ability-resolution-count",
+      "proposedSignature": "{ kind: 'nth-resolution-this-turn'; value: number } backed by a per-turn resolution tally kept on the ability and cleared at cleanup",
+      "semantics": "'If this is the fourth time this ability has resolved this turn, transform ~.' The engine keeps `triggeredThisTurn` (a once-per-turn set keyed by ability text) but no count of RESOLUTIONS, and a condition evaluated during resolution cannot see one.",
+      "cr": "603.2, 514.2",
+      "clause": "If this is the fourth time this ability has resolved this turn, transform ~."
+    },
+    {
+      "opFamily": "as-transforms-replacement",
+      "proposedSignature": "AsEnters gains { kind: 'as-transforms'; to?: 'front' | 'back'; effects: Effect[] } - a replacement applied as the permanent turns over, not a trigger after it",
+      "semantics": "'As this creature transforms into Sephiroth, One-Winged Angel, you get an emblem with ...' and 'As this creature transforms into Shinryu, choose an opponent.' The transform family has the `transforms` TRIGGER, which is 'when', so anything printed as 'As ... transforms' can only be approximated after the fact.",
+      "cr": "701.28, 614.12",
+      "clause": "// As ~ transforms into ~, you get an emblem with \"Whenever a creature dies, target opponent loses 1 life and you gain 1 life.\""
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

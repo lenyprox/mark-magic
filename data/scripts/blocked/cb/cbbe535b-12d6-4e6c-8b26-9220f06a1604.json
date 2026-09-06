@@ -1,0 +1,30 @@
+{
+  "oracleId": "cbbe535b-12d6-4e6c-8b26-9220f06a1604",
+  "name": "Beseech the Mirror",
+  "clause": "Bargain / Search your library for a card, exile it face down, then shuffle. If ~ was bargained, you may cast the exiled card without paying its mana cost if that spell's mana value is 4 or less. Put the exiled card into your hand if it wasn't cast this way.",
+  "needs": [
+    {
+      "opFamily": "cast-outcome-branch",
+      "proposedSignature": "Condition { kind: 'was-cast-this-way', of?: Ref }  — true when the permission a preceding `cast-free` / `play-exiled` granted in this resolution was actually used on the bound object",
+      "semantics": "'Put the exiled card into your hand if it wasn't cast this way' branches on whether the optional free cast the previous sentence offered happened. `cast-free` (cost-alter) performs the cast but reports nothing, and no condition can read the outcome of an earlier effect in the same resolution, so the fall-back half of the sentence cannot be written.",
+      "cr": "601.2, 608.2f",
+      "clause": "Put the exiled card into your hand if it wasn't cast this way."
+    },
+    {
+      "opFamily": "named-keyword:bargain",
+      "proposedSignature": "face declaration `bargain?: true` (an OPTIONAL additional cost: sacrifice an artifact, enchantment or token as you cast this spell), a `covers[].by` kind 'bargain' whose anchored line shape is /^bargain$/, and Condition { kind: 'bargained' }",
+      "semantics": "Bargain (CR 702.166a) is an optional additional cost whose payment is remembered on the spell and read back by the spell's own text ('If this spell was bargained, …'). `additionalCosts` today is an `AbilityCost` that is always paid and has no 'optional' flag, its covers shape only matches 'As an additional cost to cast ~, …', and there is no condition kind for 'was bargained' (the closest existing pair is `kicked` / Filter.kicked, which is exactly the shape bargain needs).",
+      "cr": "702.166a, 601.2b, 601.2f",
+      "clause": "Bargain"
+    },
+    {
+      "opFamily": "search-to-exile",
+      "proposedSignature": "widen `search.to` to include 'exile' with `faceDown?: true`, and bind what was found as `that` / `exiled-with` so a following effect can name it: { op: 'search', filter, to: 'exile', faceDown: true, count: 1, ... }",
+      "semantics": "'Search your library for a card, exile it face down, then shuffle' is a tutor whose destination is exile, which `search.to` (hand | battlefield | graveyard | top) cannot name. `impulse` exiles from the TOP of the library, not from a search, and `exile-from-hand` is the wrong zone. The found card must stay bound so the next sentence ('you may cast the exiled card…', 'Put the exiled card into your hand…') can refer to it.",
+      "cr": "701.19a, 400.7",
+      "clause": "Search your library for a card, exile it face down, then shuffle."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

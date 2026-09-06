@@ -1,0 +1,135 @@
+{
+  "oracleId": "d2664f28-49e1-46f8-a863-b217e961a57c",
+  "name": "Black Market Connections",
+  "oracleHash": "6f6d649d",
+  "source": "llm",
+  "confidence": 0.6,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "first-main-phase",
+        "whose": "your"
+      },
+      "effects": [
+        {
+          "op": "choose-modes",
+          "count": 3,
+          "upTo": true,
+          "labels": [
+            "Sell Contraband",
+            "Buy Information",
+            "Hire a Mercenary"
+          ],
+          "modes": [
+            [
+              {
+                "op": "token",
+                "count": 1,
+                "power": 0,
+                "toughness": 0,
+                "colors": [],
+                "types": [
+                  "Artifact"
+                ],
+                "subtypes": [
+                  "Treasure"
+                ],
+                "keywords": [],
+                "treasure": true,
+                "name": "Treasure"
+              },
+              {
+                "op": "lose-life",
+                "amount": 1,
+                "who": "you"
+              }
+            ],
+            [
+              {
+                "op": "draw",
+                "amount": 1,
+                "who": "you"
+              },
+              {
+                "op": "lose-life",
+                "amount": 2,
+                "who": "you"
+              }
+            ],
+            [
+              {
+                "op": "token",
+                "count": 1,
+                "power": 3,
+                "toughness": 2,
+                "colors": [],
+                "types": [
+                  "Creature"
+                ],
+                "subtypes": [
+                  "Shapeshifter"
+                ],
+                "keywords": [],
+                "name": "Shapeshifter"
+              },
+              {
+                "op": "become",
+                "target": "those",
+                "everyCreatureType": true,
+                "duration": "permanent"
+              },
+              {
+                "op": "lose-life",
+                "amount": 3,
+                "who": "you"
+              }
+            ]
+          ]
+        }
+      ],
+      "text": "At the beginning of your first main phase, choose one or more —"
+    }
+  ],
+  "notes": "\"Choose one or more\" is written as `choose-modes` with count 3 and upTo - the closest form the vocabulary has; it also permits choosing none, which the card does not. The Shapeshifter's changeling is `become everyCreatureType` on the token just created.",
+  "verification": {
+    "at": "2026-09-06T06:16:28.918Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "6f6d649d",
+    "scriptHash": "53685b6a",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.267,
+      "lowest": [
+        {
+          "text": "At the beginning of your first main phase, choose one or more —",
+          "rendered": "whenever first main phase, Choose up to three —",
+          "score": 0.267
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.27 < 0.55: \"At the beginning of your first main phase, choose one or more —\" rendered as \"whenever first main phase, Choose up to three —\""
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "oracleId": "0761a0e7-d443-4bab-bb15-307c83d4a6a1",
+  "name": "Lunarch Veteran // Luminous Phantom",
+  "clause": "Disturb {1}{W}",
+  "needs": [
+    {
+      "opFamily": "ltb-trigger-filter",
+      "proposedSignature": "TriggerEvent: { on: 'ltb'; self: boolean; filter?: Filter; controller?: 'you' | 'opponent'; other?: true }",
+      "semantics": "'Whenever another creature you control leaves the battlefield, you gain 1 life.' The `ltb` event carries only `self`, so a trigger about OTHER permanents leaving cannot be written, even though `dies` (the narrower event) already takes `filter` and `controller`.",
+      "cr": "603.6c",
+      "clause": "// Whenever another creature you control leaves the battlefield, you gain 1 life."
+    },
+    {
+      "opFamily": "named-keyword-disturb",
+      "proposedSignature": "AltCost: { id: 'disturb'; label: string; cost: AbilityCost; from: 'graveyard'; transformed: true }  // plus AltCostId += 'disturb' and a COVER_RULES shape ^disturb (\\{.+\\})$",
+      "semantics": "An alternative cost that casts the card from its owner's graveyard with its BACK face up (CR 702.147a); if it would leave the stack it is exiled instead. Needs a `transformed` flag on AltCost (or an `entersAs: 'back'`) so `castSpell` puts the back face onto the battlefield, and a covers kind so the printed 'Disturb {1}{W}' line is claimed by the declaration rather than by an ability.",
+      "cr": "702.147",
+      "clause": "Disturb {1}{W}"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

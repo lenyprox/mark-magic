@@ -1,0 +1,107 @@
+{
+  "oracleId": "c850a29e-dc40-4ab6-89f1-d501a1a350d1",
+  "name": "Constant Mists",
+  "oracleHash": "50572f09",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "altCosts": [
+    {
+      "id": "buyback",
+      "label": "buyback—sacrifice a land",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [
+            "G"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}{G}"
+        },
+        "sacrifice": {
+          "types": [
+            "Land"
+          ]
+        }
+      },
+      "from": "hand",
+      "returnToHand": true
+    }
+  ],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "prevent",
+          "amount": "all",
+          "from": {
+            "combat": "combat"
+          },
+          "to": {},
+          "duration": "eot"
+        }
+      ],
+      "text": "Prevent all combat damage that would be dealt this turn."
+    }
+  ],
+  "covers": [
+    {
+      "line": "Buyback—Sacrifice a land.",
+      "by": "altCosts"
+    }
+  ],
+  "aiHints": {
+    "role": "removal",
+    "value": 4,
+    "timing": "instant"
+  },
+  "notes": "Buyback with a NON-mana cost: parse.ts:1885 only reads 'Buyback {N}', so the altCost is written here. A buyback altCost holds the TOTAL cost (the printed {1}{G} plus the sacrifice), and returnToHand: true is the buyback rider. The fog is the replacement family's 'prevent' shield rather than the core 'prevent-damage', which with target 'you' only sets the player-damage fog flag (game.ts:1485/1974) and would let combat damage to creatures through; 'prevent' with from.combat 'combat' and an empty recipient is every player and every permanent (replacement.ts:86).",
+  "verification": {
+    "at": "2026-09-06T06:01:45.669Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "50572f09",
+    "scriptHash": "1dce139d",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 1,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "C:/Users/vprog/dev/mark-magic/data/scenarios/c8/c850a29e-dc40-4ab6-89f1-d501a1a350d1.json",
+      "passed": 5,
+      "failed": 0,
+      "names": []
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "Prevent all combat damage that would be dealt this turn. — expected A prevention shield created on resolution that prevents ALL combat damage for the rest of the turn — from any source, to every player, planeswalker, battle and creature (including attacker/blocker mutual damage), unlimited in amount, expiring in cleanup; noncombat damage untouched. — scripted prevent { amount:'all', from:{combat:'combat'}, to:{}, duration:'eot' } — correct on every axis I could check in the engine. sourceMatches (replacement.ts:289) gates on combat===true only, with no who/filter restriction, so damage from either player's creatures is caught. recipientMatches (replacement.ts:300-310) with an empty `to`: objectHalf is false and r.players is undefined, so the player branch returns true for every player and the object branch returns true for every permanent — this is the documented 'prevent all damage this turn has neither half' case. amount 'all' becomes left:'all', which is never decremented or spliced out (replacement.ts:481-490), so the shield eats an unbounded number of damage events. duration 'eot' is the only shield duration and it is cleared in cleanup (CR 514.2). The notes correctly justify choosing the replacement family's `prevent` over the core `prevent-damage`, whose player-only Fog flag would let combat damage to creatures through. Blind scenarios 1/2/3/5 confirm: unblocked attacker deals nothing, blocked 2/2 and 3/3 both survive, Lightning Bolt still deals 3 (noncombat), and the shield survives a buyback cast. — CR CR 615.1, 615.10, 510.2, 514.2",
+          "Buyback—Sacrifice a land. — expected An OPTIONAL ADDITIONAL cost (CR 702.27a): as you cast the spell you may sacrifice a land you control in addition to the printed {1}{G}; if you did, the spell is put into its owner's hand instead of the graveyard as it resolves (and only as it resolves — a countered spell still goes to the graveyard). — scripted altCosts entry id 'buyback', cost { mana raw '{1}{G}', sacrifice:{types:['Land']} }, from:'hand', returnToHand:true. This is exactly the parser's own buyback idiom (parse.ts:1885 builds addManaCost(printed, extra) as the TOTAL), and scripts.ts:1101-1104 documents buyback as the one altCost that holds the total — so {1}{G} here is the printed cost, not a second {1}{G}, and the sacrifice rides alongside it. Correct. Optionality is inherent: legal.ts:352 offers the altCost alongside the ordinary cast, so the player chooses. cost.sacrifice{types:['Land']} is any land the controller controls, chosen by them. game.ts:1003-1004 applies returnToHand only when `!item.countered`, matching the resolve-time-only replacement. `covers` claims this line by altCosts, which is accurate. — CR CR 702.27a, 601.2b, 118.9",
+          "Buyback—Sacrifice a land. (modelling caveat, non-blocking) — expected Buyback is an ADDITIONAL cost, so cost-reduction and cost-increase effects still apply to the {1}{G} and the spell is still 'cast for its mana cost'. — scripted The engine has no additional-cost slot for a non-mana buyback rider, so it is expressed as an alternative cost carrying the total. If a cost modifier or a 'costs {1} less' effect is not folded into altCost mana the same way it is folded into a printed cost, a bought-back Constant Mists could be mispriced by that reduction. This is the parser's own established representation for every buyback card (parse.ts:1885), not a choice specific to this script, so I do not treat it as an unfaithfulness — it is a family-wide engine idiom and no printed clause on this card is lost by it. — CR CR 601.2f, 702.27a",
+          "Whole card / structural — expected An Instant with one spell ability; no other printed abilities. — scripted Single kind:'spell' ability, aiHints.timing 'instant' matching the Instant type line, mode 'replace'. Render scores 1.00 ('Prevent all combat damage that would be dealt this turn'). Verification block is internally consistent (oracleHash 50572f09 matches the batch entry, schema/lint ok, sandbox reached the ability by cast, roundTrip 1). No `ignore` claims to audit. 5/5 blind scenarios pass with unsimulated 0. — CR —"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

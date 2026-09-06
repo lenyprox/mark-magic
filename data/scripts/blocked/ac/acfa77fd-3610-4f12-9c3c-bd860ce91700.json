@@ -1,0 +1,23 @@
+{
+  "oracleId": "acfa77fd-3610-4f12-9c3c-bd860ce91700",
+  "name": "Rhythm of the Wild",
+  "clause": "Creature spells you control can't be countered.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:riot",
+      "proposedSignature": "AsEnters { kind: 'riot' } and Keyword 'riot' (so an anthem / grant-ability can hand it to other creatures: 'Nontoken creatures you control have riot.')",
+      "semantics": "CR 702.136: riot is a replacement effect - as the creature enters, its controller chooses a +1/+1 counter or haste. The closest form today is a granted enters-trigger with a choose-mode (what Uncivil Unrest's script uses), which resolves after the creature is already on the battlefield and cannot be named as a keyword by another card.",
+      "cr": "702.136",
+      "clause": "Riot / Other Spiders you control have riot."
+    },
+    {
+      "opFamily": "replacement",
+      "proposedSignature": "{ kind: 'cant-be-countered', scope?: 'self' | 'you-control' | 'all', filter?: Filter, abilities?: true }",
+      "semantics": "CR 701.5a: today the static carries no fields and can only mean the source's own spell, so 'Creature spells you control can't be countered.' and 'Spells and abilities can't be countered.' have no form. `abilities` extends it to abilities on the stack.",
+      "cr": "701.5a",
+      "clause": "Creature spells you control can't be countered."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

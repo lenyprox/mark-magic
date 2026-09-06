@@ -1,0 +1,123 @@
+{
+  "oracleId": "6aea681e-88d2-48df-a717-3ce0bc95205b",
+  "name": "Silent Hallcreeper",
+  "oracleHash": "ee1de50e",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [
+    "unblockable"
+  ],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "combat-damage-player",
+        "self": true
+      },
+      "effects": [
+        {
+          "op": "choose-modes",
+          "count": 1,
+          "notChosen": "ever",
+          "labels": [
+            "Put two +1/+1 counters on ~.",
+            "Draw a card.",
+            "~ becomes a copy of another target creature you control."
+          ],
+          "modes": [
+            [
+              {
+                "op": "counters",
+                "target": "self",
+                "counter": "+1/+1",
+                "amount": 2
+              }
+            ],
+            [
+              {
+                "op": "draw",
+                "amount": 1,
+                "who": "you"
+              }
+            ],
+            [
+              {
+                "op": "choose-objects",
+                "chooser": "you",
+                "from": {
+                  "filter": {
+                    "types": [
+                      "Creature"
+                    ],
+                    "other": true
+                  },
+                  "who": "you"
+                },
+                "count": 1
+              },
+              {
+                "op": "become-copy",
+                "target": "that",
+                "duration": "permanent"
+              }
+            ]
+          ]
+        }
+      ],
+      "text": "Whenever ~ deals combat damage to a player, choose one that hasn't been chosen —"
+    }
+  ],
+  "covers": [
+    {
+      "line": "~ can't be blocked.",
+      "by": "keywords"
+    }
+  ],
+  "notes": "The third mode's \"another target creature you control\" is a `choose-objects` pick plus `become-copy` on `that`: `legal.ts:nestedLists` does not descend into a family op's `modes`, so an effect inside `choose-modes` is never offered a target at cast time (docs/vocabulary/piles-choices.md 5). The choice is made as the ability resolves and skips the targeting legality checks (shroud / hexproof / protection); everything else is the printed behaviour.",
+  "verification": {
+    "at": "2026-09-06T10:06:03.841Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "ee1de50e",
+    "scriptHash": "16cb8295",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'attack' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 1,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": [],
+      "sampled": false
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "• This creature becomes a copy of another target creature you control. — expected a real target chosen when the trigger goes on the stack (shroud/protection checked, and the mode is not choosable with no legal target) — scripted choose-objects {filter:{types:[Creature],other:true}, who:you} + become-copy target:that, duration:permanent — chosen at resolution with no targeting legality check; the mode can still be picked with no other creature, resolving as nothing while burning the 'hasn't been chosen' slot — CR 115.1, 601.2c, 700.2c",
+          "choose one that hasn't been chosen — — expected a permanent per-object record — scripted notChosen:'ever' -> src.ext.pcModesEver, cleared only when the permanent leaves the battlefield (correct, CR 400.7). Verified in piles-choices.ts:294/499 — CR 700.2a",
+          "This creature can't be blocked. — expected static evasion — scripted keywords:['unblockable'] + covers by 'keywords'; characteristics.ts:557 honours it — CR 509.1a"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

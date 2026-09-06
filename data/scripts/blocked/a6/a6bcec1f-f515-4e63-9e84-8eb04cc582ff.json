@@ -1,0 +1,23 @@
+{
+  "oracleId": "a6bcec1f-f515-4e63-9e84-8eb04cc582ff",
+  "name": "The Seriema",
+  "clause": "Station",
+  "needs": [
+    {
+      "opFamily": "counter-threshold-condition",
+      "proposedSignature": "Condition variants { kind: 'self-counters-ge', counter: string, value: number } and { kind: 'self-counters-le', counter: string, value: number } (the same family an earlier wave asked for on af1553eb-4f9f-4335-9078-56649bd8d8fc), PLUS a general gate on the ability itself so a whole printed ability can be conditional: Ability += activeWhile?: Condition (StaticAbility, TriggeredAbility and ActivatedAbility alike - today only anthem/self-keywords carry a condition, triggers carry intervening, activated carries activateOnlyIf, and statics such as extra-land carry nothing). render.ts must print the gate ('as long as ~ has eight or more charge counters on it, ...') so the round trip can see the level number the line prints.",
+      "semantics": "'{N+} [abilities]' means 'As long as this permanent has N or more charge counters on it, it has [abilities]' (CR 721.2a) - a layer-6 static that switches a whole printed ability on and off. Every station card in this batch has at least one such line, and each currently scores 0 on the round trip because no rendering can contain the printed level number.",
+      "cr": "721.2a, 721.2b, 122.1, 613.1d, 603.4",
+      "clause": "3+ | You may play an additional land on each of your turns."
+    },
+    {
+      "opFamily": "named-keyword:station",
+      "proposedSignature": "render.ts KEYWORD_EXPANSIONS['station'] = 'tap another untapped creature you control: put a number of charge counters on ~ equal to the tapped creature's power. activate only as a sorcery'; AbilityCost.tapUntappedCreature must BIND the creature it tapped into item.affected (parity with the sacrifice cost's item.sacrificed) so the body can be { op: 'counters', target: 'self', counter: 'charge', amount: { prop: 'power', of: 'that' } }; optional face field station?: { levels: { at: number; abilities: Ability[]; pt?: [number, number] }[] } with a covers kind 'station' whose anchored shapes are /^station$/ and /^(\\d+)\\+ \\| (.+)$/, plus the top level's 'is a creature with base power and toughness [P/T] in addition to its other types' type change.",
+      "semantics": "Station is an activated ability printed as the bare word 'Station': 'Tap another untapped creature you control: Put a number of charge counters on this permanent equal to the tapped creature's power. Activate only as a sorcery.' The cost's tapped creature is what the amount reads, and nothing in the engine binds it today. Station cards then print one or two '{N+} | abilities' striations (rule 721) that the permanent has only while it carries N or more charge counters, the top one usually also making it an artifact creature with the printed P/T.",
+      "cr": "702.184a, 702.184b, 702.184c, 721.1, 721.2a, 721.2b, 721.4",
+      "clause": "Station"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

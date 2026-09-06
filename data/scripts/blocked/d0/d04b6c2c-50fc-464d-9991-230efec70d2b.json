@@ -1,0 +1,23 @@
+{
+  "oracleId": "d04b6c2c-50fc-464d-9991-230efec70d2b",
+  "name": "Nashi, Moon Sage's Scion",
+  "clause": "Ninjutsu {3}{B}",
+  "needs": [
+    {
+      "opFamily": "ninjutsu",
+      "proposedSignature": "CardDef field `ninjutsu?: { cost: ManaCost; commander?: boolean }` + a new `covers[].by: 'ninjutsu'` whose anchored line shape is `^(commander )?ninjutsu (\\{.+\\})$` and whose matched VALUE is `ninjutsu.cost.raw` (plus `commander === true` for the 'Commander ninjutsu' wording); a `KEYWORD_EXPANSIONS.ninjutsu` entry in src/cards/render.ts reading \"{cost}, return an unblocked attacker you control to hand: put ~ onto the battlefield from your hand tapped and attacking\"; engine side a LEGAL_PROVIDER offering `{ type: 'ninjutsu', card }` from the HAND (or the command zone when `commander`) during the declare-blockers step while the player controls an unblocked attacking creature, paying `cost.mana` plus returning that creature to hand, then putting the card onto the battlefield tapped and attacking the same defender. Also needs `Filter.unblocked?: boolean` so the cost can be stated at all.",
+      "semantics": "Ninjutsu is an activated ability that functions only while the card is in its owner's hand (CR 702.49b) and whose effect puts that card onto the battlefield tapped and attacking without it having been declared as an attacker. Nothing in the format expresses any of its three halves: an ability gated to the hand (ActivatedAbility carries only `fromGraveyard`), an 'unblocked attacker' cost subject (Filter has `attacking` but no `unblocked`), or an effect that puts the source onto the battlefield attacking (`move` has `tapped` but no `attacking`). Verified empirically: a replace-mode script that claims every line of Ingenious Infiltrator still scores round trip 0.00 on 'Ninjutsu {U}{B}' with rendererGaps ['keyword:ninjutsu'], so the KEYWORD_EXPANSIONS entry is required in addition to any behaviour.",
+      "cr": "702.49a-c (ninjutsu), 702.49d + 903 (commander ninjutsu), 509.1h (unblocked), 506.4/508.1 (attacking without being declared an attacker)",
+      "clause": "Ninjutsu {U}{B} ({U}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)"
+    },
+    {
+      "opFamily": "play-exiled-alt-cost",
+      "proposedSignature": "Extend `play-exiled` to `{ op: 'play-exiled'; until: 'eot' | 'next-turn'; free?: boolean; count?: number; altCost?: { payLife: 'mv' | number } }`, and let the preceding exile reach every player's library - e.g. `{ op: 'scoped', who: 'each-player', do: [{ op: 'move', what: { filter: {}, zone: 'library', who: 'you', count: 1 }, to: 'exile', pos: 'top' }] }` - with the exiled set carried into `play-exiled`.",
+      "semantics": "Nashi, Moon Sage's Scion: 'exile the top card of each player's library. Until end of turn, you may play ONE of those cards. If you cast a spell this way, pay life equal to its mana value rather than paying its mana cost.' Three pieces are missing: exiling from every player's library into one set you may play from (`impulse` is your library only), a cap of one card played out of that set (`play-exiled` has no count), and an alternative cost of life equal to the card's mana value (`play-exiled` offers only `free`).",
+      "cr": "118.9 (alternative costs), 601.2f, 202.3 (mana value)",
+      "clause": "Whenever ~ deals combat damage to a player, exile the top card of each player's library. Until end of turn, you may play one of those cards. If you cast a spell this way, pay life equal to its mana value rather than paying its mana cost."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

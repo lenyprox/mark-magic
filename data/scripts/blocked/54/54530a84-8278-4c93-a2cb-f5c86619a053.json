@@ -1,0 +1,16 @@
+{
+  "oracleId": "54530a84-8278-4c93-a2cb-f5c86619a053",
+  "name": "Cut Your Losses",
+  "clause": "Casualty 2",
+  "needs": [
+    {
+      "opFamily": "named-keyword:casualty",
+      "proposedSignature": "face declaration `casualty?: number | 'X'` (optional additional cost: sacrifice a creature with power N or greater as you cast this spell), a `covers[].by` kind 'casualty' whose anchored line shape is /^casualty (\\d+|x)$/, and the reflexive copy it triggers: { op: 'reflexive', when: 'casualty-paid', effects: [{ op: 'copy-stack', target: 'self', newTargets: 'may' }] }",
+      "semantics": "Casualty N (CR 702.153a) is an optional additional cost plus a reflexive trigger that copies the spell with optional new targets. Nothing in the format expresses an OPTIONAL additional cost, and the copy is a 'when you do' reflexive on the payment, which `reflexive` cannot key off because the payment is not an effect. The mill half of this card ('mills half their library, rounded down') is already expressible as an `objects` amount over zone 'library' of 'target-player' with half: 'down'.",
+      "cr": "702.153a, 601.2b, 706.10",
+      "clause": "Casualty 2"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

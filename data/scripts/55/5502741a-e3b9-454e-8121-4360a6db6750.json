@@ -1,0 +1,131 @@
+{
+  "oracleId": "5502741a-e3b9-454e-8121-4360a6db6750",
+  "name": "Mirrex",
+  "oracleHash": "06adfa04",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": [
+            "C"
+          ]
+        }
+      ],
+      "manaAbility": true,
+      "text": "{T}: Add {C}."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": "any",
+          "amount": 1
+        }
+      ],
+      "manaAbility": true,
+      "activateOnlyIf": {
+        "kind": "self-entered-this-turn"
+      },
+      "text": "{T}: Add one mana of any color. Activate only if ~ entered this turn."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 3,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{3}"
+        },
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 1,
+          "toughness": 1,
+          "colors": [],
+          "types": [
+            "Artifact",
+            "Creature"
+          ],
+          "subtypes": [
+            "Phyrexian",
+            "Mite"
+          ],
+          "keywords": [
+            "toxic",
+            "cant block"
+          ],
+          "name": "Phyrexian Mite"
+        }
+      ],
+      "text": "{3}, {T}: Create a 1/1 colorless Phyrexian Mite artifact creature token with toxic 1 and \"This token can't block.\""
+    }
+  ],
+  "notes": "The two mana abilities are the parser's; the Mite token carries toxic and cant block as keywords.",
+  "verification": {
+    "at": "2026-09-06T06:16:28.918Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "06adfa04",
+    "scriptHash": "a6f63371",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": false
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "{3}, {T}: Create a 1/1 colorless Phyrexian Mite artifact creature token with toxic 1 and \"This token can't block.\"",
+          "rendered": "{3}, {T}: create a 1/1 Phyrexian Mite artifact creature token with toxic and cant block",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"{3}, {T}: Create a 1/1 colorless Phyrexian Mite artifact creature token with toxic 1 and \\\"This token can't block.\\\"\" rendered as \"{3}, {T}: create a 1/1 Phyrexian Mite artifact creature token with toxic and cant block\""
+    ]
+  }
+}

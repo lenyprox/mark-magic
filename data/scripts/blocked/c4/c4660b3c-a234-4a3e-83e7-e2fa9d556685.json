@@ -1,0 +1,16 @@
+{
+  "oracleId": "c4660b3c-a234-4a3e-83e7-e2fa9d556685",
+  "name": "Lethal Scheme",
+  "clause": "Each creature that convoked ~ connives.",
+  "needs": [
+    {
+      "opFamily": "named-keyword:convoke",
+      "proposedSignature": "A static { kind: 'grant-cost-modifier'; scope: 'your-spells'; filter?: Filter; from?: CastZone; modifier: CostModifier }, and a binding for the convoking creatures: ObjectSet word 'convoked' ({ op: 'for-each', over: 'convoked' }) and Filter { convokedSource: true }.",
+      "semantics": "First half: 'Spells you cast from exile have convoke' / 'Creature spells you cast have convoke' - a permanent granting a cost modifier to a class of spells. Second half: the engine must remember which creatures were tapped to convoke a spell, so 'Each creature that convoked this spell connives' and 'shares a creature type with a creature that convoked this spell' can name them.",
+      "cr": "702.51a, 702.51c",
+      "clause": "Spells you cast from exile have convoke. / Each creature that convoked ~ connives."
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

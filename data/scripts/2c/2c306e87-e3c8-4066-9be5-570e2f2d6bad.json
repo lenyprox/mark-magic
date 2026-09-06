@@ -1,0 +1,100 @@
+{
+  "oracleId": "2c306e87-e3c8-4066-9be5-570e2f2d6bad",
+  "name": "Moonmist",
+  "oracleHash": "fef3ed23",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "for-each",
+          "over": {
+            "subtypes": [
+              "Human"
+            ]
+          },
+          "do": [
+            {
+              "op": "transform",
+              "target": "that"
+            }
+          ]
+        },
+        {
+          "op": "prevent",
+          "amount": "all",
+          "from": {
+            "filter": {
+              "types": [
+                "Creature"
+              ],
+              "notSubtypes": [
+                "Werewolf",
+                "Wolf"
+              ]
+            },
+            "combat": "combat"
+          },
+          "to": {},
+          "duration": "eot"
+        }
+      ],
+      "text": "Transform all Humans. Prevent all combat damage that would be dealt this turn by creatures other than Werewolves and Wolves."
+    }
+  ],
+  "aiHints": {
+    "role": "protection",
+    "value": 2,
+    "timing": "instant"
+  },
+  "notes": "'Transform all Humans' is untargeted, so it is a for-each over every Human on the battlefield (every player's, the ObjectSet default) with transform on that. The fog half is prevent with an empty recipient, which recipientMatches reads as everything (replacement.ts:303).",
+  "verification": {
+    "at": "2026-09-06T10:03:39.677Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "fef3ed23",
+    "scriptHash": "18791e2c",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.636,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": [],
+      "sampled": false
+    },
+    "status": "judged",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "faithful",
+        "issues": [
+          "Transform all Humans. — expected every Human permanent on the battlefield, all players', untargeted; only double-faced permanents actually turn; a daybound/nightbound werewolf is immune — scripted for-each over {subtypes:['Human']} — refs.ts:140-149 defaults the zone to battlefield and the player set to every living player (apnapOrder), so it is correctly not limited to 'you control'; transform target 'that' resolves through item.affected (refs.ts:78) which for-each rebinds per iteration (game.ts:1716-1725). transform.ts flip() refuses non-DFCs and refuses daybound/nightbound permanents. Correct. — CR 701.27a / 702.145b",
+          "Prevent all combat damage that would be dealt this turn by creatures other than Werewolves and Wolves. — expected a turn-long shield against combat damage from any creature that is not a Werewolf or a Wolf, to any recipient (players and permanents), any controller — scripted prevent amount:'all', from:{filter:{types:['Creature'],notSubtypes:['Werewolf','Wolf']},combat:'combat'}, to:{}, duration:'eot'. notSubtypes is honoured (characteristics.ts:239) via sourceMatches (replacement.ts:288-296); to:{} matches both players and permanents (recipientMatches, replacement.ts:300-308); an 'all' shield is never spliced out (replacement.ts:484) so it survives multiple damage events until cleanup. Correct. The renderer's 0.64 line printing \"by creature this turn\" drops notSubtypes — a render.ts gap, not a script gap. — CR 615.1 / 514.2",
+          "(Only double-faced cards can be transformed.) — expected reminder text, no ability — scripted not claimed by any ability and no `ignore` entry is declared; lint/scriptCheck report ok, so the reminder is stripped before the coverage check. No finding. — CR 207.2"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,227 @@
+{
+  "oracleId": "aefea339-8a0d-4531-8a62-afaecc88d078",
+  "name": "Scavenger's Talent",
+  "oracleHash": "ab063f28",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "dies",
+        "self": false,
+        "filter": {
+          "types": [
+            "Creature"
+          ]
+        },
+        "controller": "you"
+      },
+      "oncePerTurn": true,
+      "effects": [
+        {
+          "op": "token",
+          "count": 1,
+          "power": 0,
+          "toughness": 0,
+          "colors": [],
+          "types": [
+            "Artifact"
+          ],
+          "subtypes": [
+            "Food"
+          ],
+          "keywords": [],
+          "name": "Food",
+          "food": true
+        }
+      ],
+      "text": "Whenever one or more creatures you control die, create a Food token. This ability triggers only once each turn."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [
+            "B"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}{B}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 1
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 2
+        }
+      ],
+      "text": "{1}{B}: Level 2"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "sacrifice"
+      },
+      "condition": {
+        "kind": "self-level",
+        "atLeast": 2
+      },
+      "effects": [
+        {
+          "op": "mill",
+          "amount": 2,
+          "who": "target-player"
+        }
+      ],
+      "text": "Whenever you sacrifice a permanent, target player mills two cards."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [
+            "B"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}{B}"
+        }
+      },
+      "sorcerySpeed": true,
+      "activateOnlyIf": {
+        "kind": "self-level",
+        "exactly": 2
+      },
+      "effects": [
+        {
+          "op": "set-level",
+          "to": 3
+        }
+      ],
+      "text": "{2}{B}: Level 3"
+    },
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "end-step",
+        "whose": "your"
+      },
+      "condition": {
+        "kind": "self-level",
+        "atLeast": 3
+      },
+      "effects": [
+        {
+          "op": "optional-then",
+          "first": [
+            {
+              "op": "sacrifice",
+              "who": "you",
+              "what": {
+                "other": true,
+                "notTypes": [
+                  "Land"
+                ]
+              },
+              "amount": 3
+            }
+          ],
+          "then": [
+            {
+              "op": "move",
+              "what": {
+                "filter": {
+                  "types": [
+                    "Creature"
+                  ]
+                },
+                "zone": "graveyard",
+                "who": "you",
+                "count": 1
+              },
+              "to": "battlefield",
+              "controller": "you",
+              "withCounters": {
+                "counter": "finality",
+                "amount": 1
+              }
+            }
+          ]
+        }
+      ],
+      "text": "At the beginning of your end step, you may sacrifice three other nonland permanents. If you do, return a creature card from your graveyard to the battlefield with a finality counter on it."
+    }
+  ],
+  "aiHints": {
+    "role": "utility",
+    "value": 4,
+    "timing": "main"
+  },
+  "notes": "'one or more creatures you control die' is one trigger per death in the engine; oncePerTurn is the card's own cap and keeps a mass death to a single Food. The level-3 line is `optional-then`, not `may` + `reflexive`: 'If you do' resolves inside the same ability (CR 603.12 is only for 'When you do'). `move` carries the finality counter through addCounters.",
+  "verification": {
+    "at": "2026-09-06T10:02:10.030Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "ab063f28",
+    "scriptHash": "15e0958a",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'turn' probe"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "trigger fired in the 'turn' probe"
+        },
+        {
+          "index": 3,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 4,
+          "reached": true,
+          "how": "trigger fired in the 'turn' probe"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.4,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.40 < 0.55: \"{1}{B}: Level 2\" rendered as \"{1}{B}: Level 2. activate only if self level. activate only as a sorcery\"; \"{2}{B}: Level 3\" rendered as \"{2}{B}: Level 3. activate only if self level. activate only as a sorcery\""
+    ]
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "oracleId": "46eefc72-2d9e-4389-8ae1-26d9ee472b5c",
+  "name": "Tolaria West",
+  "oracleHash": "677e067c",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "keywords": [],
+  "entersTapped": true,
+  "abilities": [
+    {
+      "kind": "activated",
+      "cost": {
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "add-mana",
+          "mana": [
+            "U"
+          ]
+        }
+      ],
+      "text": "{T}: Add {U}.",
+      "manaAbility": true
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 1,
+          "x": 0,
+          "pips": [
+            "U",
+            "U"
+          ],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{1}{U}{U}"
+        },
+        "discardSelf": true
+      },
+      "sorcerySpeed": true,
+      "effects": [
+        {
+          "op": "search",
+          "filter": {
+            "mvEQ": 0
+          },
+          "to": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      ],
+      "text": "Transmute {1}{U}{U}"
+    }
+  ],
+  "covers": [
+    {
+      "line": "~ enters tapped.",
+      "by": "entersTapped"
+    }
+  ],
+  "aiHints": {
+    "role": "land",
+    "value": 2,
+    "timing": "main"
+  },
+  "notes": "Transmute (CR 702.49) as the activated-from-hand ability it is: {1}{U}{U}, discard this card, search for a card with mana value 0.",
+  "verification": {
+    "at": "2026-09-06T06:15:32.095Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "677e067c",
+    "scriptHash": "05e21e3e",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "activated"
+        },
+        {
+          "index": 1,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0,
+      "lowest": [
+        {
+          "text": "Transmute {1}{U}{U}",
+          "rendered": "{1}{U}{U}, discard ~: search your library for a card with mana value 0, put it into your hand, then shuffle. activate only as a sorcery",
+          "score": 0
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.00 < 0.55: \"Transmute {1}{U}{U}\" rendered as \"{1}{U}{U}, discard ~: search your library for a card with mana value 0, put it into your hand, then shuffle. activate only as a sorcery\""
+    ]
+  }
+}

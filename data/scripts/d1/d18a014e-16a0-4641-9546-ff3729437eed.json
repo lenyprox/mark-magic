@@ -1,0 +1,197 @@
+{
+  "oracleId": "d18a014e-16a0-4641-9546-ff3729437eed",
+  "name": "Cayth, Famed Mechanist",
+  "oracleHash": "0d249e4d",
+  "source": "llm",
+  "confidence": 0.85,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "triggered",
+      "event": {
+        "on": "etb",
+        "self": true
+      },
+      "optional": false,
+      "effects": [
+        {
+          "op": "choose-mode",
+          "count": 1,
+          "modes": [
+            [
+              {
+                "op": "counters",
+                "target": "self",
+                "counter": "+1/+1",
+                "amount": 1
+              }
+            ],
+            [
+              {
+                "op": "token",
+                "count": 1,
+                "power": 1,
+                "toughness": 1,
+                "colors": [],
+                "types": [
+                  "Artifact",
+                  "Creature"
+                ],
+                "subtypes": [
+                  "Servo"
+                ],
+                "keywords": []
+              }
+            ]
+          ]
+        }
+      ],
+      "text": "Fabricate 1"
+    },
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "grant-ability",
+        "scope": "you-control",
+        "filter": {
+          "types": [
+            "Creature"
+          ],
+          "other": true,
+          "nontoken": true
+        },
+        "ability": {
+          "kind": "triggered",
+          "event": {
+            "on": "etb",
+            "self": true
+          },
+          "optional": false,
+          "effects": [
+            {
+              "op": "choose-mode",
+              "count": 1,
+              "modes": [
+                [
+                  {
+                    "op": "counters",
+                    "target": "self",
+                    "counter": "+1/+1",
+                    "amount": 1
+                  }
+                ],
+                [
+                  {
+                    "op": "token",
+                    "count": 1,
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [],
+                    "types": [
+                      "Artifact",
+                      "Creature"
+                    ],
+                    "subtypes": [
+                      "Servo"
+                    ],
+                    "keywords": []
+                  }
+                ]
+              ]
+            }
+          ],
+          "text": "Fabricate 1"
+        }
+      },
+      "text": "Other nontoken creatures you control have fabricate 1."
+    },
+    {
+      "kind": "activated",
+      "cost": {
+        "mana": {
+          "generic": 2,
+          "x": 0,
+          "pips": [],
+          "hybrid": [],
+          "phyrexian": [],
+          "raw": "{2}"
+        },
+        "tap": true
+      },
+      "effects": [
+        {
+          "op": "choose-mode",
+          "count": 1,
+          "modes": [
+            [
+              {
+                "op": "populate"
+              }
+            ],
+            [
+              {
+                "op": "proliferate"
+              }
+            ]
+          ]
+        }
+      ],
+      "text": "{2}, {T}: Choose one —",
+      "sorcerySpeed": false,
+      "oncePerTurn": false,
+      "manaAbility": false,
+      "instantSpeed": false
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "utility",
+    "value": 6,
+    "timing": "main"
+  },
+  "notes": "Fabricate 1 is its printed rules text (CR 702.122a): an ETB trigger with a two-mode choice, kept exactly as the parser reads the printed keyword line. The granted copy of it rides on a grant-ability static whose filter is 'other nontoken creatures you control' (Filter.other + Filter.nontoken), with the same ETB trigger as its ability; 'self: true' inside a granted ability is the creature that has it. The activated ability's two bullets are the modes of one choose-mode (populate / proliferate, both keyword-action ops), and the bullets are not lines of their own.",
+  "verification": {
+    "at": "2026-09-06T05:59:02.327Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "0d249e4d",
+    "scriptHash": "5936372c",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "trigger fired in the 'enter' probe"
+        },
+        {
+          "index": 1,
+          "reached": false
+        },
+        {
+          "index": 2,
+          "reached": true,
+          "how": "activated"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.462,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.46 < 0.55: \"Other nontoken creatures you control have fabricate 1.\" rendered as \"another nontoken creature you control has \\\"when ~ enters, choose one —\""
+    ]
+  }
+}

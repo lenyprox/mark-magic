@@ -1,0 +1,94 @@
+{
+  "oracleId": "e21c8fc6-d4ef-42b6-b11e-d9c931da1387",
+  "name": "Realms Uncharted",
+  "oracleHash": "bed3d86b",
+  "source": "llm",
+  "confidence": 0.8,
+  "mode": "replace",
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "search",
+          "filter": {
+            "types": [
+              "Land"
+            ]
+          },
+          "to": "hand",
+          "count": 4,
+          "optional": true,
+          "reveal": true
+        },
+        {
+          "op": "reveal-cards",
+          "what": "those"
+        },
+        {
+          "op": "choose-objects",
+          "chooser": "an-opponent",
+          "from": "those",
+          "count": 2
+        },
+        {
+          "op": "chosen-fate",
+          "chosen": {
+            "how": "move",
+            "to": "graveyard"
+          },
+          "other": {
+            "how": "move",
+            "to": "hand"
+          }
+        }
+      ],
+      "text": "Search your library for up to four land cards with different names and reveal them. An opponent chooses two of those cards. Put the chosen cards into your graveyard and the rest into your hand. Then shuffle."
+    }
+  ],
+  "notes": "The four lands are searched into hand and the two the opponent chooses are then moved to the graveyard, which is the printed net result; `search` shuffles the library itself. \"with different names\" is not expressible — `Filter` has no card-name field.",
+  "verification": {
+    "at": "2026-09-06T10:06:03.841Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "bed3d86b",
+    "scriptHash": "b4181a5d",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.821,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": [],
+      "sampled": false
+    },
+    "status": "verified",
+    "problems": [],
+    "judge": [
+      {
+        "model": "opus/judge1",
+        "verdict": "unfaithful",
+        "issues": [
+          "Search your library for up to four land cards with different names — expected four land cards, all with different names — scripted search {filter:{types:[Land]}} count:4 optional:true — 'up to four' and 'land cards' are right, but 'with different names' is dropped, so four copies of one land can be fetched and the opponent's two-of-four split stops being a real decision — CR 701.19c",
+          "An opponent chooses two of those cards. — expected an opponent, no target — scripted choose-objects chooser:'an-opponent' — correct (no target raised; the acting player picks which opponent in multiplayer) — CR 700.2e"
+        ],
+        "at": "2026-09-06T10:34:09.077Z"
+      }
+    ]
+  }
+}

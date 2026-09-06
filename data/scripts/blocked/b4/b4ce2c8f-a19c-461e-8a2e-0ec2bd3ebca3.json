@@ -1,0 +1,23 @@
+{
+  "oracleId": "b4ce2c8f-a19c-461e-8a2e-0ec2bd3ebca3",
+  "name": "Ocelot Pride",
+  "clause": "Ascend / \"Then if you have the city's blessing, for each token you control that entered this turn, create a token that's a copy of it.\"",
+  "needs": [
+    {
+      "opFamily": "ascend",
+      "proposedSignature": "Effect { op: 'ascend' } (the instant/sorcery form) ; StaticEffect { kind: 'ascend' } (the permanent form, re-checked whenever permanents change) ; Condition { kind: 'city-blessing'; who?: ScopeWho } ; a per-player sticky designation slot on Player (e.g. designations: Set<'city-blessing' | 'monarch' | 'initiative'>) ; a KEYWORD_EXPANSIONS entry for 'ascend'",
+      "semantics": "CR 702.131a/b: on an instant or sorcery Ascend is a spell ability checked on resolution; on a permanent it is a static ability checked continuously (any time you control ten or more permanents). The city's blessing is a DESIGNATION, not a counter or a permanent state, and once gained it is never lost — that stickiness is exactly why { kind: 'controls', who: 'you', filter: {}, atLeast: 10 } is not a faithful stand-in. Once the Condition exists it plugs into every place this batch needs it: a triggered ability's intervening (Twilight Prophet), anthem.condition (Tendershoot Dryad, Illustrious Wanderglyph), activateOnlyIf (Arch of Orazca), a conditional inside an effect list (Anduril, Vona's Hunger) and self-keywords.condition (Wayward Swordtooth). A shared designation slot would also give the existing become-monarch op a readable Condition, which it lacks today.",
+      "cr": "702.131a, 702.131b, 800.4",
+      "clause": "\"Ascend\" and every \"if you have the city's blessing\" / \"as long as you have the city's blessing\" / \"unless you have the city's blessing\" / \"Activate only if you have the city's blessing\" clause"
+    },
+    {
+      "opFamily": "generic",
+      "proposedSignature": "Filter { enteredThisTurn?: boolean }",
+      "semantics": "Matches a permanent that entered the battlefield this turn, so a for-each can iterate 'each token you control that entered this turn'. The engine already answers the same fact about the source as the Condition self-entered-this-turn; this is that fact as a Filter field so it can name a SET rather than only the source. Ocelot Pride is the only card in this batch that needs it, and it needs the ascend family too.",
+      "cr": "603.6a, 700.4",
+      "clause": "for each token you control that entered this turn, create a token that's a copy of it"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}

@@ -1,0 +1,104 @@
+{
+  "oracleId": "8d035688-089f-4d5c-bcad-9140a6c1681b",
+  "name": "Cybermen Squadron",
+  "oracleHash": "7652b46c",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "keywords": [],
+  "abilities": [
+    {
+      "kind": "static",
+      "effect": {
+        "kind": "grant-ability",
+        "filter": {
+          "types": [
+            "Artifact",
+            "Creature"
+          ],
+          "typesAll": true,
+          "notSupertypes": [
+            "Legendary"
+          ]
+        },
+        "scope": "you-control",
+        "ability": {
+          "kind": "triggered",
+          "event": {
+            "on": "attacks",
+            "self": true
+          },
+          "effects": [
+            {
+              "op": "token-copy",
+              "target": "self",
+              "count": {
+                "count": "opponents",
+                "plus": -1
+              },
+              "attacking": "each-other-opponent"
+            },
+            {
+              "op": "delayed-trigger",
+              "at": "end-of-combat",
+              "bind": "that",
+              "effects": [
+                {
+                  "op": "remove-those",
+                  "how": "exile"
+                }
+              ]
+            }
+          ],
+          "text": "Myriad"
+        }
+      },
+      "text": "Nonlegendary artifact creatures you control have myriad."
+    }
+  ],
+  "covers": [],
+  "aiHints": {
+    "role": "anthem",
+    "value": 4,
+    "timing": "main"
+  },
+  "verification": {
+    "at": "2026-09-06T06:15:15.552Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "7652b46c",
+    "scriptHash": "4854eb88",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "ok",
+      "seats4": "ok",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": false
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 0.2,
+      "lowest": [
+        {
+          "text": "Nonlegendary artifact creatures you control have myriad.",
+          "rendered": "artifact creature you control has \"whenever ~ attacks, create the number of opponents you have plus -1 tokens that's a copy of ~. at end of combat, exile them\"",
+          "score": 0.2
+        }
+      ]
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "scripted",
+    "problems": [
+      "round trip 0.20 < 0.55: \"Nonlegendary artifact creatures you control have myriad.\" rendered as \"artifact creature you control has \\\"whenever ~ attacks, create the number of opponents you have plus -1 tokens that's a copy of ~. at end of combat, exile them\\\"\""
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "oracleId": "ddbe0d17-5cac-417c-afc0-e4aebae83205",
+  "name": "Restoration Magic",
+  "clause": "Tiered",
+  "needs": [
+    {
+      "opFamily": "named-keyword:tiered",
+      "proposedSignature": "the same ModeSpec.cost machinery spree needs: { op: 'choose-mode', modes: ModeSpec[], count: 1 } where each ModeSpec carries its own `cost: ManaCost` paid as an additional cost at cast time, plus a face declaration `tiered: true` and a `covers[].by` kind 'tiered' for the anchored /^tiered$/ line, plus KEYWORD_EXPANSIONS['tiered'] = 'choose one. as an additional cost to cast this spell, pay the cost associated with that mode'",
+      "semantics": "Tiered is a static ability on a modal spell: exactly one mode is chosen as the spell is cast and that mode's cost is added as an additional cost. This is the SAME family the existing blocked note for Tifa's Limit Break (data/scripts/blocked/d0/d0d90dd8-0642-489f-9afc-11c307f258f2.json) records under the bare opFamily name 'tiered' - register the family under both names, or fold that note in, so all three cards unblock together.",
+      "cr": "702.183a, 700.2, 601.2b",
+      "clause": "Tiered"
+    }
+  ],
+  "wave": "10.1",
+  "attempts": 1
+}
