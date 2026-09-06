@@ -1,0 +1,84 @@
+{
+  "oracleId": "ae120613-97d6-4393-b39d-c3e6c076f5d6",
+  "name": "Deflecting Swat",
+  "oracleHash": "9f137bb0",
+  "source": "llm",
+  "confidence": 0.7,
+  "mode": "replace",
+  "covers": [
+    {
+      "line": "If you control a commander, you may cast ~ without paying its mana cost.",
+      "by": "altCosts"
+    }
+  ],
+  "keywords": [],
+  "altCosts": [
+    {
+      "id": "pitch",
+      "label": "without paying its mana cost",
+      "cost": {},
+      "condition": {
+        "kind": "controls-commander"
+      },
+      "from": "hand"
+    }
+  ],
+  "abilities": [
+    {
+      "kind": "spell",
+      "effects": [
+        {
+          "op": "may",
+          "effects": [
+            {
+              "op": "change-targets",
+              "target": {
+                "kind": "spell-or-ability"
+              },
+              "how": "choose-new"
+            }
+          ]
+        }
+      ],
+      "text": "You may choose new targets for target spell or ability."
+    }
+  ],
+  "aiHints": {
+    "role": "protection",
+    "value": 7,
+    "timing": "instant"
+  },
+  "notes": "The free cast is an altCost with no mana and the condition controls-commander: legal.ts:325 checks alt.condition before offering the variant, and an altCost whose cost carries no mana is free. Its oracle line cannot be CLAIMED, though - COVER_RULES.altCosts only matches the \"you may ... rather than pay ~ mana cost\" wording, not the free-spell cycle wording \"you may cast ~ without paying its mana cost\" - so the line stays unparsed even though the declaration behind it is right.",
+  "verification": {
+    "at": "2026-09-06T09:00:41.415Z",
+    "parserVersion": 5,
+    "registryHash": "36c06c1a",
+    "oracleHash": "9f137bb0",
+    "scriptHash": "87f74814",
+    "schema": "ok",
+    "lint": "ok",
+    "sandbox": {
+      "seats2": "unreachable",
+      "seats4": "unreachable",
+      "abilities": [
+        {
+          "index": 0,
+          "reached": true,
+          "how": "cast"
+        }
+      ]
+    },
+    "roundTrip": {
+      "score": 1,
+      "lowest": []
+    },
+    "scenarios": {
+      "file": "",
+      "passed": 0,
+      "failed": 0,
+      "names": []
+    },
+    "status": "verified",
+    "problems": []
+  }
+}
