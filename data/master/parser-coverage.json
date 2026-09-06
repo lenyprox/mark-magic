@@ -1,19 +1,19 @@
 {
-  "generated_at": "2026-09-06T05:41:20.078Z",
+  "generated_at": "2026-09-06T12:13:56.381Z",
   "playable_oracle_cards": 34513,
-  "fully_parsed": 13047,
-  "fully_parsed_pct": 37.8,
+  "fully_parsed": 13128,
+  "fully_parsed_pct": 38.04,
   "of_which_vanilla_or_keyword_only": 1506,
   "headline": {
     "total": 32081,
-    "fully_parsed": 12893,
-    "pct": 40.19
+    "fully_parsed": 12974,
+    "pct": 40.44
   },
   "tiers": {
     "paper": {
       "total": 32081,
-      "fully_parsed": 12893,
-      "pct": 40.19
+      "fully_parsed": 12974,
+      "pct": 40.44
     },
     "digital": {
       "total": 1000,
@@ -34,38 +34,38 @@
   "by_primary_type": {
     "Creature": {
       "total": 19233,
-      "full": 7957,
-      "pct": 41.4
+      "full": 7993,
+      "pct": 41.6
     },
     "Artifact": {
       "total": 2601,
-      "full": 828,
-      "pct": 31.8
+      "full": 838,
+      "pct": 32.2
     },
     "Enchantment": {
       "total": 3564,
-      "full": 872,
-      "pct": 24.5
+      "full": 887,
+      "pct": 24.9
     },
     "Sorcery": {
       "total": 3620,
-      "full": 1112,
-      "pct": 30.7
+      "full": 1114,
+      "pct": 30.8
     },
     "Instant": {
       "total": 3849,
-      "full": 1464,
-      "pct": 38
+      "full": 1475,
+      "pct": 38.3
     },
     "Land": {
       "total": 1161,
-      "full": 748,
-      "pct": 64.4
+      "full": 754,
+      "pct": 64.9
     },
     "Kindred": {
       "total": 80,
-      "full": 25,
-      "pct": 31.3
+      "full": 26,
+      "pct": 32.5
     },
     "Planeswalker": {
       "total": 335,
@@ -90,16 +90,16 @@
   },
   "most_common_unparsed_clauses": [
     {
-      "n": 60,
-      "clause": "{}{}: Level #"
-    },
-    {
       "n": 52,
       "clause": "#/#"
     },
     {
       "n": 50,
       "clause": "Start your engines!"
+    },
+    {
+      "n": 46,
+      "clause": "{}{}: Level #"
     },
     {
       "n": 36,
@@ -170,10 +170,6 @@
       "clause": "Soulbond"
     },
     {
-      "n": 23,
-      "clause": "You may choose the same mode more than once."
-    },
-    {
       "n": 22,
       "clause": "Fuse"
     },
@@ -188,6 +184,10 @@
     {
       "n": 21,
       "clause": "Spree"
+    },
+    {
+      "n": 21,
+      "clause": "You may choose the same mode more than once."
     },
     {
       "n": 21,
@@ -218,16 +218,8 @@
       "clause": "When ~ enters, you take the initiative."
     },
     {
-      "n": 19,
-      "clause": "Job select"
-    },
-    {
       "n": 18,
       "clause": "Retrace"
-    },
-    {
-      "n": 18,
-      "clause": "Reconfigure {}"
     },
     {
       "n": 18,
@@ -247,11 +239,11 @@
     },
     {
       "n": 17,
-      "clause": "~ costs {}{} more to cast for each target beyond the first."
+      "clause": "Job select"
     },
     {
       "n": 17,
-      "clause": "Offspring {}"
+      "clause": "~ costs {}{} more to cast for each target beyond the first."
     },
     {
       "n": 16,
@@ -260,6 +252,10 @@
     {
       "n": 16,
       "clause": "Madness {}"
+    },
+    {
+      "n": 16,
+      "clause": "Reconfigure {}"
     },
     {
       "n": 16,
@@ -284,10 +280,6 @@
     {
       "n": 15,
       "clause": "Cipher"
-    },
-    {
-      "n": 15,
-      "clause": "Sunburst"
     },
     {
       "n": 15,
@@ -319,15 +311,23 @@
     },
     {
       "n": 14,
-      "clause": "Transmute {}{}{}"
-    },
-    {
-      "n": 14,
       "clause": "Level up {}"
     },
     {
       "n": 14,
+      "clause": "Sunburst"
+    },
+    {
+      "n": 14,
       "clause": "Enchanted creature gets +#/+#."
+    },
+    {
+      "n": 14,
+      "clause": "Banding"
+    },
+    {
+      "n": 14,
+      "clause": "Learn."
     }
   ]
 }

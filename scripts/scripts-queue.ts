@@ -64,6 +64,30 @@ export function parseSelection(text: string): Selection {
   return sel;
 }
 
+/** The per-card facts a selection reads, preloaded: one query each beats 34,513 point lookups. */
+export interface SelectionIndex { commanderLegal: Set<string>; edhrec: Map<string, number> }
+
+export function selectionIndex(db: CardDB): SelectionIndex {
+  const commanderLegal = new Set<string>(
+    (db.db.prepare("SELECT oracle_id FROM legalities WHERE format = 'commander' AND status = 'legal'").all() as { oracle_id: string }[]).map(r => r.oracle_id),
+  );
+  const edhrec = new Map<string, number>();
+  for (const r of db.db.prepare('SELECT o.oracle_id AS id, m.edhrec_rank AS rank FROM oracle_cards o JOIN printing_meta m ON m.printing_id = o.representative_id WHERE m.edhrec_rank IS NOT NULL').all() as { id: string; rank: number }[]) {
+    edhrec.set(r.id, r.rank);
+  }
+  return { commanderLegal, edhrec };
+}
+
+/** Does the card pass every term of the selection? `tier` is `tierOf(row.raw)`; an unranked card fails both EDHREC terms. */
+export function selected(sel: Selection, idx: SelectionIndex, id: string, tier: PoolTier): boolean {
+  if (sel.tier !== 'all' && tier !== sel.tier) return false;
+  if (sel.commanderLegal && !idx.commanderLegal.has(id)) return false;
+  const rank = idx.edhrec.get(id) ?? null;
+  if (sel.edhrecMax !== undefined && (rank === null || rank > sel.edhrecMax)) return false;
+  if (sel.edhrecMin !== undefined && (rank === null || rank < sel.edhrecMin)) return false;
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Card facts
 // ---------------------------------------------------------------------------
@@ -303,14 +327,8 @@ export function buildWave(opts: WaveOptions): BuiltWave {
   // decks, one elsewhere — process rule 5), so the queue and every other reader agree card by card.
   const sources = defaultSources({ ...opts.sources, scripts: store });
 
-  // legality and EDHREC rank, preloaded: one query each beats 34,513 point lookups
-  const commanderLegal = new Set<string>(
-    (db.db.prepare("SELECT oracle_id FROM legalities WHERE format = 'commander' AND status = 'legal'").all() as { oracle_id: string }[]).map(r => r.oracle_id),
-  );
-  const edhrec = new Map<string, number>();
-  for (const r of db.db.prepare('SELECT o.oracle_id AS id, m.edhrec_rank AS rank FROM oracle_cards o JOIN printing_meta m ON m.printing_id = o.representative_id WHERE m.edhrec_rank IS NOT NULL').all() as { id: string; rank: number }[]) {
-    edhrec.set(r.id, r.rank);
-  }
+  // legality and EDHREC rank, preloaded (shared with scripts/parse-why.ts, which selects the same way)
+  const idx = selectionIndex(db);
 
   let ids: string[] | undefined = opts.ids;
   let missingDeckNames: string[] = [];
@@ -325,11 +343,8 @@ export function buildWave(opts: WaveOptions): BuiltWave {
   for (const row of poolRows({ ids })) {
     considered++;
     const tier = tierOf(row.raw as Parameters<typeof tierOf>[0]);
-    const rank = edhrec.get(row.def.oracleId) ?? null;
-    if (sel.tier !== 'all' && tier !== sel.tier) { droppedSelect++; continue; }
-    if (sel.commanderLegal && !commanderLegal.has(row.def.oracleId)) { droppedSelect++; continue; }
-    if (sel.edhrecMax !== undefined && (rank === null || rank > sel.edhrecMax)) { droppedSelect++; continue; }
-    if (sel.edhrecMin !== undefined && (rank === null || rank < sel.edhrecMin)) { droppedSelect++; continue; }
+    const rank = idx.edhrec.get(row.def.oracleId) ?? null;
+    if (!selected(sel, idx, row.def.oracleId, tier)) { droppedSelect++; continue; }
     const state = stateOf(row.def.oracleId, { ...sources, def: row.def });
     histogram[state.state]++;
     if (state.unearnedHumanSource) unearned.push({ oracleId: state.oracleId, name: state.name });

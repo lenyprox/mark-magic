@@ -27,6 +27,7 @@
     "coverage:pool": "tsx scripts/parser-coverage.ts",
     "parse:diff": "tsx scripts/parse-snapshot.ts",
     "parse:accept": "tsx scripts/parse-snapshot.ts --accept",
+    "parse:why": "tsx scripts/parse-why.ts",
     "coverage:meta": "tsx scripts/meta-coverage.ts",
     "coverage:ops": "tsx scripts/coverage-ops.ts",
     "analysis:selftest": "tsx scripts/analysis-selftest.ts",

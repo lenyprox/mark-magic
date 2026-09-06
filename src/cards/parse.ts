@@ -779,6 +779,53 @@ let antecedent = false;
 /** How many times a registry effect template (or a paragraph template's registry retry) claimed something — a cheap "did the registry contribute?" probe for triggerBody. */
 let registryClaims = 0;
 
+// ---------------------------------------------------------------------------
+// Failure trace (scripts/parse-why.ts). Off by default and observable nowhere in the parse: every site is one
+// `if (parseTrace)` null test, the records go into this module-level array (NOT onto the CardDef — the parse snapshot
+// hashes every CardDef key, so a new field would move every hash), and the one trace-only probe (the effect half of a
+// conditional whose condition failed) runs only under the flag and discards its own records. The innermost fragment
+// the recursive parser could not claim is what the histogram ranks: a decomposition site records each part it had to
+// throw away, `partial` saying whether a sibling part parsed (then the fragment is the whole reason the sentence is
+// unparsed), and the ladder's give-up records the whole sentence once at depth 0.
+// ---------------------------------------------------------------------------
+export interface ParseTraceRecord {
+  oracleId: string;
+  face: 'front' | 'back';
+  /** The parseCard line (after its normalisation) the failure sits in. */
+  line: string;
+  /** The outermost sentence of that line being parsed (sentence-stage records only). */
+  sentence: string | null;
+  /** The text the parser could not claim. */
+  fragment: string;
+  stage: 'sentence' | 'condition' | 'trigger-head' | 'intervening' | 'cost' | 'static' | 'keyword';
+  /** Which ladder pass recorded it; the registry pass tries strictly more, so a reader prefers it. */
+  pass: 'builtin' | 'registry';
+  /** Sentence-ladder depth (0 = the whole sentence). */
+  depth: number;
+  /** How many registry / granted-ability sub-parses deep (0 = the line's own text). */
+  nested: number;
+  /** A sibling of the fragment parsed, so the fragment alone is what stops the enclosing text. */
+  partial: boolean;
+}
+let parseTrace: ParseTraceRecord[] | null = null;
+const traceCtx: { oracleId: string; face: 'front' | 'back'; line: string; sentence: string | null } = { oracleId: '', face: 'front', line: '', sentence: null };
+/** Start recording (the array is emptied). */
+export function beginParseTrace(): void { parseTrace = []; }
+/** The records so far (emptied); `[]` when tracing is off. */
+export function drainParseTrace(): ParseTraceRecord[] { const out = parseTrace ?? []; if (parseTrace) parseTrace = []; return out; }
+/** Stop recording. */
+export function endParseTrace(): void { parseTrace = null; }
+/** Push one record; callers guard with `if (parseTrace)` so the untraced path costs one null test. */
+function trace(stage: ParseTraceRecord['stage'], fragment: string, useRegistry: boolean, o: { depth?: number; partial?: boolean; sentence?: boolean } = {}): void {
+  parseTrace!.push({ oracleId: traceCtx.oracleId, face: traceCtx.face, line: traceCtx.line, sentence: o.sentence ? traceCtx.sentence : null, fragment: fragment.trim(), stage, pass: useRegistry ? 'registry' : 'builtin', depth: o.depth ?? 0, nested: Math.max(0, effectsDepth - (o.sentence ? 1 : 0)), partial: !!o.partial });
+}
+const known = (effs: Effect[]): boolean => effs.every(x => x.op !== 'unknown');
+/** A decomposition the ladder is about to discard: record every part that failed, `partial` when another part parsed. */
+function traceParts(parts: string[], subs: Effect[][], depth: number, useRegistry: boolean, siblingParsed = false): void {
+  const partial = siblingParsed || subs.some(known);
+  for (let i = 0; i < parts.length; i++) if (!known(subs[i])) trace('sentence', parts[i], useRegistry, { depth, partial, sentence: true });
+}
+
 /** Parse a sentence into an Effect; returns unknown op on failure. */
 export function parseEffectSentence(sentence: string, useRegistry = true): Effect {
   let s = sentence.trim().replace(/\s+/g, ' ').replace(/\.$/, '');
@@ -1074,6 +1121,7 @@ function parseParagraph(text: string, useRegistry: boolean): Effect[] {
   // the paragraph it is part of, and a paragraph never leaks into the next one
   const savedAntecedent = antecedent;
   for (const sent of sentences) {
+    if (parseTrace && outer) traceCtx.sentence = sent;
     out.push(...admit(parseSentenceRecursive(sent, 0, useRegistry), sent));
     if (/\btarget\b|\btokens?\b|\bthat (?:creature|permanent|card|token)\b|\bthatobj\b/i.test(sent)) antecedent = true;
   }
@@ -1104,30 +1152,44 @@ function sentenceEffects(sent: string, depth: number, useRegistry: boolean): Eff
   const body = sent.replace(/\.$/, '');
   // "If <condition>, <effects>" / "<effects> if <condition>" / "<effects> instead if <condition>" → conditional
   let cm = body.replace(/^then /i, '').match(/^if (.+?), (.+)$/i);
-  if (cm) { const c = parseCondition(cm[1], useRegistry); if (c.kind !== 'unknown') { const sub = sentenceEffects(/~/.test(cm[1]) ? cm[2].replace(/^it\b/i, '~') : cm[2], depth + 1, useRegistry); /* "If ~ was kicked, it deals …": the condition names the source, so its "it" is ~ (9.1) */ if (sub.every(x => x.op !== 'unknown')) return [{ op: 'conditional', condition: c, then: sub }]; } }
+  if (cm) { const c = parseCondition(cm[1], useRegistry); const eff = /~/.test(cm[1]) ? cm[2].replace(/^it\b/i, '~') : cm[2]; /* "If ~ was kicked, it deals …": the condition names the source, so its "it" is ~ (9.1) */ if (c.kind !== 'unknown') { const sub = sentenceEffects(eff, depth + 1, useRegistry); if (known(sub)) return [{ op: 'conditional', condition: c, then: sub }]; if (parseTrace) traceParts([eff], [sub], depth + 1, useRegistry, true); } else if (parseTrace) traceCondition(cm[1], eff, depth, useRegistry); }
   cm = body.match(/^(.+?) if (.+)$/i);
-  if (cm && !/\bunless\b/i.test(body)) { const c = parseCondition(cm[2], useRegistry); if (c.kind !== 'unknown') { const sub = sentenceEffects(cm[1], depth + 1, useRegistry); if (sub.every(x => x.op !== 'unknown')) return [{ op: 'conditional', condition: c, then: sub }]; } }
+  if (cm && !/\bunless\b/i.test(body)) { const c = parseCondition(cm[2], useRegistry); if (c.kind !== 'unknown') { const sub = sentenceEffects(cm[1], depth + 1, useRegistry); if (known(sub)) return [{ op: 'conditional', condition: c, then: sub }]; if (parseTrace) traceParts([cm[1]], [sub], depth + 1, useRegistry, true); } else if (parseTrace) traceCondition(cm[2], cm[1], depth, useRegistry); }
   const parts = body.split(/,? then |\. /i);
   if (parts.length > 1) {
-    const sub = parts.flatMap(p => sentenceEffects(p, depth + 1, useRegistry));
-    if (sub.every(x => x.op !== 'unknown')) return sub;
+    const subs = parts.map(p => sentenceEffects(p, depth + 1, useRegistry)); const sub = subs.flat();
+    if (known(sub)) return sub;
+    if (parseTrace) traceParts(parts, subs, depth + 1, useRegistry);
   }
   // "Target player draws two cards and loses 2 life" → two sentences that repeat the subject
   const subj = body.match(/^(target player|target opponent|each player|each opponent|you|~)\s+(.+)$/i);
   if (subj) {
     const parts = subj[2].split(/ and (?=[a-z])/i);
     if (parts.length > 1) {
-      const sub = parts.flatMap(x => sentenceEffects(`${subj[1]} ${x}`, depth + 1, useRegistry));
-      if (sub.every(x => x.op !== 'unknown')) return sub;
+      const full = parts.map(x => `${subj[1]} ${x}`);
+      const subs = full.map(x => sentenceEffects(x, depth + 1, useRegistry)); const sub = subs.flat();
+      if (known(sub)) return sub;
+      if (parseTrace) traceParts(full, subs, depth + 1, useRegistry);
     }
   }
   const andParts = body.split(/ and (?=you |target |each |draw |destroy |~ |put |create |exile |return )/i);
   // 9.1: a trailing ", where X is …" defines X for BOTH conjuncts — only a whole-sentence rule may claim it
   if (andParts.length > 1 && !/, where x is /i.test(body)) {
-    const sub = andParts.flatMap(p => sentenceEffects(p, depth + 1, useRegistry));
-    if (sub.every(x => x.op !== 'unknown')) return sub;
+    const subs = andParts.map(p => sentenceEffects(p, depth + 1, useRegistry)); const sub = subs.flat();
+    if (known(sub)) return sub;
+    if (parseTrace) traceParts(andParts, subs, depth + 1, useRegistry);
   }
+  // give-up: every part is on record above; the whole sentence is recorded once, at the top of the ladder
+  if (parseTrace && depth === 0) trace('sentence', sent, useRegistry, { depth: 0, sentence: true });
   return [e];
+}
+
+/** Trace-only: a conditional whose condition failed. Whether the effect half would parse is probed and the probe's own records are discarded — the condition is the innermost failure when the rest of the sentence is fine. */
+function traceCondition(cond: string, eff: string, depth: number, useRegistry: boolean): void {
+  const mark = parseTrace!.length;
+  const probe = known(sentenceEffects(eff, depth + 1, useRegistry));
+  parseTrace!.length = mark;
+  trace('condition', cond, useRegistry, { depth, partial: probe, sentence: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -1363,7 +1425,12 @@ function parseCostPhrase(p: string, useRegistry = true): AbilityCost | null {
 function parseCost(costText: string, useRegistry = true): AbilityCost | null {
   const cost: AbilityCost = {};
   const parts = costText.split(/,\s*/).map(p => p.trim()).filter(Boolean);
-  for (const p of parts) { const c = parseCostPhrase(p, useRegistry); if (!c) return null; Object.assign(cost, c); }
+  for (const p of parts) {
+    const c = parseCostPhrase(p, useRegistry);
+    // the failing comma-part is the fragment; `partial` when any other part of the cost is a cost phrase we know
+    if (!c) { if (parseTrace) trace('cost', p, useRegistry, { partial: parts.some(q => q !== p && parseCostPhrase(q, useRegistry) !== null) }); return null; }
+    Object.assign(cost, c);
+  }
   return cost;
 }
 
@@ -1804,6 +1871,7 @@ export function parseCard(row: OracleRow): CardDef {
 
   for (const rawLine of lines) {
     const line = rawLine.replace(ABILITY_WORD_RE, '').replace(/^(?![IVX]+ — )[A-Z0-9][^—.]{0,30} — (?=When\b|Whenever\b|At |\{|[A-Z])/, '');
+    if (parseTrace) { traceCtx.oracleId = def.oracleId; traceCtx.line = line; traceCtx.sentence = null; }
     let m: RegExpMatchArray | null;
     // --- Saga chapters: "I — ...", "II, III — ..."
     if (isSaga && (m = line.match(/^((?:I|II|III|IV|V)(?:, (?:I|II|III|IV|V))*) — (.+)$/))) {
@@ -1928,7 +1996,7 @@ export function parseCard(row: OracleRow): CardDef {
     // line naming a keyword the built-ins know *of* but do not implement ("Bestow {3}{W}", "Suspend 4—{1}{U}") is
     // recorded as unparsed and never reaches the trigger / activated / static ladder below. A family's keyword lines
     // therefore have to be offered there — after the built-ins have given up on the line, and never before them.
-    if (/^(flashback|escape|adventure|mutate|cascade|storm|convoke|delve|affinity|riot|adapt|amass|exploit|embalm|eternalize|afflict|afterlife|mentor|companion|crew|foretell|boast|daybound|nightbound|disturb|decayed|cleave|training|reconfigure|blitz|casualty|connive|backup|bargain|craft|discover|offspring|gift|impending|exhaust|harmonize|max speed|start your engines!|mobilize|renew|endure|station|void|warp|devoid|emerge|escalate|surge|awaken|ingest|rebound|miracle|overload|scavenge|unleash|detain|populate|evolve|extort|cipher|bloodrush|battalion|heroic|monstrosity|outlast|dash|exploit|megamorph|morph|manifest|renown|ninjutsu|split second|suspend|vanishing|fading|buyback|madness|flanking|shadow|horsemanship|banding|rampage|cumulative upkeep|echo|phasing|multikicker|entwine|splice|bushido|soulshift|offering|ninjutsu|epic|sunburst|modular|graft|forecast|transmute|dredge|haunt|replicate|recover|ripple|bloodthirst|vanishing|frenzy|level up|totem armor|infect|battle cry|living weapon|undying|miracle|soulbond|unleash|bestow|tribute|inspired|constellation|outlast|dash|exploit|awaken|rally|support|meld|crew|fabricate|improvise|aftermath|exert|eternalize|ascend|assist|jump-start|undergrowth|spectacle|riot|proliferate|escape|companion|mutate|foretell|learn|magecraft|coven|daybound|disturb|training|cleave|blood|reconfigure|hideaway|channel|compleated|casualty|blitz|read ahead|enlist|squad|prototype|unearth|toxic|for mirrodin!|convoke|backup|the ring tempts you|bargain|celebration|role|adventure|craft|descend|explore|discover|map|outlaw|plot|spree|saddle|forage|gift|offspring|impending|manifest dread|eerie|survival|start your engines!|exhaust|mobilize|harmonize|renew|endure|behold|job select|station|warp|void|umbra armor|constellation|addendum|parley|alliance|pack tactics|will of the council|council's dilemma|secret council|fateful hour|spell mastery|lieutenant|chroma|grandeur|sweep|radiance|kinship|imprint|join forces|tempting offer|bloodrush|strive|adamant|eminence|enrage|hero's reward|undaunted|legacy|fathomless descent|corrupted|paradox|coven|magecraft|max speed|flurry|heist|mayhem|rally|devour|exalted|persist|wither|changeling|ravenous|vanishing|dethrone|melee|partner|assist|myriad|evoke|prowl|retrace|conspire|frenzy|cascade|annihilator|hideaway|desertwalk|forestwalk|islandwalk|mountainwalk|plainswalk|swampwalk|landwalk|absorb|provoke|renown|amplify|double team|encore|goad|monarch|initiative|day|night)\b/i.test(line)) { if (ANY.line && tryLineRules(def, line, rawLine, row, isSpell)) continue; unknown(def, line); continue; }
+    if (/^(flashback|escape|adventure|mutate|cascade|storm|convoke|delve|affinity|riot|adapt|amass|exploit|embalm|eternalize|afflict|afterlife|mentor|companion|crew|foretell|boast|daybound|nightbound|disturb|decayed|cleave|training|reconfigure|blitz|casualty|connive|backup|bargain|craft|discover|offspring|gift|impending|exhaust|harmonize|max speed|start your engines!|mobilize|renew|endure|station|void|warp|devoid|emerge|escalate|surge|awaken|ingest|rebound|miracle|overload|scavenge|unleash|detain|populate|evolve|extort|cipher|bloodrush|battalion|heroic|monstrosity|outlast|dash|exploit|megamorph|morph|manifest|renown|ninjutsu|split second|suspend|vanishing|fading|buyback|madness|flanking|shadow|horsemanship|banding|rampage|cumulative upkeep|echo|phasing|multikicker|entwine|splice|bushido|soulshift|offering|ninjutsu|epic|sunburst|modular|graft|forecast|transmute|dredge|haunt|replicate|recover|ripple|bloodthirst|vanishing|frenzy|level up|totem armor|infect|battle cry|living weapon|undying|miracle|soulbond|unleash|bestow|tribute|inspired|constellation|outlast|dash|exploit|awaken|rally|support|meld|crew|fabricate|improvise|aftermath|exert|eternalize|ascend|assist|jump-start|undergrowth|spectacle|riot|proliferate|escape|companion|mutate|foretell|learn|magecraft|coven|daybound|disturb|training|cleave|blood|reconfigure|hideaway|channel|compleated|casualty|blitz|read ahead|enlist|squad|prototype|unearth|toxic|for mirrodin!|convoke|backup|the ring tempts you|bargain|celebration|role|adventure|craft|descend|explore|discover|map|outlaw|plot|spree|saddle|forage|gift|offspring|impending|manifest dread|eerie|survival|start your engines!|exhaust|mobilize|harmonize|renew|endure|behold|job select|station|warp|void|umbra armor|constellation|addendum|parley|alliance|pack tactics|will of the council|council's dilemma|secret council|fateful hour|spell mastery|lieutenant|chroma|grandeur|sweep|radiance|kinship|imprint|join forces|tempting offer|bloodrush|strive|adamant|eminence|enrage|hero's reward|undaunted|legacy|fathomless descent|corrupted|paradox|coven|magecraft|max speed|flurry|heist|mayhem|rally|devour|exalted|persist|wither|changeling|ravenous|vanishing|dethrone|melee|partner|assist|myriad|evoke|prowl|retrace|conspire|frenzy|cascade|annihilator|hideaway|desertwalk|forestwalk|islandwalk|mountainwalk|plainswalk|swampwalk|landwalk|absorb|provoke|renown|amplify|double team|encore|goad|monarch|initiative|day|night)\b/i.test(line)) { if (ANY.line && tryLineRules(def, line, rawLine, row, isSpell)) continue; unknown(def, line, 'keyword'); continue; }
 
     // --- planeswalker loyalty abilities
     if ((m = line.match(/^([+-]\d+|0): (.+)$/))) {
@@ -1970,6 +2038,12 @@ export function parseCard(row: OracleRow): CardDef {
       const once = /\. this ability triggers only once each turn\.?$/i.test(body); if (once) body = body.replace(/\.? this ability triggers only once each turn\.?$/i, '');
       const effs = /^choose (one|two)( —|\.)?$/i.test(body.trim()) ? [{ op: 'choose-mode', modes: [], count: /two/i.test(body) ? 2 : 1 } as Effect] : triggerBody(body, selfEv);
       const ab: TriggeredAbility = { kind: 'triggered', event: ev, effects: effs, text: line, optional, intervening, ...(once ? { oncePerTurn: true } : {}) };
+      if (parseTrace) {
+        // the head and the intervening clause are the two fragments this branch alone knows; the body's are on record
+        const bodyOk = known(effs);
+        if (ev.on === 'unknown') trace('trigger-head', head, ANY.trigger, { partial: bodyOk && (!intervening || intervening.kind !== 'unknown') });
+        if (intervening && intervening.kind === 'unknown' && ifm) trace('intervening', ifm[1], true, { partial: bodyOk && ev.on !== 'unknown' });
+      }
       if (ev.on === 'unknown' || effs.some(e => e.op === 'unknown') || (intervening && intervening.kind === 'unknown')) { def.fullyParsed = false; def.unparsed.push(line); }
       def.abilities.push(ab); continue;
     }
@@ -2020,7 +2094,9 @@ export function parseCard(row: OracleRow): CardDef {
   // --- back face of a modal / transforming double-faced card
   if (row.faces && row.faces.length > 1 && (row.layout === 'modal_dfc' || row.layout === 'transform') && row.faces[1].type_line) {
     const f = row.faces[1]; const tl = parseTypeLine(f.type_line ?? '');
+    const savedCtx = parseTrace ? { ...traceCtx } : null; if (parseTrace) traceCtx.face = 'back';   // the back face's records say so; the front's context is restored below
     const back = parseCard({ ...row, name: f.name, mana_cost: f.mana_cost, mana_value: manaValue(parseManaCost(f.mana_cost)), oracle_text: f.oracle_text, type_line: f.type_line ?? '', types: tl.types, supertypes: tl.supertypes, subtypes: tl.subtypes, power: f.power, toughness: f.toughness, loyalty: null, layout: 'face', faces: undefined, colors: tl.types.includes('Land') ? [] : row.colors, image: f.image ?? null, keywords: [], representative_id: row.representative_id });
+    if (savedCtx) Object.assign(traceCtx, savedCtx);
     def.backFace = back;
     if (!back.fullyParsed) { def.fullyParsed = false; def.unparsed.push(...back.unparsed.map(u => `// ${u}`)); }
   }
@@ -2062,7 +2138,7 @@ function parseActivatedLine(line: string, useRegistry = true, bodyRegistry = tru
   if (/ activate only as an instant\.?$/i.test(body)) { instantSpeed = true; body = body.replace(/ activate only as an instant\.?$/i, ''); }
   if (/ activate only once each turn\.?$/i.test(body)) { oncePerTurn = true; body = body.replace(/ activate only once each turn\.?$/i, ''); }
   const only = body.match(/ activate only if (.+?)\.?$/i);
-  if (only) { const c = parseCondition(only[1], useRegistry); if (c.kind === 'unknown') return null; activateOnlyIf = c; body = body.slice(0, only.index); }
+  if (only) { const c = parseCondition(only[1], useRegistry); if (c.kind === 'unknown') { if (parseTrace) trace('condition', only[1], useRegistry, { partial: true }); return null; } activateOnlyIf = c; body = body.slice(0, only.index); }   // partial: the cost parsed
   // "{T}, Sacrifice ~: You gain life equal to its power" (Syr Ginger): with the source itself sacrificed and no other
   // referent introduced, "its" is the source — read as "~'s" (last known information once it has left, CR 608.2h)
   if (cost.sacrificeSelf && !cost.sacrifice && !/\btarget (?!(?:player|opponent)\b)|\bthat (creature|card|permanent|land|spell|token)\b|\banother\b|\bcopy\b/i.test(body)) body = body.replace(/\bits (power|toughness|mana value)\b/gi, "~'s $1");
@@ -2077,7 +2153,9 @@ function noteUnknownMode(def: CardDef, mode: Effect[]) {
   for (const e of mode) if (e.op === 'unknown') { def.fullyParsed = false; def.unparsed.push(`• ${e.text}`); }
 }
 
-function unknown(def: CardDef, line: string) {
+/** Record a whole line nothing claimed. Under the trace it is a `static` record (accounting: the line's inner fragments, if any, are already on record) or the keyword bail-out's `keyword`. */
+function unknown(def: CardDef, line: string, stage: 'static' | 'keyword' = 'static') {
+  if (parseTrace) trace(stage, line, true);
   def.fullyParsed = false; def.unparsed.push(line);
   def.abilities.push({ kind: 'static', effect: { kind: 'unknown', text: line }, text: line });
 }

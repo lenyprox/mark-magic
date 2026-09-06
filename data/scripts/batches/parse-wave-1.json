@@ -1,0 +1,4404 @@
+{
+  "wave": "9.1p",
+  "base": "17bffda",
+  "generatedFrom": {
+    "tier": "paper",
+    "selection": "edhrec<=5000 commander:legal pool:paper",
+    "ids": null,
+    "nested": false,
+    "excludeStages": [
+      "keyword",
+      "second-face"
+    ],
+    "minCards": 1,
+    "top": 60,
+    "parserVersion": 5,
+    "rulesHash": "a7f6b858",
+    "file": "data/master/parse-why.json",
+    "constructs": 60
+  },
+  "items": [
+    {
+      "name": "generic-you-do",
+      "title": "condition: you do",
+      "stage": "condition",
+      "cards": 74,
+      "finishes": 0,
+      "lines": 76,
+      "weight": 37,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 50
+        },
+        {
+          "family": "copy-clone",
+          "lines": 7
+        },
+        {
+          "family": "control",
+          "lines": 3
+        },
+        {
+          "family": "keyword-action",
+          "lines": 3
+        },
+        {
+          "family": "layers",
+          "lines": 3
+        },
+        {
+          "family": "cost-alter",
+          "lines": 2
+        },
+        {
+          "family": "planeswalker",
+          "lines": 2
+        },
+        {
+          "family": "saga",
+          "lines": 2
+        },
+        {
+          "family": "dice-coin",
+          "lines": 1
+        },
+        {
+          "family": "other",
+          "lines": 1
+        },
+        {
+          "family": "piles-choices",
+          "lines": 1
+        },
+        {
+          "family": "transform",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 76,
+          "clause": "condition|you do"
+        }
+      ],
+      "cardIds": [
+        "240e85d3-e495-4877-8609-4b4056c402f7",
+        "92eed395-62ca-4293-882b-8565c40daab5",
+        "e0445c80-fa53-4c3e-881e-940e9fce7f57",
+        "2acf8e34-9215-4a72-a24f-09d3bdd0083a",
+        "ed14be15-8f8d-4fe3-a147-f5da8ed873bf",
+        "8a3ad2ef-8bcb-40c0-85de-f03328c2b644",
+        "ddd649f4-dbaf-48ec-8ff7-95581257772d",
+        "d5ea905b-4bb6-48d0-9082-c472703db550",
+        "c53ba31a-ba27-4e17-9a92-311acb1cab29",
+        "b0394cf2-12a0-4d4f-87e0-fe8937e6faff",
+        "70113003-be5e-406a-9aec-cb480468c36d",
+        "9fcb920c-b8d7-4a79-a335-f63050182cca"
+      ],
+      "examples": [
+        {
+          "name": "Victimize",
+          "line": "If you do, return the chosen cards to the battlefield tapped.",
+          "finishes": false
+        },
+        {
+          "name": "Sylvan Library",
+          "line": "At the beginning of your draw step, you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. For each of those cards, pay 4 life or put the card on top of your library.",
+          "finishes": false
+        },
+        {
+          "name": "Braids, Arisen Nightmare",
+          "line": "At the beginning of your end step, you may sacrifice an artifact, creature, enchantment, land, or planeswalker. If you do, each opponent may sacrifice a permanent of their choice that shares a card type with it. For each opponent who doesn't, that player loses 2 life and you draw a card.",
+          "finishes": false
+        },
+        {
+          "name": "Ripples of Undeath",
+          "line": "At the beginning of your first main phase, mill three cards. Then you may pay {1} and 3 life. If you do, put a card from among those cards into your hand.",
+          "finishes": false
+        },
+        {
+          "name": "Conduit of Worlds",
+          "line": "{T}: Choose target nonland permanent card in your graveyard. If you haven't cast a spell this turn, you may cast that card. If you do, you can't cast additional spells this turn. Activate only as a sorcery.",
+          "finishes": false
+        },
+        {
+          "name": "Springheart Nantuko",
+          "line": "Whenever a land you control enters, you may pay {1}{G} if ~ is attached to a creature you control. If you do, create a token that's a copy of that creature. If you didn't create a token this way, create a 1/1 green Insect creature token.",
+          "finishes": false
+        },
+        {
+          "name": "Isochron Scepter",
+          "line": "{2}, {T}: You may copy the exiled card. If you do, you may cast the copy without paying its mana cost.",
+          "finishes": false
+        },
+        {
+          "name": "Bloodchief Ascension",
+          "line": "Whenever a card is put into an opponent's graveyard from anywhere, if ~ has three or more quest counters on it, you may have that player lose 2 life. If you do, you gain 2 life.",
+          "finishes": false
+        },
+        {
+          "name": "Myr Battlesphere",
+          "line": "Whenever ~ attacks, you may tap X untapped Myr you control. If you do, ~ gets +X/+0 until end of turn and deals X damage to the player or planeswalker it's attacking.",
+          "finishes": false
+        },
+        {
+          "name": "Well of Lost Dreams",
+          "line": "Whenever you gain life, you may pay {X}, where X is less than or equal to the amount of life you gained. If you do, draw X cards.",
+          "finishes": false
+        },
+        {
+          "name": "Sephiroth, Fabled SOLDIER // Sephiroth, One-Winged Angel",
+          "line": "// Whenever ~ attacks, you may sacrifice any number of other creatures. If you do, draw that many cards.",
+          "finishes": false
+        },
+        {
+          "name": "Call of the Ring",
+          "line": "Whenever you choose a creature as your Ring-bearer, you may pay 2 life. If you do, draw a card.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 76; scripted cards 4.",
+      "suggestedHome": "registry",
+      "group": "condition|you do"
+    },
+    {
+      "name": "generic-beginning-player-upkeep",
+      "title": "trigger-head: at the beginning of",
+      "stage": "trigger-head",
+      "cards": 27,
+      "finishes": 4,
+      "lines": 27,
+      "weight": 15.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 22
+        },
+        {
+          "family": "other",
+          "lines": 3
+        },
+        {
+          "family": "control",
+          "lines": 1
+        },
+        {
+          "family": "keyword-action",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 8,
+          "clause": "trigger-head|At the beginning of each player's draw step"
+        },
+        {
+          "n": 8,
+          "clause": "trigger-head|At the beginning of each player's upkeep"
+        },
+        {
+          "n": 6,
+          "clause": "trigger-head|At the beginning of each combat"
+        },
+        {
+          "n": 5,
+          "clause": "trigger-head|At the beginning of your second main phase"
+        }
+      ],
+      "cardIds": [
+        "7324abaa-48da-439d-9339-b0ea5eea612e",
+        "d26b27db-a567-4631-b4b6-7294222fbdd1",
+        "b168e4e6-f572-4d9f-b98f-95b2611354cb",
+        "81c6c4f0-81ad-463c-a42b-60a73e6d70f3",
+        "bad76170-c773-4be5-9457-20dc9f745cb4",
+        "7080fb43-5d93-41f5-87d3-bc1801805ea0",
+        "973c49a1-8425-40b9-8bdc-2c2434222314",
+        "38cfe4a0-6ead-435b-9f86-928205c0a52c",
+        "be74a4c1-d569-4203-b28a-3e2ac6a82990",
+        "37abcc92-9466-47ea-9e0b-5eda2eb62c8e",
+        "7194a262-5e7a-4c12-b271-2bc5e0799477",
+        "922cf963-2b1b-43ad-819e-6e49133e6aae"
+      ],
+      "examples": [
+        {
+          "name": "Unnatural Growth",
+          "line": "At the beginning of each combat, double the power and toughness of each creature you control until end of turn.",
+          "finishes": false
+        },
+        {
+          "name": "Howling Mine",
+          "line": "At the beginning of each player's draw step, if ~ is untapped, that player draws an additional card.",
+          "finishes": false
+        },
+        {
+          "name": "Zopandrel, Hunger Dominus",
+          "line": "At the beginning of each combat, double the power and toughness of each creature you control until end of turn.",
+          "finishes": false
+        },
+        {
+          "name": "Alexios, Deimos of Kosmos",
+          "line": "At the beginning of each player's upkeep, that player gains control of ~, untaps it, and puts a +1/+1 counter on it. It gains haste until end of turn.",
+          "finishes": false
+        },
+        {
+          "name": "Odric, Lunarch Marshal",
+          "line": "At the beginning of each combat, creatures you control gain first strike until end of turn if a creature you control has first strike. The same is true for flying, deathtouch, double strike, haste, hexproof, indestructible, lifelink, menace, reach, skulk, trample, and vigilance.",
+          "finishes": false
+        },
+        {
+          "name": "Rites of Flourishing",
+          "line": "At the beginning of each player's draw step, that player draws an additional card.",
+          "finishes": false
+        },
+        {
+          "name": "Sting, the Glinting Dagger",
+          "line": "At the beginning of each combat, untap equipped creature.",
+          "finishes": false
+        },
+        {
+          "name": "Kami of the Crescent Moon",
+          "line": "At the beginning of each player's draw step, that player draws an additional card.",
+          "finishes": false
+        },
+        {
+          "name": "Dictate of Kruphix",
+          "line": "At the beginning of each player's draw step, that player draws an additional card.",
+          "finishes": false
+        },
+        {
+          "name": "Teferi's Puzzle Box",
+          "line": "At the beginning of each player's draw step, that player puts the cards in their hand on the bottom of their library in any order, then draws that many cards.",
+          "finishes": false
+        },
+        {
+          "name": "Font of Mythos",
+          "line": "At the beginning of each player's draw step, that player draws two additional cards.",
+          "finishes": false
+        },
+        {
+          "name": "Spiteful Visions",
+          "line": "At the beginning of each player's draw step, that player draws an additional card.",
+          "finishes": false
+        }
+      ],
+      "notes": "4 construct(s); passes builtin 0 / registry 27; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|at the beginning of"
+    },
+    {
+      "name": "generic-when-cast",
+      "title": "trigger-head: when you cast ~",
+      "stage": "trigger-head",
+      "cards": 25,
+      "finishes": 3,
+      "lines": 26,
+      "weight": 14,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 18
+        },
+        {
+          "family": "control",
+          "lines": 4
+        },
+        {
+          "family": "copy-clone",
+          "lines": 2
+        },
+        {
+          "family": "keyword-action",
+          "lines": 1
+        },
+        {
+          "family": "layers",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 26,
+          "clause": "trigger-head|When you cast ~"
+        }
+      ],
+      "cardIds": [
+        "7b8528b0-71eb-4c9e-bed9-aa2d2e84038f",
+        "19409704-09c4-4a4b-a5a7-f95120b425db",
+        "0bfa4512-e35a-4c93-b324-80ec659f5a97",
+        "b817bc56-9b4d-4c50-bafa-3c652b99578f",
+        "6bd872b2-5c40-4e11-9a7f-0136a51b0642",
+        "4c1c1537-e519-4e2f-9bc2-d34b289d4487",
+        "97836c48-8777-4b4e-98fb-e99204f38bdd",
+        "5c58353a-fd60-4528-bf0d-669626cda0b2",
+        "4e7a8817-1a66-45c3-ade9-eac79b40b89f",
+        "63a19c7c-49d7-4b75-aac8-d0ff36c45fb8",
+        "d39b9f64-dc9b-413f-8d05-e21ef46d6756",
+        "cd3d79e9-c72e-4321-bca1-54505d51331a"
+      ],
+      "examples": [
+        {
+          "name": "Kozilek, Butcher of Truth",
+          "line": "When you cast ~, draw four cards.",
+          "finishes": false
+        },
+        {
+          "name": "Artisan of Kozilek",
+          "line": "When you cast ~, you may return target creature card from your graveyard to the battlefield.",
+          "finishes": false
+        },
+        {
+          "name": "Ulamog, the Ceaseless Hunger",
+          "line": "When you cast ~, exile two target permanents.",
+          "finishes": false
+        },
+        {
+          "name": "Ulamog, the Infinite Gyre",
+          "line": "When you cast ~, destroy target permanent.",
+          "finishes": false
+        },
+        {
+          "name": "Hydroid Krasis",
+          "line": "When you cast ~, you gain half X life and draw half X cards. Round down each time.",
+          "finishes": false
+        },
+        {
+          "name": "Kozilek, the Great Distortion",
+          "line": "When you cast ~, if you have fewer than seven cards in hand, draw cards equal to the difference.",
+          "finishes": false
+        },
+        {
+          "name": "Ulamog, the Defiler",
+          "line": "When you cast ~, target opponent exiles the top half of their library, rounded up.",
+          "finishes": false
+        },
+        {
+          "name": "Ugin, Eye of the Storms",
+          "line": "When you cast ~, exile up to one target permanent that's one or more colors.",
+          "finishes": false
+        },
+        {
+          "name": "Emrakul, the Promised End",
+          "line": "When you cast ~, you gain control of target opponent during that player's next turn. After that turn, that player takes an extra turn.",
+          "finishes": false
+        },
+        {
+          "name": "Sowing Mycospawn",
+          "line": "When you cast ~, search your library for a land card, put it onto the battlefield, then shuffle.",
+          "finishes": false
+        },
+        {
+          "name": "Oblivion Sower",
+          "line": "When you cast ~, target opponent exiles the top four cards of their library, then you may put any number of land cards that player owns from exile onto the battlefield under your control.",
+          "finishes": false
+        },
+        {
+          "name": "Conduit of Ruin",
+          "line": "When you cast ~, you may search your library for a colorless creature card with mana value 7 or greater, reveal it, then shuffle and put that card on top.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 26; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|when you cast ~"
+    },
+    {
+      "name": "generic-whenever-equipped-deals",
+      "title": "trigger-head: whenever equipped <obj> deals",
+      "stage": "trigger-head",
+      "cards": 21,
+      "finishes": 7,
+      "lines": 21,
+      "weight": 14,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 13
+        },
+        {
+          "family": "cost-alter",
+          "lines": 3
+        },
+        {
+          "family": "copy-clone",
+          "lines": 2
+        },
+        {
+          "family": "control",
+          "lines": 1
+        },
+        {
+          "family": "keyword-action",
+          "lines": 1
+        },
+        {
+          "family": "transform",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 21,
+          "clause": "trigger-head|Whenever equipped creature deals combat damage to a player"
+        }
+      ],
+      "cardIds": [
+        "d0901053-6de0-46d0-9ee3-8d40510236c1",
+        "913e6182-706a-4872-8c8a-e146b0ae0738",
+        "5e060d58-4d6e-425c-b7d4-727669fcce5b",
+        "d6b2c998-a226-426c-a40d-6e6007041bfe",
+        "2ccdc60a-49a9-44b9-a7af-0ebf18b26785",
+        "81a7f559-5edd-47ec-91f7-51e5ee998ed0",
+        "7a8baaf9-e21f-41a0-9f15-80764f6e5e68",
+        "c6331ce3-21f7-4784-80fe-df1f541a4c46",
+        "c1624d10-8838-4af8-aea1-a96c0fe6fd6b",
+        "7a75d565-b0a7-46bf-94a0-c9255c8abd6d",
+        "b3a80545-9a8a-46b2-9d8c-b0d66fb68a5d",
+        "01c8a554-45a6-46ca-b40a-af0fd4529e40"
+      ],
+      "examples": [
+        {
+          "name": "Sword of Feast and Famine",
+          "line": "Whenever equipped creature deals combat damage to a player, that player discards a card and you untap all lands you control.",
+          "finishes": false
+        },
+        {
+          "name": "Sword of Hearth and Home",
+          "line": "Whenever equipped creature deals combat damage to a player, exile up to one target creature you own, then search your library for a basic land card. Put both cards onto the battlefield under your control, then shuffle.",
+          "finishes": false
+        },
+        {
+          "name": "Buster Sword",
+          "line": "Whenever equipped creature deals combat damage to a player, draw a card, then you may cast a spell from your hand with mana value less than or equal to that damage without paying its mana cost.",
+          "finishes": false
+        },
+        {
+          "name": "Mask of Memory",
+          "line": "Whenever equipped creature deals combat damage to a player, you may draw two cards. If you do, discard a card.",
+          "finishes": true
+        },
+        {
+          "name": "Sword of Fire and Ice",
+          "line": "Whenever equipped creature deals combat damage to a player, ~ deals 2 damage to any target and you draw a card.",
+          "finishes": false
+        },
+        {
+          "name": "Bloodforged Battle-Axe",
+          "line": "Whenever equipped creature deals combat damage to a player, create a token that's a copy of ~.",
+          "finishes": true
+        },
+        {
+          "name": "Sword of Truth and Justice",
+          "line": "Whenever equipped creature deals combat damage to a player, put a +1/+1 counter on a creature you control, then proliferate.",
+          "finishes": false
+        },
+        {
+          "name": "Sword of Forge and Frontier",
+          "line": "Whenever equipped creature deals combat damage to a player, exile the top two cards of your library. You may play those cards this turn. You may play an additional land this turn.",
+          "finishes": false
+        },
+        {
+          "name": "Goldvein Pick",
+          "line": "Whenever equipped creature deals combat damage to a player, create a Treasure token.",
+          "finishes": true
+        },
+        {
+          "name": "The Key to the Vault",
+          "line": "Whenever equipped creature deals combat damage to a player, look at that many cards from the top of your library. You may exile a nonland card from among them. Put the rest on the bottom of your library in a random order. You may cast the exiled card without paying its mana cost.",
+          "finishes": false
+        },
+        {
+          "name": "Sword of Wealth and Power",
+          "line": "Whenever equipped creature deals combat damage to a player, create a Treasure token. When you next cast an instant or sorcery spell this turn, copy that spell. You may choose new targets for the copy.",
+          "finishes": false
+        },
+        {
+          "name": "Sword of Light and Shadow",
+          "line": "Whenever equipped creature deals combat damage to a player, you gain 3 life and you may return up to one target creature card from your graveyard to your hand.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 21; scripted cards 1.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|whenever equipped <obj> deals"
+    },
+    {
+      "name": "generic-ring-tempts",
+      "title": "sentence: the ring tempts you",
+      "stage": "sentence",
+      "cards": 16,
+      "finishes": 7,
+      "lines": 16,
+      "weight": 11.5,
+      "families": [
+        {
+          "family": "keyword-action",
+          "lines": 13
+        },
+        {
+          "family": "saga",
+          "lines": 3
+        }
+      ],
+      "clauses": [
+        {
+          "n": 9,
+          "clause": "sentence|The Ring tempts you"
+        },
+        {
+          "n": 7,
+          "clause": "sentence|the Ring tempts you"
+        }
+      ],
+      "cardIds": [
+        "d72b57e5-1c6e-4f02-968f-7e2dd24f0d3c",
+        "111889d4-bcca-4b1f-ad48-3077e2f5136f",
+        "9fcb920c-b8d7-4a79-a335-f63050182cca",
+        "de4e5120-b958-4dcb-ad78-d0f726b7a881",
+        "2eb1b429-8d11-42f3-8815-5a60b6a4e2d5",
+        "48a62778-7c11-486f-a0e1-020c283a7ef9",
+        "9f8f29ba-7e64-455d-be05-ec7973f2bd0a",
+        "e376702a-f56e-4e47-aa8c-3f80384d12a9",
+        "2f1ae834-f6b8-458c-ac0d-3510ddb85193",
+        "8b0a0991-2327-45ea-b47f-c31db367fa1d",
+        "c8689a83-cefa-4ef3-8ec1-58b4c64e332b",
+        "5a3336f1-614a-4b3f-8752-522a34d0417a"
+      ],
+      "examples": [
+        {
+          "name": "Boromir, Warden of the Tower",
+          "line": "Sacrifice ~: Creatures you control gain indestructible until end of turn. The Ring tempts you.",
+          "finishes": false
+        },
+        {
+          "name": "Fiery Inscription",
+          "line": "When ~ enters, the Ring tempts you.",
+          "finishes": true
+        },
+        {
+          "name": "Call of the Ring",
+          "line": "At the beginning of your upkeep, the Ring tempts you.",
+          "finishes": false
+        },
+        {
+          "name": "There and Back Again",
+          "line": "I — Up to one target creature can't block for as long as you control ~. The Ring tempts you.",
+          "finishes": false
+        },
+        {
+          "name": "Witch-king of Angmar",
+          "line": "Whenever one or more creatures deal combat damage to you, each opponent sacrifices a creature of their choice that dealt combat damage to you this turn. The Ring tempts you.",
+          "finishes": false
+        },
+        {
+          "name": "Nazgûl",
+          "line": "When ~ enters, the Ring tempts you.",
+          "finishes": false
+        },
+        {
+          "name": "Sauron, the Dark Lord",
+          "line": "Whenever an Army you control deals combat damage to a player, the Ring tempts you.",
+          "finishes": false
+        },
+        {
+          "name": "War of the Last Alliance",
+          "line": "III — Creatures you control gain double strike until end of turn. The Ring tempts you.",
+          "finishes": true
+        },
+        {
+          "name": "Inherited Envelope",
+          "line": "When ~ enters, the Ring tempts you.",
+          "finishes": true
+        },
+        {
+          "name": "Claim the Precious",
+          "line": "The Ring tempts you.",
+          "finishes": true
+        },
+        {
+          "name": "In the Darkness Bind Them",
+          "line": "IV — For each opponent, gain control of up to one target creature that player controls until end of turn. Untap those creatures. They gain haste until end of turn. The Ring tempts you.",
+          "finishes": false
+        },
+        {
+          "name": "Sam's Desperate Rescue",
+          "line": "The Ring tempts you.",
+          "finishes": true
+        }
+      ],
+      "notes": "2 construct(s); passes builtin 0 / registry 16; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|the ring tempts you"
+    },
+    {
+      "name": "generic-whenever-more",
+      "title": "trigger-head: whenever # or more",
+      "stage": "trigger-head",
+      "cards": 16,
+      "finishes": 7,
+      "lines": 16,
+      "weight": 11.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 15
+        },
+        {
+          "family": "keyword-action",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 11,
+          "clause": "trigger-head|Whenever one or more creatures you control deal combat damage to a player"
+        },
+        {
+          "n": 5,
+          "clause": "trigger-head|Whenever one or more +#/+# counters are put on ~"
+        }
+      ],
+      "cardIds": [
+        "04152e7a-969c-4858-841b-0a569a9fc1bf",
+        "89738595-dafb-400a-bfba-91a53a37e717",
+        "0e07f1af-5ff6-4da5-8683-aea4cc390975",
+        "71ae0fab-eb3e-4226-9fcc-29186f98a569",
+        "d22ff377-d282-4a28-9dce-96f25913dc96",
+        "a7c69802-99c4-4778-934e-cc09ba58c267",
+        "eee6c02b-7d6a-4445-ad27-8b03176147d4",
+        "8345eb05-c04e-4c1d-9776-5ab7d91a7842",
+        "9837287b-d821-4655-8f01-93fc6c7f0ecc",
+        "30367a59-a812-41d4-a451-80d9071dd4a4",
+        "54accd4a-b471-4ae5-b3b2-a5cec44023b7",
+        "72205fac-a94a-45cc-94c6-40ece2fdce0e"
+      ],
+      "examples": [
+        {
+          "name": "Professional Face-Breaker",
+          "line": "Whenever one or more creatures you control deal combat damage to a player, create a Treasure token.",
+          "finishes": true
+        },
+        {
+          "name": "Grim Hireling",
+          "line": "Whenever one or more creatures you control deal combat damage to a player, create two Treasure tokens.",
+          "finishes": false
+        },
+        {
+          "name": "Evolution Witness",
+          "line": "Whenever one or more +1/+1 counters are put on ~, return target permanent card from your graveyard to your hand.",
+          "finishes": true
+        },
+        {
+          "name": "Knuckles the Echidna",
+          "line": "Whenever one or more creatures you control deal combat damage to a player, create a Treasure token.",
+          "finishes": false
+        },
+        {
+          "name": "Grazilaxx, Illithid Scholar",
+          "line": "Whenever one or more creatures you control deal combat damage to a player, draw a card.",
+          "finishes": false
+        },
+        {
+          "name": "Basking Broodscale",
+          "line": "Whenever one or more +1/+1 counters are put on ~, you may create a 0/1 colorless Eldrazi Spawn creature token with \"Sacrifice this token: Add {C}.\"",
+          "finishes": true
+        },
+        {
+          "name": "Scurry Oak",
+          "line": "Whenever one or more +1/+1 counters are put on ~, you may create a 1/1 green Squirrel creature token.",
+          "finishes": true
+        },
+        {
+          "name": "Rev, Tithe Extractor",
+          "line": "Whenever one or more creatures you control deal combat damage to a player, create a Treasure token, then look at the top card of that player's library and exile it face down. You may cast that card for as long as it remains exiled.",
+          "finishes": false
+        },
+        {
+          "name": "Nature's Will",
+          "line": "Whenever one or more creatures you control deal combat damage to a player, tap all lands that player controls and untap all lands you control.",
+          "finishes": false
+        },
+        {
+          "name": "Dusk Legion Duelist",
+          "line": "Whenever one or more +1/+1 counters are put on ~, draw a card. This ability triggers only once each turn.",
+          "finishes": true
+        },
+        {
+          "name": "Rapacious Guest",
+          "line": "Whenever one or more creatures you control deal combat damage to a player, create a Food token.",
+          "finishes": false
+        },
+        {
+          "name": "Storm the Vault // Vault of Catlacan",
+          "line": "Whenever one or more creatures you control deal combat damage to a player, create a Treasure token.",
+          "finishes": true
+        }
+      ],
+      "notes": "2 construct(s); passes builtin 0 / registry 16; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|whenever # or more"
+    },
+    {
+      "name": "generic-whenever-equipped-attacks",
+      "title": "trigger-head: whenever equipped <obj> attacks",
+      "stage": "trigger-head",
+      "cards": 17,
+      "finishes": 4,
+      "lines": 17,
+      "weight": 10.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 16
+        },
+        {
+          "family": "other",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 17,
+          "clause": "trigger-head|Whenever equipped creature attacks"
+        }
+      ],
+      "cardIds": [
+        "d79cbc61-6c15-48ea-bbba-3cffb819ccba",
+        "8242cd78-6675-43b5-8924-0a88c3aa6f76",
+        "5a57fba3-01e3-4852-8c45-7c910502bd03",
+        "e91240bc-4a13-4131-9379-5ddac6555f4a",
+        "d0a1f39b-cda4-4925-83f8-2161f575edfb",
+        "a563ede9-b92f-4285-88f8-abcbdd017742",
+        "b012cec9-2aff-4dfb-8db1-61e830c33926",
+        "b7d7c131-b628-4b35-b40b-1087589ebdd0",
+        "1e2ee630-9d37-4396-ae18-697c1a3a4e62",
+        "f497e9a5-0ad3-4aec-8422-14be8e0dba4c",
+        "e6521404-8474-4727-b2d0-537d15d8a63f",
+        "dac3a263-cc02-446a-88ec-882a21096b6c"
+      ],
+      "examples": [
+        {
+          "name": "Sword of the Animist",
+          "line": "Whenever equipped creature attacks, you may search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+          "finishes": true
+        },
+        {
+          "name": "Genji Glove",
+          "line": "Whenever equipped creature attacks, if it's the first combat phase of the turn, untap it. After this phase, there is an additional combat phase.",
+          "finishes": false
+        },
+        {
+          "name": "Bitterthorn, Nissa's Animus",
+          "line": "Whenever equipped creature attacks, you may search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+          "finishes": true
+        },
+        {
+          "name": "Adaptive Omnitool",
+          "line": "Whenever equipped creature attacks, look at the top six cards of your library. You may reveal an artifact card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
+          "finishes": false
+        },
+        {
+          "name": "Argentum Armor",
+          "line": "Whenever equipped creature attacks, destroy target permanent.",
+          "finishes": true
+        },
+        {
+          "name": "Explorer's Scope",
+          "line": "Whenever equipped creature attacks, look at the top card of your library. If it's a land card, you may put it onto the battlefield tapped.",
+          "finishes": false
+        },
+        {
+          "name": "Two-Handed Axe // Sweeping Cleave",
+          "line": "Whenever equipped creature attacks, double its power until end of turn.",
+          "finishes": false
+        },
+        {
+          "name": "Andúril, Narsil Reforged",
+          "line": "Whenever equipped creature attacks, put a +1/+1 counter on each creature you control. If you have the city's blessing, put two +1/+1 counters on each creature you control instead.",
+          "finishes": false
+        },
+        {
+          "name": "Pip-Boy 3000",
+          "line": "Whenever equipped creature attacks, choose one —",
+          "finishes": false
+        },
+        {
+          "name": "Mjölnir, Storm Hammer",
+          "line": "Whenever equipped creature attacks, tap target creature defending player controls and put a stun counter on it. Then ~ deals damage to each opponent equal to the number of tapped creatures that opponent controls.",
+          "finishes": false
+        },
+        {
+          "name": "Andúril, Flame of the West",
+          "line": "Whenever equipped creature attacks, create two tapped 1/1 white Spirit creature tokens with flying. If that creature is legendary, instead create two of those tokens that are tapped and attacking.",
+          "finishes": false
+        },
+        {
+          "name": "The Spear of Leonidas",
+          "line": "Whenever equipped creature attacks, choose one —",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 17; scripted cards 1.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|whenever equipped <obj> attacks"
+    },
+    {
+      "name": "generic-level",
+      "title": "sentence: level #",
+      "stage": "sentence",
+      "cards": 20,
+      "finishes": 0,
+      "lines": 40,
+      "weight": 10,
+      "families": [
+        {
+          "family": "other",
+          "lines": 40
+        }
+      ],
+      "clauses": [
+        {
+          "n": 40,
+          "clause": "sentence|Level #"
+        }
+      ],
+      "cardIds": [
+        "c97957a2-8310-4cff-8aad-871b7901d124",
+        "36f68aa3-9955-46f1-bc87-497f16ef5222",
+        "915b75d1-b5e3-4aca-a54c-beaccef0a2e4",
+        "f0ead7f5-5c82-40fd-8e89-3e3c5d31fbad",
+        "ea734863-5793-49d6-b10e-109432aec0a3",
+        "dcbcbf42-4654-487a-acad-21f2606d229b",
+        "5a2dfff5-9dba-42f5-bcca-918c16f23807",
+        "8a280ba8-6b7b-46dd-9c2b-6d0027cfff30",
+        "a8a9b103-0cb8-4810-a2d7-42f6a10f80bd",
+        "9fdad42a-9db5-4d91-9e80-9d5ce19038b8",
+        "19ba0f2d-4de3-49a0-be7d-da0aa220cd8a",
+        "1b430f67-3686-4452-8594-b060f1a5a04e"
+      ],
+      "examples": [
+        {
+          "name": "Caretaker's Talent",
+          "line": "{W}: Level 2",
+          "finishes": false
+        },
+        {
+          "name": "Wizard Class",
+          "line": "{2}{U}: Level 2",
+          "finishes": false
+        },
+        {
+          "name": "Innkeeper's Talent",
+          "line": "{G}: Level 2",
+          "finishes": false
+        },
+        {
+          "name": "Cleric Class",
+          "line": "{3}{W}: Level 2",
+          "finishes": false
+        },
+        {
+          "name": "Artist's Talent",
+          "line": "{2}{R}: Level 2",
+          "finishes": false
+        },
+        {
+          "name": "Druid Class",
+          "line": "{2}{G}: Level 2",
+          "finishes": false
+        },
+        {
+          "name": "Alchemist's Talent",
+          "line": "{1}{R}: Level 2",
+          "finishes": false
+        },
+        {
+          "name": "Fighter Class",
+          "line": "{1}{R}{W}: Level 2",
+          "finishes": false
+        },
+        {
+          "name": "Hunter's Talent",
+          "line": "{1}{G}: Level 2",
+          "finishes": false
+        },
+        {
+          "name": "Blacksmith's Talent",
+          "line": "{2}{R}: Level 2",
+          "finishes": false
+        },
+        {
+          "name": "Sorcerer Class",
+          "line": "{U}{R}: Level 2",
+          "finishes": false
+        },
+        {
+          "name": "Fortune Teller's Talent",
+          "line": "{3}{U}: Level 2",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 40; scripted cards 7.",
+      "suggestedHome": "registry",
+      "group": "sentence|level #"
+    },
+    {
+      "name": "generic-whenever-dealt",
+      "title": "trigger-head: whenever ~ is dealt",
+      "stage": "trigger-head",
+      "cards": 12,
+      "finishes": 8,
+      "lines": 12,
+      "weight": 10,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 11
+        },
+        {
+          "family": "copy-clone",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 12,
+          "clause": "trigger-head|Whenever ~ is dealt damage"
+        }
+      ],
+      "cardIds": [
+        "3e41648f-c5a9-4b26-b97e-8176fe5e9c85",
+        "fc467fe5-85ab-4c95-8d21-49096778b107",
+        "7fc6a5c1-f0da-42f6-93d0-6d94467e2ac0",
+        "499dceab-1890-49c8-b35d-b059a1dc950f",
+        "123d2b6e-114e-4767-860d-50790382ca4a",
+        "80bb9ce4-1f3c-42ca-b75f-9a6b2f42073b",
+        "bc328acc-8521-4581-88c3-99a7cb2c1cdb",
+        "2a86b70b-34ca-45df-8aa1-c3fb2da72dc3",
+        "d1dde190-8124-4590-9507-801ea4c8cde3",
+        "e47e3a40-f51f-41ed-8e7c-06200a2abc22",
+        "fcb7c93c-46ab-49b5-a6e0-35d73f3be8f0",
+        "baec04a1-3bc9-4618-afab-e42013e36648"
+      ],
+      "examples": [
+        {
+          "name": "Brash Taunter",
+          "line": "Whenever ~ is dealt damage, it deals that much damage to target opponent.",
+          "finishes": true
+        },
+        {
+          "name": "Apex Altisaur",
+          "line": "Whenever ~ is dealt damage, it fights up to one target creature you don't control.",
+          "finishes": true
+        },
+        {
+          "name": "Body of Knowledge",
+          "line": "Whenever ~ is dealt damage, draw that many cards.",
+          "finishes": true
+        },
+        {
+          "name": "Stuffy Doll",
+          "line": "Whenever ~ is dealt damage, it deals that much damage to the chosen player.",
+          "finishes": false
+        },
+        {
+          "name": "Hornet Nest",
+          "line": "Whenever ~ is dealt damage, create that many 1/1 green Insect creature tokens with flying and deathtouch.",
+          "finishes": true
+        },
+        {
+          "name": "Ripjaw Raptor",
+          "line": "Whenever ~ is dealt damage, draw a card.",
+          "finishes": true
+        },
+        {
+          "name": "Flumph",
+          "line": "Whenever ~ is dealt damage, you and target opponent each draw a card.",
+          "finishes": false
+        },
+        {
+          "name": "Ranging Raptors",
+          "line": "Whenever ~ is dealt damage, you may search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+          "finishes": true
+        },
+        {
+          "name": "Hungering Hydra",
+          "line": "Whenever ~ is dealt damage, put that many +1/+1 counters on it.",
+          "finishes": true
+        },
+        {
+          "name": "Polyraptor",
+          "line": "Whenever ~ is dealt damage, create a token that's a copy of ~.",
+          "finishes": true
+        },
+        {
+          "name": "Screaming Nemesis",
+          "line": "Whenever ~ is dealt damage, it deals that much damage to any other target. If a player is dealt damage this way, they can't gain life for the rest of the game.",
+          "finishes": false
+        },
+        {
+          "name": "Metropolis Reformer",
+          "line": "Whenever ~ is dealt damage, you gain that much life.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 12; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|whenever ~ is dealt"
+    },
+    {
+      "name": "generic-deals-damage",
+      "title": "sentence: ~ deals # damage to that <player>",
+      "stage": "sentence",
+      "cards": 12,
+      "finishes": 3,
+      "lines": 12,
+      "weight": 7.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 12
+        }
+      ],
+      "clauses": [
+        {
+          "n": 12,
+          "clause": "sentence|~ deals # damage to that player"
+        }
+      ],
+      "cardIds": [
+        "967cf377-ae26-464d-85ac-8448b5a911f7",
+        "7d66f67d-3148-4636-ac5a-2cf8a51d5e50",
+        "0f1afedd-c60f-454f-b84a-c8117aec0128",
+        "922cf963-2b1b-43ad-819e-6e49133e6aae",
+        "34f83b7a-45a7-40a8-abcb-31d7aae4cea1",
+        "633ad9e2-9f55-4a1c-9248-661ad4b0e1dc",
+        "7652f328-e142-494b-a869-772ced10c26a",
+        "bb04f927-0348-4a14-9e74-381f18083f6a",
+        "4d81db0d-2f56-42ac-92ce-249a34d262d4",
+        "8a5e3c8e-8e22-49b9-8ee5-4a36361f0da6",
+        "88cd12e5-ca89-4176-96fd-320fe2ccd087",
+        "6ed13a89-4284-4c01-8099-75e2d68c8c63"
+      ],
+      "examples": [
+        {
+          "name": "Underworld Dreams",
+          "line": "Whenever an opponent draws a card, ~ deals 1 damage to that player.",
+          "finishes": true
+        },
+        {
+          "name": "Fate Unraveler",
+          "line": "Whenever an opponent draws a card, ~ deals 1 damage to that player.",
+          "finishes": true
+        },
+        {
+          "name": "Manabarbs",
+          "line": "Whenever a player taps a land for mana, ~ deals 1 damage to that player.",
+          "finishes": false
+        },
+        {
+          "name": "Spiteful Visions",
+          "line": "Whenever a player draws a card, ~ deals 1 damage to that player.",
+          "finishes": false
+        },
+        {
+          "name": "Roiling Vortex",
+          "line": "Whenever a player casts a spell, if no mana was spent to cast that spell, ~ deals 5 damage to that player.",
+          "finishes": false
+        },
+        {
+          "name": "Megrim",
+          "line": "Whenever an opponent discards a card, ~ deals 2 damage to that player.",
+          "finishes": false
+        },
+        {
+          "name": "Sulfuric Vortex",
+          "line": "At the beginning of each player's upkeep, ~ deals 2 damage to that player.",
+          "finishes": false
+        },
+        {
+          "name": "Thunderbreak Regent",
+          "line": "Whenever a Dragon you control becomes the target of a spell or ability an opponent controls, ~ deals 3 damage to that player.",
+          "finishes": false
+        },
+        {
+          "name": "Shadow in the Warp",
+          "line": "Whenever an opponent casts their first noncreature spell each turn, ~ deals 2 damage to that player.",
+          "finishes": false
+        },
+        {
+          "name": "Nekusar, the Mindrazer",
+          "line": "Whenever an opponent draws a card, ~ deals 1 damage to that player.",
+          "finishes": false
+        },
+        {
+          "name": "Ob Nixilis, the Hate-Twisted",
+          "line": "Whenever an opponent draws a card, ~ deals 1 damage to that player.",
+          "finishes": true
+        },
+        {
+          "name": "Ruric Thar, the Unbowed",
+          "line": "Whenever a player casts a noncreature spell, ~ deals 6 damage to that player.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 12; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|~ deals # damage to that <player>"
+    },
+    {
+      "name": "generic-only-once-turn",
+      "title": "sentence: do this only once each turn",
+      "stage": "sentence",
+      "cards": 11,
+      "finishes": 3,
+      "lines": 11,
+      "weight": 7,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 4
+        },
+        {
+          "family": "copy-clone",
+          "lines": 2
+        },
+        {
+          "family": "cost-alter",
+          "lines": 2
+        },
+        {
+          "family": "keyword-action",
+          "lines": 2
+        },
+        {
+          "family": "control",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 11,
+          "clause": "sentence|Do this only once each turn"
+        }
+      ],
+      "cardIds": [
+        "4ac94586-3ac7-4ade-af31-ad0d0e3ffc4a",
+        "d2ae893f-52af-4645-8712-d62fb78f901e",
+        "d4e3440d-4e34-40d7-8a42-c673225c0332",
+        "b828ba28-e98d-498b-9ab4-d4aa7143e407",
+        "367ac7e2-5056-48f3-a296-87d6cb1f7b54",
+        "634475d9-a1d7-4146-9a37-645d3d162af1",
+        "1bcc8ca6-5fd0-4fc9-8f0c-f81d8abf9249",
+        "f89d093d-c815-4df7-a348-2005aa227586",
+        "e8fbcafd-3617-4cd7-b55d-457fb7b60162",
+        "ed5889c9-e524-40c1-9011-7559a992bb1b",
+        "71f3168d-9eeb-4570-8437-a3ffc39667e9"
+      ],
+      "examples": [
+        {
+          "name": "Terrasymbiosis",
+          "line": "Whenever you put one or more +1/+1 counters on a creature you control, you may draw that many cards. Do this only once each turn.",
+          "finishes": false
+        },
+        {
+          "name": "Ondu Spiritdancer",
+          "line": "Whenever an enchantment you control enters, you may create a token that's a copy of it. Do this only once each turn.",
+          "finishes": true
+        },
+        {
+          "name": "Deep Gnome Terramancer",
+          "line": "Whenever one or more lands enter under an opponent's control without being played, you may search your library for a Plains card, put it onto the battlefield tapped, then shuffle. Do this only once each turn.",
+          "finishes": false
+        },
+        {
+          "name": "Pantlaza, Sun-Favored",
+          "line": "Whenever ~ or another Dinosaur you control enters, you may discover X, where X is that creature's toughness. Do this only once each turn.",
+          "finishes": true
+        },
+        {
+          "name": "Nykthos Paragon",
+          "line": "Whenever you gain life, you may put that many +1/+1 counters on each creature you control. Do this only once each turn.",
+          "finishes": true
+        },
+        {
+          "name": "Emet-Selch of the Third Seat",
+          "line": "Whenever one or more opponents lose life, you may cast target instant or sorcery card from your graveyard. If that spell would be put into your graveyard, exile it instead. Do this only once each turn.",
+          "finishes": false
+        },
+        {
+          "name": "Calix, Guided by Fate",
+          "line": "Whenever ~ or an enchanted creature you control deals combat damage to a player, you may create a token that's a copy of a nonlegendary enchantment you control. Do this only once each turn.",
+          "finishes": false
+        },
+        {
+          "name": "Planetarium of Wan Shi Tong",
+          "line": "Whenever you scry or surveil, look at the top card of your library. You may cast that card without paying its mana cost. Do this only once each turn.",
+          "finishes": false
+        },
+        {
+          "name": "Tidus, Yuna's Guardian",
+          "line": "Whenever one or more creatures you control with counters on them deal combat damage to a player, you may draw a card and proliferate. Do this only once each turn.",
+          "finishes": false
+        },
+        {
+          "name": "Screeching Scorchbeast",
+          "line": "Whenever one or more nonland cards are milled, you may create that many 2/2 black Zombie Mutant creature tokens. Do this only once each turn.",
+          "finishes": false
+        },
+        {
+          "name": "Riveteers Ascendancy",
+          "line": "Whenever you sacrifice a creature, you may return target creature card with lesser mana value from your graveyard to the battlefield tapped. Do this only once each turn.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 11; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|do this only once each turn"
+    },
+    {
+      "name": "generic-win-game",
+      "title": "sentence: you win the game",
+      "stage": "sentence",
+      "cards": 11,
+      "finishes": 3,
+      "lines": 11,
+      "weight": 7,
+      "families": [
+        {
+          "family": "other",
+          "lines": 8
+        },
+        {
+          "family": "generic",
+          "lines": 3
+        }
+      ],
+      "clauses": [
+        {
+          "n": 11,
+          "clause": "sentence|you win the game"
+        }
+      ],
+      "cardIds": [
+        "d9b066ff-9519-415c-ae17-bfea703c9889",
+        "cc3fcd26-c088-4335-9a35-0e11019e3d5b",
+        "57c1a98e-c4fb-4144-9e3e-d0fe6789ba26",
+        "ef238ba8-acf0-4e62-9abd-5291886a32e8",
+        "5ae3cbb9-9f0c-4077-ae7c-fba660d7fb4b",
+        "71ae0fab-eb3e-4226-9fcc-29186f98a569",
+        "ffdad8fb-69ee-40d3-b2eb-b0aee0a5becc",
+        "bc483bab-14fb-498d-9310-9c070766c7ae",
+        "6858702a-e563-4dcb-a50d-65406cea7c86",
+        "9ddc5a06-b4e1-459a-9e39-7cd1aa994fe1",
+        "8f52fc65-a914-421a-9426-21eb520d55d5"
+      ],
+      "examples": [
+        {
+          "name": "Hellkite Tyrant",
+          "line": "At the beginning of your upkeep, if you control twenty or more artifacts, you win the game.",
+          "finishes": false
+        },
+        {
+          "name": "Revel in Riches",
+          "line": "At the beginning of your upkeep, if you control ten or more Treasures, you win the game.",
+          "finishes": true
+        },
+        {
+          "name": "Simic Ascendancy",
+          "line": "At the beginning of your upkeep, if ~ has twenty or more growth counters on it, you win the game.",
+          "finishes": false
+        },
+        {
+          "name": "Triskaidekaphile",
+          "line": "At the beginning of your upkeep, if you have exactly thirteen cards in your hand, you win the game.",
+          "finishes": false
+        },
+        {
+          "name": "Felidar Sovereign",
+          "line": "At the beginning of your upkeep, if you have 40 or more life, you win the game.",
+          "finishes": true
+        },
+        {
+          "name": "Knuckles the Echidna",
+          "line": "At the beginning of your upkeep, if you control thirty or more artifacts, you win the game.",
+          "finishes": false
+        },
+        {
+          "name": "Test of Endurance",
+          "line": "At the beginning of your upkeep, if you have 50 or more life, you win the game.",
+          "finishes": true
+        },
+        {
+          "name": "Darksteel Reactor",
+          "line": "When ~ has twenty or more charge counters on it, you win the game.",
+          "finishes": false
+        },
+        {
+          "name": "Liliana's Contract",
+          "line": "At the beginning of your upkeep, if you control four or more Demons with different names, you win the game.",
+          "finishes": false
+        },
+        {
+          "name": "Helix Pinnacle",
+          "line": "At the beginning of your upkeep, if there are 100 or more tower counters on ~, you win the game.",
+          "finishes": false
+        },
+        {
+          "name": "Zenos yae Galvus // Shinryu, Transcendent Rival",
+          "line": "// When the chosen player loses the game, you win the game.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 11; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|you win the game"
+    },
+    {
+      "name": "generic-choose-background",
+      "title": "static: choose a <subtype>",
+      "stage": "static",
+      "cards": 10,
+      "finishes": 4,
+      "lines": 10,
+      "weight": 7,
+      "families": [
+        {
+          "family": "other",
+          "lines": 10
+        }
+      ],
+      "clauses": [
+        {
+          "n": 10,
+          "clause": "static|Choose a Background"
+        }
+      ],
+      "cardIds": [
+        "0aeeb0d7-15a3-4722-ad67-8fc7fe89220d",
+        "037355be-71e7-4866-80a6-80352c304970",
+        "c066f921-e349-45d1-8ec3-0955d10bbf19",
+        "a3112971-3af4-46e8-b2d6-a8759b39d0d1",
+        "4dde484a-8d5b-4eb6-ab4a-e30cc370431c",
+        "cab092f9-b7ff-43b9-935f-310869a4daf8",
+        "180919a5-67b2-473a-9b90-a828bdc2477c",
+        "d2766fd7-5cf9-4037-9f34-9ae3982c613a",
+        "4fb254cf-b60c-4a3e-b753-4213cb572837",
+        "33b401b1-cf94-4c7a-8a8a-426ac3d87bd0"
+      ],
+      "examples": [
+        {
+          "name": "Jaheira, Friend of the Forest",
+          "line": "Choose a Background",
+          "finishes": true
+        },
+        {
+          "name": "Karlach, Fury of Avernus",
+          "line": "Choose a Background",
+          "finishes": false
+        },
+        {
+          "name": "Lae'zel, Vlaakith's Champion",
+          "line": "Choose a Background",
+          "finishes": false
+        },
+        {
+          "name": "Ganax, Astral Hunter",
+          "line": "Choose a Background",
+          "finishes": true
+        },
+        {
+          "name": "Zellix, Sanity Flayer",
+          "line": "Choose a Background",
+          "finishes": false
+        },
+        {
+          "name": "Abdel Adrian, Gorion's Ward",
+          "line": "Choose a Background",
+          "finishes": false
+        },
+        {
+          "name": "Shadowheart, Dark Justiciar",
+          "line": "Choose a Background",
+          "finishes": true
+        },
+        {
+          "name": "Wilson, Refined Grizzly",
+          "line": "Choose a Background",
+          "finishes": true
+        },
+        {
+          "name": "Wyll, Blade of Frontiers",
+          "line": "Choose a Background",
+          "finishes": false
+        },
+        {
+          "name": "Baeloth Barrityl, Entertainer",
+          "line": "Choose a Background",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 10; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "static|choose a <subtype>"
+    },
+    {
+      "name": "generic-exile-top",
+      "title": "sentence: exile the top <obj> of your <zone>",
+      "stage": "sentence",
+      "cards": 12,
+      "finishes": 0,
+      "lines": 12,
+      "weight": 6,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 11
+        },
+        {
+          "family": "planeswalker",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 6,
+          "clause": "sentence|Exile the top card of your library"
+        },
+        {
+          "n": 6,
+          "clause": "sentence|exile the top card of your library"
+        }
+      ],
+      "cardIds": [
+        "994bc16d-fdc6-475c-96df-beeb4d5aa03e",
+        "1a85ba2b-ae10-4917-954a-7709b75a9740",
+        "12cc800c-c7be-4811-8207-fd01a99cc892",
+        "d6861319-ae16-4e6c-af87-a264f667d694",
+        "176f5ba8-6e7b-4234-a298-b6164f51656f",
+        "4012b400-7dcd-43d6-8806-39a3cb743d8f",
+        "5249dd0d-3bda-452e-ac6e-774c0ebc2e41",
+        "795bc0b0-4b0a-49d6-ac8e-a52a10a93be8",
+        "f3d4f5ab-0ff4-48e1-8cf0-163b290804a5",
+        "55b6434b-1542-40fd-b12a-697d40976582",
+        "1e080c7d-102c-4d28-bcb9-62b36d400d13",
+        "b391a4ce-52ce-4a8c-bbe5-6053951ee1d4"
+      ],
+      "examples": [
+        {
+          "name": "Mystic Forge",
+          "line": "{T}, Pay 1 life: Exile the top card of your library.",
+          "finishes": false
+        },
+        {
+          "name": "Tainted Pact",
+          "line": "Exile the top card of your library.",
+          "finishes": false
+        },
+        {
+          "name": "Chandra, Torch of Defiance",
+          "line": "+1: Exile the top card of your library. You may cast that card. If you don't, ~ deals 2 damage to each opponent.",
+          "finishes": false
+        },
+        {
+          "name": "Valakut Exploration",
+          "line": "Whenever a land you control enters, exile the top card of your library. You may play that card for as long as it remains exiled.",
+          "finishes": false
+        },
+        {
+          "name": "Inti, Seneschal of the Sun",
+          "line": "Whenever you discard one or more cards, exile the top card of your library. You may play that card until your next end step.",
+          "finishes": false
+        },
+        {
+          "name": "Neyali, Suns' Vanguard",
+          "line": "Whenever one or more tokens you control attack a player, exile the top card of your library. During any turn you attacked with a token, you may play that card.",
+          "finishes": false
+        },
+        {
+          "name": "Haste Magic",
+          "line": "Exile the top card of your library.",
+          "finishes": false
+        },
+        {
+          "name": "Evendo Brushrazer",
+          "line": "Whenever you sacrifice a nontoken permanent, exile the top card of your library.",
+          "finishes": false
+        },
+        {
+          "name": "Unstable Amulet",
+          "line": "{T}, Pay {E}{E}: Exile the top card of your library. You may play it until you exile another card with ~.",
+          "finishes": false
+        },
+        {
+          "name": "Ob Nixilis, Captive Kingpin",
+          "line": "Whenever one or more opponents each lose exactly 1 life, put a +1/+1 counter on ~. Exile the top card of your library. Until your next end step, you may play that card.",
+          "finishes": false
+        },
+        {
+          "name": "Rundvelt Hordemaster",
+          "line": "Whenever ~ or another Goblin you control dies, exile the top card of your library. If it's a Goblin creature card, you may cast that card until the end of your next turn.",
+          "finishes": false
+        },
+        {
+          "name": "Theater of Horrors",
+          "line": "At the beginning of your upkeep, exile the top card of your library.",
+          "finishes": false
+        }
+      ],
+      "notes": "2 construct(s); passes builtin 0 / registry 12; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|exile the top <obj> of your <zone>"
+    },
+    {
+      "name": "generic-still-land",
+      "title": "sentence: it's still a <obj>",
+      "stage": "sentence",
+      "cards": 12,
+      "finishes": 0,
+      "lines": 12,
+      "weight": 6,
+      "families": [
+        {
+          "family": "layers",
+          "lines": 10
+        },
+        {
+          "family": "planeswalker",
+          "lines": 2
+        }
+      ],
+      "clauses": [
+        {
+          "n": 12,
+          "clause": "sentence|It's still a land"
+        }
+      ],
+      "cardIds": [
+        "7dd189f8-a23f-4b43-b0ef-fb174a9664ba",
+        "6b3cc59a-7ea5-4eb5-9bf9-5a9c07f80e2b",
+        "126e9140-2c05-4c00-8b01-5653456c736a",
+        "4566fb92-448e-4b3f-9045-9d74323c35d1",
+        "250cb58b-2924-4dff-92fe-ac0ebbbeb218",
+        "5963e0ef-e0bc-4611-ad4f-813a4c0eacfb",
+        "8da29533-f389-4bc2-ab9b-b469f893a362",
+        "08377424-619e-48ae-bc3c-fb199cd77cf9",
+        "91320daf-f69c-4350-b0fc-4bb37a6904b1",
+        "df20f85b-5f81-4ee4-8487-55d90109ac36",
+        "c2878f4e-3044-4d60-8ec1-b325edfca397",
+        "31d4d8ce-36ba-4297-8c7a-34a83ba25255"
+      ],
+      "examples": [
+        {
+          "name": "Destiny Spinner",
+          "line": "{3}{G}: Target land you control becomes an X/X Elemental creature with trample and haste until end of turn, where X is the number of enchantments you control. It's still a land.",
+          "finishes": false
+        },
+        {
+          "name": "Mutavault",
+          "line": "{1}: ~ becomes a 2/2 creature with all creature types until end of turn. It's still a land.",
+          "finishes": false
+        },
+        {
+          "name": "Lair of the Hydra",
+          "line": "{X}{G}: Until end of turn, ~ becomes an X/X green Hydra creature. It's still a land. X can't be 0.",
+          "finishes": false
+        },
+        {
+          "name": "Wrenn and Realmbreaker",
+          "line": "+1: Up to one target land you control becomes a 3/3 Elemental creature with vigilance, hexproof, and haste until your next turn. It's still a land.",
+          "finishes": false
+        },
+        {
+          "name": "Creeping Tar Pit",
+          "line": "{1}{U}{B}: Until end of turn, ~ becomes a 3/2 blue and black Elemental creature. It's still a land. It can't be blocked this turn.",
+          "finishes": false
+        },
+        {
+          "name": "Mishra's Factory",
+          "line": "{1}: ~ becomes a 2/2 Assembly-Worker artifact creature until end of turn. It's still a land.",
+          "finishes": false
+        },
+        {
+          "name": "Cactus Preserve",
+          "line": "{3}: Until end of turn, ~ becomes an X/X green Plant creature with reach, where X is the greatest mana value among your commanders. It's still a land.",
+          "finishes": false
+        },
+        {
+          "name": "Llanowar Loamspeaker",
+          "line": "{T}: Target land you control becomes a 3/3 Elemental creature with haste until end of turn. It's still a land. Activate only as a sorcery.",
+          "finishes": false
+        },
+        {
+          "name": "Restless Anchorage",
+          "line": "{1}{W}{U}: Until end of turn, ~ becomes a 2/3 white and blue Bird creature with flying. It's still a land.",
+          "finishes": false
+        },
+        {
+          "name": "Restless Reef",
+          "line": "{2}{U}{B}: Until end of turn, ~ becomes a 4/4 blue and black Shark creature with deathtouch. It's still a land.",
+          "finishes": false
+        },
+        {
+          "name": "Lumbering Falls",
+          "line": "{2}{G}{U}: Until end of turn, ~ becomes a 3/3 green and blue Elemental creature with hexproof. It's still a land.",
+          "finishes": false
+        },
+        {
+          "name": "Nissa, Vital Force",
+          "line": "+1: Untap target land you control. Until your next turn, it becomes a 5/5 Elemental creature with haste. It's still a land.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 12; scripted cards 0. Core: 13 fragment(s) start with an unrewritten pronoun: parse.ts rewrites \"it\" / \"that creature\" before the templates, a registry rule never sees the antecedent.",
+      "suggestedHome": "core",
+      "group": "sentence|it's still a <obj>"
+    },
+    {
+      "name": "generic-youre-monarch",
+      "title": "condition: you're the monarch",
+      "stage": "condition",
+      "cards": 10,
+      "finishes": 2,
+      "lines": 10,
+      "weight": 6,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 6
+        },
+        {
+          "family": "combat-restr",
+          "lines": 1
+        },
+        {
+          "family": "copy-clone",
+          "lines": 1
+        },
+        {
+          "family": "cost-alter",
+          "lines": 1
+        },
+        {
+          "family": "keyword-action",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 10,
+          "clause": "condition|you're the monarch"
+        }
+      ],
+      "cardIds": [
+        "f63c2438-27d4-449a-828f-f0a2ea86ff16",
+        "1f3f6336-6f99-4181-be3c-1814f7b8ef36",
+        "652e71a9-e46f-41b3-8695-76b3606b1955",
+        "2ab88c99-aaa0-4a91-9225-0bbfba04b6bc",
+        "ad82b43b-b15e-48f4-86ab-5ee2c448cf14",
+        "13f58292-9b78-4cd1-a16e-b1779a170d33",
+        "6106ba65-f07b-41ec-8b59-e052bbde5529",
+        "87a82441-9dfb-49bd-8b9e-eaab2c552843",
+        "be14d3be-295e-431c-b891-590164b730dd",
+        "be97c400-c690-426d-a39e-4082080a3823"
+      ],
+      "examples": [
+        {
+          "name": "Court of Grace",
+          "line": "At the beginning of your upkeep, create a 1/1 white Spirit creature token with flying. If you're the monarch, create a 4/4 white Angel creature token with flying instead.",
+          "finishes": false
+        },
+        {
+          "name": "Court of Garenbrig",
+          "line": "At the beginning of your upkeep, distribute two +1/+1 counters among up to two target creatures. Then if you're the monarch, double the number of +1/+1 counters on each creature you control.",
+          "finishes": false
+        },
+        {
+          "name": "Court of Ambition",
+          "line": "At the beginning of your upkeep, each opponent loses 3 life unless they discard a card. If you're the monarch, instead each opponent loses 6 life unless they discard two cards.",
+          "finishes": false
+        },
+        {
+          "name": "Court of Cunning",
+          "line": "At the beginning of your upkeep, any number of target players each mill two cards. If you're the monarch, each of those players mills ten cards instead.",
+          "finishes": false
+        },
+        {
+          "name": "Court of Vantress",
+          "line": "At the beginning of your upkeep, choose up to one other target enchantment or artifact. If you're the monarch, you may create a token that's a copy of it. If you're not the monarch, you may have ~ become a copy of it, except it has this ability.",
+          "finishes": false
+        },
+        {
+          "name": "Court of Ire",
+          "line": "At the beginning of your upkeep, ~ deals 2 damage to any target. If you're the monarch, it deals 7 damage instead.",
+          "finishes": false
+        },
+        {
+          "name": "Court of Locthwain",
+          "line": "At the beginning of your upkeep, exile the top card of target opponent's library. You may play that card for as long as it remains exiled, and mana of any type can be spent to cast it. If you're the monarch, until end of turn, you may cast a spell from among cards exiled with ~ without paying its mana cost.",
+          "finishes": false
+        },
+        {
+          "name": "Court of Embereth",
+          "line": "At the beginning of your upkeep, create a 3/1 red Knight creature token. Then if you're the monarch, ~ deals X damage to each opponent, where X is the number of creatures you control.",
+          "finishes": true
+        },
+        {
+          "name": "Court of Ardenvale",
+          "line": "At the beginning of your upkeep, return target permanent card with mana value 3 or less from your graveyard to your hand. If you're the monarch, return that permanent card to the battlefield instead.",
+          "finishes": false
+        },
+        {
+          "name": "Aragorn, King of Gondor",
+          "line": "Whenever ~ attacks, up to one target creature can't block this turn. If you're the monarch, creatures can't block this turn.",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 10; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "condition|you're the monarch"
+    }
+  ],
+  "residual": [
+    {
+      "name": "generic-sacrifice-it",
+      "title": "sentence: sacrifice it",
+      "stage": "sentence",
+      "cards": 7,
+      "finishes": 5,
+      "lines": 7,
+      "weight": 6,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 7
+        }
+      ],
+      "clauses": [
+        {
+          "n": 7,
+          "clause": "sentence|sacrifice it"
+        }
+      ],
+      "cardIds": [
+        "5548ff43-e5f6-4a63-8562-a2b1de06d6f5",
+        "65424bea-fd53-4f85-9757-0b91a6d40ba4",
+        "9464ddf2-4bcb-44f6-b945-89a132544de6",
+        "bd002797-a545-4bee-88bf-b878436e7cca",
+        "c9b82110-7dfd-4617-9399-9510be449043",
+        "dc31a6f8-6228-4a25-b937-5d8d78514333",
+        "6754753d-790e-4a95-a150-76741c4a02d4"
+      ],
+      "examples": [
+        {
+          "name": "Riveteers Overlook",
+          "line": "When ~ enters, sacrifice it. When you do, search your library for a basic Swamp, Mountain, or Forest card, put it onto the battlefield tapped, then shuffle and you gain 1 life.",
+          "finishes": true
+        },
+        {
+          "name": "Cabaretti Courtyard",
+          "line": "When ~ enters, sacrifice it. When you do, search your library for a basic Mountain, Forest, or Plains card, put it onto the battlefield tapped, then shuffle and you gain 1 life.",
+          "finishes": true
+        },
+        {
+          "name": "Maestros Theater",
+          "line": "When ~ enters, sacrifice it. When you do, search your library for a basic Island, Swamp, or Mountain card, put it onto the battlefield tapped, then shuffle and you gain 1 life.",
+          "finishes": true
+        },
+        {
+          "name": "Brokers Hideout",
+          "line": "When ~ enters, sacrifice it. When you do, search your library for a basic Forest, Plains, or Island card, put it onto the battlefield tapped, then shuffle and you gain 1 life.",
+          "finishes": true
+        },
+        {
+          "name": "Dark Depths",
+          "line": "When ~ has no ice counters on it, sacrifice it. If you do, create Marit Lage, a legendary 20/20 black Avatar creature token with flying and indestructible.",
+          "finishes": false
+        },
+        {
+          "name": "Obscura Storefront",
+          "line": "When ~ enters, sacrifice it. When you do, search your library for a basic Plains, Island, or Swamp card, put it onto the battlefield tapped, then shuffle and you gain 1 life.",
+          "finishes": true
+        },
+        {
+          "name": "RMS Titanic",
+          "line": "When ~ deals combat damage to a player, sacrifice it and create that many Treasure tokens.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 7; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|sacrifice it"
+    },
+    {
+      "name": "generic-when-cycle",
+      "title": "trigger-head: when you cycle ~",
+      "stage": "trigger-head",
+      "cards": 9,
+      "finishes": 2,
+      "lines": 9,
+      "weight": 5.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 9
+        }
+      ],
+      "clauses": [
+        {
+          "n": 9,
+          "clause": "trigger-head|When you cycle ~"
+        }
+      ],
+      "cardIds": [
+        "8c0520fa-276b-4d21-b4a9-dce1fce59f6b",
+        "932668fa-d6e3-41c0-ad0c-8e0a00e68d11",
+        "cf32524e-0df9-4af8-9371-84feeb0a86c6",
+        "900b9409-9c16-414d-8674-2ea42c2415a1",
+        "8656a32b-eb95-402b-9daf-0b6d876b4b13",
+        "699fc7cf-1ad3-4c32-b3e4-49f9a2da4b26",
+        "25012c1f-c069-43d7-b930-a3a5a7eb1389",
+        "1ad5766b-9ae3-437b-bd91-c4c988a8b095",
+        "d73191d8-6f94-4fba-acd2-2d0490e3ac00"
+      ],
+      "examples": [
+        {
+          "name": "Shark Typhoon",
+          "line": "When you cycle ~, create an X/X blue Shark creature token with flying.",
+          "finishes": false
+        },
+        {
+          "name": "Decree of Pain",
+          "line": "When you cycle ~, all creatures get -2/-2 until end of turn.",
+          "finishes": false
+        },
+        {
+          "name": "Fractured Sanity",
+          "line": "When you cycle ~, each opponent mills four cards.",
+          "finishes": false
+        },
+        {
+          "name": "Magmakin Artillerist",
+          "line": "When you cycle ~, it deals 1 damage to each opponent.",
+          "finishes": false
+        },
+        {
+          "name": "Titanoth Rex",
+          "line": "When you cycle ~, put a trample counter on target creature you control.",
+          "finishes": true
+        },
+        {
+          "name": "Vizier of Tumbling Sands",
+          "line": "When you cycle ~, untap target permanent.",
+          "finishes": true
+        },
+        {
+          "name": "Dismantling Wave",
+          "line": "When you cycle ~, destroy all artifacts and enchantments.",
+          "finishes": false
+        },
+        {
+          "name": "Agonasaur Rex",
+          "line": "When you cycle ~, put two +1/+1 counters on up to one target creature or Vehicle. It gains trample and indestructible until end of turn.",
+          "finishes": false
+        },
+        {
+          "name": "The Balrog of Moria",
+          "line": "When you cycle ~, create two Treasure tokens.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 9; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|when you cycle ~"
+    },
+    {
+      "name": "generic-start-engines",
+      "title": "static: start your engines!",
+      "stage": "static",
+      "cards": 6,
+      "finishes": 5,
+      "lines": 6,
+      "weight": 5.5,
+      "families": [
+        {
+          "family": "other",
+          "lines": 6
+        }
+      ],
+      "clauses": [
+        {
+          "n": 6,
+          "clause": "static|Start your engines!"
+        }
+      ],
+      "cardIds": [
+        "b5fa5651-d714-44d6-867b-be0e3224b7ed",
+        "fe174586-d36b-40f6-babd-1f98e76eec22",
+        "cd45a29f-73bc-435c-9d50-09a4ecaa77be",
+        "b20d74a4-0e08-4779-972a-499f1a2be15a",
+        "6454c457-a278-431a-9e8d-bfd1a966bdde",
+        "e2c35551-1ba5-4424-baf9-821b49bbcc8c"
+      ],
+      "examples": [
+        {
+          "name": "Muraganda Raceway",
+          "line": "Start your engines!",
+          "finishes": true
+        },
+        {
+          "name": "Amonkhet Raceway",
+          "line": "Start your engines!",
+          "finishes": true
+        },
+        {
+          "name": "Howlsquad Heavy",
+          "line": "Start your engines!",
+          "finishes": false
+        },
+        {
+          "name": "Mendicant Core, Guidelight",
+          "line": "Start your engines!",
+          "finishes": true
+        },
+        {
+          "name": "Vnwxt, Verbose Host",
+          "line": "Start your engines!",
+          "finishes": true
+        },
+        {
+          "name": "Avishkar Raceway",
+          "line": "Start your engines!",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 6; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "static|start your engines!"
+    },
+    {
+      "name": "generic-you-dont",
+      "title": "condition: you don't",
+      "stage": "condition",
+      "cards": 10,
+      "finishes": 0,
+      "lines": 10,
+      "weight": 5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 5
+        },
+        {
+          "family": "other",
+          "lines": 2
+        },
+        {
+          "family": "control",
+          "lines": 1
+        },
+        {
+          "family": "cost-alter",
+          "lines": 1
+        },
+        {
+          "family": "planeswalker",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 10,
+          "clause": "condition|you don't"
+        }
+      ],
+      "cardIds": [
+        "f3e213a4-ba5a-468a-93b3-c0a34e1bd725",
+        "b368121b-9984-4a01-8d35-d1e4a8a87539",
+        "12cc800c-c7be-4811-8207-fd01a99cc892",
+        "782dcbc4-5a11-42f5-b8d9-4572e36d45b3",
+        "2598294c-a9a7-4bef-a562-23f297a80536",
+        "fa716557-8e75-4617-8310-ab23a9ca1af1",
+        "dbe792f9-22be-4972-b418-99a6190c4421",
+        "687e772a-cdfe-41fd-a066-6cb3aee04193",
+        "5370ee80-0354-454f-a16e-ec133e432ecb",
+        "27e83bae-0ffe-4cc7-a6c0-cbca25f2ba4e"
+      ],
+      "examples": [
+        {
+          "name": "Pact of Negation",
+          "line": "At the beginning of your next upkeep, pay {3}{U}{U}. If you don't, you lose the game.",
+          "finishes": false
+        },
+        {
+          "name": "Planar Genesis",
+          "line": "If you don't, put a card from among them into your hand.",
+          "finishes": false
+        },
+        {
+          "name": "Chandra, Torch of Defiance",
+          "line": "+1: Exile the top card of your library. You may cast that card. If you don't, ~ deals 2 damage to each opponent.",
+          "finishes": false
+        },
+        {
+          "name": "Summoner's Pact",
+          "line": "At the beginning of your next upkeep, pay {2}{G}{G}. If you don't, you lose the game.",
+          "finishes": false
+        },
+        {
+          "name": "Songbirds' Blessing",
+          "line": "Whenever enchanted creature attacks, reveal cards from the top of your library until you reveal an Aura card. You may put that card onto the battlefield. If you don't, put it into your hand. Put the rest on the bottom of your library in a random order.",
+          "finishes": false
+        },
+        {
+          "name": "Slicer, Hired Muscle // Slicer, High-Speed Antagonist",
+          "line": "At the beginning of each opponent's upkeep, you may have that player gain control of ~ until end of turn. If you do, untap ~, goad it, and it can't be sacrificed this turn. If you don't, convert it.",
+          "finishes": false
+        },
+        {
+          "name": "Transmute Artifact",
+          "line": "If you don't, put it into its owner's graveyard.",
+          "finishes": false
+        },
+        {
+          "name": "Hakbal of the Surging Soul",
+          "line": "Whenever Hakbal attacks, you may put a land card from your hand onto the battlefield. If you don't, draw a card.",
+          "finishes": false
+        },
+        {
+          "name": "Breaching Dragonstorm",
+          "line": "When ~ enters, exile cards from the top of your library until you exile a nonland card. You may cast it without paying its mana cost if that spell's mana value is 8 or less. If you don't, put that card into your hand.",
+          "finishes": false
+        },
+        {
+          "name": "Gilraen, Dúnedain Protector",
+          "line": "{2}, {T}: Exile another target creature you control. You may return that card to the battlefield under its owner's control. If you don't, at the beginning of the next end step, return that card to the battlefield under its owner's control with a vigilance counter and a lifelink counter on it.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 10; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "condition|you don't"
+    },
+    {
+      "name": "generic-add-mana-chosen",
+      "title": "sentence: add {m} or # mana of the chosen color",
+      "stage": "sentence",
+      "cards": 10,
+      "finishes": 0,
+      "lines": 10,
+      "weight": 5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 10
+        }
+      ],
+      "clauses": [
+        {
+          "n": 10,
+          "clause": "sentence|Add {} or one mana of the chosen color"
+        }
+      ],
+      "cardIds": [
+        "69fc70b8-b143-4662-ac95-e2743037239d",
+        "d1946630-e224-40db-8f0d-388b09622288",
+        "a8052556-8962-4130-86a8-6fb7b6a324f7",
+        "91fceb34-0f2d-4392-be27-00dcd765637f",
+        "bff416bb-d193-4c45-b2c1-7c297dbfad08",
+        "dd6e67c0-66a1-49b7-8a86-3cf4b209fd07",
+        "b574c540-9f8a-4fd4-8809-d02c9b099ddc",
+        "dde6bce5-8bbe-4866-b5aa-2c05c7d37241",
+        "15f1fe23-5af4-4fc4-8cde-2e0bf9f9be0c",
+        "1999b5ac-21fb-4d99-ad72-58bf507f9a59"
+      ],
+      "examples": [
+        {
+          "name": "Thriving Isle",
+          "line": "{T}: Add {U} or one mana of the chosen color.",
+          "finishes": false
+        },
+        {
+          "name": "Thriving Heath",
+          "line": "{T}: Add {W} or one mana of the chosen color.",
+          "finishes": false
+        },
+        {
+          "name": "Thriving Grove",
+          "line": "{T}: Add {G} or one mana of the chosen color.",
+          "finishes": false
+        },
+        {
+          "name": "Thriving Bluff",
+          "line": "{T}: Add {R} or one mana of the chosen color.",
+          "finishes": false
+        },
+        {
+          "name": "Thriving Moor",
+          "line": "{T}: Add {B} or one mana of the chosen color.",
+          "finishes": false
+        },
+        {
+          "name": "Manor Gate",
+          "line": "{T}: Add {G} or one mana of the chosen color.",
+          "finishes": false
+        },
+        {
+          "name": "Sea Gate",
+          "line": "{T}: Add {U} or one mana of the chosen color.",
+          "finishes": false
+        },
+        {
+          "name": "Black Dragon Gate",
+          "line": "{T}: Add {B} or one mana of the chosen color.",
+          "finishes": false
+        },
+        {
+          "name": "Citadel Gate",
+          "line": "{T}: Add {W} or one mana of the chosen color.",
+          "finishes": false
+        },
+        {
+          "name": "Cliffgate",
+          "line": "{T}: Add {R} or one mana of the chosen color.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 10; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|add {m} or # mana of the chosen color"
+    },
+    {
+      "name": "generic-x-more",
+      "title": "condition: # is # or",
+      "stage": "condition",
+      "cards": 9,
+      "finishes": 1,
+      "lines": 9,
+      "weight": 5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 6
+        },
+        {
+          "family": "copy-clone",
+          "lines": 1
+        },
+        {
+          "family": "other",
+          "lines": 1
+        },
+        {
+          "family": "replacement",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 9,
+          "clause": "condition|X is # or more"
+        }
+      ],
+      "cardIds": [
+        "69872a9a-fe54-4e58-940c-89395af71acd",
+        "755bd5d8-67f1-4f24-a4e8-d98edf2f2e03",
+        "78301998-fd9b-4cd5-afad-dbcb43cac2a7",
+        "2b7c4dab-e432-4b34-b058-3cec5c0d72df",
+        "fdfac093-a5c0-47b4-9052-e0af517d83cf",
+        "68273453-1059-4eab-8c27-5d96f998f3b1",
+        "5eff8a06-e0d6-435a-a7c0-db9f9d98636a",
+        "11e637b4-6ce0-4514-98d6-02a2d073f73b",
+        "af105cda-1f7c-4868-9407-a97c46bd762d"
+      ],
+      "examples": [
+        {
+          "name": "Finale of Devastation",
+          "line": "If X is 10 or more, creatures you control get +X/+X and gain haste until end of turn.",
+          "finishes": false
+        },
+        {
+          "name": "Finale of Revelation",
+          "line": "If X is 10 or more, instead shuffle your graveyard into your library, draw X cards, untap up to five lands, and you have no maximum hand size for the rest of the game.",
+          "finishes": false
+        },
+        {
+          "name": "Shatterskull Smashing // Shatterskull, the Hammer Pass",
+          "line": "If X is 6 or more, ~ deals twice X damage divided as you choose among them instead.",
+          "finishes": false
+        },
+        {
+          "name": "Martial Coup",
+          "line": "If X is 5 or more, destroy all other creatures.",
+          "finishes": true
+        },
+        {
+          "name": "Dance of the Manse",
+          "line": "If X is 6 or more, those permanents are 4/4 creatures in addition to their other types.",
+          "finishes": false
+        },
+        {
+          "name": "Finale of Glory",
+          "line": "If X is 10 or more, also create X 4/4 white Angel creature tokens with flying and vigilance.",
+          "finishes": false
+        },
+        {
+          "name": "Banefire",
+          "line": "If X is 5 or more, ~ can't be countered and the damage can't be prevented.",
+          "finishes": false
+        },
+        {
+          "name": "Blue Sun's Twilight",
+          "line": "If X is 5 or more, create a token that's a copy of that creature.",
+          "finishes": false
+        },
+        {
+          "name": "Black Sun's Twilight",
+          "line": "If X is 5 or more, return a creature card with mana value X or less from your graveyard to the battlefield tapped.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 9; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "condition|# is # or"
+    },
+    {
+      "name": "generic-reveal-top",
+      "title": "sentence: reveal the top <obj> of your <zone>",
+      "stage": "sentence",
+      "cards": 9,
+      "finishes": 1,
+      "lines": 9,
+      "weight": 5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 6
+        },
+        {
+          "family": "cost-alter",
+          "lines": 2
+        },
+        {
+          "family": "keyword-action",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 9,
+          "clause": "sentence|reveal the top card of your library"
+        }
+      ],
+      "cardIds": [
+        "a3afd8b9-d499-40f7-be41-f8fee6636a1d",
+        "2068185c-1b50-47d0-aa3f-bf505d199428",
+        "69fd4ddf-9ed8-4c56-bef3-9944daf05e4f",
+        "ba13cbdb-8043-4c1b-8a85-084c86886ac8",
+        "a7043fbd-1dfd-42cf-be4b-cc343d0949e5",
+        "3d867016-2601-4a37-a73d-308898d3bd37",
+        "67d2a021-a042-4e5f-b6e4-39cb35514794",
+        "15fbb7b1-c62d-4f82-9f35-2c10299779f4",
+        "01a79429-7d57-4a51-9815-a20905ed4707"
+      ],
+      "examples": [
+        {
+          "name": "Twilight Prophet",
+          "line": "At the beginning of your upkeep, if you have the city's blessing, reveal the top card of your library and put it into your hand. Each opponent loses X life and you gain X life, where X is that card's mana value.",
+          "finishes": false
+        },
+        {
+          "name": "Dark Confidant",
+          "line": "At the beginning of your upkeep, reveal the top card of your library and put that card into your hand. You lose life equal to its mana value.",
+          "finishes": true
+        },
+        {
+          "name": "Coiling Oracle",
+          "line": "When ~ enters, reveal the top card of your library. If it's a land card, put it onto the battlefield. Otherwise, put that card into your hand.",
+          "finishes": false
+        },
+        {
+          "name": "Descendants' Path",
+          "line": "At the beginning of your upkeep, reveal the top card of your library. If it's a creature card that shares a creature type with a creature you control, you may cast it without paying its mana cost. If you don't cast it, put it on the bottom of your library.",
+          "finishes": false
+        },
+        {
+          "name": "Yuriko, the Tiger's Shadow",
+          "line": "Whenever a Ninja you control deals combat damage to a player, reveal the top card of your library and put that card into your hand. Each opponent loses life equal to that card's mana value.",
+          "finishes": false
+        },
+        {
+          "name": "Thrasios, Triton Hero",
+          "line": "{4}: Scry 1, then reveal the top card of your library. If it's a land card, put it onto the battlefield tapped. Otherwise, draw a card.",
+          "finishes": false
+        },
+        {
+          "name": "Darkstar Augur",
+          "line": "At the beginning of your upkeep, reveal the top card of your library and put that card into your hand. You lose life equal to its mana value.",
+          "finishes": false
+        },
+        {
+          "name": "Lurking Predators",
+          "line": "Whenever an opponent casts a spell, reveal the top card of your library. If it's a creature card, put it onto the battlefield. Otherwise, you may put that card on the bottom of your library.",
+          "finishes": false
+        },
+        {
+          "name": "Rashmi, Eternities Crafter",
+          "line": "Whenever you cast your first spell each turn, reveal the top card of your library. You may cast it without paying its mana cost if it's a spell with lesser mana value. If you don't cast it, put it into your hand.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 9; scripted cards 1.",
+      "suggestedHome": "registry",
+      "group": "sentence|reveal the top <obj> of your <zone>"
+    },
+    {
+      "name": "generic-opening-begin-game",
+      "title": "static: if ~ is in your opening <zone>, you may begin the game with it on the <zone>",
+      "stage": "static",
+      "cards": 7,
+      "finishes": 3,
+      "lines": 7,
+      "weight": 5,
+      "families": [
+        {
+          "family": "other",
+          "lines": 7
+        }
+      ],
+      "clauses": [
+        {
+          "n": 7,
+          "clause": "static|If ~ is in your opening hand, you may begin the game with it on the battlefield"
+        }
+      ],
+      "cardIds": [
+        "9dc65ffe-17fc-4280-b4bd-78073ac7e12b",
+        "4f597675-0f6d-438c-990c-337171927a5e",
+        "6b2e6a51-b9e6-4848-b7d7-98f02f2b897f",
+        "1197a595-3afc-4f18-b868-bbb096771922",
+        "c7ee79c3-a273-45b4-b3a4-548d9b2b883c",
+        "f4e32fc1-1b8d-441e-8e76-71f19f98e925",
+        "cfaa13d6-9992-4223-8bd7-c44046505555"
+      ],
+      "examples": [
+        {
+          "name": "Leyline of Anticipation",
+          "line": "If ~ is in your opening hand, you may begin the game with it on the battlefield.",
+          "finishes": true
+        },
+        {
+          "name": "Leyline Axe",
+          "line": "If ~ is in your opening hand, you may begin the game with it on the battlefield.",
+          "finishes": true
+        },
+        {
+          "name": "Leyline of the Guildpact",
+          "line": "If ~ is in your opening hand, you may begin the game with it on the battlefield.",
+          "finishes": false
+        },
+        {
+          "name": "Leyline of Abundance",
+          "line": "If ~ is in your opening hand, you may begin the game with it on the battlefield.",
+          "finishes": true
+        },
+        {
+          "name": "Leyline of Hope",
+          "line": "If ~ is in your opening hand, you may begin the game with it on the battlefield.",
+          "finishes": false
+        },
+        {
+          "name": "Leyline of the Void",
+          "line": "If ~ is in your opening hand, you may begin the game with it on the battlefield.",
+          "finishes": false
+        },
+        {
+          "name": "Leyline of Transformation",
+          "line": "If ~ is in your opening hand, you may begin the game with it on the battlefield.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 7; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "static|if ~ is in your opening <zone>, you may begin the game with it on the <zone>"
+    },
+    {
+      "name": "generic-costs-less-cast",
+      "title": "sentence: ~ costs {m} less to cast",
+      "stage": "sentence",
+      "cards": 5,
+      "finishes": 5,
+      "lines": 5,
+      "weight": 5,
+      "families": [
+        {
+          "family": "cost-alter",
+          "lines": 5
+        }
+      ],
+      "clauses": [
+        {
+          "n": 5,
+          "clause": "sentence|~ costs {} less to cast"
+        }
+      ],
+      "cardIds": [
+        "c20a96f7-aa5a-4c15-b8b1-806685c99b27",
+        "544acde0-850d-4c4f-8389-e22930d87345",
+        "c623aeb1-e6d4-48fe-bd2a-a7a6729aa4df",
+        "986a7ad0-527a-4079-aa1b-c8acdf087020",
+        "b828251c-86a9-454f-9852-d0876d0f5153"
+      ],
+      "examples": [
+        {
+          "name": "Bolt Bend",
+          "line": "~ costs {3} less to cast if you control a creature with power 4 or greater.",
+          "finishes": true
+        },
+        {
+          "name": "Mortality Spear",
+          "line": "~ costs {2} less to cast if you gained life this turn.",
+          "finishes": true
+        },
+        {
+          "name": "Winged Words",
+          "line": "~ costs {1} less to cast if you control a creature with flying.",
+          "finishes": true
+        },
+        {
+          "name": "Ghostfire Slice",
+          "line": "~ costs {2} less to cast if an opponent controls a multicolored permanent.",
+          "finishes": true
+        },
+        {
+          "name": "Wizard's Retort",
+          "line": "~ costs {1} less to cast if you control a Wizard.",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 5; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|~ costs {m} less to cast"
+    },
+    {
+      "name": "generic-when-enters-untapped",
+      "title": "trigger-head: when ~ enters untapped",
+      "stage": "trigger-head",
+      "cards": 5,
+      "finishes": 5,
+      "lines": 5,
+      "weight": 5,
+      "families": [
+        {
+          "family": "replacement",
+          "lines": 5
+        }
+      ],
+      "clauses": [
+        {
+          "n": 5,
+          "clause": "trigger-head|When ~ enters untapped"
+        }
+      ],
+      "cardIds": [
+        "17b60106-a4c7-410a-8ac3-ec8e74e29a7c",
+        "6c8f276e-4e7b-4974-ab02-9356cc0ffb2b",
+        "74ed0bd3-ac31-41a4-8220-d8e7c8c1c437",
+        "fa98c367-0312-49c6-abef-72e5ead4cc7d",
+        "23d349a0-e441-40b8-b634-13e61440a7c8"
+      ],
+      "examples": [
+        {
+          "name": "Mystic Sanctuary",
+          "line": "When ~ enters untapped, you may put target instant or sorcery card from your graveyard on top of your library.",
+          "finishes": true
+        },
+        {
+          "name": "Witch's Cottage",
+          "line": "When ~ enters untapped, you may put target creature card from your graveyard on top of your library.",
+          "finishes": true
+        },
+        {
+          "name": "Dwarven Mine",
+          "line": "When ~ enters untapped, create a 1/1 red Dwarf creature token.",
+          "finishes": true
+        },
+        {
+          "name": "Gingerbread Cabin",
+          "line": "When ~ enters untapped, create a Food token.",
+          "finishes": true
+        },
+        {
+          "name": "Idyllic Grange",
+          "line": "When ~ enters untapped, put a +1/+1 counter on target creature you control.",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 5; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|when ~ enters untapped"
+    },
+    {
+      "name": "generic-whenever-casts",
+      "title": "trigger-head: whenever a <player> casts",
+      "stage": "trigger-head",
+      "cards": 7,
+      "finishes": 2,
+      "lines": 7,
+      "weight": 4.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 7
+        }
+      ],
+      "clauses": [
+        {
+          "n": 7,
+          "clause": "trigger-head|Whenever a player casts a spell"
+        }
+      ],
+      "cardIds": [
+        "2ef75cf3-30dc-4852-a6d1-1d6391fad022",
+        "b3f2265b-dd65-4b74-8b74-35ee0b147617",
+        "4514777d-0589-4631-978b-ff244167c176",
+        "34f83b7a-45a7-40a8-abcb-31d7aae4cea1",
+        "8c653a0d-e35a-4596-bed6-b5156192955b",
+        "f488f679-f5d5-4e61-b0c8-0b0eb622df0d",
+        "da1035c4-bafe-434e-b1bd-5b08960d4c91"
+      ],
+      "examples": [
+        {
+          "name": "Forgotten Ancient",
+          "line": "Whenever a player casts a spell, you may put a +1/+1 counter on ~.",
+          "finishes": false
+        },
+        {
+          "name": "Managorger Hydra",
+          "line": "Whenever a player casts a spell, put a +1/+1 counter on ~.",
+          "finishes": true
+        },
+        {
+          "name": "Vexing Bauble",
+          "line": "Whenever a player casts a spell, if no mana was spent to cast it, counter that spell.",
+          "finishes": false
+        },
+        {
+          "name": "Roiling Vortex",
+          "line": "Whenever a player casts a spell, if no mana was spent to cast that spell, ~ deals 5 damage to that player.",
+          "finishes": false
+        },
+        {
+          "name": "Scytheclaw Raptor",
+          "line": "Whenever a player casts a spell, if it's not their turn, ~ deals 4 damage to them.",
+          "finishes": false
+        },
+        {
+          "name": "Oppression",
+          "line": "Whenever a player casts a spell, that player discards a card.",
+          "finishes": true
+        },
+        {
+          "name": "Rug of Smothering",
+          "line": "Whenever a player casts a spell, they lose 1 life for each spell they've cast this turn.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 7; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|whenever a <player> casts"
+    },
+    {
+      "name": "generic-whenever-discards",
+      "title": "trigger-head: whenever an <player> discards",
+      "stage": "trigger-head",
+      "cards": 6,
+      "finishes": 3,
+      "lines": 6,
+      "weight": 4.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 6
+        }
+      ],
+      "clauses": [
+        {
+          "n": 6,
+          "clause": "trigger-head|Whenever an opponent discards a card"
+        }
+      ],
+      "cardIds": [
+        "920445ab-0ac2-4de7-bc1c-f5e58eb4424c",
+        "ef809e99-34a2-4471-8269-f56bf8037686",
+        "a4aec0d6-13fa-4709-b1a9-2f483f032744",
+        "633ad9e2-9f55-4a1c-9248-661ad4b0e1dc",
+        "fd335b2f-e6a2-45ac-949e-a67278b21cb6",
+        "d655a1c9-b84d-4069-a2ca-3aa0dacab3e1"
+      ],
+      "examples": [
+        {
+          "name": "Sangromancer",
+          "line": "Whenever an opponent discards a card, you may gain 3 life.",
+          "finishes": false
+        },
+        {
+          "name": "Geth's Grimoire",
+          "line": "Whenever an opponent discards a card, you may draw a card.",
+          "finishes": true
+        },
+        {
+          "name": "Liliana's Caress",
+          "line": "Whenever an opponent discards a card, that player loses 2 life.",
+          "finishes": true
+        },
+        {
+          "name": "Megrim",
+          "line": "Whenever an opponent discards a card, ~ deals 2 damage to that player.",
+          "finishes": false
+        },
+        {
+          "name": "Tinybones, Bauble Burglar",
+          "line": "Whenever an opponent discards a card, exile it from their graveyard with a stash counter on it.",
+          "finishes": false
+        },
+        {
+          "name": "Fell Specter",
+          "line": "Whenever an opponent discards a card, that player loses 2 life.",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 6; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|whenever an <player> discards"
+    },
+    {
+      "name": "generic-sacrifice-add",
+      "title": "sentence: it has \"sacrifice this <obj>: add {m}.\"",
+      "stage": "sentence",
+      "cards": 5,
+      "finishes": 4,
+      "lines": 5,
+      "weight": 4.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 5
+        }
+      ],
+      "clauses": [
+        {
+          "n": 5,
+          "clause": "sentence|It has \"Sacrifice this token: Add {}.\""
+        }
+      ],
+      "cardIds": [
+        "9bcaf141-1f1f-491f-aced-13dc093b9e2c",
+        "f955bc96-d602-4142-a9a2-87009cc7028c",
+        "c8b9fa02-0a0c-4a87-9a00-3c1c7e2f4bfd",
+        "688e5e19-8f28-45c4-ace4-a38144f494f1",
+        "31b27775-196b-4022-bff5-25b34290ff7f"
+      ],
+      "examples": [
+        {
+          "name": "Pawn of Ulamog",
+          "line": "Whenever ~ or another nontoken creature you control dies, you may create a 0/1 colorless Eldrazi Spawn creature token. It has \"Sacrifice this token: Add {C}.\"",
+          "finishes": true
+        },
+        {
+          "name": "Awakening Zone",
+          "line": "At the beginning of your upkeep, you may create a 0/1 colorless Eldrazi Spawn creature token. It has \"Sacrifice this token: Add {C}.\"",
+          "finishes": true
+        },
+        {
+          "name": "Warping Wail",
+          "line": "• It has \"Sacrifice this token: Add {C}.\"",
+          "finishes": false
+        },
+        {
+          "name": "Sifter of Skulls",
+          "line": "Whenever another nontoken creature you control dies, create a 1/1 colorless Eldrazi Scion creature token. It has \"Sacrifice this token: Add {C}.\"",
+          "finishes": true
+        },
+        {
+          "name": "From Beyond",
+          "line": "At the beginning of your upkeep, create a 1/1 colorless Eldrazi Scion creature token. It has \"Sacrifice this token: Add {C}.\"",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 5; scripted cards 0. Core: 6 fragment(s) start with an unrewritten pronoun: parse.ts rewrites \"it\" / \"that creature\" before the templates, a registry rule never sees the antecedent.",
+      "suggestedHome": "core",
+      "group": "sentence|it has \"sacrifice this <obj>: add {m}.\""
+    },
+    {
+      "name": "generic-cast-without-paying",
+      "title": "sentence: you may cast ~ without paying its mana cost",
+      "stage": "sentence",
+      "cards": 5,
+      "finishes": 4,
+      "lines": 5,
+      "weight": 4.5,
+      "families": [
+        {
+          "family": "cost-alter",
+          "lines": 5
+        }
+      ],
+      "clauses": [
+        {
+          "n": 5,
+          "clause": "sentence|you may cast ~ without paying its mana cost"
+        }
+      ],
+      "cardIds": [
+        "ae120613-97d6-4393-b39d-c3e6c076f5d6",
+        "d09c9cba-fdd2-479b-ad5d-d05181c3e3f9",
+        "0456ec64-2c81-4763-a352-8ff64a4c3d6b",
+        "4e183439-17d2-47ff-9d99-5e22821d91e3",
+        "d0a31db0-69db-405c-99a3-945617900c54"
+      ],
+      "examples": [
+        {
+          "name": "Deflecting Swat",
+          "line": "If you control a commander, you may cast ~ without paying its mana cost.",
+          "finishes": true
+        },
+        {
+          "name": "Fierce Guardianship",
+          "line": "If you control a commander, you may cast ~ without paying its mana cost.",
+          "finishes": true
+        },
+        {
+          "name": "Deadly Rollick",
+          "line": "If you control a commander, you may cast ~ without paying its mana cost.",
+          "finishes": true
+        },
+        {
+          "name": "Flawless Maneuver",
+          "line": "If you control a commander, you may cast ~ without paying its mana cost.",
+          "finishes": true
+        },
+        {
+          "name": "Obscuring Haze",
+          "line": "If you control a commander, you may cast ~ without paying its mana cost.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 5; scripted cards 1.",
+      "suggestedHome": "registry",
+      "group": "sentence|you may cast ~ without paying its mana cost"
+    },
+    {
+      "name": "generic-land-card",
+      "title": "condition: it's a <obj> <obj>",
+      "stage": "condition",
+      "cards": 8,
+      "finishes": 0,
+      "lines": 8,
+      "weight": 4,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 6
+        },
+        {
+          "family": "control",
+          "lines": 1
+        },
+        {
+          "family": "keyword-action",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 8,
+          "clause": "condition|it's a land card"
+        }
+      ],
+      "cardIds": [
+        "3c1ef404-e2c6-486d-a5a2-d5779c71d498",
+        "69fd4ddf-9ed8-4c56-bef3-9944daf05e4f",
+        "2ae71e86-4400-4a30-9077-4d57a43e7395",
+        "a563ede9-b92f-4285-88f8-abcbdd017742",
+        "3d867016-2601-4a37-a73d-308898d3bd37",
+        "981298e6-ddee-49c0-9377-f47f019b4138",
+        "a090be5a-b0f2-4c17-8f7d-e742f9de8f6b",
+        "cf5bd3a4-3899-4c25-ad1f-f1778c1d9c60"
+      ],
+      "examples": [
+        {
+          "name": "Archdruid's Charm",
+          "line": "• Put it onto the battlefield tapped if it's a land card.",
+          "finishes": false
+        },
+        {
+          "name": "Coiling Oracle",
+          "line": "When ~ enters, reveal the top card of your library. If it's a land card, put it onto the battlefield. Otherwise, put that card into your hand.",
+          "finishes": false
+        },
+        {
+          "name": "Risen Reef",
+          "line": "Whenever ~ or another Elemental you control enters, look at the top card of your library. If it's a land card, you may put it onto the battlefield tapped. If you don't put the card onto the battlefield, put it into your hand.",
+          "finishes": false
+        },
+        {
+          "name": "Explorer's Scope",
+          "line": "Whenever equipped creature attacks, look at the top card of your library. If it's a land card, you may put it onto the battlefield tapped.",
+          "finishes": false
+        },
+        {
+          "name": "Thrasios, Triton Hero",
+          "line": "{4}: Scry 1, then reveal the top card of your library. If it's a land card, put it onto the battlefield tapped. Otherwise, draw a card.",
+          "finishes": false
+        },
+        {
+          "name": "Currency Converter",
+          "line": "{T}: Put a card exiled with ~ into its owner's graveyard. If it's a land card, create a Treasure token. If it's a nonland card, create a 2/2 black Rogue creature token.",
+          "finishes": false
+        },
+        {
+          "name": "Fecund Greenshell",
+          "line": "Whenever ~ or another creature you control with toughness greater than its power enters, look at the top card of your library. If it's a land card, you may put it onto the battlefield tapped. Otherwise, put it into your hand.",
+          "finishes": false
+        },
+        {
+          "name": "Rona, Herald of Invasion // Rona, Tolarian Obliterator",
+          "line": "// Whenever a source deals damage to ~, that source's controller exiles a card from their hand at random. If it's a land card, you may put it onto the battlefield under your control. Otherwise, you may cast it without paying its mana cost.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 8; scripted cards 0. Core: 9 fragment(s) start with an unrewritten pronoun: parse.ts rewrites \"it\" / \"that creature\" before the templates, a registry rule never sees the antecedent.",
+      "suggestedHome": "core",
+      "group": "condition|it's a <obj> <obj>"
+    },
+    {
+      "name": "generic-gift-promised",
+      "title": "condition: the gift was promised",
+      "stage": "condition",
+      "cards": 8,
+      "finishes": 0,
+      "lines": 8,
+      "weight": 4,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 7
+        },
+        {
+          "family": "replacement",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 8,
+          "clause": "condition|the gift was promised"
+        }
+      ],
+      "cardIds": [
+        "37c06f89-db36-4937-9404-2b07cd22e1a6",
+        "8cb36a67-9206-4665-a03f-64f52ba559c4",
+        "f1993767-1d07-49c8-b8dc-04ec9840a999",
+        "7024532b-f99b-43a7-b0ed-5b3e7ec7592b",
+        "295fe873-ecb5-4d5e-a73c-3af6c478afc5",
+        "27905301-333e-4cdd-90cf-188159fcf8e9",
+        "938c03fc-8adf-4c7a-8ae1-eca8401f7a83",
+        "ac7d1986-8388-4e4c-973e-d90382b12acf"
+      ],
+      "examples": [
+        {
+          "name": "Dawn's Truce",
+          "line": "If the gift was promised, permanents you control also gain indestructible until end of turn.",
+          "finishes": false
+        },
+        {
+          "name": "Into the Flood Maw",
+          "line": "If the gift was promised, instead return target nonland permanent an opponent controls to its owner's hand.",
+          "finishes": false
+        },
+        {
+          "name": "Long River's Pull",
+          "line": "If the gift was promised, instead counter target spell.",
+          "finishes": false
+        },
+        {
+          "name": "Starfall Invocation",
+          "line": "If the gift was promised, return a creature card put into your graveyard this way to the battlefield under your control.",
+          "finishes": false
+        },
+        {
+          "name": "Perch Protection",
+          "line": "If the gift was promised, all permanents you control phase out, and until your next turn, your life total can't change and you gain protection from everything.",
+          "finishes": false
+        },
+        {
+          "name": "Wear Down",
+          "line": "If the gift was promised, instead destroy two target artifacts and/or enchantments.",
+          "finishes": false
+        },
+        {
+          "name": "Peerless Recycling",
+          "line": "If the gift was promised, instead return two target permanent cards from your graveyard to your hand.",
+          "finishes": false
+        },
+        {
+          "name": "Sazacap's Brew",
+          "line": "If the gift was promised, target creature you control gets +2/+0 until end of turn.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 8; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "condition|the gift was promised"
+    },
+    {
+      "name": "generic-choose-same-mode",
+      "title": "sentence: you may choose the same mode more than once",
+      "stage": "sentence",
+      "cards": 8,
+      "finishes": 0,
+      "lines": 8,
+      "weight": 4,
+      "families": [
+        {
+          "family": "piles-choices",
+          "lines": 8
+        }
+      ],
+      "clauses": [
+        {
+          "n": 8,
+          "clause": "sentence|You may choose the same mode more than once"
+        }
+      ],
+      "cardIds": [
+        "cd11c27b-9368-4622-bc5a-2e0b993cc42b",
+        "3c22e031-4804-4c31-bd3c-c3f29d456b34",
+        "3ea060d8-449c-4a5e-8883-b45bd7707b5b",
+        "4b473a42-a0c5-43d5-93f9-c599e963a06b",
+        "01160cb5-6d83-4317-9522-74083b3a83bb",
+        "ffe13100-99dd-41e3-82ba-eaead6fd0113",
+        "8e013e51-1684-4f58-8fe1-3588b6fbb5b5",
+        "31b5d0ad-3a4d-4f43-b0a9-c9f7a362680f"
+      ],
+      "examples": [
+        {
+          "name": "Mystic Confluence",
+          "line": "You may choose the same mode more than once.",
+          "finishes": false
+        },
+        {
+          "name": "Fiery Confluence",
+          "line": "You may choose the same mode more than once.",
+          "finishes": false
+        },
+        {
+          "name": "Season of Gathering",
+          "line": "You may choose the same mode more than once.",
+          "finishes": false
+        },
+        {
+          "name": "Season of Weaving",
+          "line": "You may choose the same mode more than once.",
+          "finishes": false
+        },
+        {
+          "name": "Eldrazi Confluence",
+          "line": "You may choose the same mode more than once.",
+          "finishes": false
+        },
+        {
+          "name": "Rootcast Apprenticeship",
+          "line": "You may choose the same mode more than once.",
+          "finishes": false
+        },
+        {
+          "name": "Season of the Burrow",
+          "line": "You may choose the same mode more than once.",
+          "finishes": false
+        },
+        {
+          "name": "Season of Loss",
+          "line": "You may choose the same mode more than once.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 8; scripted cards 2.",
+      "suggestedHome": "registry",
+      "group": "sentence|you may choose the same mode more than once"
+    },
+    {
+      "name": "generic-activate-only-during",
+      "title": "sentence: activate only during your turn",
+      "stage": "sentence",
+      "cards": 7,
+      "finishes": 1,
+      "lines": 7,
+      "weight": 4,
+      "families": [
+        {
+          "family": "control",
+          "lines": 3
+        },
+        {
+          "family": "generic",
+          "lines": 2
+        },
+        {
+          "family": "other",
+          "lines": 2
+        }
+      ],
+      "clauses": [
+        {
+          "n": 7,
+          "clause": "sentence|Activate only during your turn"
+        }
+      ],
+      "cardIds": [
+        "81c70ae7-3c18-4c9b-8505-e4db9e0e6518",
+        "1582e16d-4825-4cc5-b12c-449c45e4e449",
+        "79d46e09-2548-440f-9c02-3c3dc39a0cd1",
+        "c7d9ff27-f1fc-42e4-a47b-d2e6d68e4035",
+        "16b8eab0-ccbd-4dbf-9998-82a4d85d0f77",
+        "e9a24ed8-e844-4c50-b386-bc28da9989b1",
+        "7579f57d-c76e-4703-a030-34fb7160cb23"
+      ],
+      "examples": [
+        {
+          "name": "Wishclaw Talisman",
+          "line": "{1}, {T}, Remove a wish counter from ~: Search your library for a card, put it into your hand, then shuffle. An opponent gains control of ~. Activate only during your turn.",
+          "finishes": false
+        },
+        {
+          "name": "Humble Defector",
+          "line": "{T}: Draw two cards. Target opponent gains control of ~. Activate only during your turn.",
+          "finishes": true
+        },
+        {
+          "name": "Sundial of the Infinite",
+          "line": "{1}, {T}: End the turn. Activate only during your turn.",
+          "finishes": false
+        },
+        {
+          "name": "Sanctum of Eternity",
+          "line": "{2}, {T}: Return target commander you own from the battlefield to your hand. Activate only during your turn.",
+          "finishes": false
+        },
+        {
+          "name": "Yes Man, Personal Securitron",
+          "line": "{T}: Target opponent gains control of ~. When they do, you draw two cards and put a quest counter on ~. Activate only during your turn.",
+          "finishes": false
+        },
+        {
+          "name": "Bitter Work",
+          "line": "{4}: Earthbend 4. Activate only during your turn.",
+          "finishes": false
+        },
+        {
+          "name": "Wolfwillow Haven",
+          "line": "{4}{G}, Sacrifice ~: Create a 2/2 green Wolf creature token. Activate only during your turn.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 7; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|activate only during your turn"
+    },
+    {
+      "name": "generic-pay-life",
+      "title": "static: <kw>—pay # life",
+      "stage": "static",
+      "cards": 7,
+      "finishes": 1,
+      "lines": 7,
+      "weight": 4,
+      "families": [
+        {
+          "family": "other",
+          "lines": 7
+        }
+      ],
+      "clauses": [
+        {
+          "n": 7,
+          "clause": "static|Ward—Pay # life"
+        }
+      ],
+      "cardIds": [
+        "96c2d71e-0fc9-42aa-bc6b-6d0ae3f66f8b",
+        "a15547d0-bbcb-41ee-a9ae-8325a9e7fe1f",
+        "5401439c-4068-4490-8d53-8ffd0026dd7d",
+        "25dce517-ac0a-4577-89ed-04296c7c4069",
+        "a7c6c9b3-91f2-4ecf-b2b0-b0edd96974d9",
+        "85eefda9-4aab-467d-a08c-be026cb8ff42",
+        "258f5045-3aa7-4b95-a15f-3172577294a8"
+      ],
+      "examples": [
+        {
+          "name": "Hexing Squelcher",
+          "line": "Ward—Pay 2 life.",
+          "finishes": false
+        },
+        {
+          "name": "Sire of Seven Deaths",
+          "line": "Ward—Pay 7 life.",
+          "finishes": true
+        },
+        {
+          "name": "Valgavoth, Harrower of Souls",
+          "line": "Ward—Pay 2 life.",
+          "finishes": false
+        },
+        {
+          "name": "Sedgemoor Witch",
+          "line": "Ward—Pay 3 life.",
+          "finishes": false
+        },
+        {
+          "name": "Zul Ashur, Lich Lord",
+          "line": "Ward—Pay 2 life.",
+          "finishes": false
+        },
+        {
+          "name": "Amalia Benavides Aguirre",
+          "line": "Ward—Pay 3 life.",
+          "finishes": false
+        },
+        {
+          "name": "Prismari, the Inspiration",
+          "line": "Ward—Pay 5 life.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 7; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "static|<kw>—pay # life"
+    },
+    {
+      "name": "generic-second-time-ability",
+      "title": "condition: this is the second",
+      "stage": "condition",
+      "cards": 6,
+      "finishes": 2,
+      "lines": 6,
+      "weight": 4,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 5
+        },
+        {
+          "family": "keyword-action",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 6,
+          "clause": "condition|this is the second time this ability has resolved this turn"
+        }
+      ],
+      "cardIds": [
+        "3ceca713-38de-4428-a4f1-2146f6e98393",
+        "6fe9fd59-9cac-4572-8f94-bc19bea44f94",
+        "76cb1912-3791-44b8-b594-b92dab21bafc",
+        "c1fc5923-c3cd-448a-98d1-c154661c2812",
+        "929117cd-caa6-402b-9d7b-1f684d75695c",
+        "25636214-c6ea-4655-a5e8-98e735da5b05"
+      ],
+      "examples": [
+        {
+          "name": "Rumor Gatherer",
+          "line": "Whenever another creature you control enters, scry 1. If this is the second time this ability has resolved this turn, draw a card instead.",
+          "finishes": false
+        },
+        {
+          "name": "Ashling, Flame Dancer",
+          "line": "Whenever you cast or copy an instant or sorcery spell, discard a card, then draw a card. If this is the second time this ability has resolved this turn, ~ deals 2 damage to each opponent and each creature they control. If it's the third time, add {R}{R}{R}{R}.",
+          "finishes": false
+        },
+        {
+          "name": "Tannuk, Memorial Ensign",
+          "line": "Whenever a land you control enters, ~ deals 1 damage to each opponent. If this is the second time this ability has resolved this turn, draw a card.",
+          "finishes": true
+        },
+        {
+          "name": "Nissa, Resurgent Animist",
+          "line": "Whenever a land you control enters, add one mana of any color. Then if this is the second time this ability has resolved this turn, reveal cards from the top of your library until you reveal an Elf or Elemental card. Put that card into your hand and the rest on the bottom of your library in a random order.",
+          "finishes": false
+        },
+        {
+          "name": "Scythecat Cub",
+          "line": "Whenever a land you control enters, put a +1/+1 counter on target creature you control. If this is the second time this ability has resolved this turn, double the number of +1/+1 counters on that creature instead.",
+          "finishes": false
+        },
+        {
+          "name": "Ms. Bumbleflower",
+          "line": "Whenever you cast a spell, target opponent draws a card. Put a +1/+1 counter on target creature. It gains flying until end of turn. If this is the second time this ability has resolved this turn, you draw two cards.",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 6; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "condition|this is the second"
+    },
+    {
+      "name": "generic-costs-less-activate",
+      "title": "sentence: this <obj> costs {m} less to activate for each legendary <obj> you control",
+      "stage": "sentence",
+      "cards": 5,
+      "finishes": 3,
+      "lines": 5,
+      "weight": 4,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 4
+        },
+        {
+          "family": "keyword-action",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 5,
+          "clause": "sentence|This ability costs {} less to activate for each legendary creature you control"
+        }
+      ],
+      "cardIds": [
+        "bf1341dd-41a3-49f6-87ec-63170dde4324",
+        "e9b6a394-691c-425a-9307-76d8edc7375e",
+        "ac2dd694-d2f1-4025-8400-12332bdc882a",
+        "7edb3d15-4f70-4ebe-8c5e-caf6a225076d",
+        "c5ee72d5-3a9e-4fe5-8802-3286ee612055"
+      ],
+      "examples": [
+        {
+          "name": "Boseiju, Who Endures",
+          "line": "{1}{G}, Discard ~: Destroy target artifact, enchantment, or nonbasic land an opponent controls. That player may search their library for a land card with a basic land type, put it onto the battlefield, then shuffle. This ability costs {1} less to activate for each legendary creature you control.",
+          "finishes": false
+        },
+        {
+          "name": "Otawara, Soaring City",
+          "line": "{3}{U}, Discard ~: Return target artifact, creature, enchantment, or planeswalker to its owner's hand. This ability costs {1} less to activate for each legendary creature you control.",
+          "finishes": false
+        },
+        {
+          "name": "Takenuma, Abandoned Mire",
+          "line": "{3}{B}, Discard ~: Mill three cards, then return a creature or planeswalker card from your graveyard to your hand. This ability costs {1} less to activate for each legendary creature you control.",
+          "finishes": true
+        },
+        {
+          "name": "Eiganjo, Seat of the Empire",
+          "line": "{2}{W}, Discard ~: It deals 4 damage to target attacking or blocking creature. This ability costs {1} less to activate for each legendary creature you control.",
+          "finishes": true
+        },
+        {
+          "name": "Sokenzan, Crucible of Defiance",
+          "line": "{3}{R}, Discard ~: Create two 1/1 colorless Spirit creature tokens. They gain haste until end of turn. This ability costs {1} less to activate for each legendary creature you control.",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 5; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|this <obj> costs {m} less to activate for each legendary <obj> you control"
+    },
+    {
+      "name": "generic-gain-life-equal",
+      "title": "sentence: you gain life equal to the life lost this way",
+      "stage": "sentence",
+      "cards": 5,
+      "finishes": 3,
+      "lines": 5,
+      "weight": 4,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 5
+        }
+      ],
+      "clauses": [
+        {
+          "n": 5,
+          "clause": "sentence|You gain life equal to the life lost this way"
+        }
+      ],
+      "cardIds": [
+        "38f3b157-0df4-409b-89cc-086e1531cd5b",
+        "8164b1e8-3350-465e-8a17-75f57d326344",
+        "cf631c93-b7fb-4e4f-b405-3778c15b1117",
+        "6130f22d-7901-4f9f-b777-27bb0dacc063",
+        "870e199e-1d54-44ec-8e24-f24af93ae9c5"
+      ],
+      "examples": [
+        {
+          "name": "Gray Merchant of Asphodel",
+          "line": "When ~ enters, each opponent loses X life, where X is your devotion to black. You gain life equal to the life lost this way.",
+          "finishes": false
+        },
+        {
+          "name": "Exsanguinate",
+          "line": "You gain life equal to the life lost this way.",
+          "finishes": true
+        },
+        {
+          "name": "Kokusho, the Evening Star",
+          "line": "When ~ dies, each opponent loses 5 life. You gain life equal to the life lost this way.",
+          "finishes": true
+        },
+        {
+          "name": "Debt to the Deathless",
+          "line": "You gain life equal to the life lost this way.",
+          "finishes": false
+        },
+        {
+          "name": "Malakir Bloodwitch",
+          "line": "When ~ enters, each opponent loses life equal to the number of Vampires you control. You gain life equal to the life lost this way.",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 5; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|you gain life equal to the life lost this way"
+    },
+    {
+      "name": "generic-target-gains-color",
+      "title": "sentence: target <obj> you control gains <kw> from the color of your choice until end of turn",
+      "stage": "sentence",
+      "cards": 4,
+      "finishes": 4,
+      "lines": 4,
+      "weight": 4,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 4
+        }
+      ],
+      "clauses": [
+        {
+          "n": 4,
+          "clause": "sentence|Target creature you control gains protection from the color of your choice until end of turn"
+        }
+      ],
+      "cardIds": [
+        "60433b48-d27f-413c-905c-43839b1943f1",
+        "d54e4e37-042b-44a5-918d-757308545d4d",
+        "c1909d70-d8f4-4c54-8587-0a910f123238",
+        "48e603a2-b965-4fbc-ad57-4388bce5ac8b"
+      ],
+      "examples": [
+        {
+          "name": "Mother of Runes",
+          "line": "{T}: Target creature you control gains protection from the color of your choice until end of turn.",
+          "finishes": true
+        },
+        {
+          "name": "Sejiri Shelter // Sejiri Glacier",
+          "line": "Target creature you control gains protection from the color of your choice until end of turn.",
+          "finishes": true
+        },
+        {
+          "name": "Shelter",
+          "line": "Target creature you control gains protection from the color of your choice until end of turn.",
+          "finishes": true
+        },
+        {
+          "name": "Gods Willing",
+          "line": "Target creature you control gains protection from the color of your choice until end of turn.",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 4; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|target <obj> you control gains <kw> from the color of your choice until end of turn"
+    },
+    {
+      "name": "generic-enters-tapped-choose",
+      "title": "static: ~ enters tapped. as it enters, choose a color",
+      "stage": "static",
+      "cards": 4,
+      "finishes": 4,
+      "lines": 4,
+      "weight": 4,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 4
+        }
+      ],
+      "clauses": [
+        {
+          "n": 4,
+          "clause": "static|~ enters tapped. As it enters, choose a color"
+        }
+      ],
+      "cardIds": [
+        "660d44a2-391a-416c-b46c-ddcc3739f527",
+        "d23c3613-bc5e-4fc5-939c-62a090c53a79",
+        "b26cfeb0-7bbe-4d93-8eed-e832f175a80c",
+        "e103f422-85c0-43f8-8a2f-8b7863e503fa"
+      ],
+      "examples": [
+        {
+          "name": "Valgavoth's Lair",
+          "line": "~ enters tapped. As it enters, choose a color.",
+          "finishes": true
+        },
+        {
+          "name": "Uncharted Haven",
+          "line": "~ enters tapped. As it enters, choose a color.",
+          "finishes": true
+        },
+        {
+          "name": "Crossroads Village",
+          "line": "~ enters tapped. As it enters, choose a color.",
+          "finishes": true
+        },
+        {
+          "name": "Mirage Mesa",
+          "line": "~ enters tapped. As it enters, choose a color.",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 4; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "static|~ enters tapped. as it enters, choose a color"
+    },
+    {
+      "name": "generic-able",
+      "title": "condition: able",
+      "stage": "condition",
+      "cards": 7,
+      "finishes": 0,
+      "lines": 7,
+      "weight": 3.5,
+      "families": [
+        {
+          "family": "combat-restr",
+          "lines": 3
+        },
+        {
+          "family": "generic",
+          "lines": 2
+        },
+        {
+          "family": "other",
+          "lines": 2
+        }
+      ],
+      "clauses": [
+        {
+          "n": 7,
+          "clause": "condition|able"
+        }
+      ],
+      "cardIds": [
+        "e1afaef7-9fa3-4662-a95f-adfb0da9fd11",
+        "0ccb9af3-6902-4130-a59c-4c882dc3a2fd",
+        "8a280ba8-6b7b-46dd-9c2b-6d0027cfff30",
+        "4adcd967-9ff7-4940-b8b9-0c4215bbcb75",
+        "cd45a29f-73bc-435c-9d50-09a4ecaa77be",
+        "333745d9-e930-439b-94d6-3aeea2877f69",
+        "aba04455-c13f-48f7-9674-56803b39a42b"
+      ],
+      "examples": [
+        {
+          "name": "Bident of Thassa",
+          "line": "{1}{U}, {T}: Creatures your opponents control attack this turn if able.",
+          "finishes": false
+        },
+        {
+          "name": "Legion Warboss",
+          "line": "At the beginning of combat on your turn, create a 1/1 red Goblin creature token. That token gains haste until end of turn and attacks this combat if able.",
+          "finishes": false
+        },
+        {
+          "name": "Fighter Class",
+          "line": "Whenever a creature you control attacks, up to one target creature blocks it this combat if able.",
+          "finishes": false
+        },
+        {
+          "name": "Anzrag, the Quake-Mole",
+          "line": "{3}{R}{R}{G}{G}: ~ must be blocked each combat this turn if able.",
+          "finishes": false
+        },
+        {
+          "name": "Howlsquad Heavy",
+          "line": "At the beginning of combat on your turn, create a 1/1 red Goblin creature token. That token attacks this combat if able.",
+          "finishes": false
+        },
+        {
+          "name": "Illusionist's Gambit",
+          "line": "Each of those creatures attacks that combat if able.",
+          "finishes": false
+        },
+        {
+          "name": "Neyith of the Dire Hunt",
+          "line": "At the beginning of combat on your turn, you may pay {2}{R/G}. If you do, double target creature's power until end of turn. That creature must be blocked this combat if able.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 7; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "condition|able"
+    },
+    {
+      "name": "generic-choose-one",
+      "title": "sentence: choose # —",
+      "stage": "sentence",
+      "cards": 7,
+      "finishes": 0,
+      "lines": 7,
+      "weight": 3.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 7
+        }
+      ],
+      "clauses": [
+        {
+          "n": 7,
+          "clause": "sentence|Choose one —"
+        }
+      ],
+      "cardIds": [
+        "d5b80895-621a-40df-bf48-6c7295658f21",
+        "6ba0656f-e0d2-4735-9c66-3a00afa9fc23",
+        "0a8d0217-ff24-4177-b6be-707eb2b6b9e9",
+        "361b965f-2ce7-49f8-84e7-7325ea0c948d",
+        "1da10d5c-36a8-473f-a5d4-782ad61d8057",
+        "d18a014e-16a0-4641-9546-ff3729437eed",
+        "a9d72f78-2ab5-4e2e-ab7b-ef875e0a0609"
+      ],
+      "examples": [
+        {
+          "name": "Cankerbloom",
+          "line": "{1}, Sacrifice ~: Choose one —",
+          "finishes": false
+        },
+        {
+          "name": "Koma, Cosmos Serpent",
+          "line": "Sacrifice another Serpent: Choose one —",
+          "finishes": false
+        },
+        {
+          "name": "Insidious Fungus",
+          "line": "{2}, Sacrifice ~: Choose one —",
+          "finishes": false
+        },
+        {
+          "name": "Bow of Nylea",
+          "line": "{1}{G}, {T}: Choose one —",
+          "finishes": false
+        },
+        {
+          "name": "Umezawa's Jitte",
+          "line": "Remove a charge counter from ~: Choose one —",
+          "finishes": false
+        },
+        {
+          "name": "Cayth, Famed Mechanist",
+          "line": "{2}, {T}: Choose one —",
+          "finishes": false
+        },
+        {
+          "name": "Lost Jitte",
+          "line": "Remove a charge counter from ~: Choose one —",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 7; scripted cards 2.",
+      "suggestedHome": "registry",
+      "group": "sentence|choose # —"
+    },
+    {
+      "name": "generic-you-may-pay",
+      "title": "sentence: you may pay {m}",
+      "stage": "sentence",
+      "cards": 7,
+      "finishes": 0,
+      "lines": 7,
+      "weight": 3.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 4
+        },
+        {
+          "family": "copy-clone",
+          "lines": 2
+        },
+        {
+          "family": "keyword-action",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 7,
+          "clause": "sentence|you may pay {}"
+        }
+      ],
+      "cardIds": [
+        "3db16fb8-5650-4568-b975-42ad3d44ebcd",
+        "bbf9494c-c4bb-4d36-98fe-8387846b342e",
+        "b11c250c-f191-4c52-ba02-a9176f163447",
+        "343460ea-7999-4d9e-b425-97fa1621f9d6",
+        "cffec16f-373b-43e7-a04c-4452987d7e02",
+        "66d41377-626d-4ae6-ba86-17bf0c8b3362",
+        "e57025ed-3de6-4b2f-92bd-5481fd33b7f1"
+      ],
+      "examples": [
+        {
+          "name": "Electro, Assaulting Battery",
+          "line": "When ~ leaves the battlefield, you may pay {X}. When you do, he deals X damage to target player.",
+          "finishes": false
+        },
+        {
+          "name": "Rings of Brighthearth",
+          "line": "Whenever you activate an ability, if it isn't a mana ability, you may pay {2}. If you do, copy that ability. You may choose new targets for the copy.",
+          "finishes": false
+        },
+        {
+          "name": "Emiel the Blessed",
+          "line": "Whenever another creature you control enters, you may pay {G/W}. If you do, put a +1/+1 counter on it. If it's a Unicorn, put two +1/+1 counters on it instead.",
+          "finishes": false
+        },
+        {
+          "name": "Flameshadow Conjuring",
+          "line": "Whenever a nontoken creature you control enters, you may pay {R}. If you do, create a token that's a copy of that creature. That token gains haste. Exile it at the beginning of the next end step.",
+          "finishes": false
+        },
+        {
+          "name": "Ezuri, Stalker of Spheres",
+          "line": "When ~ enters, you may pay {3}. If you do, proliferate twice.",
+          "finishes": false
+        },
+        {
+          "name": "Nim Deathmantle",
+          "line": "Whenever a nontoken creature is put into your graveyard from the battlefield, you may pay {4}. If you do, return that card to the battlefield and attach ~ to it.",
+          "finishes": false
+        },
+        {
+          "name": "Digsite Engineer",
+          "line": "Whenever you cast an artifact spell, you may pay {2}. If you do, create a 0/0 colorless Construct artifact creature token with \"This token gets +1/+1 for each artifact you control.\"",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 7; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|you may pay {m}"
+    },
+    {
+      "name": "generic-when-enters",
+      "title": "trigger-head: when this <subtype> enters",
+      "stage": "trigger-head",
+      "cards": 7,
+      "finishes": 0,
+      "lines": 7,
+      "weight": 3.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 7
+        }
+      ],
+      "clauses": [
+        {
+          "n": 7,
+          "clause": "trigger-head|When this Class enters"
+        }
+      ],
+      "cardIds": [
+        "5a2dfff5-9dba-42f5-bcca-918c16f23807",
+        "8a280ba8-6b7b-46dd-9c2b-6d0027cfff30",
+        "a8a9b103-0cb8-4810-a2d7-42f6a10f80bd",
+        "9fdad42a-9db5-4d91-9e80-9d5ce19038b8",
+        "19ba0f2d-4de3-49a0-be7d-da0aa220cd8a",
+        "bcbe879a-4609-4493-bd7d-47c26d27e83c",
+        "00c1788d-c52f-4839-9cd8-11fb86c418b6"
+      ],
+      "examples": [
+        {
+          "name": "Alchemist's Talent",
+          "line": "When this Class enters, create two tapped Treasure tokens.",
+          "finishes": false
+        },
+        {
+          "name": "Fighter Class",
+          "line": "When this Class enters, search your library for an Equipment card, reveal it, put it into your hand, then shuffle.",
+          "finishes": false
+        },
+        {
+          "name": "Hunter's Talent",
+          "line": "When this Class enters, target creature you control deals damage equal to its power to target creature you don't control.",
+          "finishes": false
+        },
+        {
+          "name": "Blacksmith's Talent",
+          "line": "When this Class enters, create a colorless Equipment artifact token named Sword with \"Equipped creature gets +1/+1\" and equip {2}.",
+          "finishes": false
+        },
+        {
+          "name": "Sorcerer Class",
+          "line": "When this Class enters, draw two cards, then discard two cards.",
+          "finishes": false
+        },
+        {
+          "name": "Bandit's Talent",
+          "line": "When this Class enters, each opponent discards two cards unless they discard a nonland card.",
+          "finishes": false
+        },
+        {
+          "name": "Stormchaser's Talent",
+          "line": "When this Class enters, create a 1/1 blue and red Otter creature token with prowess.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 7; scripted cards 1.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|when this <subtype> enters"
+    },
+    {
+      "name": "generic-they-dont",
+      "title": "condition: they don't",
+      "stage": "condition",
+      "cards": 6,
+      "finishes": 1,
+      "lines": 6,
+      "weight": 3.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 3
+        },
+        {
+          "family": "copy-clone",
+          "lines": 1
+        },
+        {
+          "family": "planeswalker",
+          "lines": 1
+        },
+        {
+          "family": "replacement",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 6,
+          "clause": "condition|they don't"
+        }
+      ],
+      "cardIds": [
+        "3dcc35f3-74dc-46a8-8aa9-3411189f0547",
+        "6556c4c0-b10d-4208-821b-0c0a49abd188",
+        "9df2e909-ed13-456a-9636-7398732009a9",
+        "d08ce18a-0fd9-47ac-ad2f-6934b60070f1",
+        "68957dca-df5c-4051-af22-407cb7e47200",
+        "fb03befb-b4e4-4ae9-908d-a16d5b03b054"
+      ],
+      "examples": [
+        {
+          "name": "Charismatic Conqueror",
+          "line": "Whenever an artifact or creature an opponent controls enters untapped, they may tap that permanent. If they don't, you create a 1/1 white Vampire creature token with lifelink.",
+          "finishes": false
+        },
+        {
+          "name": "Wandering Archaic // Explore the Vastlands",
+          "line": "Whenever an opponent casts an instant or sorcery spell, they may pay {2}. If they don't, you may copy that spell. You may choose new targets for the copy.",
+          "finishes": false
+        },
+        {
+          "name": "Professor Onyx",
+          "line": "-8: Each opponent may discard a card. If they don't, they lose 3 life. Repeat this process six more times.",
+          "finishes": false
+        },
+        {
+          "name": "Rakdos, Patron of Chaos",
+          "line": "At the beginning of your end step, target opponent may sacrifice two nonland, nontoken permanents of their choice. If they don't, you draw two cards.",
+          "finishes": true
+        },
+        {
+          "name": "Meathook Massacre II",
+          "line": "Whenever a creature an opponent controls dies, they may pay 3 life. If they don't, return that card under your control with a finality counter on it.",
+          "finishes": false
+        },
+        {
+          "name": "Star Athlete",
+          "line": "Whenever ~ attacks, choose up to one target nonland permanent. Its controller may sacrifice it. If they don't, ~ deals 5 damage to that player.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 6; scripted cards 0. Core: 7 fragment(s) start with an unrewritten pronoun: parse.ts rewrites \"it\" / \"that creature\" before the templates, a registry rule never sees the antecedent.",
+      "suggestedHome": "core",
+      "group": "condition|they don't"
+    },
+    {
+      "name": "generic-when-enchanted-dies",
+      "title": "trigger-head: when enchanted <obj> dies",
+      "stage": "trigger-head",
+      "cards": 6,
+      "finishes": 1,
+      "lines": 6,
+      "weight": 3.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 6
+        }
+      ],
+      "clauses": [
+        {
+          "n": 6,
+          "clause": "trigger-head|When enchanted creature dies"
+        }
+      ],
+      "cardIds": [
+        "fa8ddc13-5108-4fe9-b3aa-dc28df476f7b",
+        "2c11c72f-5b04-47d8-bdf8-8d9d197ebc1b",
+        "8ba36878-0816-44c7-b543-8ebfc28c2ecd",
+        "276eccd6-4a76-46e8-b604-94472e618115",
+        "7d6ccd0b-df16-40b2-930b-bcde0b6ef73f",
+        "05157e8e-4c8c-455e-a5a1-de8271951c51"
+      ],
+      "examples": [
+        {
+          "name": "Sticky Fingers",
+          "line": "When enchanted creature dies, draw a card.",
+          "finishes": false
+        },
+        {
+          "name": "Gift of Immortality",
+          "line": "When enchanted creature dies, return that card to the battlefield under its owner's control. Return ~ to the battlefield attached to that creature at the beginning of the next end step.",
+          "finishes": false
+        },
+        {
+          "name": "Angelic Destiny",
+          "line": "When enchanted creature dies, return ~ to its owner's hand.",
+          "finishes": true
+        },
+        {
+          "name": "Ghoulish Impetus",
+          "line": "When enchanted creature dies, return ~ to the battlefield at the beginning of the next end step.",
+          "finishes": false
+        },
+        {
+          "name": "Journey to Eternity // Atzal, Cave of Eternity",
+          "line": "When enchanted creature dies, return it to the battlefield under your control, then return ~ to the battlefield transformed under your control.",
+          "finishes": false
+        },
+        {
+          "name": "Endless Evil",
+          "line": "When enchanted creature dies, if that creature was a Horror, return ~ to its owner's hand.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 6; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|when enchanted <obj> dies"
+    },
+    {
+      "name": "generic-cant-countered",
+      "title": "static: <obj> <obj> you control can't be countered",
+      "stage": "static",
+      "cards": 4,
+      "finishes": 3,
+      "lines": 4,
+      "weight": 3.5,
+      "families": [
+        {
+          "family": "other",
+          "lines": 4
+        }
+      ],
+      "clauses": [
+        {
+          "n": 4,
+          "clause": "static|Creature spells you control can't be countered"
+        }
+      ],
+      "cardIds": [
+        "acfa77fd-3610-4f12-9c3c-bd860ce91700",
+        "6a4ef075-9254-4d36-9572-622833fae54e",
+        "7c766365-82c2-46d6-8521-42e73129f4ef",
+        "4bdfd718-f474-4223-88d8-7fa9fb0c86b4"
+      ],
+      "examples": [
+        {
+          "name": "Rhythm of the Wild",
+          "line": "Creature spells you control can't be countered.",
+          "finishes": false
+        },
+        {
+          "name": "Frenzied Baloth",
+          "line": "Creature spells you control can't be countered.",
+          "finishes": true
+        },
+        {
+          "name": "Surrak Dragonclaw",
+          "line": "Creature spells you control can't be countered.",
+          "finishes": true
+        },
+        {
+          "name": "Prowling Serpopard",
+          "line": "Creature spells you control can't be countered.",
+          "finishes": true
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 4; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "static|<obj> <obj> you control can't be countered"
+    },
+    {
+      "name": "generic-other-elves-you",
+      "title": "static: other <subtype> you control get +#/+#",
+      "stage": "static",
+      "cards": 4,
+      "finishes": 3,
+      "lines": 4,
+      "weight": 3.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 4
+        }
+      ],
+      "clauses": [
+        {
+          "n": 4,
+          "clause": "static|Other Elves you control get +#/+#"
+        }
+      ],
+      "cardIds": [
+        "3fa71348-fa4d-4f39-a451-cf1570591991",
+        "ef693b9f-11e3-49bf-8387-b8f480b9007a",
+        "8b20d6f4-6322-4435-92d5-acaae74774f4",
+        "da4bf807-93f3-41b7-8bfd-aa63a551754e"
+      ],
+      "examples": [
+        {
+          "name": "Imperious Perfect",
+          "line": "Other Elves you control get +1/+1.",
+          "finishes": true
+        },
+        {
+          "name": "Leaf-Crowned Visionary",
+          "line": "Other Elves you control get +1/+1.",
+          "finishes": true
+        },
+        {
+          "name": "Canopy Tactician",
+          "line": "Other Elves you control get +1/+1.",
+          "finishes": true
+        },
+        {
+          "name": "Galadhrim Brigade",
+          "line": "Other Elves you control get +1/+1.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 4; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "static|other <subtype> you control get +#/+#"
+    },
+    {
+      "name": "generic-whenever-cast",
+      "title": "trigger-head: whenever you cast a",
+      "stage": "trigger-head",
+      "cards": 4,
+      "finishes": 3,
+      "lines": 4,
+      "weight": 3.5,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 4
+        }
+      ],
+      "clauses": [
+        {
+          "n": 4,
+          "clause": "trigger-head|Whenever you cast a spell from anywhere other than your hand"
+        }
+      ],
+      "cardIds": [
+        "95e66851-7aff-4559-91b4-6b8a95c6e1f8",
+        "89505f24-6c96-4062-8171-1851f7e7395b",
+        "23f86ee2-b1e3-45c2-bfd5-044919033922",
+        "f3d4f5ab-0ff4-48e1-8cf0-163b290804a5"
+      ],
+      "examples": [
+        {
+          "name": "Vega, the Watcher",
+          "line": "Whenever you cast a spell from anywhere other than your hand, draw a card.",
+          "finishes": true
+        },
+        {
+          "name": "Flaming Tyrannosaurus",
+          "line": "Whenever you cast a spell from anywhere other than your hand, ~ deals 3 damage to any target. Then put a +1/+1 counter on ~.",
+          "finishes": true
+        },
+        {
+          "name": "Keeper of Secrets",
+          "line": "Whenever you cast a spell from anywhere other than your hand, ~ deals damage equal to that spell's mana value to target opponent.",
+          "finishes": true
+        },
+        {
+          "name": "Unstable Amulet",
+          "line": "Whenever you cast a spell from anywhere other than your hand, ~ deals 1 damage to each opponent.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 4; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "trigger-head|whenever you cast a"
+    },
+    {
+      "name": "generic-cast-spell-way",
+      "title": "condition: you cast a <obj>",
+      "stage": "condition",
+      "cards": 6,
+      "finishes": 0,
+      "lines": 6,
+      "weight": 3,
+      "families": [
+        {
+          "family": "cost-alter",
+          "lines": 4
+        },
+        {
+          "family": "generic",
+          "lines": 1
+        },
+        {
+          "family": "other",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 6,
+          "clause": "condition|you cast a spell this way"
+        }
+      ],
+      "cardIds": [
+        "d04b6c2c-50fc-464d-9991-230efec70d2b",
+        "13cb958f-1e66-4219-901a-ff58275c8475",
+        "c52fc8a1-43c6-41f8-b010-03be7c89ef1d",
+        "c48cf135-b280-4e9f-a9d9-225104870741",
+        "e537bd23-7368-459b-badf-b7b7c112c88a",
+        "5b194438-6946-45dd-8d77-c9de8c115d09"
+      ],
+      "examples": [
+        {
+          "name": "Nashi, Moon Sage's Scion",
+          "line": "Whenever ~ deals combat damage to a player, exile the top card of each player's library. Until end of turn, you may play one of those cards. If you cast a spell this way, pay life equal to its mana value rather than paying its mana cost.",
+          "finishes": false
+        },
+        {
+          "name": "Brainstealer Dragon",
+          "line": "At the beginning of your end step, exile the top card of each opponent's library. You may play those cards for as long as they remain exiled. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it.",
+          "finishes": false
+        },
+        {
+          "name": "Bloodsoaked Insight // Sanguine Morass",
+          "line": "If you cast a spell this way, mana of any type can be spent to cast it.",
+          "finishes": false
+        },
+        {
+          "name": "Gwenom, Remorseless",
+          "line": "Whenever ~ attacks, until end of turn, you may look at the top card of your library any time and you may play cards from the top of your library. If you cast a spell this way, pay life equal to its mana value rather than pay its mana cost.",
+          "finishes": false
+        },
+        {
+          "name": "Elder Brain",
+          "line": "Whenever ~ attacks a player, exile all cards from that player's hand, then they draw that many cards. You may play lands and cast spells from among the exiled cards for as long as they remain exiled. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it.",
+          "finishes": false
+        },
+        {
+          "name": "Outrageous Robbery",
+          "line": "If you cast a spell this way, you may spend mana as though it were mana of any type to cast it.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 6; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "condition|you cast a <obj>"
+    },
+    {
+      "name": "generic-choose-hasnt-been",
+      "title": "sentence: choose # that hasn't been chosen this turn —",
+      "stage": "sentence",
+      "cards": 6,
+      "finishes": 0,
+      "lines": 6,
+      "weight": 3,
+      "families": [
+        {
+          "family": "piles-choices",
+          "lines": 6
+        }
+      ],
+      "clauses": [
+        {
+          "n": 6,
+          "clause": "sentence|choose one that hasn't been chosen this turn —"
+        }
+      ],
+      "cardIds": [
+        "e69e8de4-b521-4888-8074-17f1efe2f345",
+        "cce081eb-8820-415a-a7b2-3c5b9d4a2601",
+        "71fc2393-f55c-4b06-897c-fb7d4199b5f5",
+        "15361770-c6dc-4db7-b745-aa03e4b866ea",
+        "722e23d5-4f2a-43cd-bbd5-baf56b76e68d",
+        "faf44683-339d-4fc0-8029-1e867c69de0e"
+      ],
+      "examples": [
+        {
+          "name": "Monument to Endurance",
+          "line": "Whenever you discard a card, choose one that hasn't been chosen this turn —",
+          "finishes": false
+        },
+        {
+          "name": "Gala Greeters",
+          "line": "Whenever another creature you control enters, choose one that hasn't been chosen this turn —",
+          "finishes": false
+        },
+        {
+          "name": "Teval's Judgment",
+          "line": "Whenever one or more cards leave your graveyard, choose one that hasn't been chosen this turn —",
+          "finishes": false
+        },
+        {
+          "name": "Breeches, Eager Pillager",
+          "line": "Whenever a Pirate you control attacks, choose one that hasn't been chosen this turn —",
+          "finishes": false
+        },
+        {
+          "name": "Parapet Thrasher",
+          "line": "Whenever one or more Dragons you control deal combat damage to an opponent, choose one that hasn't been chosen this turn —",
+          "finishes": false
+        },
+        {
+          "name": "Galadriel, Light of Valinor",
+          "line": "Whenever another creature you control enters, choose one that hasn't been chosen this turn —",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 6; scripted cards 3.",
+      "suggestedHome": "registry",
+      "group": "sentence|choose # that hasn't been chosen this turn —"
+    },
+    {
+      "name": "generic-gains-haste",
+      "title": "sentence: it gains <kw>",
+      "stage": "sentence",
+      "cards": 6,
+      "finishes": 0,
+      "lines": 6,
+      "weight": 3,
+      "families": [
+        {
+          "family": "copy-clone",
+          "lines": 4
+        },
+        {
+          "family": "control",
+          "lines": 1
+        },
+        {
+          "family": "replacement",
+          "lines": 1
+        }
+      ],
+      "clauses": [
+        {
+          "n": 6,
+          "clause": "sentence|It gains haste"
+        }
+      ],
+      "cardIds": [
+        "53987a39-c18c-4c13-b1ea-fd1b2a369f9e",
+        "be094704-5232-4b10-beeb-aa9bbfae063d",
+        "6ebdc9f3-6b23-4716-8011-48f00d7e30c8",
+        "31895957-5fa8-46dc-a76e-37bbdc6072ad",
+        "00e0b103-892c-49b3-836d-867fff197bbd",
+        "5aa76c5d-8046-42ce-b61d-cc9b4806c11a"
+      ],
+      "examples": [
+        {
+          "name": "Whip of Erebos",
+          "line": "{2}{B}{B}, {T}: Return target creature card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step. If it would leave the battlefield, exile it instead of putting it anywhere else. Activate only as a sorcery.",
+          "finishes": false
+        },
+        {
+          "name": "Feldon of the Third Path",
+          "line": "{2}{R}, {T}: Create a token that's a copy of target creature card in your graveyard, except it's an artifact in addition to its other types. It gains haste. Sacrifice it at the beginning of the next end step.",
+          "finishes": false
+        },
+        {
+          "name": "Mimic Vat",
+          "line": "{3}, {T}: Create a token that's a copy of a card exiled with ~. It gains haste. Exile it at the beginning of the next end step.",
+          "finishes": false
+        },
+        {
+          "name": "Orthion, Hero of Lavabrink",
+          "line": "{1}{R}, {T}: Create a token that's a copy of another target creature you control. It gains haste. Sacrifice it at the beginning of the next end step. Activate only as a sorcery.",
+          "finishes": false
+        },
+        {
+          "name": "Puppeteer Clique",
+          "line": "When ~ enters, put target creature card from an opponent's graveyard onto the battlefield under your control. It gains haste. At the beginning of your next end step, exile it.",
+          "finishes": false
+        },
+        {
+          "name": "Saheeli, the Sun's Brilliance",
+          "line": "{U}{R}, {T}: Create a token that's a copy of another target creature or artifact you control, except it's an artifact in addition to its other types. It gains haste. Sacrifice it at the beginning of the next end step.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 6; scripted cards 0. Core: 7 fragment(s) start with an unrewritten pronoun: parse.ts rewrites \"it\" / \"that creature\" before the templates, a registry rule never sees the antecedent.",
+      "suggestedHome": "core",
+      "group": "sentence|it gains <kw>"
+    },
+    {
+      "name": "generic-draws-additional",
+      "title": "sentence: that <player> draws an additional <obj>",
+      "stage": "sentence",
+      "cards": 6,
+      "finishes": 0,
+      "lines": 6,
+      "weight": 3,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 6
+        }
+      ],
+      "clauses": [
+        {
+          "n": 6,
+          "clause": "sentence|that player draws an additional card"
+        }
+      ],
+      "cardIds": [
+        "d26b27db-a567-4631-b4b6-7294222fbdd1",
+        "7080fb43-5d93-41f5-87d3-bc1801805ea0",
+        "38cfe4a0-6ead-435b-9f86-928205c0a52c",
+        "be74a4c1-d569-4203-b28a-3e2ac6a82990",
+        "922cf963-2b1b-43ad-819e-6e49133e6aae",
+        "8a5e3c8e-8e22-49b9-8ee5-4a36361f0da6"
+      ],
+      "examples": [
+        {
+          "name": "Howling Mine",
+          "line": "At the beginning of each player's draw step, if ~ is untapped, that player draws an additional card.",
+          "finishes": false
+        },
+        {
+          "name": "Rites of Flourishing",
+          "line": "At the beginning of each player's draw step, that player draws an additional card.",
+          "finishes": false
+        },
+        {
+          "name": "Kami of the Crescent Moon",
+          "line": "At the beginning of each player's draw step, that player draws an additional card.",
+          "finishes": false
+        },
+        {
+          "name": "Dictate of Kruphix",
+          "line": "At the beginning of each player's draw step, that player draws an additional card.",
+          "finishes": false
+        },
+        {
+          "name": "Spiteful Visions",
+          "line": "At the beginning of each player's draw step, that player draws an additional card.",
+          "finishes": false
+        },
+        {
+          "name": "Nekusar, the Mindrazer",
+          "line": "At the beginning of each player's draw step, that player draws an additional card.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 6; scripted cards 0. Core: 7 fragment(s) start with an unrewritten pronoun: parse.ts rewrites \"it\" / \"that creature\" before the templates, a registry rule never sees the antecedent.",
+      "suggestedHome": "core",
+      "group": "sentence|that <player> draws an additional <obj>"
+    },
+    {
+      "name": "generic-end-turn-dont",
+      "title": "sentence: until end of turn, you don't lose this mana as steps and phases end",
+      "stage": "sentence",
+      "cards": 6,
+      "finishes": 0,
+      "lines": 6,
+      "weight": 3,
+      "families": [
+        {
+          "family": "generic",
+          "lines": 4
+        },
+        {
+          "family": "other",
+          "lines": 2
+        }
+      ],
+      "clauses": [
+        {
+          "n": 6,
+          "clause": "sentence|Until end of turn, you don't lose this mana as steps and phases end"
+        }
+      ],
+      "cardIds": [
+        "fb81e4d3-1d8c-4779-be62-87cf49277e51",
+        "f743d85f-754e-4e70-9907-af54acb9e8d4",
+        "8cefa5d6-5151-4e75-8b72-f210a4c751ea",
+        "bc8802db-8c94-4eb4-817f-5f4f5408b7a4",
+        "515c522f-51d5-4f6d-b9b1-ea3c7f6a378e",
+        "ed8e9a2e-5fb8-4f39-b954-dbcbc96d909f"
+      ],
+      "examples": [
+        {
+          "name": "Birgi, God of Storytelling // Harnfel, Horn of Bounty",
+          "line": "Whenever you cast a spell, add {R}. Until end of turn, you don't lose this mana as steps and phases end.",
+          "finishes": false
+        },
+        {
+          "name": "Savage Ventmaw",
+          "line": "Whenever ~ attacks, add {R}{R}{R}{G}{G}{G}. Until end of turn, you don't lose this mana as steps and phases end.",
+          "finishes": false
+        },
+        {
+          "name": "Klauth, Unrivaled Ancient",
+          "line": "Whenever ~ attacks, add X mana in any combination of colors, where X is the total power of attacking creatures. Spend this mana only to cast spells. Until end of turn, you don't lose this mana as steps and phases end.",
+          "finishes": false
+        },
+        {
+          "name": "Karn, Legacy Reforged",
+          "line": "At the beginning of your upkeep, add {C} for each artifact you control. This mana can't be spent to cast nonartifact spells. Until end of turn, you don't lose this mana as steps and phases end.",
+          "finishes": false
+        },
+        {
+          "name": "Rousing Refrain",
+          "line": "Until end of turn, you don't lose this mana as steps and phases end.",
+          "finishes": false
+        },
+        {
+          "name": "Neheb, Dreadhorde Champion",
+          "line": "Whenever ~ deals combat damage to a player or planeswalker, you may discard any number of cards. If you do, draw that many cards and add that much {R}. Until end of turn, you don't lose this mana as steps and phases end.",
+          "finishes": false
+        }
+      ],
+      "notes": "1 construct(s); passes builtin 0 / registry 6; scripted cards 0.",
+      "suggestedHome": "registry",
+      "group": "sentence|until end of turn, you don't lose this mana as steps and phases end"
+    }
+  ]
+}

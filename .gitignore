@@ -10,6 +10,8 @@ data/master/*.db
 !data/master/parser-coverage.json
 !data/master/meta-coverage.json
 !data/master/parse-snapshot.json
+!data/master/parse-why.json
+!data/master/parse-why-pool.json
 data/rules/
 data/user.db*
 data/images/
@@ -24,7 +26,8 @@ data/bench/
 data/optimizer/
 data/scripts/drafts/
 data/scripts/reports/
-data/scripts/batches/
+data/scripts/batches/*
+!data/scripts/batches/parse-wave-*.json
 data/scripts/_quarantine/
 
 # TypeScript incremental build cache

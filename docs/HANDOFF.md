@@ -553,6 +553,23 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     declare-attackers, declare-blockers, first-strike-damage, combat-damage, combat-end, main2, end, cleanup) and its
     section 7 is not in the embedded cheat sheet.
 
+37. **Left open by the parse:why tooling slice (2026-09-06; see §12):** (a) `scripts/parse-why.ts`'s `plausibleCost`
+    is a heuristic: a `cost` record from `parseActivatedLine`'s cost/effect split of a line that is not an activated
+    ability ('Enchanted creature has "{T}: …"') is dropped by a quote / length / verb-list test; a real cost phrase
+    that starts with an unlisted verb falls through to the line's `static` record (accounting, not ranking). (b) The
+    brief builder's `core` hint for trigger heads reads `COMMA_HEAD` (a short comma-part then "or" / "and" after the
+    first comma) off the printed line — a head like "Whenever X, Y, or Z happens" is caught, a two-object head with no
+    conjunction is not; the wave's reviewer and `coreChangeNeeded` are the real guard. (c) `sentence|Level #` (20
+    cards, 0 finishes) tops the wave-1 brief's sentence items although every Class card also has other unparsed
+    lines — the orchestrator may drop it by hand (the only manual step the builder allows). (d) `keyword` stage
+    (227 lines in the 10.1 selection, 1,547 in the paper pool: the printed-keyword bail-out) and `second-face` are
+    counted, never ranked — 9.2 work. (e) The `scripts:queue` byte-identity proof against the committed
+    data/scripts/batches/10.1/001.json cannot hold on 17bffda itself: the Phase 10.1.1 promotion moved the states
+    (3,002 → 2,696 queueable cards), so the proof was taken as before/after the `selectionIndex` / `selected`
+    extraction on the same tree (192 batch files identical; manifest differs only in the `--out` path). (f)
+    `docs/workflows/parse-wave.js` and `parse-core-slice.js` are proved by the syntax check and the helper tests
+    only — neither has run (owner checkpoint: pause before the parser wave).
+
 ## 4. Remaining Phase 8 slices
 
 - ~~8c `scripts:verify`~~ — **merged** (a9ef523): `npm run scripts:verify -- --batch <file> | --ids … | --changed | --stale`,
@@ -864,3 +881,51 @@ Plan D6, brief docs/workflows/briefs/process-slice.md, run through `tooling-slic
 - Groups 2+ (batches 021–112) are NOT launched: the parser wave runs first, then 10.1 is re-queued with
   `--only-unlocked`, `blindRate: 3`, `alwaysSample` (owner ids), and promoted per group of 20 batches.
 
+## 12. parse:why tooling slice — the failure-cause histogram (2026-09-06)
+
+- **Trace hook** in src/cards/parse.ts (`ParseTraceRecord`, `beginParseTrace` / `drainParseTrace` / `endParseTrace`):
+  module-level, off by default, one `if (parseTrace)` null test per site, no `CardDef` field. Sites: the parseCard line
+  loop (context), parseParagraph's outermost sentence (context), the sentence ladder's decompositions restructured as
+  `parts.map(...)` + `.flat()` so each discarded part is recorded (`partial` when a sibling parsed; the whole sentence
+  once at depth 0), a trace-only probe of the effect half when a conditional's condition fails (its own records are
+  discarded), `parseCost`'s failing comma-part, the triggered branch's head and intervening clause, `activate only if`,
+  the keyword bail-out (`unknown(def, line, 'keyword')`) and the static give-up, back-face save/restore. Proofs:
+  `parse:diff — 0 changed, 0 added, 0 removed of 34513 cards`; coverage:pool byte-identical (13,128 / 34,513; paper
+  12,974 / 32,081 = 40.44%); `JSON.stringify(parseCard(row))` identical with tracing on/off over 2,000 pool rows
+  (5,343 records) and in test/parse-trace.test.ts (every 50th row); `npm test` 1,537 tests / 1,451 pass / 0 fail (86 skipped).
+- **`npm run parse:why`** (scripts/parse-why.ts; `selectionIndex` / `selected` extracted from `buildWave` and shared
+  with scripts:queue — the queue rebuilds byte-identically). Selection first, parse second: the 10.1 selection runs in
+  2.7 s, the paper pool in 13 s. Every independent failure of a (card, line) is a cause (`lineCauses`) — registry pass
+  preferred; the head, the intervening clause and each failing cost part one each; each failing outermost sentence one
+  (its innermost record by the bucket order trigger-head → intervening → cost → condition(partial) → sentence(partial,
+  deepest) → condition → sentence(depth 0) → static → keyword, or each failing sibling part beside one that parsed);
+  the line's primary cause first. A failure the trace proves but never keyed is counted: the effect half behind a
+  condition that is not `partial` (the probe ran it and it failed — Court of Ire's "it deals 7 damage instead"), a
+  trigger body with no record behind a head that is not `partial`. A card **finishes** on a construct only when it
+  has one unparsed line with one cause on it: Manabarbs (head AND body fail) finishes on neither. The review of the
+  slice caught the first cut crediting a whole line to its highest-bucket record (2,019 "finishes" of which 18% had a
+  second independent failure on the line); the numbers below are the corrected ones. `data/master/parse-why.json` +
+  `.md` (gitignored under `data/master/*.json`; regenerate with the command in docs/vocabulary/README.md): **4,987
+  cards, 3,064 unparsed (2,040 one line short, 1,587 of them with one cause), 4,451 lines carrying 5,271 causes, 4,083
+  distinct**; by stage (causes) sentence 2,651 / static 1,049 / trigger-head 687 / condition 416 / keyword 227 /
+  intervening 96 / cost 95 / second-face 39 / untraced 11. Top constructs (weight, cards, finishes): `condition|you
+  do` 37 / 74 / 0 (every "If you do" line also fails on the "you may …" sentence before it or on its own effect half);
+  `trigger-head|When you cast ~` 14 / 25 / 3; `trigger-head|Whenever equipped creature deals combat damage to a player`
+  14 / 21 / 7; `Whenever equipped creature attacks` 10.5 / 17 / 4; `sentence|Level #` 10 / 20 / 0; `Whenever ~ is
+  dealt damage` 10 / 12 / 8; `sentence|~ deals # damage to that player` 7.5 / 12 / 3 (Manabarbs' body, now on
+  record). Whole paper pool: 32,081 cards, 19,244 unparsed (13,956 one line short, 10,885 with one cause), 26,188
+  lines / 30,967 causes, 19,643 distinct; top: `you do` 279.5 / 542 / 17, `Whenever ~ is dealt damage` 54 / 65 / 43,
+  `When you cast ~` 50.5 / 88 / 13, `able` 49.5 / 99 / 0, `At the beginning of each player's upkeep` 46.5 / 80 / 13.
+- **Brief builder** scripts/parse-wave-briefs.ts → data/scripts/batches/parse-wave-1.json (gitignored; base 17bffda;
+  byte-identical on a second run): 16 items + 38 residual from the 60 constructs, 15 `suggestedHome: registry` and
+  one `core` (generic-still-land: pronoun start): generic-you-do 74/0, generic-beginning-player-upkeep 27/4,
+  generic-when-cast 25/3, generic-whenever-equipped-deals 21/7, generic-ring-tempts 16/7, generic-whenever-more 16/7,
+  generic-whenever-equipped-attacks 17/4, generic-level 20/0, generic-whenever-dealt 12/8, generic-deals-damage 12/3,
+  generic-only-once-turn 11/3, generic-win-game 11/3, generic-choose-background 10/4, generic-exile-top 12/0,
+  generic-still-land 12/0, generic-youre-monarch 10/2 (cards/finishes). The orchestrator should read `finishes`
+  literally: generic-you-do tops the wave by cards, but no card in the selection is finished by that condition alone.
+- **Workflows** docs/workflows/parse-wave.js (vocab-wave skeleton; new files only; ONE correctness reviewer with the
+  20-card parse:diff sample; one fix round + one re-review; `mergeable` needs `overClaimed` empty) and
+  docs/workflows/parse-core-slice.js (phase-9-1x shape; PARSER_VERSION 5 → 6 once; `MTG_SCRIPTS=0 fuzz 100`); README
+  rows and a `parse:why` section in docs/vocabulary/README.md. Not run: owner checkpoint before the parser wave.
+- Open: §3 item 37.

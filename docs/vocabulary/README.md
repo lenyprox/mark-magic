@@ -468,6 +468,55 @@ The workflow for a family: take the diff **before** you start (it must be clean)
 `npm run parse:diff` again and read every group. A family that only adds wordings should show groups made entirely of
 `now parses:` lines.
 
+### `parse:why` — the failure-cause histogram
+
+`coverage:pool`'s list is whole *lines*; the 2,239 generic cards of the 10.1 queue carry 3,700 unparsed lines that
+are 3,400 distinct wordings, so no line cluster is worth a rule. `npm run parse:why` ranks the **innermost fragment
+the recursive parser could not claim** instead — the sub-clause a rule would actually be written for:
+
+```
+npm run parse:why -- --tier paper --select "edhrec<=5000 commander:legal pool:paper" --top 60 --out data/master/parse-why.json --md data/master/parse-why.md
+npm run parse:why -- --tier paper --top 60 --out <scratch>/parse-why-pool.json        # the whole paper pool
+```
+
+`src/cards/parse.ts` carries a failure trace (`beginParseTrace` / `drainParseTrace` / `endParseTrace`): off by
+default, one `if (parseTrace)` null test per site, records kept beside the `CardDef` (never on it — the snapshot
+hashes every field), and a parse that is byte-identical with tracing on and off (`test/parse-trace.test.ts` pins
+that). The sites are where a decomposition is thrown away: every `, then` / ` and ` / `if …,` part of the sentence
+ladder the built-ins could not finish (`partial` when a sibling part parsed — then that fragment alone is what stops
+the sentence), the failing comma-part of an activated cost, the head of a triggered line, its intervening `if`, the
+`activate only if` condition, and the whole line at the static give-up / keyword bail-out.
+
+Per (card, line) the CLI keeps EVERY independent failure as a cause — registry-pass records first (that pass tries
+strictly more); the trigger head, the intervening clause and each failing cost part one each; each outermost
+sentence that failed one, its innermost record by the bucket order `trigger-head → intervening → cost →
+condition(partial) → sentence(partial, deepest) → condition → sentence(depth 0) → static → keyword` (or each failing
+sibling part when another part parsed); the line's primary cause, the first bucket over the whole line, first — and
+keys each twice: `key` = stage + the fragment under `coverage:pool`'s normalisation (digits `#`, mana `{}`), the
+exact wording a rule is written for; `shape` = the same with numbers, subtypes, object nouns, colours, zones,
+players, counters and keywords as placeholders, the family of wordings one rule template covers. A failure the
+trace proves but never keyed — the effect half of a conditional whose condition failed (the probe says so), a
+trigger body that left no record behind a head that is not `partial` — is counted against the line. A card
+**finishes** on a construct when that is its only unparsed line AND the only failure on it (Manabarbs, whose one
+line fails on both its head and its body, finishes on neither); `weight` = finishes + ½ × the other cards, and the
+report lists `constructs`, `shapes`, 3-word `prefixes` (4 for trigger heads and costs), `nestedCauses` (what a
+registry rule's own sub-parse could not claim) and totals by stage (`oneLineCards` one line short, `finishCards` of
+them with one cause — the number a rule can move; `lines` / `lineCauses`). `keyword`
+(the printed-keyword bail-out: 9.2 work) and `second-face` (split / adventure / flip halves the engine cannot cast)
+are counted in the totals and left out of the ranking. Two runs on the same tree are byte-identical.
+
+**From a construct to a rule family.** `npx tsx scripts/parse-wave-briefs.ts --in data/master/parse-why.json --wave
+9.1p --base <commit> --max 16 --out data/scripts/batches/parse-wave-1.json` groups the constructs one template would
+cover (stage + the first four shape tokens for trigger heads, costs and conditions; the whole shape otherwise), sums
+their numbers, names each group `generic-<slug>` (unique against `src/cards/rules/*.ts`), and marks `suggestedHome:
+'core'` where a registry file cannot do it — a trigger head with a comma inside it (the built-in first-comma split
+decides the head before any rule runs), a fragment that starts with a pronoun `parse.ts` rewrites before the
+templates, or a failure recorded only on the built-ins pass (a sub-parse with `useRegistry=false`). The first 16
+are a wave of `docs/workflows/parse-wave.js` (one worktree each; new files only; "decline rather than approximate";
+`parse:diff` read group by group and never accepted in a worktree); the `core` parts go to
+`docs/workflows/parse-core-slice.js` afterwards. After a merge, `parse:why` to a scratch path must show the item's
+keys gone — that, not the line count, is the proof the rule did what the brief asked.
+
 ### Proving a family's rules
 
 `npm run coverage:pool` writes `data/master/parser-coverage.json`: `fully_parsed` out of `playable_oracle_cards`, the
@@ -488,6 +537,7 @@ built-in.
 | `npm run parse:diff` | reparse every playable card and diff against `data/master/parse-snapshot.json` (exit 1 on any change) |
 | `npm run parse:accept` | re-baseline that snapshot |
 | `npm run coverage:pool` | parser coverage: `fully_parsed` and the most common unparsed clauses |
+| `npm run parse:why` | the failure-cause histogram: the innermost unclaimed fragment per unparsed line, ranked by the cards a rule for it would finish (`--select`, `--top`, `--out`, `--md`, `--ids`, `--nested`, `--exclude-stage`, `--min-cards`) |
 | `npm run typecheck:example` | typecheck `_example.ts` on its own (it is excluded from the main program) |
 | `npm run typecheck:schema` | typecheck `test/schema-types.test.ts`: the core zod schema pinned to the `Core*` types, every `<family>.schema.ts` included |
 | `npm run verify:quick` | typecheck + `lint-*` + `registry` + `parser-registry` + `scripts` tests + `scripts:check` (the `parser-registry` test is what catches a stale rules barrel) |
