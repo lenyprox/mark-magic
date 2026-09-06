@@ -190,6 +190,8 @@ export interface GameState {
   nextId: number;
   log: string[];
   winner: PlayerId | null;
+  /** Set when the game ended without a winner for a rules reason (CR 726.4 mandatory loop): every player has lost. */
+  drawReason?: string;
   attackers: number[];
   extraTurns: PlayerId[];
   passesInRow: number;

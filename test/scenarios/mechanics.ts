@@ -73,4 +73,12 @@ export const mechanics: Scenario[] = [
     script: [{ turns: 2 }],
     expect: [{ zone: ['Avalanche Riders', 'graveyard'] }, { log: /sacrifices Avalanche Riders/ }],
   },
+  {
+    // 9.1: a token's def is its creator's card; the self-leaving trigger scan must read the token's own (empty) abilities,
+    // or Beskir Shieldmate's Human Warrior token re-creates itself forever under Elesh Norn (fuzz seed 1, game 7).
+    name: "A token created by a dies trigger does not inherit its creator's dies trigger", cr: '603.10a',
+    seats: [{ bf: ['Beskir Shieldmate'] }, { bf: ['Elesh Norn, Grand Cenobite', 'Swamp', 'Swamp'], hand: ['Doom Blade'] }],
+    script: [{ cast: 'Doom Blade', targets: [['Beskir Shieldmate']], by: 1 }, { resolve: true }],
+    expect: [{ zone: ['Beskir Shieldmate', 'graveyard'] }, { events: { type: 'create-token', min: 1, max: 1 } }, { log: /Human Warrior token#\d+ has toughness -1/ }],
+  },
 ];

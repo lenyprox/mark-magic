@@ -64,6 +64,9 @@ export interface GameOptions {
   assertInvariants?: InvariantMode;
 }
 
+/** Stack items one turn may resolve before the engine calls the turn a mandatory loop (CR 726.4). */
+const MANDATORY_LOOP_LIMIT = 2000;
+
 export class Game {
   state: GameState;
   agents: Agent[];
@@ -334,7 +337,7 @@ export class Game {
       if (bottom > 0) { const ids = await this.ask(p.id, { kind: 'choose-cards', from: p.hand.map(c => c.id), count: bottom, reason: `Put ${bottom} card(s) on the bottom of your library`, exact: true }) as number[]; for (const id of ids) { const c = p.hand.find(x => x.id === id); if (c) this.moveTo(c, 'library', 'bottom'); } }
     }
     this.emit({ type: 'game-start', first: s.activePlayer, players: s.players.map(p => p.name) });
-    while (s.winner === null) {
+    while (s.winner === null && !s.drawReason) {
       s.turn++;
       if (this.opts.maxTurns && s.turn > this.opts.maxTurns) { this.emit({ type: 'game-over', winner: null, reason: 'Turn limit reached: draw.' }); return null; }
       await this.runTurn();
@@ -349,7 +352,7 @@ export class Game {
   private async stepHooks(step: string) { const hs = STEP_HOOKS[step]; if (hs === undefined) return; for (const h of hs) await h(this, this.state.activePlayer); }
 
   private async runTurn() {
-    const s = this.state;
+    const s = this.state; this.resolvedThisTurn = 0;
     // CR 506.1: an extra combat phase belongs to the turn that granted it. The cleanup step clears any that were never
     // reached, but a turn that ended early (its active player was eliminated) never runs one, so the new active
     // player's turn starts from zero here as well - an extra combat must never cross a turn boundary.
@@ -374,7 +377,7 @@ export class Game {
   /** Play `n` further complete turns (after the current one), stopping early on a winner or the turn limit. */
   async playTurns(n: number): Promise<PlayerId | null> {
     const s = this.state;
-    for (let i = 0; i < n && s.winner === null; i++) {
+    for (let i = 0; i < n && s.winner === null && !s.drawReason; i++) {
       if (s.extraTurns.length) s.activePlayer = s.extraTurns.shift()!; else s.activePlayer = nextInTurnOrder(s, s.activePlayer);
       s.turn++;
       if (this.opts.maxTurns && s.turn > this.opts.maxTurns) { this.emit({ type: 'game-over', winner: null, reason: 'Turn limit reached: draw.' }); return null; }
@@ -900,8 +903,26 @@ export class Game {
   }
 
   /** Resolve the top of the stack (CR 608). */
+  /** Stack items resolved in the current turn; past MANDATORY_LOOP_LIMIT the game is a draw (CR 726.4). */
+  private resolvedThisTurn = 0;
+  /**
+   * CR 726.4: a loop of mandatory actions no player can stop ends the game in a draw. The engine has no way to prove
+   * a loop is unbreakable, so it uses a ceiling no real turn reaches: no line of play resolves this many stack items
+   * in one turn, while a self-recreating token under a -X/-X static resolves them forever.
+   */
+  private drawGame(reason: string) {
+    const s = this.state;
+    s.drawReason = reason;
+    this.emit({ type: 'game-over', winner: null, reason }, `The game is a draw: ${reason}`);
+    for (const pl of s.players) if (!pl.lost) { pl.lost = true; pl.lossReason = `draw: ${reason}`; }
+    s.stack.length = 0; this.pendingTriggers.length = 0;
+    this.endGame(null);
+  }
   private async resolveTop() {
-    const s = this.state; const item = s.stack.pop()!;
+    const s = this.state;
+    if (s.drawReason) { s.stack.length = 0; return; }
+    if (++this.resolvedThisTurn > MANDATORY_LOOP_LIMIT) { this.drawGame(`a mandatory loop (${MANDATORY_LOOP_LIMIT} stack items resolved in one turn, CR 726.4)`); return; }
+    const item = s.stack.pop()!;
     if (item.countered) return;
     // check targets still legal; if all illegal the spell/ability doesn't resolve (CR 608.2b)
     const effs = this.effectiveEffects(item);
@@ -2191,9 +2212,13 @@ export class Game {
         if (fires) { const times = 1 + this.triggerExtraTimes(perm, event, ctx); for (let k = 0; k < times; k++) this.pendingTriggers.push({ ability: ab, source: perm, controller: perm.controller, triggerCtx: ctx }); }
       }
     }
-    // dies triggers of the object itself (it has already left the battlefield when this is called)
+    // dies triggers of the object itself (it has already left the battlefield when this is called). Its abilities as
+    // it last existed (CR 603.10a), not its printed def: a token's def is only its creator's card, so reading
+    // `def.abilities` gave every token a copy of its creator's dies trigger (Beskir Shieldmate's Human Warrior token
+    // re-creating itself forever under Elesh Norn — 9.1 fuzz, seed 1 game 7), and a face-down or ability-less
+    // permanent has no trigger to fire (CR 708.2, 613.1f).
     if ((event === 'dies' || event === 'ltb') && ctx.obj) {
-      for (const ab of ctx.obj.def.abilities) if (ab.kind === 'triggered' && ab.event.on === event && (ab.event as { self?: boolean }).self) this.pendingTriggers.push({ ability: ab, source: ctx.obj, controller: ctx.player ?? ctx.obj.controller, triggerCtx: ctx });
+      for (const ab of abilitiesOf(ctx.obj)) if (ab.kind === 'triggered' && ab.event.on === event && (ab.event as { self?: boolean }).self) this.pendingTriggers.push({ ability: ab, source: ctx.obj, controller: ctx.player ?? ctx.obj.controller, triggerCtx: ctx });
     }
   }
 
