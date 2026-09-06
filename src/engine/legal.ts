@@ -236,6 +236,10 @@ export function legalActions(g: Game, p: PlayerId): LegalAction[] {
     if (o.token !== null) { const ta = tokenAbilityOf(o); if (ta) { const la = ta.legal(g, p, o); if (la) out.push(la); if (ta.covers === undefined || ta.covers(g, p, o)) continue; } }
     abilitiesOf(o).forEach((ab, i) => {
       if (ab.kind !== 'activated') return;
+      // CR 113.6b: an ability that states the zone it functions from functions only from that zone. The graveyard scan
+      // above is the only place a `fromGraveyard` ability may be activated; without this the permanent in PLAY was
+      // offered it whenever its cost happened to be payable there (Eternal Dragon, Tymaret, every unearth; 9.1x item 1).
+      if (ab.fromGraveyard) return;
       // tap-only mana abilities are used implicitly by auto-payment; ones with other costs (Lotus Petal, Lion's Eye Diamond) are explicit actions
       if (ab.manaAbility && !ab.cost.sacrificeSelf && !ab.cost.discardHand && !ab.cost.mana) return;
       if (ab.sorcerySpeed && !sorceryTiming) return;

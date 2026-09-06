@@ -144,6 +144,8 @@ const EXAMPLE: FamilyModule = {
     zoneMove: (_g, o, zone) => zone === 'graveyard' && extGet<number>(o, 'exampleTime') !== undefined
       ? { zone: 'exile', emit: `${o.def.name} is exiled instead of dying (example).` } : null,
     damage: (_g, _src, target, n) => typeof target === 'number' ? n : Math.max(0, n - (extGetOr<number>(target, 'exampleShield', 0))),
+    // CR 615.6: false switches the core's own prevention shields off for this one damage event (they are not consumed)
+    preventable: (_g, src) => extGet<boolean>(src, 'exampleUnpreventable') !== true,
     draw: () => false,                                   // true = the draw was replaced (no card is drawn)
     // the unguarded fold: `delta` can be negative (a removal), `o` can be in any zone and `counter` can be 'loyalty'
     counters: (_g, _o, counter, delta) => counter === 'time' ? delta : delta,
@@ -187,6 +189,8 @@ const EXAMPLE: FamilyModule = {
       : extGet<boolean>(blocker, 'exampleCantBlock') === true ? false : undefined,
     blockCheck: (_s, blocker, attacker) => !(extGet<number>(attacker, 'exampleLure') !== undefined && extGet<boolean>(blocker, 'exampleIgnoresLure') === true),
     blockFixup: (g, attackers) => { void g; void attackers; /* "blocks if able", lure */ },
+    // the FINISHED attack declaration, before anything is tapped ("~ can't attack alone", CR 506.4): drop ids from `chosen`
+    attackFixup: (g, chosen) => { for (const id of [...chosen]) { const o = chars.findObject(g.state, id); if (o && extGet<boolean>(o, 'exampleNoAttackAlone') === true && chosen.size === 1) chosen.delete(id); } },
     combatDamage: (_g, assignments) => { for (const a of assignments) if (extGet<boolean>(a.src, 'exampleDoubles') === true) a.n *= 2; },
   },
 
@@ -225,6 +229,11 @@ const EXAMPLE: FamilyModule = {
     modes.length > 1 ? { generic: modes.length - 1, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '' } : null,
   // Cost alteration the core's fixed-amount `cost-adjust` static cannot express (positive = cheaper, negative = a tax).
   costMod: (s, p, card, from) => from === 'graveyard' ? -extGetOr<number>(s.players[p], 'exampleGraveyardTax', 0) : chars.types(card).includes('Creature') ? 1 : 0,
+
+  // The core `gain-control ... until end of turn`: record it in your own timestamp order (CR 613.7) and return true.
+  controlUntilEot: (g, o, to) => { extSet(o, 'exampleThief', to); g.changeControl(o, to); return true; },
+  // The core `transform-self`: perform (or refuse, CR 702.145b) the flip yourself and return true; false = the core flips.
+  transform: (_g, o) => extGet<boolean>(o, 'exampleNoTransform') === true,
 
   // castSpell's `from` gate: true allows, false forbids, undefined abstains.
   castFrom: (_g, _p, card, from) => from === 'exile' && extGetOr<number>(card, 'exampleTime', 1) === 0 ? true : undefined,

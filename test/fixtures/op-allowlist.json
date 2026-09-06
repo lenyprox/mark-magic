@@ -8,7 +8,6 @@
     "counter-triggering",
     "crew-self",
     "each-self-damage",
-    "energy",
     "evolve",
     "explore",
     "extra-land",
@@ -138,7 +137,6 @@
   "costParts": [
     "discardHand",
     "discardSelf",
-    "energy",
     "exileFromHand",
     "exileOtherFromGraveyard",
     "returnToHand",

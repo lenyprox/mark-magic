@@ -4,14 +4,13 @@
 //
 //   emblem            CR 114. "You get an emblem with '<text>'." An emblem is an object in the command zone with no
 //                     characteristics but its abilities (CR 114.3), owned by nobody's battlefield: it is not a
-//                     permanent, so it is never destroyed, exiled, counted or targeted. The engine already has the
-//                     seam for the half of that which matters most — `FamilyModule.triggerSources` widens
-//                     `queueTriggers`' scan beyond `allPermanents`, so an emblem's TRIGGERED abilities fire. Its
-//                     STATIC abilities do not apply yet: `characteristics.ts:staticSources` still scans the
-//                     battlefield alone and there is no registry fold beside it (see the family doc, "What an emblem
-//                     cannot do yet", and the `coreChangeNeeded` patch that adds one). Because of that the PARSER
-//                     claims only Teferi's `loyalty-any-time` emblem; a script that writes any other static gets a
-//                     log line saying it is not applied, so the gap is never silent.
+//                     permanent, so it is never destroyed, exiled, counted or targeted. Both halves of its abilities
+//                     work through one seam: `FamilyModule.triggerSources` widens `queueTriggers`' scan beyond
+//                     `allPermanents`, so an emblem's TRIGGERED abilities fire, and since 9.1x item 9
+//                     `characteristics.ts:staticSources` folds the same sources in, so its STATIC abilities apply
+//                     (CR 114.2; an anthem emblem pumps). The PARSER still claims only Teferi's `loyalty-any-time`
+//                     emblem — routing the nine anthem / indestructible emblems through `parseStatic` is family work
+//                     (`emblemAbilities` in src/cards/rules/planeswalker.ts; HANDOFF item 33c).
 //   loyalty           CR 121 / 306.5b. Loyalty counters put on (or, with a negative amount, removed from) a
 //                     planeswalker that is not the source's own activation cost — "Put a loyalty counter on target
 //                     Gideon planeswalker", "… and a loyalty counter on each other planeswalker you control".
@@ -179,15 +178,8 @@ const PLANESWALKER: FamilyModule = {
       c.g.moveTo(o, 'command', 'top', 'effect');
       extPush(c.s.players[c.p], 'emblems', { id: o.id, source, text: e.text });
       c.g.emit({ type: 'emblem', player: c.p, id: o.id, source, text: e.text }, `${c.g.pname(c.p)} gets an emblem with "${e.text}".`);
-      // Never a SILENT no-op. An emblem's triggered abilities fire (`triggerSources` below) and `loyalty-any-time` is
-      // answered by `legalActions`; every other static is collected by `characteristics.ts:staticSources`, which
-      // filters `allPermanents` and therefore never sees the command zone. The parser refuses those wordings outright
-      // (src/cards/rules/planeswalker.ts), so only a hand-written script can reach this branch — and when it does the
-      // log says so rather than leaving an emblem that reads as an anthem and is not one.
-      for (const ab of e.abilities) {
-        if (ab.kind !== 'static' || ab.effect.kind === 'loyalty-any-time') continue;
-        c.g.note(`${source} emblem: "${ab.text ?? ab.effect.kind}" is a static ability of an emblem, which the engine does not apply yet.`);
-      }
+      // Its triggered abilities fire (`triggerSources` below), `loyalty-any-time` is answered by `legalActions`, and
+      // since 9.1x item 9 `characteristics.ts:staticSources` folds the same `triggerSources` in, so an anthem emblem applies.
     },
 
     // CR 121.1 / 306.5b: loyalty counters that are not an activation cost.
@@ -222,8 +214,9 @@ const PLANESWALKER: FamilyModule = {
   // CR 107.4f + 614.1c: the loyalty counters `moveTo` just put on are reduced as it enters, before ETB triggers.
   asEnters: {
     'compleated': (a: PwCompleated, o, _ctx, g) => {
-      if (o.castWith?.alt !== 'life') return;                                    // the mana route was taken; full loyalty
-      const n = Math.min(a.fewer, o.counters.loyalty ?? 0);
+      const paid = o.castWith?.alt === 'life' ? a.fewer : 2 * (o.castWith?.phyrexianLife ?? 0);   // 9.1x item 11: the printed cost's own life route counts too
+      if (!paid) return;                                                            // the mana route was taken; full loyalty
+      const n = Math.min(paid, o.counters.loyalty ?? 0);
       if (n <= 0) return;
       g.addCounters(o, 'loyalty', -n);
       g.note(`${chars.name(o)} enters with ${n} fewer loyalty counters (compleated).`);

@@ -122,7 +122,8 @@ function exiledColors(s: GameState, o: GameObject): ManaSymbol[] {
   return [...cs];
 }
 
-export interface Payment { pool: ManaSymbol[]; taps: { source: ManaSource; option: ManaSymbol[] }[] }
+/** `life`: the life the plan pays for Phyrexian pips it does not cover with mana (2 per pip, CR 107.4f); absent = none. */
+export interface Payment { pool: ManaSymbol[]; taps: { source: ManaSource; option: ManaSymbol[] }[]; life?: number }
 
 /** Default cap on source-option combinations tried by `findPayment`; rollouts pass `FAST_MANA_LIMIT` (see GameOptions.fastMana). */
 export const MANA_COMBO_LIMIT = 5000;
@@ -133,7 +134,9 @@ export function findPayment(s: GameState, p: Player, cost: ManaCost, x = 0, redu
   const generic = Math.max(0, cost.generic + cost.x * x - reduction);
   const needPips: ManaSymbol[] = [...cost.pips];
   const hybrid = cost.hybrid.map(h => h);
-  const phyrexian = [...cost.phyrexian]; // paid with life if no mana of that colour
+  // each Phyrexian pip is one option list: the colour(s) it takes, or 2 life (CR 107.4f); `solve` tries both routes
+  const phyrexian: ManaSymbol[][] = [...cost.phyrexian.map(c => [c] as ManaSymbol[]), ...(cost.phyrexianHybrid ?? []).map(h => [...h] as ManaSymbol[])];
+  const lifeCap = Math.max(0, p.life);           // CR 119.4: life can only be paid out of what the player has
   let regular = manaSources(s, p, opts);
   if (opts.onlyIds) { const only = new Set(opts.onlyIds); regular = regular.filter(r => only.has(r.obj.id)); }
   if (opts.preferIds?.length) { const pref = new Set(opts.preferIds); regular = [...regular.filter(r => pref.has(r.obj.id)), ...regular.filter(r => !pref.has(r.obj.id))]; }
@@ -141,7 +144,7 @@ export function findPayment(s: GameState, p: Player, cost: ManaCost, x = 0, redu
   const sources = extras.length ? (opts.extrasFirst ? [...extras, ...regular] : [...regular, ...extras]) : regular;
   // Enumerate: small search over source options (branching kept low by trying the most-constrained pips first).
   const pool = [...p.manaPool, ...(p.stickyMana ?? [])];
-  const best = solve(pool, sources, needPips, hybrid, phyrexian, generic, limit);
+  const best = solve(pool, sources, needPips, hybrid, phyrexian, generic, limit, lifeCap);
   if (best) return best;
   // Mana abilities that themselves cost mana (filter lands, Cabal Coffers): fund one of them, then pay with its output.
   if (!p.battlefield.some(o => !o.tapped && abilitiesOf(o).some(ab => ab.kind === 'activated' && ab.manaAbility && ab.cost.tap && ab.cost.mana))) return null;
@@ -150,15 +153,16 @@ export function findPayment(s: GameState, p: Player, cost: ManaCost, x = 0, redu
   for (const boost of boosts) {
     if (opts.onlyIds && !opts.onlyIds.includes(boost.source.obj.id)) continue;
     const others = sources.filter(r => r.obj.id !== boost.source.obj.id);
-    const fund = solve(pool, others, [...boost.cost.pips], boost.cost.hybrid.map(h => h), [...boost.cost.phyrexian], boost.cost.generic, subLimit);
+    const fund = solve(pool, others, [...boost.cost.pips], boost.cost.hybrid.map(h => h), boost.cost.phyrexian.map(c => [c] as ManaSymbol[]), boost.cost.generic, subLimit, lifeCap);
     if (!fund) continue;
     const usedIds = new Set(fund.taps.map(t => t.source.obj.id));
     const rest = others.filter(r => !usedIds.has(r.obj.id));
     const leftPool = [...pool];
     for (const m of fund.pool) { const i = leftPool.indexOf(m); if (i >= 0) leftPool.splice(i, 1); }
-    const main = solve(leftPool, [boost.source, ...rest], needPips, hybrid, phyrexian, generic, subLimit);
+    const main = solve(leftPool, [boost.source, ...rest], needPips, hybrid, phyrexian, generic, subLimit, lifeCap - (fund.life ?? 0));
     if (!main) continue;
-    return { pool: [...fund.pool, ...main.pool], taps: [...fund.taps, ...main.taps] };
+    const life = (fund.life ?? 0) + (main.life ?? 0);
+    return { pool: [...fund.pool, ...main.pool], taps: [...fund.taps, ...main.taps], ...(life ? { life } : {}) };
   }
   return null;
 }
@@ -190,13 +194,18 @@ function boostSources(s: GameState, p: Player, opts: ManaSourceOptions): { sourc
   return opts.onlyIds ? out.filter(b => opts.onlyIds!.includes(b.source.obj.id)) : out;
 }
 
-function solve(pool: ManaSymbol[], sources: ManaSource[], pips: ManaSymbol[], hybrid: ManaSymbol[][], phyrexian: ManaSymbol[], generic: number, limit: number): Payment | null {
+function solve(pool: ManaSymbol[], sources: ManaSource[], pips: ManaSymbol[], hybrid: ManaSymbol[][], phyrexian: ManaSymbol[][], generic: number, limit: number, lifeCap = Infinity): Payment | null {
   // Greedy + backtracking: assign coloured pips first from pool, then sources; then hybrid; then generic.
   const avail: { mana: ManaSymbol; from: 'pool' | number; option?: ManaSymbol[] }[] = pool.map(m => ({ mana: m, from: 'pool' as const }));
   // choose one option per source; try all combos up to a limit (sources are few in practice)
   const combos = enumerateSourceCombos(sources, limit);
+  // Phyrexian pips: every mana-vs-life split, cheapest in life first (mask bit k set = pip k is paid with 2 life);
+  // a plan that pays life is only built when the player has that much (CR 119.4). Printed costs carry at most two
+  // such pips, so the masks are few; the cap keeps a scripted cost bounded.
+  const nPhy = Math.min(phyrexian.length, 4);
+  const masks = nPhy === 0 ? NO_PHYREXIAN : Array.from({ length: 1 << nPhy }, (_, m) => m).sort((a, b) => popcount(a) - popcount(b) || a - b).filter(m => 2 * popcount(m) <= lifeCap);
   let bestPlan: Payment | null = null;
-  for (const combo of combos) {
+  for (const combo of combos) for (const mask of masks) {
     const units = [...avail];
     combo.forEach((opt, i) => { for (const m of opt) units.push({ mana: m, from: i, option: opt }); });
     const used = new Array(units.length).fill(false);
@@ -212,7 +221,10 @@ function solve(pool: ManaSymbol[], sources: ManaSource[], pips: ManaSymbol[], hy
       if (!done) { ok = false; break; }
     }
     if (!ok) continue;
-    for (const c of phyrexian) takeColor(c); // else 2 life (handled by caller via life check; we allow)
+    // a Phyrexian pip not paid with life must be paid with one of its colours (CR 107.4f)
+    for (let k = 0; k < phyrexian.length; k++) { if (k < nPhy && (mask >> k) & 1) continue; if (!phyrexian[k].some(c => takeColor(c))) { ok = false; break; } }
+    if (!ok) continue;
+    const life = 2 * popcount(mask);
     let free = units.filter((_, k) => !used[k]).length;
     if (free < generic) continue;
     // mark generic from units, preferring colourless and duplicates
@@ -222,12 +234,17 @@ function solve(pool: ManaSymbol[], sources: ManaSource[], pips: ManaSymbol[], hy
     // Build plan: which sources are actually needed (a source whose units are all unused need not be tapped)
     const taps: Payment['taps'] = [];
     combo.forEach((opt, i) => { const anyUsed = units.some((u, k) => used[k] && u.from === i); if (anyUsed) taps.push({ source: sources[i], option: opt }); });
-    const plan: Payment = { pool: units.filter((u, k) => used[k] && u.from === 'pool').map(u => u.mana), taps };
-    if (!bestPlan || plan.taps.length < bestPlan.taps.length) bestPlan = plan;
-    if (plan.taps.length === 0) break;
+    const plan: Payment = { pool: units.filter((u, k) => used[k] && u.from === 'pool').map(u => u.mana), taps, ...(life ? { life } : {}) };
+    // the plan that pays the least life wins (mana it has over life it would lose); between equals, fewer taps
+    const pl = plan.life ?? 0, bl = bestPlan?.life ?? 0;
+    if (!bestPlan || pl < bl || (pl === bl && plan.taps.length < bestPlan.taps.length)) bestPlan = plan;
+    if (plan.taps.length === 0 && !plan.life) return plan;
   }
   return bestPlan;
 }
+/** The one mask of a cost with no Phyrexian pip (the common case: no allocation per `solve`). */
+const NO_PHYREXIAN: readonly number[] = [0];
+function popcount(n: number): number { let c = 0; while (n) { c += n & 1; n >>= 1; } return c; }
 
 function enumerateSourceCombos(sources: ManaSource[], limit: number): ManaSymbol[][][] {
   let combos: ManaSymbol[][][] = [[]];

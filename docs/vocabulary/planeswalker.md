@@ -51,23 +51,22 @@ Its **triggered** abilities are live: `FamilyModule.triggerSources` widens `Game
 trigger-kind gate in front of it) beyond `allPermanents`, so an emblem is asked about every event exactly as a
 permanent is.
 
-### What an emblem cannot do yet, and what the parser therefore refuses
+### What an emblem can do now, and what the parser still refuses
 
-Its **static** abilities do not apply. `characteristics.ts:computeStaticMods` collects its sources from
-`staticSources(s)`, which filters `allPermanents(s)` and has no registry fold beside it — the static half of the
-`triggerSources` seam does not exist. The three-line patch is in this wave's `coreChangeNeeded`.
+Its **static** abilities apply too (CR 114.2). Since 9.1x item 9 `characteristics.ts:staticSources` folds the
+registry's `triggerSources` into the sources `computeStaticMods` collects, so an emblem in the command zone is a
+static source exactly as a permanent is — pinned by the scenarios *an emblem with a static ability applies it from
+the command zone* (this family) and *9.1x item 9: an anthem emblem pumps the creatures its controller controls from
+the command zone* (`test/scenarios/core-9-1x.ts`). The old log line `"…" is a static ability of an emblem, which the
+engine does not apply yet` is gone with the loop that printed it.
 
-Because of that, the parser claims **exactly one** emblem wording: Teferi, Temporal Archmage's
-`loyalty-any-time`, which is not a characteristic of any object and is answered by the family's own `legalActions`.
-Every anthem or keyword-granting emblem — Elspeth, Sun's Champion, Gideon, Ally of Zendikar, Sorin, Lord of
-Innistrad, Ajani Resolute, Vivien Reid, Garruk, Cursed Huntsman, Domri Rade and Nissa, Who Shakes the World — stays
-**unparsed**, so the ability is not offered as a legal action at all. Claiming it would spend the loyalty, log
-"you get an emblem with …" and change nothing: an invisible wrong outcome in place of a visible gap, which is the one
-thing this family's rules must never do. Those nine lines come back the moment the core gains the fold.
-
-A **script** can still write an anthem emblem (the AST is right and the object is right), and when one resolves the
-log says `"…" is a static ability of an emblem, which the engine does not apply yet` — pinned by a scenario, so the
-no-op is never silent.
+The parser still claims **exactly one** emblem wording: Teferi, Temporal Archmage's `loyalty-any-time`, which is not
+a characteristic of any object and is answered by the family's own `legalActions`. Every anthem or keyword-granting
+emblem — Elspeth, Sun's Champion, Gideon, Ally of Zendikar, Sorin, Lord of Innistrad, Ajani Resolute, Vivien Reid,
+Garruk, Cursed Huntsman, Domri Rade and Nissa, Who Shakes the World — stays **unparsed** for now: not because the
+engine would ignore it any more, but because `emblemAbilities` (src/cards/rules/planeswalker.ts) has not yet been
+taught to route those lines through `parseStatic` — family work, HANDOFF item 33(c). A **script** can write an
+anthem emblem today and it applies.
 
 ### Example ASTs (see the banner: not yet scriptable)
 
@@ -238,28 +237,25 @@ two fewer loyalty counters.)" `moveTo` puts the printed loyalty on as the walker
 as-enters replacement (CR 614.1c) then takes `fewer` of them off, never below zero, and only when the permanent was
 cast paying life.
 
-**Which cards the parser claims.** Only the walkers whose Phyrexian pips are MONO-COLOURED: Vraska, Betrayal's
-Sting `{B/P}`, Jace, the Perfected Mind `{U/P}`, Nissa, Ascended Animist `{G/P}{G/P}`. `parseManaCost` has a case for
-those (the pip lands in `manaCost.phyrexian`, so removing it really does make the alternative cost 2 mana cheaper)
-and **no case at all** for the hybrid `{G/W/P}`, which it silently drops. For Tamiyo, Compleated Sage, Ajani, Sleeper
-Agent, Lukka, Bound to Ruin and Nahiri, the Unforgiving the printed cost the engine carries therefore has nothing to
-remove, and a "compleated" alternative cost would be the SAME mana plus 2 life and 2 loyalty — strictly dominated,
-never right to take, and one more action for the AI to enumerate. The line stays unparsed for those four until
-`parseManaCost` learns the symbol; the patch is in this wave's `coreChangeNeeded`.
+**Which cards the parser claims.** All seven compleated walkers. The mono-coloured pips — Vraska, Betrayal's Sting
+`{B/P}`, Jace, the Perfected Mind `{U/P}`, Nissa, Ascended Animist `{G/P}{G/P}` — land in `manaCost.phyrexian`; the
+hybrid `{G/W/P}` of Tamiyo, Compleated Sage, Ajani, Sleeper Agent, Lukka, Bound to Ruin and Nahiri, the Unforgiving
+lands in `manaCost.phyrexianHybrid` since 9.1x item 10 (before that `parseManaCost` dropped the symbol and those four
+lines stayed unparsed). Either way removing the pips makes the alternative cost 2 mana cheaper per pip.
 
-**How "life was paid" is known.** The engine already pays 2 life for a Phyrexian pip it cannot produce (`castSpell`,
-right after `payMana`) but records nothing about having done so, and there is no seam a family can hang on that
-branch. The parser therefore writes the life route as the card's own **alternative cost** — the printed cost with its
-Phyrexian symbols removed, plus 2 life for each — with the core id `life`. `castWith.alt` records the choice, the AI
-enumerates it as a real cast variant, and this hook keys off it.
+**How "life was paid" is known.** Two routes, and both reach the as-enters. Since 9.1x item 11 the PRINTED cost's
+Phyrexian pips are paid by the mana solver itself: `mana.ts:solve` tries every mana-vs-life split (mana preferred,
+life only within the life total, CR 119.4), `Payment.life` carries the life, `payMana` charges it and `castSpell`
+records the pips paid that way in `castWith.phyrexianLife`. The parser also still writes the life route as the
+card's own **alternative cost** — the printed cost with its Phyrexian symbols removed, plus 2 life for each, with the
+core id `life` — which `castWith.alt` records. The `compleated` hook reads both (`alt === 'life'` → `fewer`;
+otherwise two per `phyrexianLife` pip).
 
-That leaves one divergence, and it is **not** small: on a board that can pay the printed cost in mana the plain cast
-is offered beside the alternative one, and `game.ts` charges the plain cast NEITHER mana NOR life for the Phyrexian
-pip (`castSpell` tests `pay.taps.some(t => t.option.includes(c))`, which any land that could have produced the colour
-already satisfies). The plain cast is therefore strictly better than the compleated one, and the AI takes it — so the
-as-enters only fires on boards where the printed cost is unpayable, which is what the two scenarios pin. Charging the
-pip properly is a core fix and is in this wave's `coreChangeNeeded`; until it lands, "compleated" is right when it
-happens and unreachable when the mana is there.
+The alternative cost is now a redundant second route: on a board that can pay the printed cost in mana the solver
+pays mana and the walker enters with full loyalty, and on one that cannot, the printed cost pays life and shrinks the
+loyalty exactly as the `life` alternative would. The family may drop the alternative cost and keep the line rule for
+the as-enters alone (HANDOFF item 33(e)); the scenarios pin the as-enters on boards where the printed cost is
+unpayable, which both routes satisfy.
 
 ### Example ASTs (see the banner: not yet scriptable)
 
@@ -341,19 +337,16 @@ review fix, each written so it fails if the op did nothing.
 
 ## 8. What this family does NOT fix (read before scoring its coverage)
 
-* **Nissa, Who Shakes the World's `+1` is inert, and the family cannot reach it.** "Put three +1/+1 counters on up to
-  one target noncreature land you control" is claimed by a **built-in** stage of `parse.ts`, which produces the same
-  unsatisfiable `{ kind: 'creature', filter: { notTypes: ['Creature'], types: ['Land'] } }` this family's own
-  `target()` exists to prevent — and built-ins run first at every dispatch point, so no rule here is ever offered the
-  sentence. The `Untap it` / `becomes a … that's still a land` rules then complete the paragraph correctly, which is
-  why the card looked "fully parsed" in the first review. It no longer is (its `-8` is an anthem emblem, which now
-  declines), but the `+1` still binds nothing. The one-line built-in fix is in `coreChangeNeeded`.
-* **An emblem breaks `undo` in the web app.** `apps/web/workers/game.worker.ts:undo()` rebuilds its def table from the
-  deck payloads alone, and an emblem is the first object in the engine with a `CardDef` that is not derivable from a
-  deck (`"<Source> emblem"`), so `deserializeState` throws and the undo is reported as "Could not restore". The
-  analysis pool is safe because `src/analysis/pool.ts` posts `collectDefs(state)` before each request — the same
-  idiom the patch gives `takeSnapshot`, so the snapshot carries the defs its own state needs and `undo()` merges them
-  over the deck table. The four-line patch is in `coreChangeNeeded` (applied locally it compiles under
-  `npm run web:typecheck` and the serialize round-trip keeps the command zone and `ext.emblems`); nothing a family
-  file can do reaches it — giving the emblem a deck-derivable `def` would put a castable planeswalker card in the
-  command zone, because `legal.ts:castActionsFor` reads `c.def`, not `defOf(c)`.
+* **Nissa, Who Shakes the World's `+1` — fixed in the core (9.1x item 8); her `-8` is still family work.** "Put three
+  +1/+1 counters on up to one target noncreature land you control" is claimed by a **built-in** stage of `parse.ts`,
+  which used to pick the target kind by substring, read `creature` inside `noncreature` and build the unsatisfiable
+  `{ kind: 'creature', filter: { notTypes: ['Creature'], types: ['Land'] } }`; since `PARSER_VERSION` 5 it picks on
+  whole words and the target is a `land` spec. The card is still not fully parsed: its `-8` is an anthem emblem,
+  which `emblemAbilities` declines until the family routes it through `parseStatic` (HANDOFF item 33(c)).
+* **An emblem used to break `undo` in the web app — fixed in 9.1x item 6.** `apps/web/workers/game.worker.ts:undo()`
+  rebuilt its def table from the deck payloads alone, and an emblem is the first object in the engine with a `CardDef`
+  that is not derivable from a deck (`"<Source> emblem"`), so `deserializeState` threw and the undo was reported as
+  "Could not restore". `takeSnapshot` now stores `collectDefs(state)` beside each resumable snapshot — the idiom
+  `src/analysis/pool.ts` already used for the analysis pool — and `undo()` merges those defs over the deck table.
+  (Giving the emblem a deck-derivable `def` was never an option: it would put a castable planeswalker card in the
+  command zone, because `legal.ts:castActionsFor` reads `c.def`, not `defOf(c)`.)

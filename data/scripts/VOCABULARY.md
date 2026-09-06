@@ -106,7 +106,7 @@ mechanic family adds to them; nothing ever removes from them.
 | `reveal-hand-discard` | `who`, `filter`, `count` |
 | `sacrifice` | `who`, `what`, `amount` |
 | `sacrifice-self` | — |
-| `sacrifice-unless-pay` | `mana`, `once?`, `perCounter?` |
+| `sacrifice-unless-pay` | `mana`, `energy?`, `once?`, `perCounter?` |
 | `saddle-self` | — |
 | `scoped` | `who`, `do` |
 | `scry` | `amount` |
@@ -1152,25 +1152,21 @@ A restriction carried by the **blocker**, read against each attacker it is offer
 `block: true` is exact: the creature loses its block when it ends up as its controller's only blocking creature
 (applied in `blockFixup`, so it is judged over the whole declaration).
 
-`attack: true` is a **partial** implementation, and deliberately so. The hook table has no seat for a fixup pass over
-the declared attackers, so `canAttack` forbids the attack only in the case it can decide alone: no other creature its
-controller controls could possibly attack. When another creature *could* have attacked but did not, the declaration
-stands even though CR 506.4 makes it illegal: seat 0 with Mogg Flunkies and an untapped Hill Giant may attack with
-the Flunkies alone (still true at this commit — a scratch scenario declaring exactly that deals 3 to the defending
-player). Read `attack: true` as "enforced whenever the answer is knowable from this creature alone". The
-`attackFixup` hook that closes it is a core change, handed over as a unified diff in `coreChangeNeeded` (see
-Declines); it is not applied on this branch, which touches no file outside the family.
+`attack: true` is exact too since 9.1x item 12. `canAttack` still forbids the attack in the case it can decide alone
+(no other creature its controller controls could possibly attack), and the `keywordHooks.attackFixup` seat — handed
+the FINISHED declaration as a `Set` of ids by `combatFrom` and `simulateCombat`, before anything is tapped, before the
+attack event and before an `attacks` trigger — drops a lone attacker that can't attack alone when something else
+could have attacked and did not (CR 506.4): seat 0 with Mogg Flunkies and an untapped Hill Giant attacking with the
+Flunkies alone now deals nothing and logs "Mogg Flunkies can't attack alone." Pinned by the two `9.1x item 12`
+scenarios in `test/scenarios/core-9-1x.ts`. (At 9.1 the attack half was partial — enforced only when knowable from
+the creature alone — and this paragraph listed the over-claim.)
 
-**The over-claim this leaves.** The clause parses, so the line counts as understood on 11 printed cards while only
-half of its rule is enforced. All 11 are named here so a reader can check them by hand: *can't attack or block
-alone* — Loyal Pegasus, Ember Beast, Wojek Bodyguard, Mogg Flunkies, Bonded Horncrest, Jackal Familiar (exact on
-the block half, partial on the attack half); *can't attack alone* — Sightless Brawler, Trusty Companion, Raging
-Kronch, Bonded Construct, Militia Rallier (partial, full stop). Nine of them are whole cards `applyScript` reports
-as fully parsed; Wojek Bodyguard still has `Mentor` unparsed and Sightless Brawler `Bestow {4}{W}` and its
-"Enchanted creature gets +3/+2 and can't attack alone" line, so they are not fully-parsed cards for other reasons.
-The clause is kept parsed rather than dropped because the half that IS enforced is the half that decides the game
-most often — a lone creature that would attack into an empty board never attacks — and an unparsed line enforces
-nothing at all; the count is honest only as long as this paragraph is here.
+**The 11 printed cards** the clause parses on, so a reader can check them by hand: *can't attack or block alone* —
+Loyal Pegasus, Ember Beast, Wojek Bodyguard, Mogg Flunkies, Bonded Horncrest, Jackal Familiar; *can't attack alone* —
+Sightless Brawler, Trusty Companion, Raging Kronch, Bonded Construct, Militia Rallier. Both halves are enforced over
+the whole declaration now. Nine of them are whole cards `applyScript` reports as fully parsed; Wojek Bodyguard still
+has `Mentor` unparsed and Sightless Brawler `Bestow {4}{W}` and its "Enchanted creature gets +3/+2 and can't attack
+alone" line, so they are not fully-parsed cards for other reasons.
 
 ```json
 { "kind": "static", "effect": { "kind": "cant-act-alone", "scope": "self", "attack": true, "block": true }, "text": "~ can't attack or block alone." }
@@ -1360,7 +1356,7 @@ matches `coverage:pool`'s +117 exactly (the two totals differ by the 43 per-card
 
 ### 6. Declines — what this family deliberately does not express
 
-Each of these needs a core change; none was made in the family's worktree.
+Each of these needs a core change; none was made in the family's worktree (the second landed in 9.1x).
 
 * **"attacks each combat if able" other than on the creature itself.** `Game.combatFrom` builds its `mustAttack`
   list from `o.def.abilities`, so the core's own `self-keywords.mustAttack` covers the printed self case and nothing
@@ -1368,15 +1364,13 @@ Each of these needs a core change; none was made in the family's worktree.
   creature attacks this turn if able" would all work from a `Mods.flags.mustAttack` read at that site; the patch is
   in the wave's `coreChangeNeeded`. Until it lands there is no `must-attack` op here, because an op nothing enforces
   is worse than a clause a script author can see is missing.
-* **"can't attack alone" in the partial case.** See `cant-act-alone` above: the declaration is only refused when no
-  other creature could have attacked. The `attackFixup` patch handed over in `coreChangeNeeded` closes it — a
-  `keywordHooks` seat handed the CHOSEN ATTACKER IDS (`Set<number>`) to mutate, called from `combatFrom` between the
-  `attackers` decision and the loop that applies it, and from `simulateCombat` between its argument and the same
-  loop. Both call sites run **before** anything is tapped, before the attack event is emitted and before an
-  `attacks` trigger is queued, so a creature the hook removes leaves no trace at all and `Game` has nothing to undo.
-  The family half is five lines (`chosen.size !== 1` is every legal declaration; otherwise drop the lone attacker
-  and note it), and the scenario that pins it is in the patch. It is not in this commit, and no part of it is: the
-  family contract forbids editing `src/engine/game.ts`, `types.ts` and the generated registry.
+* **Closed in 9.1x (item 12) — "can't attack alone" in the partial case.** The `keywordHooks.attackFixup` seat now
+  exists: it is handed the CHOSEN ATTACKER IDS (`Set<number>`) to mutate, from `combatFrom` between the `attackers`
+  decision and the loop that applies it and from `simulateCombat` between its argument and the same loop, both
+  **before** anything is tapped, before the attack event is emitted and before an `attacks` trigger is queued, so a
+  creature the hook removes leaves no trace and `Game` has nothing to undo. The family half is the one-line
+  `attackFixup` in `src/engine/ops/combat-restr.ts` (`chosen.size !== 1` is every legal declaration; otherwise drop
+  the lone attacker and note it); see `cant-act-alone` above for the scenarios that pin it.
 * **A family's zod variants reaching `CardScriptChecked`.** `src/engine/ops/combat-restr.schema.ts` is written and
   imported by nothing: `src/cards/schema.ts` has no composer yet, so `npm run typecheck:schema` fails on the
   `Equals<>` pins (declaration merging widened `Effect` and `StaticEffect`; the zod side could not follow) and the
@@ -2432,13 +2426,13 @@ declined rather than handed to the engine.
 
 * **Timestamps for control (CR 613.7) as a general layer.** Two or more live control effects on one permanent ARE
   ordered here — the `o.ext.controlReturn` stack above is exactly their timestamp order, and CR 613.1c comes out
-  right at any depth. What is missing is that the order is this family's alone. The core's `gain-control` keeps its
-  own one-slot `o.controlUntilEot` and writes no entry, so the two bookkeeping schemes only interleave correctly in
-  one direction: a family effect applied OVER a core end-of-turn theft is fine (the family entry records the core
-  thief, the family hook runs first in the cleanup step and the core wipe then runs), while a core end-of-turn theft
-  applied over a live `while-*` family effect is not — when the family duration ends the family hands the permanent
-  to the seat it recorded, ignoring the newer core effect. Unifying them is a core change (see `coreChangeNeeded` in
-  the phase report). Nothing re-orders an existing stack either: a timestamp here is the order effects were applied
+  right at any depth. Since 9.1x item 13 the core's `gain-control … until end of turn` (Act of Treason) is one more
+  entry of that stack: `game.ts` hands it to this family's `controlUntilEot` hook (`steal(g, o, to, 'eot', src)`),
+  so a core end-of-turn theft interleaves with a live `while-*` effect in both orders — pinned by the two
+  `9.1x item 13` scenarios in `test/scenarios/core-9-1x.ts`. (Before that the core kept its own one-slot
+  `o.controlUntilEot` and wrote no entry, so a core theft applied over a family duration was handed back to the wrong
+  seat when the family duration ended; that slot is now only the fallback when no control family is registered.)
+  What is still not here: nothing re-orders an existing stack — a timestamp here is the order effects were applied
   in (CR 613.7a), but an effect that acquires a NEW timestamp is not modelled.
 * **A hook on `Game.changeControl`.** `control-gained` sees this family's own control changes only, and
   `control-cant-change` binds this family's own ops only. Both would need a core change (`FamilyModule` has no
@@ -3007,9 +3001,10 @@ ability among `chars.abilitiesOf(self)` and refuses the part outside the graveya
 `fromGraveyard`. An ability without the flag, and an `AltCost` (whose cost object lives on `def.altCosts`, so the
 scan never finds it — Sea Drake), are not gated at all.
 
-The hole itself is older and wider than this family: 131 cards whose graveyard ability has a core-only cost (Eternal
-Dragon, Tymaret, every unearth) are still offered on the battlefield. Only a core change closes those — see the
-report's `coreChangeNeeded` for `legal.ts`.
+The hole itself was older and wider than this family: 131 cards whose graveyard ability has a core-only cost (Eternal
+Dragon, Tymaret, every unearth) were offered on the battlefield too. 9.1x item 1 closed those in the core —
+`legal.ts:legalActions`'s battlefield scan skips any `fromGraveyard` ability (CR 113.6b; pinned by
+`test/core-9-1x.test.ts`) — so the family's own gates above are now belt and braces.
 
 **Why the source is not excluded from `sacrificeMany` / `returnToHandMany`.** CR 601.2h lets a permanent be
 sacrificed to pay for its own activated ability, which is exactly Time Sieve ({T}, Sacrifice five artifacts — and
@@ -3058,19 +3053,17 @@ Each of these needs a core change; none of them was made here.
    mana.
 6. **A `cast-from` permission for a spell with targets** is not offered as a legal action — see §3.
 7. **A land hidden away** cannot be played from exile: `play-land` accepts `from: 'graveyard' | 'library'` only.
-8. **A graveyard ability is still offered while its card is on the battlefield** when its cost is one the core can
-   pay there. `legal.ts:legalActions`'s battlefield scan checks `sorcerySpeed`, `oncePerTurn`, `loyalty`, `tap`,
-   `untap`, mana, `activateOnlyIf` and `nonManaCostPayable`, but never `ab.fromGraveyard` (CR 113.6b). The family
-   closes all 63 of its own cards — 56 with the zone-gated `exileSelfFromGraveyard` part and the other 7 with
-   `zoneAllows` on the counted parts, both above — but the 131 whose graveyard ability has a core-only cost still
-   need the one-line core skip in the report's `coreChangeNeeded`.
-9. **`freeCast` is not told which alternative cost the cast chose.** `game.ts:571` runs `FREE_CAST_HOOKS`
-   unconditionally, unlike the `CAST_FROM_HOOKS` block two lines above it, which is guarded by `!alt`; the hook
-   signature is `(g, p, card, from)`. So a `cast-from … free: true` permission would make a flashback/escape/disturb
-   cast from that zone cost zero mana *and* still pay the alternative cost's non-mana parts (`game.ts:615`). Until
-   the core passes `alt`, the family's permission abstains for any card with an alternative cost from that zone
-   (`freeBlockedByAlt`), and `legalActions` skips those cards so both halves agree — an under-approximation rather
-   than a wrong price. CR 118.9, 601.2f.
+8. **Closed in 9.1x (item 1) — a graveyard ability was offered while its card is on the battlefield** when its cost
+   was one the core could pay there. `legal.ts:legalActions`'s battlefield scan now returns early on
+   `ab.fromGraveyard` (CR 113.6b), beside its `sorcerySpeed`, `oncePerTurn`, `loyalty`, `tap`, `untap`, mana,
+   `activateOnlyIf` and `nonManaCostPayable` checks. The family's own closures — 56 cards with the zone-gated
+   `exileSelfFromGraveyard` part and 7 with `zoneAllows` on the counted parts, both above — stay, and the 131 with a
+   core-only cost are covered by the core skip.
+9. **Closed in 9.1x (item 2) — `freeCast` was not told which alternative cost the cast chose.** `game.ts:castSpell`
+   now runs `FREE_CAST_HOOKS` only when no alternative cost was chosen, the same `!alt` guard the `CAST_FROM_HOOKS`
+   block has (CR 118.9: "without paying its mana cost" is itself an alternative cost and only one applies), pinned by
+   `test/core-9-1x.test.ts`. The family's `freeBlockedByAlt` abstention and the matching `legalActions` skip are now
+   redundant under-approximations the family may drop; until it does, both halves still agree. CR 118.9, 601.2f.
 10. **`castSpell` does not re-check the "can't cast" lock.** `opponents-cant-cast` is enforced in exactly one place,
    `legal.ts:castActionsFor` (legal.ts:293); `game.ts:castSpell` has no equivalent, for a cast from hand as much as
    for one through this family's permission. The family's `legalActions` provider therefore applies the same check
@@ -3405,7 +3398,7 @@ Wordings this family deliberately leaves unparsed rather than fake (recorded so 
 | "Flip that many coins" | needs an unfed `that many` (the preceding "choose a number" is itself unparsed). |
 | a **flip nobody calls** whose heads/tails clause is a *different sentence* (Ral Zarek's "Flip five coins. Take an extra turn … for each coin that comes up heads.", Mana Clash) | the sentence rules see one sentence at a time, and the sentence that flips never says heads or tails. The op's `winner` inference reads the whole resolving ability, so it gets these right the moment the *other* sentence parses; while that sentence is `unknown` the flip stays a called flip and would wrongly fire "whenever you win a coin flip". Needs the heads clause parsed (`extra-turn` with an amount), or an ability-level rule hook. |
 | Orcish Captain's "If you lose the flip, **it** gets -0/-2 until end of turn." | "it" is the target the *winning* branch names, and only one branch resolves, so the losing branch cannot read a binding the winning branch made (CR 115.1). `parse.ts`'s antecedent repair reads the winning branch's `pump` as an unconditional binder and leaves the pronoun dangling, so the family's branch rule vetoes its own condition clause and the sentence is recorded unparsed instead of silently dropping the -0/-2. The core fix (a binder nested in a `conditional` is not a binder for effects outside it) is in this wave's `coreChangeNeeded`; one card. |
-| Invert Polarity's "If you lose the flip, **counter that spell**." | the *other* frame. "counter that spell" is `parse.ts`'s own `counter-triggering`, which reads `item.triggeringId` — set at exactly one site in `game.ts` (the trigger → stack site), so only a **triggered** ability's stack item carries it, and no `bind` writes it. Invert Polarity is an instant, so the branch could only ever be a silent no-op (CR 701.5a); the family's condition rule was what made the composite parse at all, so the branch guard refuses it. An `EffectRule` is handed only the clause text (`EffectCtx` has no `def`, no `row`), so the refusal is unconditional rather than host-aware — the results-table line rule, which *can* see its host, refuses the same shape only outside a triggered ability. Cost today: one card, already partly unparsed, so coverage does not move. The one card where the op would be right — Planar Chaos, "Whenever a player casts a spell, that player flips a coin. If they lose the flip, counter that spell." — is not reached, because "they lose the flip" is not a wording `familyCondition` knows; teaching it that wording needs a host-frame flag on `EffectCtx` first (this wave's `coreChangeNeeded`). |
+| Invert Polarity's "If you lose the flip, **counter that spell**." | the *other* frame. "counter that spell" is `parse.ts`'s own `counter-triggering`, which reads `item.triggeringId` — set at exactly one site in `game.ts` (the trigger → stack site), so only a **triggered** ability's stack item carries it, and no `bind` writes it. Invert Polarity is an instant, so the branch could only ever be a silent no-op (CR 701.5a); the family's condition rule was what made the composite parse at all, so the branch guard refuses it. Since 9.1x item 17 `EffectCtx.host.triggering` tells an effect rule whether its host is a triggered ability, so the guard vetoes the op only outside one (the results-table line rule already did the same from its own host). Cost today: one card, already partly unparsed, so coverage does not move. The one card where the op would be right — Planar Chaos, "Whenever a player casts a spell, that player flips a coin. If they lose the flip, counter that spell." — is still not reached, because "they lose the flip" is not a wording `familyCondition` knows; with the host flag in place, teaching it that wording is family work for a later wave. |
 | a results-table striation that parses to a **real modal choice** | a `choose-mode` inside a `conditional.then` is dead: `Game.effectiveEffects` expands one only at the top level of a stack item's effect list. A single-mode `count: 1` container is flattened (that is what the core's own expansion does); anything with a genuine choice makes the row unparsed. 0 cards today, but a striation is exactly where one would appear. |
 
 ---
@@ -4677,23 +4670,22 @@ Its **triggered** abilities are live: `FamilyModule.triggerSources` widens `Game
 trigger-kind gate in front of it) beyond `allPermanents`, so an emblem is asked about every event exactly as a
 permanent is.
 
-#### What an emblem cannot do yet, and what the parser therefore refuses
+#### What an emblem can do now, and what the parser still refuses
 
-Its **static** abilities do not apply. `characteristics.ts:computeStaticMods` collects its sources from
-`staticSources(s)`, which filters `allPermanents(s)` and has no registry fold beside it — the static half of the
-`triggerSources` seam does not exist. The three-line patch is in this wave's `coreChangeNeeded`.
+Its **static** abilities apply too (CR 114.2). Since 9.1x item 9 `characteristics.ts:staticSources` folds the
+registry's `triggerSources` into the sources `computeStaticMods` collects, so an emblem in the command zone is a
+static source exactly as a permanent is — pinned by the scenarios *an emblem with a static ability applies it from
+the command zone* (this family) and *9.1x item 9: an anthem emblem pumps the creatures its controller controls from
+the command zone* (`test/scenarios/core-9-1x.ts`). The old log line `"…" is a static ability of an emblem, which the
+engine does not apply yet` is gone with the loop that printed it.
 
-Because of that, the parser claims **exactly one** emblem wording: Teferi, Temporal Archmage's
-`loyalty-any-time`, which is not a characteristic of any object and is answered by the family's own `legalActions`.
-Every anthem or keyword-granting emblem — Elspeth, Sun's Champion, Gideon, Ally of Zendikar, Sorin, Lord of
-Innistrad, Ajani Resolute, Vivien Reid, Garruk, Cursed Huntsman, Domri Rade and Nissa, Who Shakes the World — stays
-**unparsed**, so the ability is not offered as a legal action at all. Claiming it would spend the loyalty, log
-"you get an emblem with …" and change nothing: an invisible wrong outcome in place of a visible gap, which is the one
-thing this family's rules must never do. Those nine lines come back the moment the core gains the fold.
-
-A **script** can still write an anthem emblem (the AST is right and the object is right), and when one resolves the
-log says `"…" is a static ability of an emblem, which the engine does not apply yet` — pinned by a scenario, so the
-no-op is never silent.
+The parser still claims **exactly one** emblem wording: Teferi, Temporal Archmage's `loyalty-any-time`, which is not
+a characteristic of any object and is answered by the family's own `legalActions`. Every anthem or keyword-granting
+emblem — Elspeth, Sun's Champion, Gideon, Ally of Zendikar, Sorin, Lord of Innistrad, Ajani Resolute, Vivien Reid,
+Garruk, Cursed Huntsman, Domri Rade and Nissa, Who Shakes the World — stays **unparsed** for now: not because the
+engine would ignore it any more, but because `emblemAbilities` (src/cards/rules/planeswalker.ts) has not yet been
+taught to route those lines through `parseStatic` — family work, HANDOFF item 33(c). A **script** can write an
+anthem emblem today and it applies.
 
 #### Example ASTs (see the banner: not yet scriptable)
 
@@ -4864,28 +4856,25 @@ two fewer loyalty counters.)" `moveTo` puts the printed loyalty on as the walker
 as-enters replacement (CR 614.1c) then takes `fewer` of them off, never below zero, and only when the permanent was
 cast paying life.
 
-**Which cards the parser claims.** Only the walkers whose Phyrexian pips are MONO-COLOURED: Vraska, Betrayal's
-Sting `{B/P}`, Jace, the Perfected Mind `{U/P}`, Nissa, Ascended Animist `{G/P}{G/P}`. `parseManaCost` has a case for
-those (the pip lands in `manaCost.phyrexian`, so removing it really does make the alternative cost 2 mana cheaper)
-and **no case at all** for the hybrid `{G/W/P}`, which it silently drops. For Tamiyo, Compleated Sage, Ajani, Sleeper
-Agent, Lukka, Bound to Ruin and Nahiri, the Unforgiving the printed cost the engine carries therefore has nothing to
-remove, and a "compleated" alternative cost would be the SAME mana plus 2 life and 2 loyalty — strictly dominated,
-never right to take, and one more action for the AI to enumerate. The line stays unparsed for those four until
-`parseManaCost` learns the symbol; the patch is in this wave's `coreChangeNeeded`.
+**Which cards the parser claims.** All seven compleated walkers. The mono-coloured pips — Vraska, Betrayal's Sting
+`{B/P}`, Jace, the Perfected Mind `{U/P}`, Nissa, Ascended Animist `{G/P}{G/P}` — land in `manaCost.phyrexian`; the
+hybrid `{G/W/P}` of Tamiyo, Compleated Sage, Ajani, Sleeper Agent, Lukka, Bound to Ruin and Nahiri, the Unforgiving
+lands in `manaCost.phyrexianHybrid` since 9.1x item 10 (before that `parseManaCost` dropped the symbol and those four
+lines stayed unparsed). Either way removing the pips makes the alternative cost 2 mana cheaper per pip.
 
-**How "life was paid" is known.** The engine already pays 2 life for a Phyrexian pip it cannot produce (`castSpell`,
-right after `payMana`) but records nothing about having done so, and there is no seam a family can hang on that
-branch. The parser therefore writes the life route as the card's own **alternative cost** — the printed cost with its
-Phyrexian symbols removed, plus 2 life for each — with the core id `life`. `castWith.alt` records the choice, the AI
-enumerates it as a real cast variant, and this hook keys off it.
+**How "life was paid" is known.** Two routes, and both reach the as-enters. Since 9.1x item 11 the PRINTED cost's
+Phyrexian pips are paid by the mana solver itself: `mana.ts:solve` tries every mana-vs-life split (mana preferred,
+life only within the life total, CR 119.4), `Payment.life` carries the life, `payMana` charges it and `castSpell`
+records the pips paid that way in `castWith.phyrexianLife`. The parser also still writes the life route as the
+card's own **alternative cost** — the printed cost with its Phyrexian symbols removed, plus 2 life for each, with the
+core id `life` — which `castWith.alt` records. The `compleated` hook reads both (`alt === 'life'` → `fewer`;
+otherwise two per `phyrexianLife` pip).
 
-That leaves one divergence, and it is **not** small: on a board that can pay the printed cost in mana the plain cast
-is offered beside the alternative one, and `game.ts` charges the plain cast NEITHER mana NOR life for the Phyrexian
-pip (`castSpell` tests `pay.taps.some(t => t.option.includes(c))`, which any land that could have produced the colour
-already satisfies). The plain cast is therefore strictly better than the compleated one, and the AI takes it — so the
-as-enters only fires on boards where the printed cost is unpayable, which is what the two scenarios pin. Charging the
-pip properly is a core fix and is in this wave's `coreChangeNeeded`; until it lands, "compleated" is right when it
-happens and unreachable when the mana is there.
+The alternative cost is now a redundant second route: on a board that can pay the printed cost in mana the solver
+pays mana and the walker enters with full loyalty, and on one that cannot, the printed cost pays life and shrinks the
+loyalty exactly as the `life` alternative would. The family may drop the alternative cost and keep the line rule for
+the as-enters alone (HANDOFF item 33(e)); the scenarios pin the as-enters on boards where the printed cost is
+unpayable, which both routes satisfy.
 
 #### Example ASTs (see the banner: not yet scriptable)
 
@@ -4967,22 +4956,19 @@ review fix, each written so it fails if the op did nothing.
 
 ### 8. What this family does NOT fix (read before scoring its coverage)
 
-* **Nissa, Who Shakes the World's `+1` is inert, and the family cannot reach it.** "Put three +1/+1 counters on up to
-  one target noncreature land you control" is claimed by a **built-in** stage of `parse.ts`, which produces the same
-  unsatisfiable `{ kind: 'creature', filter: { notTypes: ['Creature'], types: ['Land'] } }` this family's own
-  `target()` exists to prevent — and built-ins run first at every dispatch point, so no rule here is ever offered the
-  sentence. The `Untap it` / `becomes a … that's still a land` rules then complete the paragraph correctly, which is
-  why the card looked "fully parsed" in the first review. It no longer is (its `-8` is an anthem emblem, which now
-  declines), but the `+1` still binds nothing. The one-line built-in fix is in `coreChangeNeeded`.
-* **An emblem breaks `undo` in the web app.** `apps/web/workers/game.worker.ts:undo()` rebuilds its def table from the
-  deck payloads alone, and an emblem is the first object in the engine with a `CardDef` that is not derivable from a
-  deck (`"<Source> emblem"`), so `deserializeState` throws and the undo is reported as "Could not restore". The
-  analysis pool is safe because `src/analysis/pool.ts` posts `collectDefs(state)` before each request — the same
-  idiom the patch gives `takeSnapshot`, so the snapshot carries the defs its own state needs and `undo()` merges them
-  over the deck table. The four-line patch is in `coreChangeNeeded` (applied locally it compiles under
-  `npm run web:typecheck` and the serialize round-trip keeps the command zone and `ext.emblems`); nothing a family
-  file can do reaches it — giving the emblem a deck-derivable `def` would put a castable planeswalker card in the
-  command zone, because `legal.ts:castActionsFor` reads `c.def`, not `defOf(c)`.
+* **Nissa, Who Shakes the World's `+1` — fixed in the core (9.1x item 8); her `-8` is still family work.** "Put three
+  +1/+1 counters on up to one target noncreature land you control" is claimed by a **built-in** stage of `parse.ts`,
+  which used to pick the target kind by substring, read `creature` inside `noncreature` and build the unsatisfiable
+  `{ kind: 'creature', filter: { notTypes: ['Creature'], types: ['Land'] } }`; since `PARSER_VERSION` 5 it picks on
+  whole words and the target is a `land` spec. The card is still not fully parsed: its `-8` is an anthem emblem,
+  which `emblemAbilities` declines until the family routes it through `parseStatic` (HANDOFF item 33(c)).
+* **An emblem used to break `undo` in the web app — fixed in 9.1x item 6.** `apps/web/workers/game.worker.ts:undo()`
+  rebuilt its def table from the deck payloads alone, and an emblem is the first object in the engine with a `CardDef`
+  that is not derivable from a deck (`"<Source> emblem"`), so `deserializeState` threw and the undo was reported as
+  "Could not restore". `takeSnapshot` now stores `collectDefs(state)` beside each resumable snapshot — the idiom
+  `src/analysis/pool.ts` already used for the analysis pool — and `undo()` merges those defs over the deck table.
+  (Giving the emblem a deck-derivable `def` was never an option: it would put a castable planeswalker card in the
+  command zone, because `legal.ts:castActionsFor` reads `c.def`, not `defOf(c)`.)
 
 ### replacement.md
 
@@ -5420,18 +5406,18 @@ the `prevent-rider` adoption above exists for, and the split §6's ordering note
 
 ### 6. What this family does not express yet
 
-* **A core prevention shield is spent before this family's damage fold runs.** `Game.dealDamage` consumes
-  `o.eotFlags.preventDamage` at game.ts:1902-1903 and `dealDamageToPlayer` short-circuits on the Fog flag at
-  game.ts:1883, both *before* `REPLACEMENTS.damage` at the line after. Two consequences:
-  * a `damage-replacement` multiplier is applied **after** that shield, so Furnace of Rath's doubling of a Lightning
-    Bolt is fully absorbed by a 3-point Healing Salve instead of leaving 3 to be dealt (CR 614.1a modifications come
-    first, then CR 615 prevention — the order this family promises and keeps for every shield it owns itself);
-  * a *restricted* `damage-cant-be-prevented` cannot switch that shield off (see §2; the unrestricted case is handled
-    by the sweep described there).
-
-  Both are one core change: fold `REPLACEMENTS.damage` **before** the `eotFlags.preventDamage` / Fog branches and let
-  this family answer "may this be prevented?" for them. It is written up as `coreChangeNeeded` in the Phase 9.1
-  report; nothing inside a family file can reach it.
+* **Closed in 9.1x (item 5) — the core's own shields beside this family's damage fold.** `Game.dealDamage` and
+  `dealDamageToPlayer` apply the core's own shield (`o.eotFlags.preventDamage`, the Fog flag) *first* and fold
+  `REPLACEMENTS.damage` on what is left, and the new `replacements.preventable` hook — this family answers it with
+  its own `preventable()` — lets a *restricted* `damage-cant-be-prevented` switch those shields off for one event
+  without consuming them (CR 615.12: a shield is not reduced by damage that can't be prevented). The order is NOT a
+  rule: CR 616.1 / 616.1e give the affected object's controller (or the affected player) the choice, and any order
+  is legal. Shield-first is the core's choice on that player's behalf because it never deals them more damage — a
+  doubler scales what the shield left ((2 − 1) × 2 = 2 for Shock at a 3/3 under Samite Healer and Furnace of Rath,
+  and the 3/3 lives), a Fog spends none of this family's one-shot shields on damage it prevents whole — pinned by
+  the two *9.1x item 5* scenarios in `test/scenarios/core-9-1x.ts`. It is the opposite of the fixed order §1 gives
+  the shields this family owns itself (modifiers first, then prevention). The unrestricted sweep in §2 is still
+  there and still correct.
 * **Comeuppance and Honorable Passage** split the rider by the *kind* of the prevented source ("if damage from a
   creature source is prevented this way … if damage from a noncreature source …"). `PreventFollowUp` has one mode
   per shield, so those lines stay unparsed.
@@ -5851,9 +5837,10 @@ Initiative** (day and night is 731), **702.146 is Disturb** (daybound *and* nigh
 
 ### 1. How a transformation is observed
 
-The core already flips a permanent (`{ op: 'transform-self' }`, `game.ts:applyEffect`), but it announces the flip
-only as a `transform` **event** — no trigger event is queued, so before this family "Whenever this creature
-transforms into …" could never fire on any card.
+The core already flipped a permanent (`{ op: 'transform-self' }`, `game.ts:applyEffect`), but it announced the flip
+only as a `transform` **event** — no trigger event was queued, so before this family "Whenever this creature
+transforms into …" could never fire on any card. Since 9.1x items 16 and 19 the core hands that op to this family's
+`flip` (the `transform` hook), so every flip on the battlefield now goes through the first half below.
 
 The family observes it twice over, and the two halves cover different flips.
 
@@ -5870,9 +5857,10 @@ trigger — which is exactly what happened before this half existed. The scenari
 the transformation kills the permanent that transformed* pins the werewolf case and *a self transforms trigger fires
 when the flip shrinks the permanent to lethal damage* pins the op's own.
 
-**An `sba` hook is the backstop** for the one flip the family cannot reach: the core `{ op: 'transform-self' }`, which
-`game.ts:applyEffect` performs without going through `flip`. It compares every double-faced permanent's `activeFace`
-with the last face reported and queues a `transforms` event when they differ. `checkSBA` runs at the top of every
+**An `sba` hook is the backstop** for a face changed by any route that bypasses `flip` — none printed, now that the
+core `{ op: 'transform-self' }` comes through `flip` too (9.1x); before that it was the core op's only observer. It
+compares every double-faced permanent's `activeFace` with the last face reported and queues a `transforms` event when
+they differ. `checkSBA` runs at the top of every
 priority round and after every resolution (`game.ts:priorityRound`, `resolveStackFully`), which is where triggers wait
 to be put on the stack (CR 603.3).
 
@@ -5882,17 +5870,16 @@ Three consequences worth knowing before you write a script:
   face up is not a transformation: CR 712.14a ("put onto the battlefield transformed" — it *enters* with its back
   face up) and CR 702.145b ("if it is night … it enters transformed") are replacement effects, and CR 701.27a only
   ever transforms a double-faced permanent that is already on the battlefield.
-* **Two `transform-self` flips inside one resolution are one net change.** Only the backstop half is a state-based
-  observation, so "`transform-self`, then `transform-self` again" leaves the face where it started and raises
-  nothing. This family's own op does not have that limit — each of its flips announces itself, so two of them raise
-  two events, which is what CR 603.2 asks for. No printed card does either.
-* **A core `transform-self` flip that kills the permanent is never reported.** The backstop only sees permanents
-  that survive the state-based check, so a shrinking flip whose new toughness is 0 or less (Ulrich of the
-  Krallenhorde with four -1/-1 counters turning back, Lambholt Elder // Silverpelt Werewolf) puts the permanent into
-  the graveyard without a `transforms` event, and a "whenever another creature you control transforms" watcher
-  (Neglected Heirloom) misses it. CR 603.2 says it should trigger; the fix is the core op raising the event itself
-  (9.1x). The family's own `flip` announces the transformation before the check, so daybound / nightbound and the
-  family's `transform` op are not affected.
+* **Two flips inside one resolution raise two events**, whichever op performs them — each flip announces itself
+  through `flip`, which is what CR 603.2 asks for. (Before 9.1x the core `transform-self` was observed only by the
+  backstop, so "`transform-self`, then `transform-self` again" was one net change and raised nothing.) No printed
+  card does either.
+* **A flip that kills the permanent is reported** (9.1x item 19). A shrinking flip whose new toughness is 0 or less
+  (Ulrich of the Krallenhorde with four -1/-1 counters turning back, Lambholt Elder // Silverpelt Werewolf) queues
+  the `transforms` event at the instant of the flip, before the state-based check puts the permanent into the
+  graveyard, so a "whenever another creature you control transforms" watcher (Neglected Heirloom) sees it — pinned
+  by *9.1x item 19: a transform that kills the permanent is still seen by "whenever a permanent you control
+  transforms"* in `test/scenarios/core-9-1x.ts`. Before 9.1x that held for the family's own ops only.
 
 The ability that triggers is the one on the face **that is now up** (CR 701.27a). A "Whenever this creature
 transforms into Ulrich, Uncontested Alpha" printed on the back face fires when the permanent turns *into* the back
@@ -6082,22 +6069,24 @@ the handler, so the entry is gone from that list.
 
 `first-main-phase` is the only head this family adds that fires **every turn, on every permanent that carries it**,
 and the parser contract cannot gate it: `TriggerRule.make` is handed the trigger head alone, never the body. Across
-the pool the head sits on 56 abilities, and only 19 of them have a body the engine can actually play.
+the pool the head sits on 56 abilities, and only 23 of them have a body the engine can actually play (19 at 9.1, plus
+the four the 9.1x core fixes below brought back).
 
 * **33 hold an `unknown` clause** (Ripples of Undeath, Advanced Reconstruction, Sab-Sunen, Coalition Relic, …).
   Claiming the head on those would put an ability on the stack once a turn for the rest of the game whose only
   observable effect is an `unsimulated` event: strictly worse than the pre-9.1 reading, where the head parsed as
   `{ on: 'unknown' }` and the ability never fired at all. Two of the four `fidelity:check` pairings failed that way.
-* **4 hold no `unknown` at all and still parse to something the engine reads wrong** — Static Prison, Electrozoa,
-  Black Market, Altar of Shadows. See "Open issues": both root causes are core defects, and both existed before this
-  family. `unknown` cannot find them, so a second predicate (`misparsed`) names the two shapes explicitly.
+* **4 held no `unknown` at all and still parsed to something the engine read wrong** — Static Prison, Electrozoa,
+  Black Market, Altar of Shadows. Both root causes were core defects older than this family (`{E}` parsed as a free
+  mana cost; `add-mana.perEach` never read) and both are closed in 9.1x (items 14 and 15, see "Open issues"), so those
+  four bodies are live now. The second predicate (`misparsed`) that named the two shapes declines nothing today and
+  stays as the seat for the next such shape.
 
 So the family's discipline — *decline rather than claim what you cannot express* — is applied one hop later, in the
 engine: **the trigger fires only for an ability whose whole body (and intervening-if) the engine can play**
-(`bodySimulable`, `src/engine/ops/transform.ts`). The 19 complete cards behave as written; the other 37 keep exactly
-their pre-9.1 behaviour and come alive by themselves the moment the missing clause or the core fix lands. A script
-you write by hand is never affected by the first gate (it may not contain an `unknown` at all) and is affected by the
-second only if it writes one of the two broken shapes, which it should not.
+(`bodySimulable`, `src/engine/ops/transform.ts`). The 23 complete cards behave as written; the other 33 keep exactly
+their pre-9.1 behaviour and come alive by themselves the moment the missing clause lands. A script you write by hand
+is never affected by the first gate (it may not contain an `unknown` at all), and the second names no shape today.
 
 ---
 
@@ -6129,9 +6118,10 @@ daybound, the back face nightbound — by `set-day-night`, by the continuous che
 On top of those, CR 702.145c and CR 702.145f are **continuous** ("any time … this happens immediately and isn't a
 state-based action"): a front-face-up daybound permanent while it is night, or a back-face-up nightbound permanent
 while it is day, is put back on the right face. The SBA loop is the only continuous check the engine has, so both run
-from the family's `sba` hook, which returns `true` when it corrected a face so the loop runs again. That is also the
-safety net for the one flip the family cannot gate — the **core** `{ op: 'transform-self' }` op, which does not go
-through this family's `flip` (see "Open issues").
+from the family's `sba` hook, which returns `true` when it corrected a face so the loop runs again. The **core**
+`{ op: 'transform-self' }` op goes through this family's `flip` since 9.1x, so it is gated like the family's own op
+(the scenario *a daybound permanent cannot be transformed by a plain transform effect while it is day* pins it); the
+continuous check remains the safety net for a face changed by any other route.
 
 The line rule that claims the printed `Daybound` / `Nightbound` line also adds
 `{ kind: 'day-night-enters', to: 'day' | 'night' }`, which carries CR 702.145d / 702.145g as well as 702.145b.
@@ -6253,13 +6243,13 @@ stops the ability firing until the body is complete and playable.
 * **"Add X mana of any one color, where X is …" is not expressible.** `{ op: 'add-mana' }`'s `amount` is a plain
   `number`, not an `Amount`, so The Core's back face stays unparsed even though the amount it needs
   (`permanent-cards-in-graveyard`) now exists.
-* **The core `{ op: 'transform-self' }` is not gated by daybound's "can't transform" ability.** This family's own
-  `transform` op refuses to flip a daybound / nightbound permanent (CR 702.145b / 702.145e), but `transform-self` is
-  a core op applied in `game.ts:applyEffect` and a family cannot intercept it. In practice the continuous CR 702.145c
-  / 702.145f check in the `sba` hook puts the face straight back whenever it is day or night — the scenario
-  *a daybound permanent forced onto its night face while it is day is transformed straight back* pins exactly that —
-  so the only window it stays wrong in is "neither day nor night", where no printed card can reach it. Closing it
-  properly is a two-line core change (see `coreChangeNeeded` in the 9.1 review).
+* **Closed in 9.1x (items 16 and 19) — the core `{ op: 'transform-self' }` was not gated by daybound's "can't
+  transform" ability.** `game.ts:applyEffect` now hands the plain `transform-self` to this family's `transform` hook,
+  which runs it through `flip`, so a daybound / nightbound permanent refuses it (CR 702.145b / 702.145e) even when it
+  is neither day nor night, and the `transforms` event is raised at the instant of the flip. Pinned by *a daybound
+  permanent cannot be transformed by a plain transform effect while it is day* here and by the `9.1x item 16` /
+  `item 19` scenarios in `test/scenarios/core-9-1x.ts`. The exile-and-return form (`viaExile`) stays in the core: a
+  new object entering is not a transformation.
 * **Wolf Strike counts as parsed but its damage clause deals 0.** The family's `it's night` condition finished the
   card, so it now reads `fullyParsed` — but its second clause, "Then it deals damage equal to its power to target
   creature you don't control", was *already* being mis-parsed by a built-in rule (`parse.ts:256`,
@@ -6268,27 +6258,23 @@ stops the ability firing until the body is complete and playable.
   kills nothing. **Do not count Wolf Strike as a coverage gain**: the pump half works and is what the family's own
   scenario asserts, the damage half needs the core parser fix reported with the 9.1 review. Nothing in this family
   can reach it — a built-in sentence rule claims that clause before any registry rule is offered it.
-* **`{E}` in a printed cost parses as a free MANA cost, so "unless you pay {E}" is auto-paid.** Energy is CR 118.12:
-  an energy counter is paid from the player's own pool, not with mana. The mana-cost parser drops the symbol and
-  leaves `{ generic: 0, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{E}' }` — a cost of nothing — which the
-  engine pays for free and logs as "pays {E}". Under this family's `first-main-phase` head that hits **Static
-  Prison** (never sacrificed) and **Electrozoa** (never tapped), and it is *not* new: **Lathnu Hellion** carries the
-  same shape under the core `end-step` head and is already live at base, and three such abilities exist in the pool.
-  The engine gate in §5 now declines the two under this family's head, restoring the pre-9.1 silence, but the parse
-  itself is still wrong, so **do not count Static Prison or Electrozoa as a coverage gain**. The fix is in
-  `src/cards/cost.ts` / the mana-cost parser and is reported in the 9.1 review's `coreChangeNeeded`.
-* **`{ op: 'add-mana' }`'s `perEach` is never read.** `game.ts`'s `case 'add-mana'` looks at `e.mana` and `e.amount`
-  only, so `{ op: 'add-mana', mana: ['B'], perEach: { count: 'counters-on-source', counter: 'charge' } }` adds
-  exactly one {B} however many charge counters are on the permanent. Under this family's head that is **Black
-  Market** and **Altar of Shadows**; a CardDB sweep finds **51 more** abilities with the same unread field outside it
-  (Everflowing Chalice, Rofellos, Magus of the Coffers, …), so it is a pre-existing core defect, not a 9.1 one. As
-  above, the §5 gate declines the two in reach and **neither card counts as a coverage gain**; the patch is in the
-  9.1 review's `coreChangeNeeded`.
+* **Closed in 9.1x (item 15) — `{E}` in a printed cost parsed as a free MANA cost, so "unless you pay {E}" was
+  auto-paid.** Energy is CR 118.12, paid from the player's own counters, and the parser now reads it as such:
+  `energyOf()`, `sacrifice-unless-pay.energy`, a bare `{E}` cost phrase as `AbilityCost.energy`. **Static Prison** is
+  sacrificed and **Electrozoa** tapped when the energy is not there (scenario *Static Prison is sacrificed in the
+  first main phase of a player with no energy to pay {E}* here and the three `9.1x item 15` scenarios in
+  `test/scenarios/core-9-1x.ts`); **Lathnu Hellion**, the same shape under the core `end-step` head, is fixed with
+  them. The §5 gate no longer declines the two, and both count as parsed cards now.
+* **Closed in 9.1x (item 14) — `{ op: 'add-mana' }`'s `perEach` was never read.** `game.ts`'s `case 'add-mana'`
+  multiplies the whole symbol list by `perEach` (0 adds nothing), so **Black Market** and **Altar of Shadows** add one
+  {B} per charge counter (scenario *Black Market's first-main-phase trigger adds one {B} per charge counter*), and
+  the **51** abilities outside this family's head that carry the same field (Everflowing Chalice, Rofellos, Magus of
+  the Coffers, …) are live with them. The §5 gate no longer declines the two.
 * **`bodySimulable` can only decline shapes it is told about.** The `unknown` half of the gate is general; the
-  `misparsed` half is a hand-written list of two known-wrong shapes, found by sweeping every `first-main-phase` body
-  in the CardDB. A third mis-parse of the same kind would slip through until someone adds it. There is no general
-  test for "this AST is well-formed but semantically wrong", which is why the two entries above are also filed as
-  core fixes rather than left to the gate.
+  `misparsed` half is a hand-written list of known-wrong shapes, found by sweeping every `first-main-phase` body in
+  the CardDB — empty since 9.1x closed the two it held. A new mis-parse of the same kind would slip through until
+  someone adds it. There is no general test for "this AST is well-formed but semantically wrong", which is why such
+  entries are filed as core fixes rather than left to the gate.
 * **The family's zod variants reach no schema.** `src/engine/ops/transform.schema.ts` exports the `FamilySchema` the
   §1.5 schema composer is meant to fold into `EffectSchema` / `ConditionSchema` / `TriggerEventSchema` /
   `AsEntersSchema` / `StaticEffectSchema` and the `TARGET_KINDS` / `AMOUNT_COUNTS` enums, but that composer does not

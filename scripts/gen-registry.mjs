@@ -77,6 +77,7 @@ export type CanAttackHook = (s: GameState, o: GameObject) => boolean | undefined
 export type CanBlockHook = (s: GameState, blocker: GameObject, attacker: GameObject) => boolean | undefined;
 export type BlockCheckHook = (s: GameState, blocker: GameObject, attacker: GameObject) => boolean;
 export type BlockFixupHook = (g: Game, attackers: GameObject[], defender: PlayerId) => void;
+export type AttackFixupHook = (g: Game, chosen: Set<number>, ap: PlayerId) => void;
 export type CombatDamageHook = (g: Game, assignments: DamageAssignment[]) => void;
 export type TriggerSourceHook = (s: GameState) => GameObject[];
 export type RedactHook = (o: GameObject, viewer: PlayerId) => void;
@@ -84,11 +85,14 @@ export type RedactPlayerHook = (pl: Player, viewer: PlayerId) => void;
 export type RedactStateHook = (s: GameState, viewer: PlayerId) => void;
 export type EotCleanupHook = (g: Game, o: GameObject) => void;
 export type LeaveHook = (g: Game, o: GameObject, zone: Zone) => void;
+export type ControlUntilEotHook = (g: Game, o: GameObject, to: PlayerId, src: GameObject) => boolean;
+export type TransformHook = (g: Game, o: GameObject) => boolean;
 export type CastFromHook = (g: Game, p: PlayerId, card: GameObject, from: CastZone) => boolean | undefined;
 export type FreeCastHook = (g: Game, p: PlayerId, card: GameObject, from: CastZone) => boolean | undefined;
 export type TargetKindHook = (g: Game, controller: PlayerId, source: GameObject, spec: TargetSpec) => TargetRef[];
 export type ZoneMoveHook = (g: Game, o: GameObject, zone: Zone, pos: 'top' | 'bottom', reason: string) => ZoneMoveOverride | null;
 export type DamageHook = (g: Game, src: GameObject, target: GameObject | PlayerId, n: number, combat: boolean) => number;
+export type PreventableHook = (g: Game, src: GameObject, target: GameObject | PlayerId, combat: boolean) => boolean;
 export type DrawHook = (g: Game, p: PlayerId) => boolean;
 export type CountersHook = (g: Game, o: GameObject, counter: string, delta: number) => number;
 export type LifeGainHook = (g: Game, p: PlayerId, n: number) => number;
@@ -103,7 +107,7 @@ export const TRIGGERS: Record<string, TriggerOp> = {};
 export const STATICS: Record<string, StaticOp> = {};
 export const COST_PARTS: Record<string, CostPart> = {};
 export const AS_ENTERS: Record<string, AsEntersOp> = {};
-export const REPLACEMENTS: { zoneMove: ZoneMoveHook[]; damage: DamageHook[]; draw: DrawHook[]; counters: CountersHook[]; lifeGain: LifeGainHook[] } = { zoneMove: [], damage: [], draw: [], counters: [], lifeGain: [] };
+export const REPLACEMENTS: { zoneMove: ZoneMoveHook[]; damage: DamageHook[]; preventable: PreventableHook[]; draw: DrawHook[]; counters: CountersHook[]; lifeGain: LifeGainHook[] } = { zoneMove: [], damage: [], preventable: [], draw: [], counters: [], lifeGain: [] };
 export const STEP_HOOKS: Record<string, StepHook[]> = {};
 export const SBA_HOOKS: SbaHook[] = [];
 export const LEGAL_PROVIDERS: LegalProvider[] = [];
@@ -113,6 +117,7 @@ export const CAN_ATTACK: CanAttackHook[] = [];
 export const CAN_BLOCK: CanBlockHook[] = [];
 export const BLOCK_CHECKS: BlockCheckHook[] = [];
 export const BLOCK_FIXUPS: BlockFixupHook[] = [];
+export const ATTACK_FIXUPS: AttackFixupHook[] = [];
 export const COMBAT_DAMAGE_HOOKS: CombatDamageHook[] = [];
 export const TRIGGER_SOURCES: TriggerSourceHook[] = [];
 export const EVENT_META: Record<string, EventMeta> = {};
@@ -122,6 +127,8 @@ export const REDACT_STATE_HOOKS: RedactStateHook[] = [];
 export const EOT_CLEANUP: EotCleanupHook[] = [];
 export const RENDERERS: Record<string, RenderOp> = {};
 export const LEAVE_HOOKS: LeaveHook[] = [];
+export const CONTROL_UNTIL_EOT_HOOKS: ControlUntilEotHook[] = [];
+export const TRANSFORM_HOOKS: TransformHook[] = [];
 export const CAST_FROM_HOOKS: CastFromHook[] = [];
 export const FREE_CAST_HOOKS: FreeCastHook[] = [];
 export const MODE_COSTS: ModeCostHook[] = [];
@@ -153,7 +160,7 @@ function put<T>(target: Record<string, T>, owner: Record<string, string>, key: s
 
 function rebuild(): void {
   for (const r of [EFFECT_OPS, CONDITIONS, AMOUNTS, TRIGGERS, STATICS, COST_PARTS, AS_ENTERS, ACTIONS, DECISION_DEFAULTS, EVENT_META, RENDERERS, TARGET_KINDS, TOKEN_ABILITIES, STEP_HOOKS] as Record<string, unknown>[]) clearRecord(r);
-  for (const a of [REPLACEMENTS.zoneMove, REPLACEMENTS.damage, REPLACEMENTS.draw, REPLACEMENTS.counters, REPLACEMENTS.lifeGain, SBA_HOOKS, LEGAL_PROVIDERS, CAN_ATTACK, CAN_BLOCK, BLOCK_CHECKS, BLOCK_FIXUPS, COMBAT_DAMAGE_HOOKS, TRIGGER_SOURCES, REDACT_HOOKS, REDACT_PLAYER_HOOKS, REDACT_STATE_HOOKS, EOT_CLEANUP, LEAVE_HOOKS, CAST_FROM_HOOKS, FREE_CAST_HOOKS, MODE_COSTS, COST_MODS, MODULES] as unknown[][]) a.length = 0;
+  for (const a of [REPLACEMENTS.zoneMove, REPLACEMENTS.damage, REPLACEMENTS.preventable, REPLACEMENTS.draw, REPLACEMENTS.counters, REPLACEMENTS.lifeGain, SBA_HOOKS, LEGAL_PROVIDERS, CAN_ATTACK, CAN_BLOCK, BLOCK_CHECKS, BLOCK_FIXUPS, ATTACK_FIXUPS, COMBAT_DAMAGE_HOOKS, TRIGGER_SOURCES, REDACT_HOOKS, REDACT_PLAYER_HOOKS, REDACT_STATE_HOOKS, EOT_CLEANUP, LEAVE_HOOKS, CONTROL_UNTIL_EOT_HOOKS, TRANSFORM_HOOKS, CAST_FROM_HOOKS, FREE_CAST_HOOKS, MODE_COSTS, COST_MODS, MODULES] as unknown[][]) a.length = 0;
   for (const k in BUILTIN_TOKEN_ABILITIES) TOKEN_ABILITIES[k] = BUILTIN_TOKEN_ABILITIES[k];
   const owners: Record<string, Record<string, string>> = { effect: {}, condition: {}, amount: {}, trigger: {}, static: {}, 'cost part': {}, 'as-enters': {}, action: {}, decision: {}, event: {}, renderer: {}, 'target kind': {}, 'token ability': Object.fromEntries(Object.keys(BUILTIN_TOKEN_ABILITIES).map(k => [k, '_tokens.ts'])) };
   for (const { file, mod } of [...GENERATED, ...RUNTIME]) {
@@ -175,6 +182,7 @@ function rebuild(): void {
     const rep = mod.replacements;
     if (rep?.zoneMove) REPLACEMENTS.zoneMove.push(rep.zoneMove as ZoneMoveHook);
     if (rep?.damage) REPLACEMENTS.damage.push(rep.damage as DamageHook);
+    if (rep?.preventable) REPLACEMENTS.preventable.push(rep.preventable as PreventableHook);
     if (rep?.draw) REPLACEMENTS.draw.push(rep.draw as DrawHook);
     if (rep?.counters) REPLACEMENTS.counters.push(rep.counters as CountersHook);
     if (rep?.lifeGain) REPLACEMENTS.lifeGain.push(rep.lifeGain as LifeGainHook);
@@ -185,6 +193,7 @@ function rebuild(): void {
     if (kh?.canBlock) CAN_BLOCK.push(kh.canBlock as CanBlockHook);
     if (kh?.blockCheck) BLOCK_CHECKS.push(kh.blockCheck as BlockCheckHook);
     if (kh?.blockFixup) BLOCK_FIXUPS.push(kh.blockFixup as BlockFixupHook);
+    if (kh?.attackFixup) ATTACK_FIXUPS.push(kh.attackFixup as AttackFixupHook);
     if (kh?.combatDamage) COMBAT_DAMAGE_HOOKS.push(kh.combatDamage as CombatDamageHook);
     if (mod.triggerSources) TRIGGER_SOURCES.push(mod.triggerSources);
     if (mod.redact) REDACT_HOOKS.push(mod.redact);
@@ -192,6 +201,8 @@ function rebuild(): void {
     if (mod.redactState) REDACT_STATE_HOOKS.push(mod.redactState);
     if (mod.cleanupEot) EOT_CLEANUP.push(mod.cleanupEot);
     if (mod.leave) LEAVE_HOOKS.push(mod.leave);
+    if (mod.controlUntilEot) CONTROL_UNTIL_EOT_HOOKS.push(mod.controlUntilEot);
+    if (mod.transform) TRANSFORM_HOOKS.push(mod.transform);
     if (mod.castFrom) CAST_FROM_HOOKS.push(mod.castFrom as CastFromHook);
     if (mod.freeCast) FREE_CAST_HOOKS.push(mod.freeCast as FreeCastHook);
     if (mod.modeCost) MODE_COSTS.push(mod.modeCost as ModeCostHook);

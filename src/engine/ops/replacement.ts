@@ -800,6 +800,7 @@ const REPLACEMENT: FamilyModule = {
 
   replacements: {
     damage: damageHook,
+    preventable: (g, src, _target, combat) => preventable(g.state, src, combat),   // CR 615.6 for the core's own shields (9.1x item 5)
     zoneMove: zoneMoveHook,
     counters: countersHook,
     draw: drawHook,

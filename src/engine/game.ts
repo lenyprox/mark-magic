@@ -12,8 +12,8 @@ import { redact } from './view.js';
 import { citation, LOGGED, renderEvent, type EventMode, type GameEvent, type GameEventBody, type ZoneChangeReason } from './events.js';
 import { alive, apnapOrder, nextInTurnOrder, opponentsOf, primaryOpponent } from './players.js';
 import {
-  ACTIONS, AS_ENTERS, BLOCK_CHECKS, BLOCK_FIXUPS, CAST_FROM_HOOKS, COMBAT_DAMAGE_HOOKS, CORE_COST_KEYS, COST_PARTS,
-  EFFECT_OPS, EOT_CLEANUP, FREE_CAST_HOOKS, HAS, LEAVE_HOOKS, REPLACEMENTS, SBA_HOOKS, STEP_HOOKS, TRIGGERS,
+  ACTIONS, AS_ENTERS, ATTACK_FIXUPS, BLOCK_CHECKS, BLOCK_FIXUPS, CAST_FROM_HOOKS, COMBAT_DAMAGE_HOOKS, CONTROL_UNTIL_EOT_HOOKS, CORE_COST_KEYS, COST_PARTS,
+  EFFECT_OPS, EOT_CLEANUP, FREE_CAST_HOOKS, HAS, LEAVE_HOOKS, REPLACEMENTS, SBA_HOOKS, STEP_HOOKS, TRANSFORM_HOOKS, TRIGGERS,
   TRIGGER_SOURCES, tokenAbilityOf,
 } from './ops/_registry.js';
 import { extBump, extDel, extSet } from './ops/ext.js';
@@ -66,6 +66,16 @@ export interface GameOptions {
 
 /** Stack items one turn may resolve before the engine calls the turn a mandatory loop (CR 726.4). */
 const MANDATORY_LOOP_LIMIT = 2000;
+
+/**
+ * A takeover fold (`controlUntilEot`, `transform`): the hooks are consulted newest-registered first and the first to
+ * return true owns the op, so a family registered at run time (a probe, an experiment) refines a shipped one instead
+ * of never being reached behind it.
+ */
+function takenOver<H>(hooks: readonly H[], call: (h: H) => boolean): boolean {
+  for (let i = hooks.length - 1; i >= 0; i--) if (call(hooks[i])) return true;
+  return false;
+}
 
 export class Game {
   state: GameState;
@@ -177,7 +187,11 @@ export class Game {
   async simulateCombat(attackerIds: number[], blocks: { blocker: number; attacker: number }[], targets?: Record<number, AttackTarget>) {
     const s = this.state; const dp = primaryOpponent(s, s.activePlayer);
     s.attackers = [];
+    // the whole-declaration attack restrictions the real step applies (CR 506.4, "can't attack alone"), before anything is tapped
+    const chosen = new Set(attackerIds);
+    if (ATTACK_FIXUPS.length) for (const h of ATTACK_FIXUPS) h(this, chosen, s.activePlayer);
     for (const id of attackerIds) {
+      if (!chosen.has(id)) continue;
       const o = findObject(s, id); if (!o || o.zone !== 'battlefield') continue;
       const want = targets?.[id]; delete o.attackingPlaneswalker;
       if (typeof want === 'object' && want) { const pw = findObject(s, want.planeswalker); o.attacking = pw?.controller ?? dp; if (pw) o.attackingPlaneswalker = pw.id; }
@@ -571,7 +585,11 @@ export class Game {
     const effects = spellAb ? spellAb.effects : [];
     const x = a.x ?? 0;
     let free = from === 'exile' && !alt && !!window?.free;
-    if (!free && FREE_CAST_HOOKS.length) for (const h of FREE_CAST_HOOKS) if (h(this, p, card, from) === true) { free = true; break; }
+    // CR 118.9: casting "without paying its mana cost" IS an alternative cost, and only one alternative cost may be
+    // applied to a spell, so a cast that chose `alt` (flashback, escape, ...) is never free as well - the same `!alt`
+    // guard the CAST_FROM_HOOKS block above has. Without it the alternative cost's non-mana parts were paid on top of
+    // a ZERO_COST mana payment (9.1x item 2).
+    if (!free && !alt && FREE_CAST_HOOKS.length) for (const h of FREE_CAST_HOOKS) if (h(this, p, card, from) === true) { free = true; break; }
     if (!free && !alt && !def.manaCost) return false;
     const cost = free ? ZERO_COST : spellManaCost(def, alt, a.kicked, a.modes);
     const tax = from === 'command' ? 2 * (pl.commanderCasts[card.id] ?? 0) : 0;
@@ -614,14 +632,13 @@ export class Game {
     delete card.castableFromExile;
     s.stack.push(item);
     this.emit({ type: 'zone-change', id: card.id, name: def.name, owner: card.owner, controller: p, from: fromZone, to: 'stack', reason: 'cast', token: false, public: true }, '');
-    this.payMana(pl, pay);
-    for (const c of cost.phyrexian) if (!pay.pool.includes(c) && !pay.taps.some(t => t.option.includes(c))) this.loseLife(p, 2, 'Phyrexian mana');
+    this.payMana(pl, pay);                                   // Phyrexian pips paid with life are charged in there (CR 107.4f; `pay.life`)
     if (alt) await this.payCost(p, alt.cost, card, alt.label, item);
     for (const ac of def.additionalCosts ?? []) await this.payCost(p, ac, card, `${def.name} (additional cost)`, item);
     for (const id of delveIds) { const o = findObject(s, id); if (o && o.zone === 'graveyard') this.moveTo(o, 'exile'); }
     if (delveIds.length) card.exiledWith = [...(card.exiledWith ?? []), ...delveIds];
     const colorsSpent = new Set([...pay.pool, ...pay.taps.flatMap(t => t.option)].filter(c => c !== 'C')).size;
-    card.castWith = { alt: alt?.id, from, kicked: !!a.kicked, x, delved: delveIds.length, colorsSpent };
+    card.castWith = { alt: alt?.id, from, kicked: !!a.kicked, x, delved: delveIds.length, colorsSpent, ...(pay.life ? { phyrexianLife: pay.life / 2 } : {}) };
     pl.spellsCastThisTurn++;
     if (from === 'command') pl.commanderCasts[card.id] = (pl.commanderCasts[card.id] ?? 0) + 1;
     const how = [alt ? alt.label : '', from === 'graveyard' && !alt ? 'from graveyard' : from === 'exile' ? 'from exile' : from === 'command' ? (tax ? `from command zone, tax ${tax}` : 'from command zone') : '', delveIds.length ? `delve ${delveIds.length}` : '', a.kicked ? 'kicked' : ''].filter(Boolean);
@@ -846,7 +863,11 @@ export class Game {
       const opts = targetOptionsFor(this, item.controller, spec, item.source);
       const pick = chosen?.[ci++] ?? [];
       const needed = specCount(spec, item.x);
-      if (!spec.optional && !soft && pick.length < Math.min(needed, opts.length)) { if (opts.length === 0) return false; if (pick.length === 0) return false; }
+      // CR 601.2c / 602.2b: a required target with no legal option means the spell or ability cannot be cast or
+      // activated at all. `legalActions` never offers such an action; this makes the engine, not the enumerator, the
+      // authority for a caller that skips it (9.1x item 7 - the old `pick.length < Math.min(needed, 0)` was never true)
+      if (!spec.optional && !soft && opts.length === 0) return false;
+      if (!spec.optional && !soft && pick.length < Math.min(needed, opts.length) && pick.length === 0) return false;
       for (const t of pick) if (!opts.some(o => o.kind === t.kind && o.id === t.id)) return false;
       // a part beyond the first (a `multi` sub-spec, exchange's second permanent) appends to the effect's list; within
       // one part the same target may not be chosen twice (CR 115.3)
@@ -884,6 +905,9 @@ export class Game {
   }
 
   payMana(pl: import('./state.js').Player, pay: Payment) {
+    // CR 107.4f: a Phyrexian pip the plan pays with life costs 2 life per pip, whatever the plan is paying for (a spell,
+    // an activated ability, an "unless" cost); `findPayment` only builds such a plan when the life total covers it
+    if (pay.life) this.loseLife(pl.id, pay.life, 'Phyrexian mana');
     for (const m of pay.pool) { const i = pl.manaPool.indexOf(m); if (i >= 0) { pl.manaPool.splice(i, 1); continue; } const j = pl.stickyMana?.indexOf(m) ?? -1; if (j >= 0) pl.stickyMana!.splice(j, 1); }
     for (const t of pay.taps) {
       const o = t.source.obj; this.setTapped(o, true, 'mana');
@@ -1198,7 +1222,9 @@ export class Game {
         if (src.zone !== 'battlefield') break;
         if (e.once === 'echo') { if (src.echoPaid) break; src.echoPaid = true; }
         const pl = s.players[p]; const pay = this.findPayment(pl, e.mana);
-        if (pay && await this.ask(p, { kind: 'yes-no', prompt: `Pay ${e.mana.raw} to keep ${name(src)}?`, tag: 'unless-pay' })) { this.payMana(pl, pay); this.note(`${this.pname(p)} pays ${e.mana.raw} for ${name(src)}.`); }
+        // CR 118.12 / 122.1c: "{E}" is energy, paid from the player's own counters beside the mana (Static Prison, Lathnu Hellion; 9.1x item 15)
+        const canEnergy = (e.energy ?? 0) <= (pl.energy ?? 0);
+        if (pay && canEnergy && await this.ask(p, { kind: 'yes-no', prompt: `Pay ${e.mana.raw} to keep ${name(src)}?`, tag: 'unless-pay' })) { this.payMana(pl, pay); if (e.energy) { pl.energy = (pl.energy ?? 0) - e.energy; this.note(`${this.pname(p)} pays ${e.energy} energy (${pl.energy} left).`); } this.note(`${this.pname(p)} pays ${e.mana.raw} for ${name(src)}.`); }
         else this.sacrifice(src);
         break;
       }
@@ -1415,7 +1441,16 @@ export class Game {
         this.shuffle(p);
         break;
       }
-      case 'add-mana': { if (Array.isArray(e.mana)) this.addMana(p, e.mana, item.name, e.sticky); else { const c = (await this.ask(p, { kind: 'choose-color', reason: item.name })) as ManaSymbol; this.addMana(p, Array(e.amount ?? 1).fill(c) as ManaSymbol[], item.name); } break; }
+      case 'add-mana': {
+        // "add {B} for each charge counter on ~" (Black Market, Altar of Shadows, Rofellos, Magus of the Coffers, ...):
+        // `perEach` multiplies the whole symbol list, as the mana-ability path in mana.ts already does. 0 is a real
+        // answer - a Black Market with no charge counters adds nothing - so the guard is `> 0`, not `?? 1` (9.1x item 14)
+        const times = e.perEach === undefined ? 1 : amt(e.perEach);
+        if (times <= 0) break;
+        if (Array.isArray(e.mana)) { for (let k = 0; k < times; k++) this.addMana(p, e.mana, item.name, e.sticky); }
+        else { const c = (await this.ask(p, { kind: 'choose-color', reason: item.name })) as ManaSymbol; this.addMana(p, Array((e.amount ?? 1) * times).fill(c) as ManaSymbol[], item.name); }
+        break;
+      }
       case 'return-from-graveyard': {
         const pool = e.anyGraveyard ? s.players.flatMap(q => q.graveyard) : s.players[p].graveyard;
         const opts = pool.filter(o => matchesFilter(s, o, e.what, src));
@@ -1434,13 +1469,30 @@ export class Game {
       }
       case 'fight': { const [a] = e.self ? [src] : this.objs(T.slice(0, 1)); const b = this.objs(T)[e.self ? 0 : 1]; if (a && b && a.zone === 'battlefield' && b.zone === 'battlefield') { const pa = power(s, a), pb = power(s, b); this.dealDamage(a, b, pa); this.dealDamage(b, a, pb); } break; }
       case 'bite': { const b = this.objs(T)[0]; const a = src.zone === 'battlefield' ? src : this.objs(T)[1]; if (a && b) this.dealDamage(a, b, power(s, a)); break; }
-      case 'gain-control': { const list = objsOf(e.target).filter(o => o.zone === 'battlefield'); this.noteAffected(item, list); for (const o of list) { if (e.duration === 'eot') { (o as GameObject & { controlUntilEot?: PlayerId }).controlUntilEot = o.controller; } this.changeControl(o, p); if (e.untapHaste) { this.setTapped(o, false, 'effect'); o.eotKeywords.push('haste'); } } break; }
+      case 'gain-control': {
+        const list = objsOf(e.target).filter(o => o.zone === 'battlefield'); this.noteAffected(item, list);
+        for (const o of list) {
+          // CR 613.7: an until-end-of-turn theft over (or under) a family's "for as long as" effect has to sit in ONE
+          // timestamp order with it, so a registered family takes the theft over; the core's one-slot
+          // `controlUntilEot` (wiped at cleanup) is the no-family fallback (9.1x item 13)
+          if (e.duration === 'eot' && CONTROL_UNTIL_EOT_HOOKS.length && takenOver(CONTROL_UNTIL_EOT_HOOKS, h => h(this, o, p, src))) { /* recorded by the family */ }
+          else { if (e.duration === 'eot') { (o as GameObject & { controlUntilEot?: PlayerId }).controlUntilEot = o.controller; } this.changeControl(o, p); }
+          if (e.untapHaste) { this.setTapped(o, false, 'effect'); o.eotKeywords.push('haste'); }
+        }
+        break;
+      }
       case 'regenerate': { const list = e.target === 'self' ? [src] : objsOf(e.target); for (const o of list) o.eotFlags.regenerationShield = (o.eotFlags.regenerationShield ?? 0) + 1; break; }
       case 'prevent-damage': { const list = e.target === 'you' ? [] : e.target === 'self' ? [src] : objsOf(e.target); for (const o of list) o.eotFlags.preventDamage = e.amount === 'all' ? 'all' : amt(e.amount); if (e.target === 'you') (s as GameState & { fog?: number }).fog = s.turn; break; }
       case 'cant-attack-or-block': for (const o of objsOf(e.target)) o.eotFlags.cantAttackOrBlock = true; break;
       case 'extra-turn': s.extraTurns.push(p); this.emit({ type: 'extra-turn', player: p }); break;
       case 'transform-self': {
         if (!src.def.backFace || src.zone !== 'battlefield') break;
+        // A plain flip belongs to the family that owns transformation when one is registered: it refuses a daybound /
+        // nightbound permanent (CR 702.145b / 702.145e) and raises `transforms` at the instant of the flip (CR 603.2),
+        // so a flip that kills the permanent - the new face's toughness is 0 or less, or under the damage marked - is
+        // still seen by "whenever a permanent you control transforms" (9.1x items 16 and 19). The "exile, then return
+        // it transformed" form is a new object entering, not a transformation, and stays here.
+        if (!e.viaExile && TRANSFORM_HOOKS.length && takenOver(TRANSFORM_HOOKS, h => h(this, src))) break;
         src.activeFace = src.activeFace === 1 ? 0 : 1; src.transformed = src.activeFace === 1; this.bfGen++;
         if (e.viaExile) { src.enteredTurn = s.turn; src.tapped = false; src.damage = 0; src.counters = {}; }
         const d = defOf(src);
@@ -1899,10 +1951,28 @@ export class Game {
     const mult = gained / n; pl.life += gained; pl.lifeGainedThisTurn = (pl.lifeGainedThisTurn ?? 0) + gained; this.emit({ type: 'life', player: p, delta: n * mult, total: pl.life, reason: 'gain' }); this.queueTriggers('life-gain', { player: p, amount: gained }); }
   loseLife(p: PlayerId, n: number, why: string) { if (n <= 0) return; const pl = this.state.players[p]; pl.life -= n; pl.lifeLostThisTurn += n; this.emit({ type: 'life', player: p, delta: -n, total: pl.life, reason: why }); this.queueTriggers('life-loss-opponent', { player: p, amount: n }); }   // "you gain that much life" (Exquisite Blood): the amount
 
+  /** CR 615.12 ("can't be prevented"): may this damage be prevented at all? The families answer (a "can't be prevented" effect or static); nobody registered means yes. */
+  private preventable(src: GameObject, target: GameObject | PlayerId, combat: boolean): boolean {
+    if (!REPLACEMENTS.preventable.length) return true;
+    for (const h of REPLACEMENTS.preventable) if (!h(this, src, target, combat)) return false;
+    return true;
+  }
+  // CR 616.1 / 616.1e: when the core's own shield (`eotFlags.preventDamage`, the Fog flag) and a family replacement or
+  // prevention effect apply to the same damage event, the AFFECTED object's controller (or the affected player)
+  // chooses the order, and any order is legal. `dealDamage` is synchronous, so nobody is asked; the core applies its
+  // shield FIRST, on that player's behalf, because for every family mode that is the order that never deals more
+  // damage to them: against a modifier (CR 614.1a `plus` / `times`) the shield eats the unmodified amount and the
+  // modifier scales what is left (Samite Healer under Furnace of Rath: (2 - 1) × 2 = 2, not 2 × 2 - 1 = 3), against a
+  // family prevention the total is the same either way, and a whole-event core shield (Fog, "prevent all") spends no
+  // one-shot family shield on damage it was going to prevent whole. What it costs them is only shield points spent on
+  // damage a family `none` replacement would have zeroed anyway. This is a policy, not a rule: a player may legally
+  // pick the other order (9.1x item 5, review 2).
   dealDamageToPlayer(src: GameObject, p: PlayerId, n: number) {
     if (n <= 0) return;
-    if ((this.state as GameState & { fog?: number }).fog === this.state.turn && this.state.step.includes('combat')) { this.emit({ type: 'prevented', player: p, amount: n, by: 'fog' }, ''); return; }
-    if (REPLACEMENTS.damage.length) { const cb = this.state.step === 'combat-damage' || this.state.step === 'first-strike-damage'; for (const h of REPLACEMENTS.damage) n = h(this, src, p, n, cb); if (n <= 0) return; }
+    const cb = this.state.step === 'combat-damage' || this.state.step === 'first-strike-damage';
+    // the core's Fog flag first (see above); CR 615.12: a family "can't be prevented" switches it off for this one event without consuming it
+    if ((this.state as GameState & { fog?: number }).fog === this.state.turn && this.state.step.includes('combat') && this.preventable(src, p, cb)) { this.emit({ type: 'prevented', player: p, amount: n, by: 'fog' }, ''); return; }
+    if (REPLACEMENTS.damage.length) { for (const h of REPLACEMENTS.damage) n = h(this, src, p, n, cb); if (n <= 0) return; }
     const pl = this.state.players[p];
     const combat = this.state.step === 'combat-damage' || this.state.step === 'first-strike-damage';
     // infect damage to a player is poison counters instead of life loss (CR 120.3c): it is still damage dealt, but no "loses life" event happens (Exquisite Blood / Mindcrank stay silent)
@@ -1920,10 +1990,15 @@ export class Game {
   dealDamage(src: GameObject, o: GameObject, n: number) {
     if (n <= 0 || o.zone !== 'battlefield') return;
     if (protectedFrom(this.state, o, src)) { this.emit({ type: 'replaced', what: 'protection', id: o.id, name: name(o) }); return; }
-    if (o.eotFlags.preventDamage === 'all') { this.emit({ type: 'prevented', id: o.id, name: name(o), amount: 'all', by: 'prevention shield' }); return; }
-    if (typeof o.eotFlags.preventDamage === 'number' && o.eotFlags.preventDamage > 0) { const prev = Math.min(o.eotFlags.preventDamage, n); o.eotFlags.preventDamage -= prev; n -= prev; this.emit({ type: 'prevented', id: o.id, name: name(o), amount: prev, by: 'prevention shield' }, ''); if (n <= 0) return; }
-    if (REPLACEMENTS.damage.length) { const cb = this.state.step === 'combat-damage' || this.state.step === 'first-strike-damage'; for (const h of REPLACEMENTS.damage) n = h(this, src, o, n, cb); if (n <= 0) return; }
     const combat = this.state.step === 'combat-damage' || this.state.step === 'first-strike-damage';
+    // the core's `prevent-damage` shield first, on the affected player's behalf (CR 616.1e, see dealDamageToPlayer);
+    // CR 615.12: a family "can't be prevented" (restricted to a source or to combat damage) switches the shield off
+    // for this event and leaves it in place for the next one — its points are not reduced by unpreventable damage.
+    if (o.eotFlags.preventDamage !== undefined && this.preventable(src, o, combat)) {
+      if (o.eotFlags.preventDamage === 'all') { this.emit({ type: 'prevented', id: o.id, name: name(o), amount: 'all', by: 'prevention shield' }); return; }
+      if (typeof o.eotFlags.preventDamage === 'number' && o.eotFlags.preventDamage > 0) { const prev = Math.min(o.eotFlags.preventDamage, n); o.eotFlags.preventDamage -= prev; n -= prev; this.emit({ type: 'prevented', id: o.id, name: name(o), amount: prev, by: 'prevention shield' }, ''); if (n <= 0) return; }
+    }
+    if (REPLACEMENTS.damage.length) { for (const h of REPLACEMENTS.damage) n = h(this, src, o, n, combat); if (n <= 0) return; }
     if (isType(o, 'Planeswalker')) { const total = (o.counters.loyalty ?? 0) - n; if (total <= 0) delete o.counters.loyalty; else o.counters.loyalty = total; this.emit({ type: 'damage', sourceId: src.id, source: name(src), targetId: o.id, target: name(o), amount: n, combat, total, loyalty: true }); }
     else if (hasKeyword(this.state, src, 'infect') || hasKeyword(this.state, src, 'wither')) { this.emit({ type: 'damage', sourceId: src.id, source: name(src), targetId: o.id, target: name(o), amount: n, combat, total: o.damage }, `${name(src)} deals ${n} damage to ${name(o)}#${o.id} as -1/-1 counters.`); this.addCounters(o, '-1/-1', n); if (hasKeyword(this.state, src, 'deathtouch')) (o as GameObject & { deathtouched?: boolean }).deathtouched = true; }
     else { o.damage += n; if (hasKeyword(this.state, src, 'deathtouch')) (o as GameObject & { deathtouched?: boolean }).deathtouched = true; this.emit({ type: 'damage', sourceId: src.id, source: name(src), targetId: o.id, target: name(o), amount: n, combat, total: o.damage }); }
@@ -2105,7 +2180,10 @@ export class Game {
       // legend rule
       if (SBA_HOOKS.length) for (const h of SBA_HOOKS) if (h(this)) again = true;
       for (const p of s.players) {
-        const legends = battlefieldOf(s, p.id).filter(o => o.def.supertypes.includes('Legendary'));
+        // CR 704.5j names "legendary permanents", and CR 707.2 makes a copy's supertypes the copied object's: `defOf`
+        // (the copy def when one is in force), never the printed card - two printed legends that both became copies of
+        // the same NONlegendary creature are not legends any more (9.1x item 4)
+        const legends = battlefieldOf(s, p.id).filter(o => defOf(o).supertypes.includes('Legendary'));
         const seen = new Map<string, GameObject>();
         for (const o of legends) { const n = name(o); if (seen.has(n)) { const older = seen.get(n)!; this.emit({ type: 'sba', kind: 'legend-rule', id: older.id, name: n }); this.moveTo(older, 'graveyard', 'top', 'sba'); again = true; } seen.set(n, o); }
       }
@@ -2308,7 +2386,12 @@ export class Game {
       const planeswalkers = defenders.flatMap(d => s.players[d].battlefield.filter(o => isType(o, 'Planeswalker')).map(o => ({ id: o.id, controller: d })));
       if (candidates.length) {
         const decl = await this.ask(ap, { kind: 'attackers', candidates: candidates.map(o => o.id), mustAttack, defenders, planeswalkers }) as AttackDeclaration;
-        for (const id of new Set([...decl.attackers, ...mustAttack])) {
+        // CR 508.1: an illegal declaration is not made at all, so the restrictions only a FINISHED declaration can
+        // judge ("~ can't attack alone", CR 506.4) run on the chosen ids before anything is tapped, before the attack
+        // event is emitted and before an `attacks` trigger is queued (9.1x item 12)
+        const chosen = new Set([...decl.attackers, ...mustAttack]);
+        if (ATTACK_FIXUPS.length) for (const h of ATTACK_FIXUPS) h(this, chosen, ap);
+        for (const id of chosen) {
           const o = candidates.find(c => c.id === id); if (!o) continue;
           const want = decl.targets?.[id];
           delete o.attackingPlaneswalker;

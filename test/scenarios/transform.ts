@@ -358,7 +358,11 @@ export const transform: Scenario[] = [
     // daybound mirror.) The core's own `transform-self` op is not routed through this family's can't-transform gate,
     // so it is the cleanest way to put a werewolf on the wrong face while it is day - and the continuous check, which
     // lives in the family's `sba` hook, has to put it straight back on the very next state-based check.
-    name: 'a daybound permanent forced onto its night face while it is day is transformed straight back', cr: '702.145f',
+    // Since 9.1x item 16 the core `transform-self` op comes through this family's `flip`, which refuses a daybound /
+    // nightbound permanent outright (CR 702.145b) - the face never changes, so there is nothing for CR 702.145f's
+    // continuous check to put back. The check itself is still pinned by the next scenario.
+    name: 'a daybound permanent cannot be transformed by a plain transform effect while it is day', cr: '702.145b',
+    ruling: 'CR 702.145b: a permanent with daybound can\'t transform except due to its daybound ability.',
     seats: [{ bf: [TRESPASSER, 'Mountain', 'Mountain'], hand: ['Lightning Bolt'] }, {}],
     scripts: {
       ...spell('Lightning Bolt', [{ op: 'set-day-night', to: 'day' }]),
@@ -366,8 +370,8 @@ export const transform: Scenario[] = [
     },
     script: [{ cast: 'Lightning Bolt' }, { resolve: true }, { activate: TRESPASSER }, { resolve: true }],
     expect: [
-      { pt: [TRESPASSER, 3, 3] },                                 // back on Graveyard Trespasser, the day face
-      { log: 'transforms into Graveyard Trespasser' },
+      { pt: [TRESPASSER, 3, 3] },                                 // still Graveyard Trespasser, the day face
+      { noLog: 'transforms into' },                               // never flipped, never flipped back
     ],
   },
 
@@ -456,31 +460,29 @@ export const transform: Scenario[] = [
     expect: [{ unsimulated: 0 }, { graveyardCount: [0, 0] }],     // no mill, and no inert-text hit either
   },
   {
-    // The second half of the same gate (9.1 review 2). These bodies carry no `unknown` at all - they parse into
-    // well-formed AST the ENGINE reads wrong. "unless you pay {E}" is energy (CR 118.12: energy counters are paid
-    // from the player's pool, not with mana), and the mana-cost parser drops the symbol, leaving a cost of
-    // `{ generic: 0, pips: [], raw: '{E}' }` that the engine auto-pays for free - so Static Prison would be kept
-    // forever by a player with no energy at all. `misparsed` declines it, which is exactly the pre-9.1 reading.
-    name: 'Static Prison\'s first-main-phase trigger does not fire while its {E} cost parses as a free mana cost', cr: '118.12',
+    // The second half of the same gate (9.1 review 2), closed by 9.1x item 15: "unless you pay {E}" is energy
+    // (CR 118.12: energy counters are paid from the player's pool, not with mana). The parser now puts `energy: 1` on
+    // the `sacrifice-unless-pay`, so a player with no energy cannot keep Static Prison, and `misparsed` no longer
+    // declines the trigger.
+    name: 'Static Prison is sacrificed in the first main phase of a player with no energy to pay {E}', cr: '118.12',
     seats: [{ bf: ['Static Prison'] }, {}],
     script: [{ turns: 2 }],
     expect: [
-      { zone: ['Static Prison', 'battlefield'] },                 // unchanged from base: it is never sacrificed
-      { noLog: 'pays \\{E\\}' },                                  // and no longer claims a payment that never happened
+      { zone: ['Static Prison', 'graveyard'] },
+      { noLog: 'pays \\{E\\}' },                                  // no payment was possible, none is claimed
       { unsimulated: 0 },
     ],
   },
   {
-    // The other misparse: `game.ts`'s `case 'add-mana'` reads `e.mana` / `e.amount` and never `e.perEach`, so
-    // "add {B} for each charge counter on ~" added exactly one {B} however many counters were on it. 51 more
-    // abilities across the pool carry the same unread field; only the four under this family's own head are in
-    // reach, and the fix is a core one (see the doc's Open issues).
-    name: 'Black Market\'s first-main-phase trigger does not fire while its per-counter mana is unread', cr: '505.1',
+    // The other misparse, closed by 9.1x item 14: `game.ts`'s `case 'add-mana'` now multiplies the symbol list by
+    // `perEach`, so "add {B} for each charge counter on ~" adds three {B} for three counters (one `mana` event per
+    // symbol list), and `misparsed` no longer declines the trigger.
+    name: 'Black Market\'s first-main-phase trigger adds one {B} per charge counter', cr: '505.1',
     seats: [{ bf: ['Black Market'], counters: { 'Black Market': { charge: 3 } } }, {}],
     script: [{ turns: 2 }],
     expect: [
       { counters: ['Black Market', { charge: 3 }] },
-      { events: { type: 'mana', min: 0, max: 0 } },               // not the one stray {B} the unread perEach produced
+      { events: { type: 'mana', min: 3, max: 3 } },               // three {B}: one per charge counter, not one stray {B}
       { unsimulated: 0 },
     ],
   },

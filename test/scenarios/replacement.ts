@@ -137,7 +137,7 @@ export const replacement: Scenario[] = [
   },
   {
     name: "Test of Faith's rider adopts the core prevention shield and turns what it prevents into +1/+1 counters", cr: '615.1',
-    ruling: 'One replacement effect printed as two sentences (CR 615.1). The shield half is the core `prevent-damage` op, whose counter `dealDamage` spends before any family fold runs, so the rider takes that counter over as it resolves and the whole card works.',
+    ruling: "One replacement effect printed as two sentences (CR 615.1). The shield half is the core `prevent-damage` op; `dealDamage` applies that core shield before the family fold runs (the core's shield-first policy under CR 616.1e, 9.1x item 5), so the rider adopts the counter as it resolves and turns what the shield prevents into +1/+1 counters.",
     seats: [{ bf: ['Grizzly Bears', 'Plains', 'Plains'], hand: ['Test of Faith'] }, { bf: ['Mountain'], hand: ['Shock'] }],
     script: [{ cast: 'Test of Faith', targets: [['Grizzly Bears']] }, { resolve: true }, { cast: 'Shock', by: 1, targets: [['Grizzly Bears']] }, { resolve: true }],
     // Shock's 2 damage is prevented by the adopted 3-point shield, so exactly two +1/+1 counters are placed

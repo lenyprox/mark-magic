@@ -112,8 +112,17 @@ export interface FamilyModule {
   replacements?: {
     /** `moveTo`, right after the commander redirect. */
     zoneMove?(g: Game, o: GameObject, zone: Zone, pos: 'top' | 'bottom', reason: string): ZoneMoveOverride | null;
-    /** `dealDamage` / `dealDamageToPlayer`, after protection and prevention shields; return the new amount. */
+    /** `dealDamage` / `dealDamageToPlayer`, after protection and AFTER the core's own prevention shields
+     *  (`eotFlags.preventDamage`, the Fog flag) have been applied; return the new amount. The order is the core's choice
+     *  on the affected player's behalf (CR 616.1 / 616.1e let that player pick among applicable replacement and
+     *  prevention effects; `dealDamage` is synchronous, so nobody can be asked): shield-first never deals the affected
+     *  object more damage than the other order for any family mode — (2-1)x2 = 2 beats 2x2-1 = 3 — and a Fog never
+     *  spends a one-shot family shield on damage it prevents whole (9.1x item 5). */
     damage?(g: Game, src: GameObject, target: GameObject | PlayerId, n: number, combat: boolean): number;
+    /** May this damage be prevented at all (CR 615.12, "can't be prevented")? `false` switches the core's own shields
+     *  (`eotFlags.preventDamage`, the Fog flag) off for this one event without consuming them; asked BEFORE the core
+     *  shield is applied, so before `damage` above runs. */
+    preventable?(g: Game, src: GameObject, target: GameObject | PlayerId, combat: boolean): boolean;
     /** `draw`, after the dredge block; return true when the draw was replaced (no card is drawn). */
     draw?(g: Game, p: PlayerId): boolean;
     /** `replaceCounters`; return the new delta. */
@@ -141,6 +150,10 @@ export interface FamilyModule {
     blockCheck?(s: GameState, blocker: GameObject, attacker: GameObject): boolean;
     /** Rewrite the declared blocks of one defender ("blocks if able", lure). */
     blockFixup?(g: Game, attackers: GameObject[], defender: PlayerId): void;
+    /** Rewrite the chosen attackers before any of them is tapped, before the attack event and before an `attacks`
+     *  trigger is queued — the restrictions only a FINISHED declaration can judge ("~ can't attack alone", CR 506.4).
+     *  Mutates `chosen` (object ids). Runs in the real declare-attackers step and in `simulateCombat`. */
+    attackFixup?(g: Game, chosen: Set<number>, ap: PlayerId): void;
     /** Rewrite combat damage after the assignments are built and before they are dealt. */
     combatDamage?(g: Game, assignments: DamageAssignment[]): void;
   };
@@ -162,6 +175,16 @@ export interface FamilyModule {
   tokenAbilities?: Record<string, TokenAbility>;
   /** Called from `moveTo` when a permanent leaves the battlefield (where "exile until this leaves" is handled). */
   leave?: (g: Game, o: GameObject, zone: Zone) => void;
+  /** The core `gain-control` op with `duration: 'eot'`: a family that keeps control-change effects in timestamp order
+   *  (CR 613.7) takes the theft over so it interleaves with its own durations; return `true` when it did (the core then
+   *  writes no `controlUntilEot` of its own). `to` is the new controller, `src` the effect's source. A takeover fold:
+   *  consulted newest-registered first, the first `true` wins. */
+  controlUntilEot?: (g: Game, o: GameObject, to: PlayerId, src: GameObject) => boolean;
+  /** The core `transform-self` op (not its "exile, then return transformed" form): a family that owns the face flip —
+   *  daybound / nightbound's "can't transform except due to its daybound ability" (CR 702.145b / 702.145e) and the
+   *  `transforms` event raised at the instant of the flip (CR 603.2) — performs or refuses it; return `true` when the
+   *  op was handled either way, `false` to let the core flip the face itself. A takeover fold: newest-registered first. */
+  transform?: (g: Game, o: GameObject) => boolean;
   /** `cost.ts:spellManaCost`: what the chosen modes add to the cost actually paid (entwine, escalate, spree, multikicker); `null` abstains. */
   modeCost?: (def: CardDef, modes: number[], alt: AltCost | undefined, kicked: boolean) => ManaCost | null;
   /** `cost.ts:costAdjust`: extra generic-mana reduction for casting `card` from `from` (positive = cheaper, negative = a tax). Cost-alteration statics the core's fixed-`amount` `cost-adjust` cannot express live here. */

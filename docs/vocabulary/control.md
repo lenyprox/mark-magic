@@ -346,13 +346,13 @@ declined rather than handed to the engine.
 
 * **Timestamps for control (CR 613.7) as a general layer.** Two or more live control effects on one permanent ARE
   ordered here — the `o.ext.controlReturn` stack above is exactly their timestamp order, and CR 613.1c comes out
-  right at any depth. What is missing is that the order is this family's alone. The core's `gain-control` keeps its
-  own one-slot `o.controlUntilEot` and writes no entry, so the two bookkeeping schemes only interleave correctly in
-  one direction: a family effect applied OVER a core end-of-turn theft is fine (the family entry records the core
-  thief, the family hook runs first in the cleanup step and the core wipe then runs), while a core end-of-turn theft
-  applied over a live `while-*` family effect is not — when the family duration ends the family hands the permanent
-  to the seat it recorded, ignoring the newer core effect. Unifying them is a core change (see `coreChangeNeeded` in
-  the phase report). Nothing re-orders an existing stack either: a timestamp here is the order effects were applied
+  right at any depth. Since 9.1x item 13 the core's `gain-control … until end of turn` (Act of Treason) is one more
+  entry of that stack: `game.ts` hands it to this family's `controlUntilEot` hook (`steal(g, o, to, 'eot', src)`),
+  so a core end-of-turn theft interleaves with a live `while-*` effect in both orders — pinned by the two
+  `9.1x item 13` scenarios in `test/scenarios/core-9-1x.ts`. (Before that the core kept its own one-slot
+  `o.controlUntilEot` and wrote no entry, so a core theft applied over a family duration was handed back to the wrong
+  seat when the family duration ended; that slot is now only the fallback when no control family is registered.)
+  What is still not here: nothing re-orders an existing stack — a timestamp here is the order effects were applied
   in (CR 613.7a), but an effect that acquires a NEW timestamp is not modelled.
 * **A hook on `Game.changeControl`.** `control-gained` sees this family's own control changes only, and
   `control-cant-change` binds this family's own ops only. Both would need a core change (`FamilyModule` has no

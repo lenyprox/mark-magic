@@ -12,6 +12,8 @@ export interface ManaCost {
   pips: ManaSymbol[];            // coloured pips (one entry per pip)
   hybrid: ManaSymbol[][];        // each entry = options for that pip
   phyrexian: Color[];            // pay colour or 2 life
+  /** Hybrid Phyrexian pips ({G/W/P}: pay either colour or 2 life, CR 107.4f); absent = none. */
+  phyrexianHybrid?: Color[][];
   raw: string;
 }
 
@@ -210,7 +212,7 @@ export type CoreEffect =
   | { op: 'evolve' }
   | { op: 'move-counters'; counter: string; target: TargetSpec }                          // modular
   | { op: 'renown'; amount: number }
-  | { op: 'sacrifice-unless-pay'; mana: ManaCost; once?: 'echo'; perCounter?: string }   // cumulative upkeep: the cost is paid once per age counter
+  | { op: 'sacrifice-unless-pay'; mana: ManaCost; energy?: number; once?: 'echo'; perCounter?: string }   // energy: CR 118.12, paid beside the mana; cumulative upkeep: the cost is paid once per age counter
   | { op: 'unearth' }
   | { op: 'cascade' }
   | { op: 'explore' }

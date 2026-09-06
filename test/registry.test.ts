@@ -68,6 +68,8 @@ const probe: FamilyModule = {
       return zone === 'graveyard' && extGet<boolean>(o, 'probeExileInstead') === true ? { zone: 'exile', emit: `${o.def.name} is exiled instead (probe).` } : null;
     },
     damage: (_g, _src, target, n) => { hit('replacements.damage'); return typeof target !== 'number' && extGet<boolean>(target, 'probeHalveDamage') === true ? Math.floor(n / 2) : n; },
+    // CR 615.6: false switches the core's own shields off for this event without consuming them
+    preventable: (_g, src) => { hit('replacements.preventable'); return extGet<boolean>(src, 'probeUnpreventable') !== true; },
     draw: (g, p) => { hit('replacements.draw'); return extGet<boolean>(g.state.players[p], 'probeNoDraw') === true; },
     counters: (_g, o, counter, delta) => {
       hit('replacements.counters');
@@ -110,6 +112,8 @@ const probe: FamilyModule = {
     canBlock: (s, b, a) => { hit('keywordHooks.canBlock'); if (extGet<boolean>(a, 'probeMenacing') === true && chars.power(s, b) <= 2) { hit('chars'); return false; } return extGet<boolean>(b, 'probeCantBlock') === true ? false : undefined; },
     blockCheck: (_s, _b, a) => { hit('keywordHooks.blockCheck'); return extGet<boolean>(a, 'probeUnblockable') !== true; },
     blockFixup: (_g, attackers) => { hit('keywordHooks.blockFixup'); for (const a of attackers) if (extGet<boolean>(a, 'probeDropBlocks') === true) { for (const id of a.blockedBy) { const b = findObject(_g.state, id); if (b) b.blocking = []; } a.blockedBy = []; } },
+    // the FINISHED declaration, before anything is tapped: a flagged lone attacker is dropped ("can't attack alone")
+    attackFixup: (g, chosen) => { hit('keywordHooks.attackFixup'); if (chosen.size === 1) for (const id of chosen) { const o = findObject(g.state, id); if (o && extGet<boolean>(o, 'probeNoAttackAlone') === true) chosen.delete(id); } },
     combatDamage: (_g, assignments) => { hit('keywordHooks.combatDamage'); for (const a of assignments) if (extGet<boolean>(a.src, 'probeDoubleDamage') === true) a.n *= 2; },
   },
   triggerSources: () => { hit('triggerSources'); return emblem ? [emblem] : []; },
@@ -129,6 +133,10 @@ const probe: FamilyModule = {
     },
   },
   leave: (_g, o) => { hit('leave'); extDel(o, 'probeOnBattlefield'); },
+  // the core's until-end-of-turn theft, recorded by the family instead of the core's one-slot `controlUntilEot`
+  controlUntilEot: (g, o, to) => { hit('controlUntilEot'); extSet(o, 'probeThief', to); g.changeControl(o, to); return true; },
+  // the core `transform-self`: refused for a flagged permanent (a werewolf), handed back to the core otherwise
+  transform: (_g, o) => { hit('transform'); return extGet<boolean>(o, 'probeNoTransform') === true; },
   castFrom: (_g, _p, card, from) => { hit('castFrom'); return from === 'graveyard' && extGet<boolean>(card, 'probeCastable') === true ? true : undefined; },
   freeCast: (_g, _p, card, from) => { hit('freeCast'); return from === 'graveyard' && extGet<boolean>(card, 'probeCastable') === true ? true : undefined; },
   modeCost: (_def, modes) => { hit('modeCost'); return modes.length > 1 ? { generic: modes.length - 1, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '' } : null; },
@@ -315,6 +323,40 @@ test('as-enters, replacements, leave hooks, legal providers, actions, token abil
   assert.equal(s.log[s.log.length - 1], 'probe event x');
   delete g.onEvent;
 
+  // replacements.preventable: an unpreventable source goes through a core prevention shield without consuming it (CR 615.6)
+  { const shielded = find(g, 'Hill Giant', 1); extDel(shielded, 'probeHalveDamage'); shielded.damage = 0; shielded.eotFlags.preventDamage = 2; extSet(bears, 'probeUnpreventable', true);
+    g.dealDamage(bears, shielded, 1);
+    assert.equal(shielded.damage, 1, 'the core shield did not prevent unpreventable damage');
+    assert.equal(shielded.eotFlags.preventDamage, 2, 'and the shield was not consumed by it');
+    extDel(bears, 'probeUnpreventable'); g.dealDamage(bears, shielded, 1);
+    assert.equal(shielded.damage, 1, 'preventable damage is still eaten by the shield');
+    assert.equal(shielded.eotFlags.preventDamage, 1);
+    delete shielded.eotFlags.preventDamage; shielded.damage = 0;
+    assert.ok(seen.has('replacements.preventable')); }
+
+  // controlUntilEot: the core gain-control eot op is recorded by the family, not by the core's controlUntilEot slot
+  { const taken = find(g, 'Hill Giant', 1);
+    const item = g.makeStackItem('spell', bears, 0, [{ op: 'gain-control', target: { kind: 'creature' }, duration: 'eot' } as unknown as Effect], 'probe theft', 0, undefined, 'probe theft');
+    item.targetsByEffect.set(0, [{ kind: 'object', id: taken.id }]);
+    await g.applyEffect(item, item.effects[0], 0, item.effects);
+    assert.equal(taken.controller, 0, 'the theft happened');
+    assert.equal(extGet<number>(taken, 'probeThief'), 0, 'through the family hook');
+    assert.equal((taken as GameObject & { controlUntilEot?: PlayerId }).controlUntilEot, undefined, 'and the core wrote no one-slot record of its own');
+    g.changeControl(taken, 1); extDel(taken, 'probeThief');
+    assert.ok(seen.has('controlUntilEot')); }
+
+  // transform: the core transform-self op is offered to the family first; a refused flip leaves the face alone
+  { const delver = makeObject(s.nextId++, C('Delver of Secrets'), 0, 'battlefield', s.turn); s.players[0].battlefield.push(delver); s.bfGen = (s.bfGen ?? 0) + 1;
+    const item = g.makeStackItem('ability', delver, 0, [{ op: 'transform-self' } as unknown as Effect], 'probe flip', 0, undefined, 'probe flip');
+    extSet(delver, 'probeNoTransform', true);
+    await g.applyEffect(item, item.effects[0], 0, item.effects);
+    assert.equal(delver.activeFace ?? 0, 0, 'the family refused the flip and the core did not flip either');
+    extDel(delver, 'probeNoTransform');
+    await g.applyEffect(item, item.effects[0], 0, item.effects);
+    assert.equal(delver.activeFace, 1, 'with the family abstaining the core flips the face');
+    s.players[0].battlefield.splice(s.players[0].battlefield.indexOf(delver), 1); s.bfGen++;
+    assert.ok(seen.has('transform')); }
+
   // castFrom + freeCast: a spell cast from the graveyard for free
   const bolt = makeObject(s.nextId++, C('Lightning Bolt'), 0, 'graveyard', s.turn);
   s.players[0].graveyard.push(bolt);
@@ -392,6 +434,7 @@ test('triggers, trigger sources, combat hooks, step hooks, SBA, EOT cleanup and 
 
   assert.ok(seen.has('keywordHooks.blockCheck'), 'BLOCK_CHECKS validated the declared block');
   assert.ok(seen.has('keywordHooks.blockFixup'), 'BLOCK_FIXUPS ran on the declared blocks');
+  assert.ok(seen.has('keywordHooks.attackFixup'), 'ATTACK_FIXUPS saw the finished declaration');
   assert.ok(seen.has('keywordHooks.combatDamage'), 'COMBAT_DAMAGE_HOOKS saw the assignments');
   assert.ok(seen.has('sba'), 'SBA_HOOKS ran inside checkSBA');
   assert.ok(seen.has('cleanupEot'), 'EOT_CLEANUP ran in the end-of-turn wipe');
@@ -790,7 +833,8 @@ test('every hook kind of the FamilyModule contract was observed', () => {
     'steps.turn-start', 'steps.untap', 'steps.upkeep', 'steps.draw', 'steps.main1', 'steps.combat-begin', 'steps.declare-attackers',
     'steps.declare-blockers', 'steps.combat-damage', 'steps.combat-end', 'steps.main2', 'steps.end', 'steps.cleanup', 'steps.cleanup-end',
     'sba', 'legalActions', 'actions', 'decisions', 'keywordHooks.canAttack', 'keywordHooks.canBlock', 'keywordHooks.blockCheck',
-    'keywordHooks.blockFixup', 'keywordHooks.combatDamage', 'triggerSources', 'redact', 'redactPlayer', 'redactState',
+    'keywordHooks.blockFixup', 'keywordHooks.attackFixup', 'keywordHooks.combatDamage', 'triggerSources', 'redact', 'redactPlayer', 'redactState',
+    'replacements.preventable', 'controlUntilEot', 'transform',
     'cleanupEot', 'targetKinds', 'tokenAbilities.legal', 'tokenAbilities.activate', 'leave', 'castFrom', 'freeCast',
     'triggers.core', 'replacements.zoneMove.cancel', 'chars', 'modeCost', 'costMod',
     'effects.extraCombat', 'replacements.counters.removal',

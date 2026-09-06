@@ -34,6 +34,7 @@ import { ANY, CONDITION_RULES, COST_RULES, EFFECT_RULES as REGISTRY_EFFECT_RULES
 import type { EffectCtx, LineCtx } from './rules/types.js';
 import { ABILITY_WORD_RE, SECOND_FACE_LAYOUTS, secondFaceLinesOf } from './oracle-lines.js';
 import { subtypeWord } from './subtypes.js';
+import { SUBTYPE_KIND } from './subtype-vocab.js';
 
 /**
  * Version of the *built-in* parser. Bump it whenever a built-in rule or the normalisation above a rule changes — that
@@ -42,11 +43,13 @@ import { subtypeWord } from './subtypes.js';
  * expected re-baseline rather than an accident. Adding a family under src/cards/rules/ does **not** bump it: that
  * shows up as a different `rulesHash` instead.
  */
-export const PARSER_VERSION = 4;
+export const PARSER_VERSION = 5;
 
 // ---------------------------------------------------------------------------
 // Mana
 // ---------------------------------------------------------------------------
+/** `energyOf('{E}{E}')` -> 2. CR 118.12 / 122.1c: energy is paid from the player's own counters, so it is NOT part of a mana cost. */
+export function energyOf(raw: string | null | undefined): number { return raw == null ? 0 : (raw.match(/\{E\}/g) ?? []).length; }
 export function parseManaCost(raw: string | null | undefined): ManaCost | null {
   if (raw == null) return null;
   const cost: ManaCost = { generic: 0, x: 0, pips: [], hybrid: [], phyrexian: [], raw };
@@ -58,6 +61,7 @@ export function parseManaCost(raw: string | null | undefined): ManaCost | null {
     else if (/^[WUBRG]$/.test(p)) cost.pips.push(p as Color);
     else if (p === 'C') cost.pips.push('C');
     else if (/^[WUBRG]\/P$/.test(p)) cost.phyrexian.push(p[0] as Color);
+    else if (/^[WUBRG]\/[WUBRG]\/P$/.test(p)) (cost.phyrexianHybrid ??= []).push([p[0] as Color, p[2] as Color]);   // {G/W/P}: either colour or 2 life (CR 107.4f; Ajani, Sleeper Agent) - dropped before PARSER_VERSION 5
     else if (/^[WUBRG]\/[WUBRG]$/.test(p)) cost.hybrid.push(p.split('/') as Color[]);
     else if (/^2\/[WUBRG]$/.test(p)) cost.hybrid.push([p[2] as Color, 'C']); // 'C' here stands in for "or 2 generic"; engine handles it
     else if (p === 'S') cost.generic += 1;
@@ -68,7 +72,7 @@ export function parseManaCost(raw: string | null | undefined): ManaCost | null {
 
 export function manaValue(c: ManaCost | null, x = 0): number {
   if (!c) return 0;
-  return c.generic + c.pips.length + c.hybrid.length + c.phyrexian.length + c.x * x;
+  return c.generic + c.pips.length + c.hybrid.length + c.phyrexian.length + (c.phyrexianHybrid?.length ?? 0) + c.x * x;
 }
 
 const NUM_WORDS: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fifteen: 15, twenty: 20 };
@@ -223,9 +227,14 @@ function parseTarget(phrase: string): TargetSpec | null {
   if ((m = p.match(/^(.+?) spell$/)) && !/\bspell\b/.test(m[1])) { const f = parseFilterWords(m[1]); if (f) return { ...spec, kind: 'spell', filter: { ...spec.filter, ...f } }; }
   // filtered creature / permanent: "nonblack creature", "creature with flying", "Goblin creature", "artifact creature"
   if (/creature$|creature with|creature without|creature dealt damage by ~ this turn$|permanent$|permanent with|creature or player$|land$|artifact$|enchantment$/.test(p) || /^[a-z]+ (creature|permanent)/.test(p)) {
-    const base = p.includes('permanent') ? 'permanent' : p.includes('creature') ? 'creature' : p.includes('land') ? 'land' : p.includes('artifact') ? 'artifact' : 'enchantment';
+    // whole words only: "noncreature land you control" is a LAND (the substring test read `creature` inside `noncreature`
+    // and built the unsatisfiable creature-that-is-not-a-creature spec; Nissa, Who Shakes the World - PARSER_VERSION 5)
+    const has = (w: string) => new RegExp(`(^|[^a-z])${w}s?($|[^a-z])`).test(p);
     const f = parseFilterWords(p);
     if (!f) return null;
+    // "target Island" / "target Plains or Island" name a land by its land type alone (the old substring test found `land` inside `Island`)
+    const landTypes = !!f.subtypes?.length && f.subtypes.every(t => SUBTYPE_KIND[t] === 'Land');
+    const base = has('permanent') ? 'permanent' : has('creature') ? 'creature' : has('land') || landTypes ? 'land' : has('artifact') && has('enchantment') ? 'artifact-or-enchantment' : has('artifact') ? 'artifact' : 'enchantment';
     if (base === 'permanent' && f.notTypes?.includes('Land') && !f.types) { delete f.notTypes; return { ...spec, kind: 'nonland-permanent', ...(controller ? { controller } : {}), filter: { ...spec.filter, ...f } }; }
     return { ...spec, kind: base as TargetSpec['kind'], ...(controller ? { controller } : {}), filter: { ...spec.filter, ...f } };
   }
@@ -433,7 +442,7 @@ const EFFECT_RULES: Rule[] = [
   { re: /^return the exiled cards? to the battlefield under (?:its|their) owner's control$/i, make: () => ({ op: 'choose-mode', modes: [[]], count: 1 }) },
   { re: /^if you search your library this way, shuffle$/i, make: () => ({ op: 'shuffle' }) },
   { re: /^put the rest on the bottom of your library in a random order$/i, make: () => ({ op: 'choose-mode', modes: [[]], count: 1 }) },
-  { re: /^sacrifice ~ unless you pay (\{[^ ]+\})$/i, make: m => ({ op: 'sacrifice-unless-pay', mana: parseManaCost(m[1])! }) },
+  { re: /^sacrifice ~ unless you pay (\{[^ ]+\})$/i, make: m => ({ op: 'sacrifice-unless-pay', mana: parseManaCost(m[1])!, ...(energyOf(m[1]) ? { energy: energyOf(m[1]) } : {}) }) },   // "{E}" is energy beside the mana (CR 118.12; Static Prison, Lathnu Hellion)
   { re: new RegExp(`^create ${NUMRE} food tokens?$`, 'i'), make: m => ({ op: 'token', count: num(m[1]), power: 0, toughness: 0, colors: [], types: ['Artifact'], subtypes: ['Food'], keywords: [], name: 'Food', food: true }) },
   { re: /^exile ~, then return it to the battlefield transformed under your control$/i, make: () => ({ op: 'transform-self', viaExile: true }) },
   { re: /^add one mana of the chosen color$/i, make: () => ({ op: 'add-mana', mana: 'any-one', amount: 1, options: 'chosen-color' }) },
@@ -745,6 +754,9 @@ function tokenEffect(m: RegExpMatchArray, nameIdx?: number): Effect | null {
  */
 const EFFECT_CTX: EffectCtx = {
   optional: false,
+  // live reads of the two parser-state flags: `triggering` inside a triggered ability's body (the only stack item the
+  // engine gives a `triggeringId`), `bound` when a cost or an earlier effect already bound `item.affected`
+  host: { get triggering() { return inTriggerBody; }, get bound() { return frameBound; } },
   parseEffects: text => parseEffects(text, true),
   parseEffectSentence: text => parseEffectSentence(text, true),
   parseTarget, parseFilterWords, parseEachPhrase, parseAmountPhrase, parseManaCost, num, kwList,
@@ -864,6 +876,10 @@ const GROUP_SETS: Record<string, ObjectSet> = {
 let effectsDepth = 0;
 /** Set by the callers through withFrame: the frame is already bound when the paragraph starts / the item's earlier effects. */
 let frameBound = false;
+/** True while a TRIGGERED ability's body is being parsed (`triggerBody`, the granted triggered shape): what `EffectCtx.host.triggering` reports. */
+let inTriggerBody = false;
+/** Run `fn` with `inTriggerBody` set (a registry rule may then emit an op that reads `item.triggeringId`). */
+function asTriggerBody<T>(fn: () => T): T { const was = inTriggerBody; inTriggerBody = true; try { return fn(); } finally { inTriggerBody = was; } }
 let priorEffects: Effect[] = [];
 /** The `bind` that re-establishes the caller's frame after an op moved it (a trigger's `bind … from 'triggering'`); null when nothing can. */
 let frameRebind: Effect | null = null;
@@ -1313,10 +1329,13 @@ function parseCostPhrase(p: string, useRegistry = true): AbilityCost | null {
   const raw = p.trim().replace(/\.$/, ''); const pl = raw.toLowerCase();
   let m: RegExpMatchArray | null;
   if (/^(\{[^}]+\})+$/.test(raw)) {
-    if (raw === '{T}') cost.tap = true;
-    else if (raw === '{Q}') cost.untap = true;
-    else if (raw.includes('{T}')) { cost.tap = true; cost.mana = parseManaCost(raw.replace('{T}', ''))!; }
-    else cost.mana = parseManaCost(raw)!;
+    // "{E}" is energy, not mana (CR 118.12): "unless you pay {E}" (Electrozoa) reaches here as a bare symbol string
+    const energy = energyOf(raw); const symbols = energy ? raw.replace(/\{E\}/g, '') : raw;
+    if (energy) cost.energy = energy;
+    if (symbols === '{T}') cost.tap = true;
+    else if (symbols === '{Q}') cost.untap = true;
+    else if (symbols.includes('{T}')) { cost.tap = true; cost.mana = parseManaCost(symbols.replace('{T}', ''))!; }
+    else if (symbols) cost.mana = parseManaCost(symbols)!;
   }
   else if (pl === 'sacrifice ~' || /^sacrifice this (creature|artifact|permanent|enchantment|land)$/.test(pl)) cost.sacrificeSelf = true;
   else if ((m = pl.match(/^sacrifice (a|an|another) (.+)$/))) { const f = parseFilterWords(m[2]); if (!f) return null; if (m[1] === 'another') f.other = true; cost.sacrifice = f; }   // "another": not the source itself (CR 601.2h)
@@ -1401,7 +1420,7 @@ function grantedShape(text: string, useRegistry: boolean): Ability | null {
     if (optional) inner = inner.replace(/^you may /i, '');
     inner = inner.replace(/\bthis creature\b|\bthis permanent\b/gi, '~');
     const selfEv = 'self' in ev && ev.self === true;
-    let effs = withFrame(!selfEv, [], () => parseEffects(inner, useRegistry), selfEv ? null : { op: 'bind', as: 'that', from: 'triggering' });
+    let effs = withFrame(!selfEv, [], () => asTriggerBody(() => parseEffects(inner, useRegistry)), selfEv ? null : { op: 'bind', as: 'that', from: 'triggering' });
     if (effs.some(e => e.op === 'unknown')) return null;
     if (!selfEv && mentionsThat(effs)) effs = [{ op: 'bind', as: 'that', from: 'triggering' }, ...effs];   // same reason as triggerBody
     return { kind: 'triggered', event: ev, effects: effs, text, ...(optional ? { optional: true } : {}) };
@@ -1685,7 +1704,7 @@ function addStatic(def: CardDef, line: string, st: StaticEffect | StaticEffect[]
 function triggerBody(body: string, selfEv: boolean): Effect[] {
   const before = registryClaims;
   // a trigger about another object holds it as the frame from the start (the `bind` below, or the engine's trigger context)
-  const effs = foldMarkers(withFrame(!selfEv, [], () => parseEffects(body), selfEv ? null : { op: 'bind', as: 'that', from: 'triggering' }), true);
+  const effs = foldMarkers(withFrame(!selfEv, [], () => asTriggerBody(() => parseEffects(body)), selfEv ? null : { op: 'bind', as: 'that', from: 'triggering' }), true);
   // the engine records only `triggeringId` for a plain trigger (game.ts, the trigger → stack site), never
   // `item.affected`, so EVERY complete non-self body that reads the frame — a built-in parse's `that` as much as a
   // registry claim's — gets the bind that makes `that` the triggering object (9.0b re-review 2)

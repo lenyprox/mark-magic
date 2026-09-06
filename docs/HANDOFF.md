@@ -441,6 +441,38 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     copies, event logs) rather than a runaway game. The engine gate is `MTG_SCRIPTS=0 npm run fuzz …` until this is
     found; `fuzz:deep` should pass the variable too.
 
+33. **Left open by the 9.1x core slice (2026-09-06):**
+    * (a) **Item 18, Saga chapters from `addCounters`** — deferred: the correct core half (queue one `chapter` event
+      per lore number crossed, with `amount`, from `Game.addCounters` for a Saga on the battlefield, and drop the two
+      amount-less core queues at `enterBattlefield` / the precombat-main counter) cannot land without three saga-family
+      changes at once: `saga-lore` must stop queueing its own `queueCrossedChapters` and `lore-counter-put` (double
+      triggers otherwise), the `lore-counter-put` matcher must key off the chapter event whose `amount` equals the new
+      total instead of "an amount-less chapter event" (it counts core additions that way today), and the scenario
+      "proliferating a Saga to its final chapter number is not a final chapter resolving" flips to chapter III
+      triggering (its `ruling` says so). Do the core and family halves together in the next saga fix round; until
+      then proliferate / Doubling Season on a Saga queue no `chapter` (CR 714.2b / 714.2c) exactly as before 9.1x.
+    * (b) **Item 3, family half** — the layers family must write `o.animated.replaceTypes` / `replaceSubtypes`: a `set`
+      flag on `LayerEntry`, `fold()` translating it into the two overlay flags, and `typeChange` / `becomeRule` in
+      src/cards/rules/layers.ts emitting `set: true` instead of the `replacesPrinted` decline (the 21 "becomes a
+      Frog" / "becomes an enchantment" lines the family doc lists). The core channel is pinned by
+      test/core-9-1x.test.ts item 3.
+    * (c) **Item 9, parser half** — `emblemAbilities` (src/cards/rules/planeswalker.ts) still claims only Teferi's
+      emblem; with the static fold in place the nine anthem / indestructible emblems (Elspeth, Gideon, Sorin, Ajani
+      Resolute, Vivien, Garruk, Domri, Nissa Who Shakes the World) can be claimed through `parseStatic`.
+    * (d) **Item 4, copy-clone's `sba` hook** is now a duplicate of the core legend pass and can be deleted.
+    * (e) **Item 11, the planeswalker `life` alternative cost** is a redundant second route now that the printed cost
+      pays a Phyrexian pip with life explicitly (`castWith.phyrexianLife`); the family may drop it and its line rule
+      then only adds the `compleated` as-enters.
+    * (f) **Item 20** (pump-then-bite, `damage` with a `source: 'that'` Ref, 25 paper cards) — backlog, untouched.
+    * (g) The `lint-vocab-doc` test made `data/scripts/VOCABULARY.md` part of this slice's diff (`sacrifice-unless-pay`
+      gained `energy?`); regenerated with `npm run vocab:doc`.
+    * (h) **`verify:deep` straddles two script-store modes.** It runs `golden:check` then `fidelity:check` in one
+      environment, but the golden fixtures were last accepted parser-alone (`MTG_SCRIPTS=0`, e2cef17 — Lyra
+      Dawnbringer's 10.0 script moves ub-control-vs-wu-fliers game 14 with the store on) and the fidelity ceilings
+      with the store on (337e692; `MTG_SCRIPTS=0` fails all four pairings, the scripts are what keep the hit counts
+      under the ceilings). Until the gate sets `MTG_SCRIPTS` per leg or both fixtures are deliberately re-accepted in
+      one mode, run the two legs separately as the 9.1x paragraph in §3 does.
+
 ## 4. Remaining Phase 8 slices
 
 - ~~8c `scripts:verify`~~ — **merged** (a9ef523): `npm run scripts:verify -- --batch <file> | --ids … | --changed | --stale`,
@@ -539,12 +571,71 @@ Numbers on main after the twelve merges (525a673): coverage:pool 13,031 / 34,513
 12,877 / 32,081 = 40.1% (was 12,065 = 37.6% after 10.0); 1,356 tests; goldens reproduce exactly (parser alone);
 coverage:ops 0 not allowlisted. Wave gate: `npm run verify:all` green on 525a673 (typecheck:all incl. typecheck:schema, 1,356 tests / 1,319 pass / 37 skipped, scripts:check 43 ok, parse:diff 0, verify:pool no problems, bench 27.8 / 3.12 games/s with three other dev servers on the machine — commander under its 4 games/s budget, noted, not a gate) and `MTG_SCRIPTS=0 npm run fuzz` (200 two-player games, seed 1, 7 workers, 56 s) 0 buckets.
 
-Still open after the wave — the **9.1x core slice** (serial, main checkout, Fable 5.1 high implementer + two Opus
-reviewers): the families' declared core changes, collected with their patches in the orchestrator's item list
-(20 items: CR 506.4 "can't attack alone" over a finished declaration; CR 704.5j legend rule on copied names;
-CR 113.6b graveyard-only abilities offered on the battlefield; the core prevention shield spent before the family
-fold; add-mana `perEach`; the `{E}` cost; a lethal `transform-self` flip never raising `transforms`; the
-`counter-triggering` ctx for triggered abilities; CR 613.7 one-slot control bookkeeping; the planeswalker items —
-emblems breaking Undo in the web worker, phyrexian hybrid pips, `findPayment` for phyrexian, `staticSources` without
-a registry fold; the layers removal channel in the characteristics overlay; the FREE_CAST_HOOKS `!alt` guard).
+**9.1x core slice (2026-09-06, serial, main checkout, Fable 5.1):** the families' declared core changes, from the
+orchestrator's 20-item list. Landed, each pinned by a scenario in `test/scenarios/core-9-1x.ts` or a unit pin in
+`test/core-9-1x.test.ts` (every expectation fails on 7c4cf0c):
+
+- item 1 CR 113.6b — `legal.ts` no longer offers a `fromGraveyard` ability while the permanent is on the battlefield
+  (Tymaret, Eternal Dragon, every unearth);
+- item 2 CR 118.9 — `castSpell` runs `FREE_CAST_HOOKS` only when no alternative cost was chosen (the `!alt` guard
+  `CAST_FROM_HOOKS` already had);
+- item 3 CR 205.1a — `o.animated.replaceTypes` / `replaceSubtypes` (state.ts) and `characteristics.ts:types` /
+  `subtypes` honour them (subtypes replaced within their own set, an instant/sorcery keeps its type). CORE CHANNEL
+  ONLY: the layers family does not write the flags yet (its `LayerEntry` / `fold()` / `replacesPrinted` decline is
+  family work — see item 33 below);
+- item 4 CR 704.5j — `checkSBA`'s legend pass reads `defOf(o).supertypes` (copies); the copy-clone family's `sba`
+  hook is now redundant and can be deleted by the family;
+- item 5 CR 616.1e / 615.12 — the core `prevent-damage` shield and the Fog flag are applied BEFORE `REPLACEMENTS.damage`
+  is folded (CR 616.1e gives the affected player the choice of order; shield-first is the core's choice on their
+  behalf because it never deals them more damage — the review-2 fix reverted the 9.1x reorder, which had pinned the
+  other order as a CR requirement), and the new `replacements.preventable` hook lets a family switch those shields
+  off for one event without consuming them (the replacement family answers with its own `preventable()`);
+- item 6 — the web worker's Undo snapshots carry `collectDefs(state)` so an emblem's `"<Source> emblem"` def survives
+  `deserializeState`;
+- item 7 CR 601.2c — `assignTargets` refuses a required target with no legal option (the old guard was dead code);
+- item 8 — `parseTarget` picks its kind on whole words (`noncreature land` is a land, `noncreature artifact` an
+  artifact, `noncreature artifact or noncreature enchantment` an artifact-or-enchantment, `target Island` still a land
+  by its land type); `PARSER_VERSION` 5;
+- item 9 CR 114.2 — `characteristics.ts:staticSources` folds the registry's `triggerSources` in, so an emblem's static
+  abilities apply (the planeswalker op's "does not apply yet" note is gone). The parser still claims only Teferi's
+  emblem (`emblemAbilities` in src/cards/rules/planeswalker.ts) — family work;
+- item 10 — `{G/W/P}` parses into `ManaCost.phyrexianHybrid` (optional field; schema, `manaValue`, kicker merge,
+  `mana.ts` solve); the planeswalker family's Compleated rule counts it, so Tamiyo / Ajani / Lukka / Nahiri's
+  Compleated line parses (`parse:diff`: 4 "now parses");
+- item 11 CR 107.4f / 119.4 — `mana.ts:solve` tries every mana-vs-life split of the Phyrexian pips (mana preferred,
+  life only within the life total), `Payment.life` carries the life, `payMana` charges it wherever a plan is paid and
+  `castWith.phyrexianLife` records the pips paid with life; the compleated as-enters reads it, so the PRINTED cost
+  route shrinks loyalty too (the family's `life` alternative cost is now a redundant second route);
+- item 12 CR 506.4 — `keywordHooks.attackFixup` (the finished declaration, before anything is tapped; `combatFrom`
+  and `simulateCombat`); the combat-restr family drops a lone "can't attack alone" attacker (Mogg Flunkies);
+- item 13 CR 613.7 — `controlUntilEot` hook: the core `gain-control … until end of turn` is recorded by the control
+  family's timestamp stack (one line: `steal(g, o, to, 'eot', src)`), so Act of Treason interleaves correctly with a
+  "for as long as" theft in both orders; the core's one-slot `controlUntilEot` is the no-family fallback;
+- item 14 — `applyEffect` `add-mana` multiplies by `perEach` (0 adds nothing); the transform family's `misparsed`
+  decline of Black Market / Altar of Shadows is gone;
+- item 15 CR 118.12 — `{E}` is energy: `energyOf()`, `sacrifice-unless-pay.energy` (types, schema, engine), a bare
+  `{E}` cost phrase is `AbilityCost.energy` (Electrozoa's `unless-pays`); Static Prison and Lathnu Hellion are
+  sacrificed when the energy is not there;
+- items 16 + 19 — `transform` hook: the core `transform-self` (not its exile-and-return form) is handed to the
+  transform family's `flip`, which refuses daybound / nightbound (CR 702.145b) and raises `transforms` at the instant
+  of the flip (CR 603.2), so a lethal flip is still seen by a watcher;
+- item 17 — `EffectCtx.host { triggering, bound }` (live getters over parse.ts state); dice-coin's branch guard
+  vetoes a `counter-triggering` only outside a triggered host.
+
+Two new takeover folds (`controlUntilEot`, `transform`) are consulted newest-registered first. The four hook kinds
+are in `scripts/gen-registry.mjs`, `FamilyModule`, `_example.ts`, the registry contract test and the README table.
+Deferred: item 18 (Saga chapter dispatch in `addCounters`) and item 20 (pump-then-bite, backlog) — item 33 below.
+`parse:diff` 23 changed, 0 lost (19 "same unparsed lines, shape changed": the `{E}` costs and the `noncreature
+<type>` targets; 4 "now parses: Compleated") — not accepted here; the op allowlist shrank by two (`energy` effect and
+cost part, covered by the Static Prison / Electrozoa / Aether Hub scenarios).
+`coverage:pool` is unchanged (13,031 / 34,513 overall, paper 12,877 / 32,081 = 40.14%): the 19 reshaped cards were
+fully parsed already and the four Compleated walkers still carry unparsed loyalty lines.
+Gates on this tree: `MTG_SCRIPTS=0 npm run golden:check` — goldens reproduce exactly (three cases, 30 games each; the
+parser-alone mode every golden fixture has been accepted in since e2cef17), and `npm run fidelity:check` with the
+script store ON (the mode its ceilings were accepted in at 337e692) 4 pairings, 0 failures. With the script store on
+the `ub-control-vs-wu-fliers` fixture has one moved game (14, first differing turn 30): Lyra Dawnbringer's 10.0
+script (data/scripts/59/592c91fc-…), the very move the 10.0 row in §1 records — it reproduces with every src file of
+this slice reverted to 7c4cf0c, so it is the baseline, not this slice, and nothing was re-accepted. `verify:deep`
+runs both legs in one environment and so cannot be green as written — item 33(h).
+
 Then re-queue 10.0 (blocked + rejected) and 10.1.

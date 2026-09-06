@@ -197,25 +197,21 @@ A restriction carried by the **blocker**, read against each attacker it is offer
 `block: true` is exact: the creature loses its block when it ends up as its controller's only blocking creature
 (applied in `blockFixup`, so it is judged over the whole declaration).
 
-`attack: true` is a **partial** implementation, and deliberately so. The hook table has no seat for a fixup pass over
-the declared attackers, so `canAttack` forbids the attack only in the case it can decide alone: no other creature its
-controller controls could possibly attack. When another creature *could* have attacked but did not, the declaration
-stands even though CR 506.4 makes it illegal: seat 0 with Mogg Flunkies and an untapped Hill Giant may attack with
-the Flunkies alone (still true at this commit — a scratch scenario declaring exactly that deals 3 to the defending
-player). Read `attack: true` as "enforced whenever the answer is knowable from this creature alone". The
-`attackFixup` hook that closes it is a core change, handed over as a unified diff in `coreChangeNeeded` (see
-Declines); it is not applied on this branch, which touches no file outside the family.
+`attack: true` is exact too since 9.1x item 12. `canAttack` still forbids the attack in the case it can decide alone
+(no other creature its controller controls could possibly attack), and the `keywordHooks.attackFixup` seat — handed
+the FINISHED declaration as a `Set` of ids by `combatFrom` and `simulateCombat`, before anything is tapped, before the
+attack event and before an `attacks` trigger — drops a lone attacker that can't attack alone when something else
+could have attacked and did not (CR 506.4): seat 0 with Mogg Flunkies and an untapped Hill Giant attacking with the
+Flunkies alone now deals nothing and logs "Mogg Flunkies can't attack alone." Pinned by the two `9.1x item 12`
+scenarios in `test/scenarios/core-9-1x.ts`. (At 9.1 the attack half was partial — enforced only when knowable from
+the creature alone — and this paragraph listed the over-claim.)
 
-**The over-claim this leaves.** The clause parses, so the line counts as understood on 11 printed cards while only
-half of its rule is enforced. All 11 are named here so a reader can check them by hand: *can't attack or block
-alone* — Loyal Pegasus, Ember Beast, Wojek Bodyguard, Mogg Flunkies, Bonded Horncrest, Jackal Familiar (exact on
-the block half, partial on the attack half); *can't attack alone* — Sightless Brawler, Trusty Companion, Raging
-Kronch, Bonded Construct, Militia Rallier (partial, full stop). Nine of them are whole cards `applyScript` reports
-as fully parsed; Wojek Bodyguard still has `Mentor` unparsed and Sightless Brawler `Bestow {4}{W}` and its
-"Enchanted creature gets +3/+2 and can't attack alone" line, so they are not fully-parsed cards for other reasons.
-The clause is kept parsed rather than dropped because the half that IS enforced is the half that decides the game
-most often — a lone creature that would attack into an empty board never attacks — and an unparsed line enforces
-nothing at all; the count is honest only as long as this paragraph is here.
+**The 11 printed cards** the clause parses on, so a reader can check them by hand: *can't attack or block alone* —
+Loyal Pegasus, Ember Beast, Wojek Bodyguard, Mogg Flunkies, Bonded Horncrest, Jackal Familiar; *can't attack alone* —
+Sightless Brawler, Trusty Companion, Raging Kronch, Bonded Construct, Militia Rallier. Both halves are enforced over
+the whole declaration now. Nine of them are whole cards `applyScript` reports as fully parsed; Wojek Bodyguard still
+has `Mentor` unparsed and Sightless Brawler `Bestow {4}{W}` and its "Enchanted creature gets +3/+2 and can't attack
+alone" line, so they are not fully-parsed cards for other reasons.
 
 ```json
 { "kind": "static", "effect": { "kind": "cant-act-alone", "scope": "self", "attack": true, "block": true }, "text": "~ can't attack or block alone." }
@@ -405,7 +401,7 @@ matches `coverage:pool`'s +117 exactly (the two totals differ by the 43 per-card
 
 ## 6. Declines — what this family deliberately does not express
 
-Each of these needs a core change; none was made in the family's worktree.
+Each of these needs a core change; none was made in the family's worktree (the second landed in 9.1x).
 
 * **"attacks each combat if able" other than on the creature itself.** `Game.combatFrom` builds its `mustAttack`
   list from `o.def.abilities`, so the core's own `self-keywords.mustAttack` covers the printed self case and nothing
@@ -413,15 +409,13 @@ Each of these needs a core change; none was made in the family's worktree.
   creature attacks this turn if able" would all work from a `Mods.flags.mustAttack` read at that site; the patch is
   in the wave's `coreChangeNeeded`. Until it lands there is no `must-attack` op here, because an op nothing enforces
   is worse than a clause a script author can see is missing.
-* **"can't attack alone" in the partial case.** See `cant-act-alone` above: the declaration is only refused when no
-  other creature could have attacked. The `attackFixup` patch handed over in `coreChangeNeeded` closes it — a
-  `keywordHooks` seat handed the CHOSEN ATTACKER IDS (`Set<number>`) to mutate, called from `combatFrom` between the
-  `attackers` decision and the loop that applies it, and from `simulateCombat` between its argument and the same
-  loop. Both call sites run **before** anything is tapped, before the attack event is emitted and before an
-  `attacks` trigger is queued, so a creature the hook removes leaves no trace at all and `Game` has nothing to undo.
-  The family half is five lines (`chosen.size !== 1` is every legal declaration; otherwise drop the lone attacker
-  and note it), and the scenario that pins it is in the patch. It is not in this commit, and no part of it is: the
-  family contract forbids editing `src/engine/game.ts`, `types.ts` and the generated registry.
+* **Closed in 9.1x (item 12) — "can't attack alone" in the partial case.** The `keywordHooks.attackFixup` seat now
+  exists: it is handed the CHOSEN ATTACKER IDS (`Set<number>`) to mutate, from `combatFrom` between the `attackers`
+  decision and the loop that applies it and from `simulateCombat` between its argument and the same loop, both
+  **before** anything is tapped, before the attack event is emitted and before an `attacks` trigger is queued, so a
+  creature the hook removes leaves no trace and `Game` has nothing to undo. The family half is the one-line
+  `attackFixup` in `src/engine/ops/combat-restr.ts` (`chosen.size !== 1` is every legal declaration; otherwise drop
+  the lone attacker and note it); see `cant-act-alone` above for the scenarios that pin it.
 * **A family's zod variants reaching `CardScriptChecked`.** `src/engine/ops/combat-restr.schema.ts` is written and
   imported by nothing: `src/cards/schema.ts` has no composer yet, so `npm run typecheck:schema` fails on the
   `Equals<>` pins (declaration merging widened `Effect` and `StaticEffect`; the zod side could not follow) and the

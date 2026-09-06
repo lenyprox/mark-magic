@@ -320,6 +320,8 @@ const COMBAT_RESTR: FamilyModule = {
       }
       return false;
     },
+    /** CR 506.4, the half only the FINISHED declaration can judge (9.1x item 12): a lone attacker that can't attack alone is dropped before anything is tapped. */
+    attackFixup: (g, chosen, ap) => { if (chosen.size !== 1) return; const o = chars.findObject(g.state, [...chosen][0]); if (o && o.controller === ap && flag(g.state, o, F.noAttackAlone)) { chosen.delete(o.id); g.note(`${chars.name(o)} can't attack alone.`); } },
 
     /** Every restriction decidable from the pair alone (CR 509.1b). `false` forbids, `undefined` abstains. */
     canBlock: (s, blocker, attacker) => {

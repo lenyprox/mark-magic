@@ -245,7 +245,7 @@ function guardBranch(cond: string, tail: string, ctx: EffectCtx): null {
   inBranch = true;
   try { effs = ctx.parseEffects(tail); } finally { inBranch = false; }
   if (!effs.length || effs.some(e => e.op === 'unknown')) return null;   // the split will not build a conditional anyway
-  if (readsTriggerFrame(effs)) vetoed = head;                     // no host this family can see supplies that frame
+  if (readsTriggerFrame(effs) && !ctx.host.triggering) vetoed = head;   // only a triggered host supplies that frame (EffectCtx.host, 9.1x item 17)
   else if (readsFrame(effs)) { if (branches?.targeted) vetoed = head; } // a sibling branch claimed the antecedent
   else if (branches && declaresObjectTarget(effs)) branches.targeted = true;
   return null;

@@ -126,9 +126,9 @@ const bound = (o: GameObject, kind: 'daybound' | 'nightbound'): boolean =>
  * `why` enforces the last static ability of daybound and of nightbound — "This permanent can't transform except due
  * to its daybound ability" (CR 702.145b) / "… except due to its nightbound ability" (CR 702.145e). A werewolf is
  * therefore immune to a generic "transform target creature": only `setDayNight` and `syncBound` pass 'daybound'. The
- * core's own `transform-self` op does not come through here (gating it needs a core change — see the doc's open
- * issues), but CR 702.145c / 702.145f make that self-correcting whenever it is day or night, because `syncBound` puts
- * the face back on the very next state-based check.
+ * core's own `{ op: 'transform-self' }` comes through here too since 9.1x items 16 and 19 (the module's `transform`
+ * hook below), so the gate and the announcement cover it; its exile-and-return form is a new object entering, not a
+ * transformation, and stays in the core.
  */
 function flip(g: Game, o: GameObject, to?: 'front' | 'back', why: 'effect' | 'daybound' = 'effect'): boolean {
   if (o.zone !== 'battlefield' || o.def.backFace === undefined || o.faceDown) return false;
@@ -148,8 +148,8 @@ function flip(g: Game, o: GameObject, to?: 'front' | 'back', why: 'effect' | 'da
   // (game.ts), so a permanent the transformation itself killed — every werewolf shrinks when it flips back at dawn,
   // Graveyard Glutton 4/4 → Graveyard Trespasser 3/3 — was already in the graveyard and out of `allPermanents` by
   // the time the watcher looked. So the flip announces itself here, at the instant it happens, and marks the face as
-  // reported so the watcher does not raise it a second time. The watcher stays for the one flip that does not come
-  // through this function: the core `{ op: 'transform-self' }` op.
+  // reported so the watcher does not raise it a second time. Since 9.1x the core `transform-self` comes through here
+  // as well, so the watcher is a backstop for a face changed by some other route (none printed).
   extSet(o, FACE_SEEN, next);
   g.queueTriggers('transforms', { obj: o, player: o.controller });
   return true;
@@ -239,10 +239,7 @@ function misparsed(v: unknown): boolean {
   if (Array.isArray(v)) return v.some(misparsed);
   if (v !== null && typeof v === 'object') {
     const o = v as Record<string, unknown>;
-    if (o.op === 'add-mana' && o.perEach !== undefined) return true;
-    if (typeof o.raw === 'string' && Array.isArray(o.pips) && o.generic === 0 && o.x === 0 && o.pips.length === 0
-      && (o.hybrid as unknown[] | undefined)?.length === 0 && (o.phyrexian as unknown[] | undefined)?.length === 0
-      && !/^(?:\{0\})*$/.test(o.raw)) return true;
+    // (9.1x items 14 and 15: `add-mana.perEach` is multiplied by the core and "{E}" is an energy cost, so neither shape is declined any more)
     for (const k in o) if (misparsed(o[k])) return true;
   }
   return false;
@@ -457,13 +454,15 @@ const TRANSFORM: FamilyModule = {
    * makes checkSBA loop again, which is what a state change owes the loop.
    *
    * Then the watcher, which is now the BACKSTOP only: `flip` above announces its own transformation the instant it
-   * happens (CR 603.2), so the only face change that reaches here unreported is the core `{ op: 'transform-self' }`
-   * op's, which no family can intercept. This compares each double-faced permanent's face with the last one reported
-   * and raises `transforms` when they differ. A permanent seen for the first time is only recorded — entering with
-   * its back face up (a disturb arrival, or the CR 702.145b / 712.14a "enters transformed" replacement) is not a
-   * transformation and must raise nothing. A `transform-self` flip that is undone inside the same resolution is still
-   * invisible to it, which is the one case §1 of the doc still lists.
+   * happens (CR 603.2), and since 9.1x the core `{ op: 'transform-self' }` is handed to `flip` too (the `transform`
+   * hook), so no printed route reaches here unreported. This compares each double-faced permanent's face with the
+   * last one reported and raises `transforms` when they differ. A permanent seen for the first time is only recorded
+   * — entering with its back face up (a disturb arrival, or the CR 702.145b / 712.14a "enters transformed"
+   * replacement) is not a transformation and must raise nothing.
    */
+  /** The core `transform-self` op, handed over so a werewolf refuses it (CR 702.145b / 702.145e) and a lethal flip still raises `transforms` (CR 603.2; 9.1x items 16 and 19). */
+  transform: (g, o) => { flip(g, o); return true; },
+
   sba: (g) => {
     const s = g.state;
     const corrected = syncBound(g);

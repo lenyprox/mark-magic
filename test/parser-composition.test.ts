@@ -652,8 +652,8 @@ test('the anthem "… you control have <keywords>" templates take every filter w
 // ---------------------------------------------------------------------------------------------------------------
 // the two parser debts
 // ---------------------------------------------------------------------------------------------------------------
-test('PARSER_VERSION is 4 and parse.ts carries no 0x08 byte (debt 5)', () => {
-  assert.equal(PARSER_VERSION, 4);
+test('PARSER_VERSION is 5 and parse.ts carries no 0x08 byte (debt 5)', () => {
+  assert.equal(PARSER_VERSION, 5);   // 5: 9.1x — whole-word target kinds, {G/W/P}, {E} as energy
   const src = fs.readFileSync(path.join(projectRoot(), 'src', 'cards', 'parse.ts'), 'utf8');
   assert.equal(src.includes('\x08'), false, 'a literal backspace byte where a \\b regex boundary was meant');
   assert.match(src, /\\bthis creature\\b\|\\bthis permanent\\b/);

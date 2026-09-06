@@ -17,9 +17,10 @@ Initiative** (day and night is 731), **702.146 is Disturb** (daybound *and* nigh
 
 ## 1. How a transformation is observed
 
-The core already flips a permanent (`{ op: 'transform-self' }`, `game.ts:applyEffect`), but it announces the flip
-only as a `transform` **event** — no trigger event is queued, so before this family "Whenever this creature
-transforms into …" could never fire on any card.
+The core already flipped a permanent (`{ op: 'transform-self' }`, `game.ts:applyEffect`), but it announced the flip
+only as a `transform` **event** — no trigger event was queued, so before this family "Whenever this creature
+transforms into …" could never fire on any card. Since 9.1x items 16 and 19 the core hands that op to this family's
+`flip` (the `transform` hook), so every flip on the battlefield now goes through the first half below.
 
 The family observes it twice over, and the two halves cover different flips.
 
@@ -36,9 +37,10 @@ trigger — which is exactly what happened before this half existed. The scenari
 the transformation kills the permanent that transformed* pins the werewolf case and *a self transforms trigger fires
 when the flip shrinks the permanent to lethal damage* pins the op's own.
 
-**An `sba` hook is the backstop** for the one flip the family cannot reach: the core `{ op: 'transform-self' }`, which
-`game.ts:applyEffect` performs without going through `flip`. It compares every double-faced permanent's `activeFace`
-with the last face reported and queues a `transforms` event when they differ. `checkSBA` runs at the top of every
+**An `sba` hook is the backstop** for a face changed by any route that bypasses `flip` — none printed, now that the
+core `{ op: 'transform-self' }` comes through `flip` too (9.1x); before that it was the core op's only observer. It
+compares every double-faced permanent's `activeFace` with the last face reported and queues a `transforms` event when
+they differ. `checkSBA` runs at the top of every
 priority round and after every resolution (`game.ts:priorityRound`, `resolveStackFully`), which is where triggers wait
 to be put on the stack (CR 603.3).
 
@@ -48,17 +50,16 @@ Three consequences worth knowing before you write a script:
   face up is not a transformation: CR 712.14a ("put onto the battlefield transformed" — it *enters* with its back
   face up) and CR 702.145b ("if it is night … it enters transformed") are replacement effects, and CR 701.27a only
   ever transforms a double-faced permanent that is already on the battlefield.
-* **Two `transform-self` flips inside one resolution are one net change.** Only the backstop half is a state-based
-  observation, so "`transform-self`, then `transform-self` again" leaves the face where it started and raises
-  nothing. This family's own op does not have that limit — each of its flips announces itself, so two of them raise
-  two events, which is what CR 603.2 asks for. No printed card does either.
-* **A core `transform-self` flip that kills the permanent is never reported.** The backstop only sees permanents
-  that survive the state-based check, so a shrinking flip whose new toughness is 0 or less (Ulrich of the
-  Krallenhorde with four -1/-1 counters turning back, Lambholt Elder // Silverpelt Werewolf) puts the permanent into
-  the graveyard without a `transforms` event, and a "whenever another creature you control transforms" watcher
-  (Neglected Heirloom) misses it. CR 603.2 says it should trigger; the fix is the core op raising the event itself
-  (9.1x). The family's own `flip` announces the transformation before the check, so daybound / nightbound and the
-  family's `transform` op are not affected.
+* **Two flips inside one resolution raise two events**, whichever op performs them — each flip announces itself
+  through `flip`, which is what CR 603.2 asks for. (Before 9.1x the core `transform-self` was observed only by the
+  backstop, so "`transform-self`, then `transform-self` again" was one net change and raised nothing.) No printed
+  card does either.
+* **A flip that kills the permanent is reported** (9.1x item 19). A shrinking flip whose new toughness is 0 or less
+  (Ulrich of the Krallenhorde with four -1/-1 counters turning back, Lambholt Elder // Silverpelt Werewolf) queues
+  the `transforms` event at the instant of the flip, before the state-based check puts the permanent into the
+  graveyard, so a "whenever another creature you control transforms" watcher (Neglected Heirloom) sees it — pinned
+  by *9.1x item 19: a transform that kills the permanent is still seen by "whenever a permanent you control
+  transforms"* in `test/scenarios/core-9-1x.ts`. Before 9.1x that held for the family's own ops only.
 
 The ability that triggers is the one on the face **that is now up** (CR 701.27a). A "Whenever this creature
 transforms into Ulrich, Uncontested Alpha" printed on the back face fires when the permanent turns *into* the back
@@ -248,22 +249,24 @@ the handler, so the entry is gone from that list.
 
 `first-main-phase` is the only head this family adds that fires **every turn, on every permanent that carries it**,
 and the parser contract cannot gate it: `TriggerRule.make` is handed the trigger head alone, never the body. Across
-the pool the head sits on 56 abilities, and only 19 of them have a body the engine can actually play.
+the pool the head sits on 56 abilities, and only 23 of them have a body the engine can actually play (19 at 9.1, plus
+the four the 9.1x core fixes below brought back).
 
 * **33 hold an `unknown` clause** (Ripples of Undeath, Advanced Reconstruction, Sab-Sunen, Coalition Relic, …).
   Claiming the head on those would put an ability on the stack once a turn for the rest of the game whose only
   observable effect is an `unsimulated` event: strictly worse than the pre-9.1 reading, where the head parsed as
   `{ on: 'unknown' }` and the ability never fired at all. Two of the four `fidelity:check` pairings failed that way.
-* **4 hold no `unknown` at all and still parse to something the engine reads wrong** — Static Prison, Electrozoa,
-  Black Market, Altar of Shadows. See "Open issues": both root causes are core defects, and both existed before this
-  family. `unknown` cannot find them, so a second predicate (`misparsed`) names the two shapes explicitly.
+* **4 held no `unknown` at all and still parsed to something the engine read wrong** — Static Prison, Electrozoa,
+  Black Market, Altar of Shadows. Both root causes were core defects older than this family (`{E}` parsed as a free
+  mana cost; `add-mana.perEach` never read) and both are closed in 9.1x (items 14 and 15, see "Open issues"), so those
+  four bodies are live now. The second predicate (`misparsed`) that named the two shapes declines nothing today and
+  stays as the seat for the next such shape.
 
 So the family's discipline — *decline rather than claim what you cannot express* — is applied one hop later, in the
 engine: **the trigger fires only for an ability whose whole body (and intervening-if) the engine can play**
-(`bodySimulable`, `src/engine/ops/transform.ts`). The 19 complete cards behave as written; the other 37 keep exactly
-their pre-9.1 behaviour and come alive by themselves the moment the missing clause or the core fix lands. A script
-you write by hand is never affected by the first gate (it may not contain an `unknown` at all) and is affected by the
-second only if it writes one of the two broken shapes, which it should not.
+(`bodySimulable`, `src/engine/ops/transform.ts`). The 23 complete cards behave as written; the other 33 keep exactly
+their pre-9.1 behaviour and come alive by themselves the moment the missing clause lands. A script you write by hand
+is never affected by the first gate (it may not contain an `unknown` at all), and the second names no shape today.
 
 ---
 
@@ -295,9 +298,10 @@ daybound, the back face nightbound — by `set-day-night`, by the continuous che
 On top of those, CR 702.145c and CR 702.145f are **continuous** ("any time … this happens immediately and isn't a
 state-based action"): a front-face-up daybound permanent while it is night, or a back-face-up nightbound permanent
 while it is day, is put back on the right face. The SBA loop is the only continuous check the engine has, so both run
-from the family's `sba` hook, which returns `true` when it corrected a face so the loop runs again. That is also the
-safety net for the one flip the family cannot gate — the **core** `{ op: 'transform-self' }` op, which does not go
-through this family's `flip` (see "Open issues").
+from the family's `sba` hook, which returns `true` when it corrected a face so the loop runs again. The **core**
+`{ op: 'transform-self' }` op goes through this family's `flip` since 9.1x, so it is gated like the family's own op
+(the scenario *a daybound permanent cannot be transformed by a plain transform effect while it is day* pins it); the
+continuous check remains the safety net for a face changed by any other route.
 
 The line rule that claims the printed `Daybound` / `Nightbound` line also adds
 `{ kind: 'day-night-enters', to: 'day' | 'night' }`, which carries CR 702.145d / 702.145g as well as 702.145b.
@@ -419,13 +423,13 @@ stops the ability firing until the body is complete and playable.
 * **"Add X mana of any one color, where X is …" is not expressible.** `{ op: 'add-mana' }`'s `amount` is a plain
   `number`, not an `Amount`, so The Core's back face stays unparsed even though the amount it needs
   (`permanent-cards-in-graveyard`) now exists.
-* **The core `{ op: 'transform-self' }` is not gated by daybound's "can't transform" ability.** This family's own
-  `transform` op refuses to flip a daybound / nightbound permanent (CR 702.145b / 702.145e), but `transform-self` is
-  a core op applied in `game.ts:applyEffect` and a family cannot intercept it. In practice the continuous CR 702.145c
-  / 702.145f check in the `sba` hook puts the face straight back whenever it is day or night — the scenario
-  *a daybound permanent forced onto its night face while it is day is transformed straight back* pins exactly that —
-  so the only window it stays wrong in is "neither day nor night", where no printed card can reach it. Closing it
-  properly is a two-line core change (see `coreChangeNeeded` in the 9.1 review).
+* **Closed in 9.1x (items 16 and 19) — the core `{ op: 'transform-self' }` was not gated by daybound's "can't
+  transform" ability.** `game.ts:applyEffect` now hands the plain `transform-self` to this family's `transform` hook,
+  which runs it through `flip`, so a daybound / nightbound permanent refuses it (CR 702.145b / 702.145e) even when it
+  is neither day nor night, and the `transforms` event is raised at the instant of the flip. Pinned by *a daybound
+  permanent cannot be transformed by a plain transform effect while it is day* here and by the `9.1x item 16` /
+  `item 19` scenarios in `test/scenarios/core-9-1x.ts`. The exile-and-return form (`viaExile`) stays in the core: a
+  new object entering is not a transformation.
 * **Wolf Strike counts as parsed but its damage clause deals 0.** The family's `it's night` condition finished the
   card, so it now reads `fullyParsed` — but its second clause, "Then it deals damage equal to its power to target
   creature you don't control", was *already* being mis-parsed by a built-in rule (`parse.ts:256`,
@@ -434,27 +438,23 @@ stops the ability firing until the body is complete and playable.
   kills nothing. **Do not count Wolf Strike as a coverage gain**: the pump half works and is what the family's own
   scenario asserts, the damage half needs the core parser fix reported with the 9.1 review. Nothing in this family
   can reach it — a built-in sentence rule claims that clause before any registry rule is offered it.
-* **`{E}` in a printed cost parses as a free MANA cost, so "unless you pay {E}" is auto-paid.** Energy is CR 118.12:
-  an energy counter is paid from the player's own pool, not with mana. The mana-cost parser drops the symbol and
-  leaves `{ generic: 0, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{E}' }` — a cost of nothing — which the
-  engine pays for free and logs as "pays {E}". Under this family's `first-main-phase` head that hits **Static
-  Prison** (never sacrificed) and **Electrozoa** (never tapped), and it is *not* new: **Lathnu Hellion** carries the
-  same shape under the core `end-step` head and is already live at base, and three such abilities exist in the pool.
-  The engine gate in §5 now declines the two under this family's head, restoring the pre-9.1 silence, but the parse
-  itself is still wrong, so **do not count Static Prison or Electrozoa as a coverage gain**. The fix is in
-  `src/cards/cost.ts` / the mana-cost parser and is reported in the 9.1 review's `coreChangeNeeded`.
-* **`{ op: 'add-mana' }`'s `perEach` is never read.** `game.ts`'s `case 'add-mana'` looks at `e.mana` and `e.amount`
-  only, so `{ op: 'add-mana', mana: ['B'], perEach: { count: 'counters-on-source', counter: 'charge' } }` adds
-  exactly one {B} however many charge counters are on the permanent. Under this family's head that is **Black
-  Market** and **Altar of Shadows**; a CardDB sweep finds **51 more** abilities with the same unread field outside it
-  (Everflowing Chalice, Rofellos, Magus of the Coffers, …), so it is a pre-existing core defect, not a 9.1 one. As
-  above, the §5 gate declines the two in reach and **neither card counts as a coverage gain**; the patch is in the
-  9.1 review's `coreChangeNeeded`.
+* **Closed in 9.1x (item 15) — `{E}` in a printed cost parsed as a free MANA cost, so "unless you pay {E}" was
+  auto-paid.** Energy is CR 118.12, paid from the player's own counters, and the parser now reads it as such:
+  `energyOf()`, `sacrifice-unless-pay.energy`, a bare `{E}` cost phrase as `AbilityCost.energy`. **Static Prison** is
+  sacrificed and **Electrozoa** tapped when the energy is not there (scenario *Static Prison is sacrificed in the
+  first main phase of a player with no energy to pay {E}* here and the three `9.1x item 15` scenarios in
+  `test/scenarios/core-9-1x.ts`); **Lathnu Hellion**, the same shape under the core `end-step` head, is fixed with
+  them. The §5 gate no longer declines the two, and both count as parsed cards now.
+* **Closed in 9.1x (item 14) — `{ op: 'add-mana' }`'s `perEach` was never read.** `game.ts`'s `case 'add-mana'`
+  multiplies the whole symbol list by `perEach` (0 adds nothing), so **Black Market** and **Altar of Shadows** add one
+  {B} per charge counter (scenario *Black Market's first-main-phase trigger adds one {B} per charge counter*), and
+  the **51** abilities outside this family's head that carry the same field (Everflowing Chalice, Rofellos, Magus of
+  the Coffers, …) are live with them. The §5 gate no longer declines the two.
 * **`bodySimulable` can only decline shapes it is told about.** The `unknown` half of the gate is general; the
-  `misparsed` half is a hand-written list of two known-wrong shapes, found by sweeping every `first-main-phase` body
-  in the CardDB. A third mis-parse of the same kind would slip through until someone adds it. There is no general
-  test for "this AST is well-formed but semantically wrong", which is why the two entries above are also filed as
-  core fixes rather than left to the gate.
+  `misparsed` half is a hand-written list of known-wrong shapes, found by sweeping every `first-main-phase` body in
+  the CardDB — empty since 9.1x closed the two it held. A new mis-parse of the same kind would slip through until
+  someone adds it. There is no general test for "this AST is well-formed but semantically wrong", which is why such
+  entries are filed as core fixes rather than left to the gate.
 * **The family's zod variants reach no schema.** `src/engine/ops/transform.schema.ts` exports the `FamilySchema` the
   §1.5 schema composer is meant to fold into `EffectSchema` / `ConditionSchema` / `TriggerEventSchema` /
   `AsEntersSchema` / `StaticEffectSchema` and the `TARGET_KINDS` / `AMOUNT_COUNTS` enums, but that composer does not

@@ -16,7 +16,7 @@ import { DeferredAgent, type AskRequest, type StopPolicy } from '@engine/agents/
 import type { Agent, Decision, PlayerAction } from '@engine/state';
 import { redact } from '@engine/view';
 import { redactEvent, type GameEvent } from '@engine/events';
-import { defTable, deserializeState, serializeState, type SerializedState } from '@engine/serialize';
+import { collectDefs, defTable, deserializeState, serializeState, type SerializedState } from '@engine/serialize';
 import { AnalysisPool, inlineWorker, defaultPoolSize, type WorkerLike } from '@analysis/pool';
 import type { AnalysisReport, ListEntry, McRequest, OpponentModel } from '@analysis/types';
 import type { FromWorker } from '@analysis/protocol';
@@ -62,6 +62,8 @@ interface Snapshot {
   requestId: number; kind: Decision['kind'];
   /** Only priority decisions are resumable (the engine can continue a priority round from a serialised state). */
   state: SerializedState | null;
+  /** CardDefs reachable from that state which no deck can supply: tokens, and an emblem's `"<Source> emblem"` def, which the effect that creates it makes (CR 114.3). Without them `deserializeState` throws on the first undo after an emblem (9.1x item 6). */
+  defs: Map<string, CardDef> | null;
   rng: number; eventCount: number; logIndex: number; oppActs: number; recorded: number;
   revealed: number; knownInHand: number; knownTop: number; library: number;
 }
@@ -76,7 +78,7 @@ function takeSnapshot(requestId: number, decision: Decision) {
   const s = game.state;
   const resumable = decision.kind === 'priority' && s.turn >= 1 && s.winner === null;
   history.push({
-    requestId, kind: decision.kind, state: resumable ? serializeState(s) : null, rng: rngOf(game),
+    requestId, kind: decision.kind, state: resumable ? serializeState(s) : null, defs: resumable ? collectDefs(s) : null, rng: rngOf(game),
     eventCount: s.events?.length ?? 0, logIndex, oppActs, recorded: human?.recorded.length ?? 0,
     revealed: s.knowledge.revealed.length, knownInHand: s.knowledge.knownInHand.length, knownTop: s.knowledge.knownTop[viewer]?.length ?? 0, library: s.players[viewer].library.length,
   });
@@ -279,7 +281,7 @@ function undo() {
   currentDecision = null; latestReport = null; pool?.cancel();
   let g: Game;
   try {
-    const state = deserializeState(snap.state!, defs);
+    const state = deserializeState(snap.state!, snap.defs ? new Map([...defs, ...snap.defs]) : defs);
     state.events = oldEvents.slice(0, snap.eventCount);
     const agents = buildAgents(options, decksRef);
     g = Game.fromState(state, agents, { ...gameOpts, commanders: undefined });

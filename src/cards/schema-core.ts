@@ -170,7 +170,7 @@ const S = z.string();
 const NUMX = z.custom<number>(v => typeof v === 'number' || v === 'X', { message: 'expected a number (or the parser literal "X")' });
 
 export const ManaCostSchema = z.strictObject({
-  generic: N, x: N, pips: z.array(ManaSymbolSchema), hybrid: z.array(z.array(ManaSymbolSchema)), phyrexian: z.array(ColorSchema), raw: S,
+  generic: N, x: N, pips: z.array(ManaSymbolSchema), hybrid: z.array(z.array(ManaSymbolSchema)), phyrexian: z.array(ColorSchema), phyrexianHybrid: z.array(z.array(ColorSchema)).optional(), raw: S,
 });
 /** A `Ref`: one of the named references, or `target:<i>` (the i-th target of the item). */
 export const RefSchema = z.union([z.enum(REFS), z.templateLiteral(['target:', z.number()])]);
@@ -589,7 +589,7 @@ export function buildSchemas(familiesOf: () => readonly FamilySchemaEntry[]) {
     z.strictObject({ op: z.literal('evolve') }),
     z.strictObject({ op: z.literal('move-counters'), counter: S, target: TargetSpecRef }),
     z.strictObject({ op: z.literal('renown'), amount: N }),
-    z.strictObject({ op: z.literal('sacrifice-unless-pay'), mana: ManaCostSchema, once: z.literal('echo').optional(), perCounter: S.optional() }),
+    z.strictObject({ op: z.literal('sacrifice-unless-pay'), mana: ManaCostSchema, energy: N.optional(), once: z.literal('echo').optional(), perCounter: S.optional() }),
     z.strictObject({ op: z.literal('unearth') }),
     z.strictObject({ op: z.literal('cascade') }),
     z.strictObject({ op: z.literal('explore') }),

@@ -434,18 +434,18 @@ the `prevent-rider` adoption above exists for, and the split §6's ordering note
 
 ## 6. What this family does not express yet
 
-* **A core prevention shield is spent before this family's damage fold runs.** `Game.dealDamage` consumes
-  `o.eotFlags.preventDamage` at game.ts:1902-1903 and `dealDamageToPlayer` short-circuits on the Fog flag at
-  game.ts:1883, both *before* `REPLACEMENTS.damage` at the line after. Two consequences:
-  * a `damage-replacement` multiplier is applied **after** that shield, so Furnace of Rath's doubling of a Lightning
-    Bolt is fully absorbed by a 3-point Healing Salve instead of leaving 3 to be dealt (CR 614.1a modifications come
-    first, then CR 615 prevention — the order this family promises and keeps for every shield it owns itself);
-  * a *restricted* `damage-cant-be-prevented` cannot switch that shield off (see §2; the unrestricted case is handled
-    by the sweep described there).
-
-  Both are one core change: fold `REPLACEMENTS.damage` **before** the `eotFlags.preventDamage` / Fog branches and let
-  this family answer "may this be prevented?" for them. It is written up as `coreChangeNeeded` in the Phase 9.1
-  report; nothing inside a family file can reach it.
+* **Closed in 9.1x (item 5) — the core's own shields beside this family's damage fold.** `Game.dealDamage` and
+  `dealDamageToPlayer` apply the core's own shield (`o.eotFlags.preventDamage`, the Fog flag) *first* and fold
+  `REPLACEMENTS.damage` on what is left, and the new `replacements.preventable` hook — this family answers it with
+  its own `preventable()` — lets a *restricted* `damage-cant-be-prevented` switch those shields off for one event
+  without consuming them (CR 615.12: a shield is not reduced by damage that can't be prevented). The order is NOT a
+  rule: CR 616.1 / 616.1e give the affected object's controller (or the affected player) the choice, and any order
+  is legal. Shield-first is the core's choice on that player's behalf because it never deals them more damage — a
+  doubler scales what the shield left ((2 − 1) × 2 = 2 for Shock at a 3/3 under Samite Healer and Furnace of Rath,
+  and the 3/3 lives), a Fog spends none of this family's one-shot shields on damage it prevents whole — pinned by
+  the two *9.1x item 5* scenarios in `test/scenarios/core-9-1x.ts`. It is the opposite of the fixed order §1 gives
+  the shields this family owns itself (modifiers first, then prevention). The unrestricted sweep in §2 is still
+  there and still correct.
 * **Comeuppance and Honorable Passage** split the rider by the *kind* of the prevented source ("if damage from a
   creature source is prevented this way … if damage from a noncreature source …"). `PreventFollowUp` has one mode
   per shield, so those lines stay unparsed.

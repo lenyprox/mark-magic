@@ -190,9 +190,10 @@ ability among `chars.abilitiesOf(self)` and refuses the part outside the graveya
 `fromGraveyard`. An ability without the flag, and an `AltCost` (whose cost object lives on `def.altCosts`, so the
 scan never finds it — Sea Drake), are not gated at all.
 
-The hole itself is older and wider than this family: 131 cards whose graveyard ability has a core-only cost (Eternal
-Dragon, Tymaret, every unearth) are still offered on the battlefield. Only a core change closes those — see the
-report's `coreChangeNeeded` for `legal.ts`.
+The hole itself was older and wider than this family: 131 cards whose graveyard ability has a core-only cost (Eternal
+Dragon, Tymaret, every unearth) were offered on the battlefield too. 9.1x item 1 closed those in the core —
+`legal.ts:legalActions`'s battlefield scan skips any `fromGraveyard` ability (CR 113.6b; pinned by
+`test/core-9-1x.test.ts`) — so the family's own gates above are now belt and braces.
 
 **Why the source is not excluded from `sacrificeMany` / `returnToHandMany`.** CR 601.2h lets a permanent be
 sacrificed to pay for its own activated ability, which is exactly Time Sieve ({T}, Sacrifice five artifacts — and
@@ -241,19 +242,17 @@ Each of these needs a core change; none of them was made here.
    mana.
 6. **A `cast-from` permission for a spell with targets** is not offered as a legal action — see §3.
 7. **A land hidden away** cannot be played from exile: `play-land` accepts `from: 'graveyard' | 'library'` only.
-8. **A graveyard ability is still offered while its card is on the battlefield** when its cost is one the core can
-   pay there. `legal.ts:legalActions`'s battlefield scan checks `sorcerySpeed`, `oncePerTurn`, `loyalty`, `tap`,
-   `untap`, mana, `activateOnlyIf` and `nonManaCostPayable`, but never `ab.fromGraveyard` (CR 113.6b). The family
-   closes all 63 of its own cards — 56 with the zone-gated `exileSelfFromGraveyard` part and the other 7 with
-   `zoneAllows` on the counted parts, both above — but the 131 whose graveyard ability has a core-only cost still
-   need the one-line core skip in the report's `coreChangeNeeded`.
-9. **`freeCast` is not told which alternative cost the cast chose.** `game.ts:571` runs `FREE_CAST_HOOKS`
-   unconditionally, unlike the `CAST_FROM_HOOKS` block two lines above it, which is guarded by `!alt`; the hook
-   signature is `(g, p, card, from)`. So a `cast-from … free: true` permission would make a flashback/escape/disturb
-   cast from that zone cost zero mana *and* still pay the alternative cost's non-mana parts (`game.ts:615`). Until
-   the core passes `alt`, the family's permission abstains for any card with an alternative cost from that zone
-   (`freeBlockedByAlt`), and `legalActions` skips those cards so both halves agree — an under-approximation rather
-   than a wrong price. CR 118.9, 601.2f.
+8. **Closed in 9.1x (item 1) — a graveyard ability was offered while its card is on the battlefield** when its cost
+   was one the core could pay there. `legal.ts:legalActions`'s battlefield scan now returns early on
+   `ab.fromGraveyard` (CR 113.6b), beside its `sorcerySpeed`, `oncePerTurn`, `loyalty`, `tap`, `untap`, mana,
+   `activateOnlyIf` and `nonManaCostPayable` checks. The family's own closures — 56 cards with the zone-gated
+   `exileSelfFromGraveyard` part and 7 with `zoneAllows` on the counted parts, both above — stay, and the 131 with a
+   core-only cost are covered by the core skip.
+9. **Closed in 9.1x (item 2) — `freeCast` was not told which alternative cost the cast chose.** `game.ts:castSpell`
+   now runs `FREE_CAST_HOOKS` only when no alternative cost was chosen, the same `!alt` guard the `CAST_FROM_HOOKS`
+   block has (CR 118.9: "without paying its mana cost" is itself an alternative cost and only one applies), pinned by
+   `test/core-9-1x.test.ts`. The family's `freeBlockedByAlt` abstention and the matching `legalActions` skip are now
+   redundant under-approximations the family may drop; until it does, both halves still agree. CR 118.9, 601.2f.
 10. **`castSpell` does not re-check the "can't cast" lock.** `opponents-cant-cast` is enforced in exactly one place,
    `legal.ts:castActionsFor` (legal.ts:293); `game.ts:castSpell` has no equivalent, for a cast from hand as much as
    for one through this family's permission. The family's `legalActions` provider therefore applies the same check

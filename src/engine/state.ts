@@ -27,7 +27,11 @@ export interface GameObject {
   attacking: PlayerId | null;      // player being attacked (or the controller of the planeswalker being attacked)
   attackingPlaneswalker?: number;  // planeswalker being attacked, if any (CR 508.1)
   /** "becomes a 1/4 white and black creature" — overrides base P/T, adds types/subtypes/keywords/colours (until `untilTurn`'s cleanup when set). */
-  animated?: { power: number; toughness: number; colors: Color[]; types: import('../cards/types.js').CardType[]; subtypes: string[]; keywords: Keyword[]; untilTurn?: number };
+  /** `replaceTypes` / `replaceSubtypes`: CR 205.1a - the effect SET the characteristic rather than adding to it, so the
+   *  printed values go away ("becomes a Frog" makes the Bear a Frog and only a Frog; subtypes are replaced within their
+   *  own set only). Absent is the additive CR 205.1b reading ("in addition to its other types"). Read by
+   *  `characteristics.ts:types` / `subtypes`; a family that folds layers into this slot writes them (9.1x item 3). */
+  animated?: { power: number; toughness: number; colors: Color[]; types: import('../cards/types.js').CardType[]; subtypes: string[]; keywords: Keyword[]; untilTurn?: number; replaceTypes?: true; replaceSubtypes?: true };
   /** Earthbent land: if it would die it returns to its owner's hand instead. */
   earthbent?: boolean;
   /** Face down (CR 708): a 2/2 colourless creature with no name, types or abilities until turned face up. */
@@ -47,7 +51,8 @@ export interface GameObject {
   /** "If it would die this turn, exile it instead" — holds the turn the replacement applies to (CR 614.1c). */
   exileIfDiesTurn?: number;
   /** How the spell was cast (kept on the permanent it became): alternative cost, zone, kicker, X, delve count. */
-  castWith?: { alt?: AltCostId; from?: CastZone; kicked?: boolean; x?: number; delved?: number; colorsSpent?: number };
+  /** `phyrexianLife`: how many Phyrexian pips of the cost paid were paid with 2 life each (CR 107.4f; compleated reads it). */
+  castWith?: { alt?: AltCostId; from?: CastZone; kicked?: boolean; x?: number; delved?: number; colorsSpent?: number; phyrexianLife?: number };
   /** Ids of cards exiled as a cost of casting this (delve) or imprinted on it. */
   exiledWith?: number[];
   chosen?: { creatureType?: string; color?: Color };

@@ -21,7 +21,7 @@ const CAST_TRIGGER: Ability = {
   kind: 'triggered', event: { on: 'cast', filter: {}, who: 'you' },
   effects: [{ op: 'gain-life', amount: 2, who: 'you' }], text: 'Whenever you cast a spell, you gain 2 life.',
 };
-/** "Creatures you control get +2/+2." — the emblem ability the engine cannot apply yet (see the family doc). */
+/** "Creatures you control get +2/+2." — an emblem static; applied since 9.1x item 9 (`staticSources` folds `triggerSources` in). */
 const ANTHEM: Ability = {
   kind: 'static', effect: { kind: 'anthem', power: 2, toughness: 2, filter: { types: ['Creature'] }, scope: 'you-control' },
   text: 'Creatures you control get +2/+2.',
@@ -256,14 +256,16 @@ export const planeswalker: Scenario[] = [
     expect: [{ counters: ['Tibalt, Rakish Instigator', { loyalty: 7 }] }, { unsimulated: 0 }],   // printed 5 + 2
   },
 
-  // ------------------------------------------------------------------ what an emblem cannot do yet (CR 114.3)
+  // ------------------------------------------------------------------ an emblem's static ability (CR 114.2, 611.3)
   {
-    // The parser refuses every anthem emblem for this reason; a hand-written script can still write one, and when it
-    // does the log has to say the ability is not applied rather than leaving a silent no-op.
-    name: 'an emblem with a static ability says so in the log instead of silently doing nothing', cr: '114.3',
-    seats: [{ bf: ['Grizzly Bears'] }, {}],
+    // Before 9.1x item 9 `characteristics.ts:staticSources` scanned the battlefield alone and this scenario pinned the
+    // "does not apply yet" log line; the static sources now include the registry's `triggerSources` (the command-zone
+    // emblems), so an anthem emblem is an anthem. The parser still claims only Teferi's emblem (family backlog).
+    name: 'an emblem with a static ability applies it from the command zone', cr: '114.2',
+    ruling: 'CR 114.2: an emblem functions in the command zone; CR 611.3: a static ability generates a continuous effect while its source is in the zone it functions from.',
+    seats: [{ bf: ['Grizzly Bears'] }, { bf: ['Hill Giant'] }],
     scripts: bears([{ op: 'emblem', abilities: [ANTHEM], text: 'Creatures you control get +2/+2.' }]),
     script: [{ activate: 'Grizzly Bears' }, { resolve: true }],
-    expect: [{ zoneCount: [0, 'command', 1] }, { pt: ['Grizzly Bears', 2, 2] }, { log: 'does not apply yet' }],
+    expect: [{ zoneCount: [0, 'command', 1] }, { pt: ['Grizzly Bears', 4, 4] }, { pt: ['Hill Giant', 3, 3] }, { noLog: 'does not apply yet' }],
   },
 ];

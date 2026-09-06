@@ -433,6 +433,8 @@ const CONTROL: FamilyModule = {
 
   // CR 400.7: a permanent that left the battlefield is a new object — moveTo already handed it back to its owner.
   leave: (_g, o) => extDel(o, EXT),
+  /** The core `gain-control ... until end of turn` (Act of Treason) recorded as one more entry of the stack, so it interleaves with the "for as long as" durations (CR 613.7; 9.1x item 13). */
+  controlUntilEot: (g, o, to, src) => { steal(g, o, to, 'eot', src); return true; },
 
   render: {
     'control-gain': (e: ControlGainEffect) => {

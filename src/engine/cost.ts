@@ -41,7 +41,7 @@ export function costAdjust(s: GameState, p: PlayerId, card: GameObject, from: Ca
 
 /** Two mana costs added together (the printed cost plus kicker, plus whatever the chosen modes cost). */
 function plusCost(base: ManaCost, k: ManaCost): ManaCost {
-  return { ...base, generic: base.generic + k.generic, pips: [...base.pips, ...k.pips], hybrid: [...base.hybrid, ...k.hybrid], phyrexian: [...base.phyrexian, ...k.phyrexian] };
+  return { ...base, generic: base.generic + k.generic, pips: [...base.pips, ...k.pips], hybrid: [...base.hybrid, ...k.hybrid], phyrexian: [...base.phyrexian, ...k.phyrexian], ...(base.phyrexianHybrid || k.phyrexianHybrid ? { phyrexianHybrid: [...(base.phyrexianHybrid ?? []), ...(k.phyrexianHybrid ?? [])] } : {}) };
 }
 
 /**

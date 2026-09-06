@@ -3,7 +3,8 @@
 import type { Ability, Amount, AmountExpr, CardDef, CardType, Color, Filter, Keyword, ObjectSet, StaticEffect } from '../cards/types.js';
 import type { GameObject, GameState, PlayerId, TargetRef } from './state.js';
 import { alive, opponentsOf } from './players.js';
-import { AMOUNTS, CAN_ATTACK, CAN_BLOCK, CONDITIONS, HAS, STATICS } from './ops/_registry.js';
+import { AMOUNTS, CAN_ATTACK, CAN_BLOCK, CONDITIONS, HAS, STATICS, TRIGGER_SOURCES } from './ops/_registry.js';
+import { SUBTYPE_KIND } from '../cards/subtype-vocab.js';
 import { bindChars } from './ops/chars.js';
 import type { Mods } from './ops/types.js';
 import { objectsIn, resolveOnePlayer, resolveRef, type RefCtx } from './refs.js';
@@ -69,12 +70,25 @@ export const FACE_DOWN_TYPES: CardType[] = ['Creature'];
 export function types(o: GameObject): CardType[] {
   if (o.faceDown) return FACE_DOWN_TYPES;
   let base = o.token ? (o.token.types as CardType[]) : defOf(o).types;
-  if (o.animated) base = [...new Set([...base, ...o.animated.types])];
+  // CR 205.1a: an effect that SETS the card type replaces the existing ones (an instant or sorcery keeps that type);
+  // CR 205.1b: one that says "in addition to its other types" adds - the additive default (9.1x item 3)
+  if (o.animated?.replaceTypes && o.animated.types.length) base = [...new Set([...o.animated.types, ...base.filter(t => t === 'Instant' || t === 'Sorcery')])];
+  else if (o.animated) base = [...new Set([...base, ...o.animated.types])];
   if (o.eotFlags.crewed || o.eotFlags.saddled) return base.includes('Creature') ? base : [...base, 'Creature'];
   if (o.counters.time && o.def.altCosts?.some(a => a.id === 'impending')) return base.filter(t => t !== 'Creature'); // impending: not a creature while it has time counters
   return base;
 }
-export function subtypes(o: GameObject): string[] { if (o.faceDown) return []; const base = o.token ? o.token.subtypes : defOf(o).subtypes; return o.animated?.subtypes.length ? [...new Set([...base, ...o.animated.subtypes])] : base; }
+export function subtypes(o: GameObject): string[] {
+  if (o.faceDown) return [];
+  const base = o.token ? o.token.subtypes : defOf(o).subtypes;
+  const a = o.animated;
+  if (!a || !a.subtypes.length) return base;
+  if (!a.replaceSubtypes) return [...new Set([...base, ...a.subtypes])];
+  // CR 205.1a, last sentence: the set subtypes replace the existing ones OF THE SAME SET only (creature types, land
+  // types, artifact types, ...) - a land that becomes a Frog keeps its land types (9.1x item 3)
+  const sets = new Set(a.subtypes.map(t => SUBTYPE_KIND[t]));
+  return [...new Set([...base.filter(t => !sets.has(SUBTYPE_KIND[t])), ...a.subtypes])];
+}
 export function colors(o: GameObject): Color[] { if (o.faceDown) return []; if (o.animated?.colors.length) return o.animated.colors; return o.token ? o.token.colors : defOf(o).colors; }
 export function isCreature(o: GameObject): boolean { return types(o).includes('Creature'); }
 export function isLand(o: GameObject): boolean { return types(o).includes('Land'); }
@@ -268,7 +282,10 @@ export function matchesFilter(s: GameState, o: GameObject, f: Filter | undefined
 let staticSrcCache: { state: unknown; gen: number; count: number; list: GameObject[] } | null = null;
 function staticSources(s: GameState): GameObject[] {
   const gen = s.bfGen ?? 0;
-  const perms = allPermanents(s);
+  // CR 114.2 / 611.3: an emblem's static abilities function from the command zone, so the same registry sources
+  // `queueTriggers` scans beyond the battlefield (`triggerSources`: emblems, command-zone statics) are static sources
+  // too; the emblem op bumps `bfGen`, which is this cache's key (9.1x item 9)
+  const perms = TRIGGER_SOURCES.length ? [...allPermanents(s), ...TRIGGER_SOURCES.flatMap(f => f(s))] : allPermanents(s);
   if (staticSrcCache && staticSrcCache.state === s && staticSrcCache.gen === gen && staticSrcCache.count === perms.length) return staticSrcCache.list;
   const list = perms.filter(o => abilitiesOf(o).some(ab => ab.kind === 'static'));
   staticSrcCache = { state: s, gen, count: perms.length, list };

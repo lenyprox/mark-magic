@@ -38,6 +38,14 @@ export interface EffectRule { re: RegExp; make: (m: RegExpMatchArray, ctx: Effec
  */
 export interface EffectCtx {
   optional: boolean;
+  /**
+   * Which frames the HOST stack item will carry when this sentence resolves - what a rule needs to know before it may
+   * emit an op that reads one. `triggering` is true only inside a triggered ability's body (the only item game.ts ever
+   * gives a `triggeringId`, so `counter-triggering` and its kin are right there and nowhere else); `bound` says a cost
+   * or an earlier effect of the same item already bound `item.affected`. A rule whose effects would read a frame the
+   * host cannot supply must decline (9.1x item 17).
+   */
+  host: { readonly triggering: boolean; readonly bound: boolean };
   /** A paragraph or sentence list → effects (the same ladder every built-in body goes through). */
   parseEffects: (text: string) => Effect[];
   /** One sentence → one effect (`unknown` when nothing claims it). */

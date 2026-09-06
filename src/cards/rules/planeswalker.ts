@@ -238,31 +238,29 @@ const effects: EffectRule[] = [
  * "Compleated ({B/P} can be paid with {B} or 2 life. If life was paid, this planeswalker enters with two fewer
  * loyalty counters.)" — a keyword line the built-ins record as unparsed inside their keyword bail-out.
  *
- * The engine already pays 2 life for a Phyrexian pip it cannot produce (game.ts, after `payMana`), but it records
- * nothing about having done so, so nothing downstream could know to shrink the loyalty. The line is therefore written
- * as the card's `life` ALTERNATIVE COST — the printed cost with its Phyrexian pips removed plus 2 life for each —
- * which is a choice the AI enumerates and which `castWith.alt` records, plus the family's `compleated` as-enters that
- * takes two loyalty counters off per pip (CR 107.4f, and the Vraska rulings: two fewer for each pip paid with life).
+ * Since 9.1x item 11 the engine pays a Phyrexian pip of the PRINTED cost with 2 life when the mana is not there
+ * (`mana.ts:solve`, `Payment.life`) and records the pips so paid in `castWith.phyrexianLife`, which the family's
+ * `compleated` as-enters reads. The line also still writes the card's `life` ALTERNATIVE COST — the printed cost with
+ * its Phyrexian pips removed plus 2 life for each, which `castWith.alt` records — a now-redundant second route the
+ * family may drop (HANDOFF item 33e); either way the as-enters takes two loyalty counters off per pip paid with life
+ * (CR 107.4f, and the Vraska rulings: two fewer for each pip paid with life).
  */
 const lines: LineRule[] = [
   { name: 'compleated', match: (line, ctx) => {
     if (!/^compleated$/i.test(line.trim().replace(/\.$/, ''))) return false;
     const mc = ctx.def.manaCost;
     if (!mc || !ctx.def.types.includes('Planeswalker')) return false;
-    // Counted off the printed symbols, not off `manaCost.phyrexian`: the mono-coloured `{B/P}` lands there, while the
-    // hybrid `{G/U/P}` Tamiyo prints is a symbol `parseManaCost` knows no case for and drops (a built-in gap recorded
-    // in the family doc). Either way each printed `/P` symbol is one pip whose life route costs 2 life and two loyalty.
+    // Counted off the printed symbols: the mono-coloured `{B/P}` lands in `manaCost.phyrexian`, the hybrid `{G/W/P}`
+    // (Tamiyo, Compleated Sage / Ajani, Sleeper Agent / Lukka, Bound to Ruin / Nahiri, the Unforgiving) in
+    // `manaCost.phyrexianHybrid` since 9.1x item 10. Either way each printed `/P` symbol is one pip whose life route
+    // costs 2 life and two loyalty.
     const pips = mc.raw.match(/\{[^}]*\/P\}/g) ?? [];
-    // Each printed `/P` symbol must be one the core's cost parser actually carries. `parseManaCost` has a case for the
-    // mono-coloured `{B/P}` (it lands in `manaCost.phyrexian`, so the alt cost below really is 2 mana cheaper) and no
-    // case at all for the hybrid `{G/W/P}`, which it DROPS: for Tamiyo, Compleated Sage / Ajani, Sleeper Agent /
-    // Lukka, Bound to Ruin / Nahiri, the Unforgiving the parsed cost has nothing to remove, so the life route would be
-    // the same mana PLUS 2 life and 2 loyalty — a strictly dominated cast the AI is right never to take, and one more
-    // legal action for it to enumerate. Those four lines stay unparsed until the core parses the symbol; the gap is in
-    // this wave's `coreChangeNeeded` and in the family doc.
-    if (!pips.length || mc.phyrexian.length !== pips.length) return false;
+    // Every printed `/P` symbol must be one the parsed cost carries, so removing them really makes the alt cost below
+    // 2 mana cheaper per pip (a symbol the parser dropped would make the life route the same mana PLUS 2 life and 2
+    // loyalty — a dominated cast worth nothing but one more legal action to enumerate).
+    if (!pips.length || mc.phyrexian.length + (mc.phyrexianHybrid?.length ?? 0) !== pips.length) return false;   // 9.1x item 10: {G/W/P} lands in `phyrexianHybrid`
     const life = 2 * pips.length;
-    const mana: ManaCost = { ...mc, phyrexian: [], hybrid: mc.hybrid.map(h => [...h]), pips: [...mc.pips], raw: mc.raw.replace(/\{[^}]*\/P\}/g, '') };
+    const mana: ManaCost = { ...mc, phyrexian: [], hybrid: mc.hybrid.map(h => [...h]), pips: [...mc.pips], raw: mc.raw.replace(/\{[^}]*\/P\}/g, '') }; delete mana.phyrexianHybrid;
     ctx.addAltCost({ id: 'life', label: `compleated (${life} life)`, cost: { mana, payLife: life }, from: 'hand' });
     ctx.addAsEnters({ kind: 'compleated', fewer: 2 * pips.length });
     return true;
