@@ -488,3 +488,63 @@ message with the co-author trailer your session is instructed to use.
   review loops.
 - Owner's memory notes for this project live outside the repo (`~/.claude/projects/…/memory/`); everything they
   contain that matters is in this file, `docs/plans/every-card-scripted.md` and `docs/workflows/README.md`.
+
+## 7. Phase 9.1 — the twelve vocabulary families (2026-09-05, later session)
+
+The wave `wf_72c2a50c-ba6` (docs/workflows/vocab-wave.js, launched from 959901d) died mid-run with all twelve
+implementers, both reviewers per family and fix round 1 done. Its results were recovered from the run's journal
+(`~/.claude/projects/…/<session>/subagents/workflows/<runId>/journal.jsonl`, one `result` row per agent) and the
+wave was finished by a continuation workflow (`wf_03a6401b-4a1`: the ten missing round-1 re-reviews, fix round 2
+for every family, a second re-review). After the two permitted fix rounds five families were clean and seven carried
+one or two findings; the orchestrator closed those at merge time (process rule: at most two fix rounds).
+
+Merged on main, one commit per family (in order): cost-alter e2cef17, replacement 6fd2a48, keyword-action 82e19d3,
+planeswalker 63c437c, saga 942437c, piles-choices 456c334, control 0a4fafa, transform d2cffd8, copy-clone e86ab02,
+dice-coin 1ed7ec5, layers 61f43bf, combat-restr 525a673. Each merge ran the per-merge gate (gen:registry,
+typecheck:all + typecheck:schema, verify:quick, npm test, coverage:pool, parse:diff read and accepted, parser-only
+golden:check, coverage:ops, vocab:doc --check, CRLF). Every family's `<family>.schema.ts` now imports `FamilySchema`
+from `src/engine/ops/types.ts` (the 8a-4 composer type) instead of its pre-composer local copy.
+
+What the orchestrator fixed while merging (all pinned by scenarios unless noted):
+- **Core (from the fuzz):** `queueTriggers`' self-leaving branch read `ctx.obj.def.abilities` — a token's def is its
+  creator's card, so every token carried its creator's dies trigger (a Human Warrior token re-creating itself forever
+  under Elesh Norn, seed 1 game 7). Now `abilitiesOf(obj)` (CR 603.10a). And CR 726.4: a turn that resolves more than
+  `MANDATORY_LOOP_LIMIT` (2000) stack items is a mandatory loop — `GameState.drawReason`, every player lost, the game
+  ends without a winner (63c437c).
+- **Saga:** lore counters belong to the saga family — the planeswalker family's generic "put N counters on target …"
+  rule (registered first) and the four built-in counter templates decline the word `lore`, so `saga-lore` raises the
+  `chapter` event (942437c).
+- **piles-choices:** `applyFate` skipped a same-zone fate even with an explicit position ("the other pile on the
+  bottom of your library" stayed on top) (456c334). **control:** `control-gain` on a permanent the gainer already
+  controls still untaps / grants haste (CR 608.2c) (0a4fafa). **transform:** the sba backstop's third limit disclosed
+  in the doc; the engine half is 9.1x (d2cffd8).
+- **copy-clone:** fixtures (Clone, Reverberate finished; Fork is the queue fixture) and a fresh prepared statement
+  per `CardDB.allWithTier` scan — the cached one was busy for a nested scan started inside a verify:pool trial
+  (e86ab02). The CR 704.5j legend-rule half is 9.1x.
+- **dice-coin:** a trailing ", where X is …" scopes over the whole sentence: the composition family's "<player> … and
+  you …" block and the built-in " and " split decline such a clause, so the whole-sentence rule defines X over both
+  halves (Grave Endeavor drains again) (1ed7ec5).
+- **layers:** parse.ts's antecedent guard covers "becomes" / "deals" (a bound pronoun is `thatobj`, the layers rule
+  reads it as `that`); "If ~ was kicked, it deals …" keeps `it` = ~ (the built-in condition parser learned the
+  "~ was kicked" spelling). The pump-then-bite shapes (25 paper cards) are honestly unknown now instead of the spell
+  dealing 0 damage — a `damage` op with a `source: 'that'` Ref would claim them (backlog). The layers copy of the
+  `choose-type` as-enters (identical to replacement's) and replacement's unreachable renderer entry for it were
+  dropped (61f43bf).
+- **Renderer (combat-restr merge):** the calibration ceiling (10% of parser-finished cards below the 0.55 gate) was
+  crossed at 10.9%; three gaps closed in src/cards/render.ts — a FAMILY static renders through its own `render`
+  entry (was its humanised kind name), a filtered count prints its filter, and the "It can't be regenerated." fold
+  marker prints that sentence. False-fail rate 8.2% (525a673).
+
+Numbers on main after the twelve merges (525a673): coverage:pool 13,031 / 34,513 overall, paper headline
+12,877 / 32,081 = 40.1% (was 12,065 = 37.6% after 10.0); 1,356 tests; goldens reproduce exactly (parser alone);
+coverage:ops 0 not allowlisted. Wave gate: `npm run verify:all` green on 525a673 (typecheck:all incl. typecheck:schema, 1,356 tests / 1,319 pass / 37 skipped, scripts:check 43 ok, parse:diff 0, verify:pool no problems, bench 27.8 / 3.12 games/s with three other dev servers on the machine — commander under its 4 games/s budget, noted, not a gate) and `MTG_SCRIPTS=0 npm run fuzz` (200 two-player games, seed 1, 7 workers, 56 s) 0 buckets.
+
+Still open after the wave — the **9.1x core slice** (serial, main checkout, Fable 5.1 high implementer + two Opus
+reviewers): the families' declared core changes, collected with their patches in the orchestrator's item list
+(20 items: CR 506.4 "can't attack alone" over a finished declaration; CR 704.5j legend rule on copied names;
+CR 113.6b graveyard-only abilities offered on the battlefield; the core prevention shield spent before the family
+fold; add-mana `perEach`; the `{E}` cost; a lethal `transform-self` flip never raising `transforms`; the
+`counter-triggering` ctx for triggered abilities; CR 613.7 one-slot control bookkeeping; the planeswalker items —
+emblems breaking Undo in the web worker, phyrexian hybrid pips, `findPayment` for phyrexian, `staticSources` without
+a registry fold; the layers removal channel in the characteristics overlay; the FREE_CAST_HOOKS `!alt` guard).
+Then re-queue 10.0 (blocked + rejected) and 10.1.

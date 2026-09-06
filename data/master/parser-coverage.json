@@ -1,19 +1,19 @@
 {
-  "generated_at": "2026-09-05T02:26:38.517Z",
+  "generated_at": "2026-09-06T02:06:55.495Z",
   "playable_oracle_cards": 34513,
-  "fully_parsed": 11541,
-  "fully_parsed_pct": 33.44,
-  "of_which_vanilla_or_keyword_only": 1540,
+  "fully_parsed": 13031,
+  "fully_parsed_pct": 37.76,
+  "of_which_vanilla_or_keyword_only": 1506,
   "headline": {
     "total": 32081,
-    "fully_parsed": 11391,
-    "pct": 35.51
+    "fully_parsed": 12877,
+    "pct": 40.14
   },
   "tiers": {
     "paper": {
       "total": 32081,
-      "fully_parsed": 11391,
-      "pct": 35.51
+      "fully_parsed": 12877,
+      "pct": 40.14
     },
     "digital": {
       "total": 1000,
@@ -22,8 +22,8 @@
     },
     "un": {
       "total": 1423,
-      "fully_parsed": 97,
-      "pct": 6.82
+      "fully_parsed": 101,
+      "pct": 7.1
     },
     "ante": {
       "total": 9,
@@ -34,48 +34,48 @@
   "by_primary_type": {
     "Creature": {
       "total": 19233,
-      "full": 7078,
-      "pct": 36.8
+      "full": 7948,
+      "pct": 41.3
     },
     "Artifact": {
       "total": 2601,
-      "full": 738,
-      "pct": 28.4
+      "full": 825,
+      "pct": 31.7
     },
     "Enchantment": {
       "total": 3564,
-      "full": 713,
-      "pct": 20
+      "full": 872,
+      "pct": 24.5
     },
     "Sorcery": {
       "total": 3620,
-      "full": 981,
-      "pct": 27.1
+      "full": 1111,
+      "pct": 30.7
     },
     "Instant": {
       "total": 3849,
-      "full": 1277,
-      "pct": 33.2
+      "full": 1463,
+      "pct": 38
     },
     "Land": {
       "total": 1161,
-      "full": 715,
-      "pct": 61.6
+      "full": 747,
+      "pct": 64.3
     },
     "Kindred": {
       "total": 80,
-      "full": 20,
-      "pct": 25
+      "full": 25,
+      "pct": 31.3
     },
     "Planeswalker": {
       "total": 335,
-      "full": 11,
-      "pct": 3.3
+      "full": 27,
+      "pct": 8.1
     },
     "Other": {
       "total": 29,
-      "full": 7,
-      "pct": 24.1
+      "full": 12,
+      "pct": 41.4
     },
     "Battle": {
       "total": 39,
@@ -102,20 +102,12 @@
       "clause": "Start your engines!"
     },
     {
-      "n": 37,
-      "clause": "Daybound"
-    },
-    {
       "n": 36,
       "clause": "Station"
     },
     {
       "n": 36,
       "clause": "Madness {}{}"
-    },
-    {
-      "n": 36,
-      "clause": "// Nightbound"
     },
     {
       "n": 32,
@@ -147,6 +139,10 @@
     },
     {
       "n": 27,
+      "clause": "Aftermath"
+    },
+    {
+      "n": 27,
       "clause": "Doctor's companion"
     },
     {
@@ -168,10 +164,6 @@
     {
       "n": 25,
       "clause": "Backup #"
-    },
-    {
-      "n": 25,
-      "clause": "Exploit"
     },
     {
       "n": 24,
@@ -219,10 +211,6 @@
     },
     {
       "n": 19,
-      "clause": "Choose a creature type."
-    },
-    {
-      "n": 19,
       "clause": "Ward—Pay # life."
     },
     {
@@ -240,10 +228,6 @@
     {
       "n": 18,
       "clause": "Reconfigure {}"
-    },
-    {
-      "n": 18,
-      "clause": "{}{}{}: Monstrosity #."
     },
     {
       "n": 18,
@@ -276,18 +260,6 @@
     {
       "n": 16,
       "clause": "Madness {}"
-    },
-    {
-      "n": 16,
-      "clause": "Clash with an opponent."
-    },
-    {
-      "n": 16,
-      "clause": "You may choose new targets for the copy."
-    },
-    {
-      "n": 16,
-      "clause": "Its controller loses # life."
     },
     {
       "n": 16,
@@ -328,6 +300,34 @@
     {
       "n": 14,
       "clause": "Look at the top four cards of your library."
+    },
+    {
+      "n": 14,
+      "clause": "Look at the top three cards of your library."
+    },
+    {
+      "n": 14,
+      "clause": "Encore {}{}{}"
+    },
+    {
+      "n": 14,
+      "clause": "Cast ~ only during the declare attackers step and only if you've been attacked this step."
+    },
+    {
+      "n": 14,
+      "clause": "Blitz {}{}"
+    },
+    {
+      "n": 14,
+      "clause": "Transmute {}{}{}"
+    },
+    {
+      "n": 14,
+      "clause": "Level up {}"
+    },
+    {
+      "n": 14,
+      "clause": "Enchanted creature gets +#/+#."
     }
   ]
 }
