@@ -8,10 +8,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { CardDB } from '../src/cards/db.js';
 import { oracleHash, ScriptStore, scriptHash, type CardScript, type Verification } from '../src/cards/scripts.js';
-import { judgeCountFor, readReview, reviewPathFor, stateOf, unlockedOpFamilies, type BlockedNote } from '../src/cards/scriptState.js';
+import { defaultSources, judgeCountFor, readReview, reviewPathFor, stateOf, unlockedOpFamilies, type BlockedNote } from '../src/cards/scriptState.js';
 import { judgeRuleOver } from '../src/cards/waveScope.js';
 import { clauseTokens, jaccard, ownerDeckIds, parseSelection, typeBucket } from '../scripts/scripts-queue.js';
-import { deriveStatus, dirtyPaths, GUARDED_PATHS, humanReview, judgeBlock, readResult, scenarioBlock } from '../scripts/scripts-promote.js';
+import { deriveStatus, dirtyPaths, GUARDED_PATHS, humanReview, judgeBlock, promoteCard, readResult, scenarioBlock } from '../scripts/scripts-promote.js';
+import { verifyCards } from '../scripts/scripts-verify.js';
+import { freshDir, goodFixtures, parsedDef, writeScript } from './scripts-verify-fixtures.js';
 import { idsOfBatch, move, quarantinePathFor } from '../scripts/scripts-quarantine.js';
 import { aggregate } from '../scripts/scripts-needs.js';
 
@@ -287,4 +289,52 @@ test('example clauses are capped at five and cards are counted once', () => {
   assert.equal(rows[0].cards, 8);
   assert.equal(rows[0].exampleClauses.length, 5);
   assert.deepEqual(rows[0].cardIds, [...new Set(rows[0].cardIds)].sort());
+});
+
+// ---------------------------------------------------------------------------
+// 8c-1 B-4: the promoter runs scripts:check on every card and REFUSES one that fails it
+// ---------------------------------------------------------------------------
+
+test('promoteCard: a script scripts:check rejects is refused — status scripted, the check recorded as a problem, the block still written', async () => {
+  const cards = CardDB.shared();
+  const fixtures = goodFixtures(cards);
+  const dir = freshDir();
+  const store = new ScriptStore(dir);
+  const bolt = fixtures['Lightning Bolt'];
+  writeScript(dir, bolt);
+  // a real verification block, as scripts:verify writes it
+  const report = await verifyCards([bolt.oracleId], { dir, cards });
+  assert.equal(report.cards[0].status, 'verified');
+  store.reset();
+  const faithful = { oracleId: bolt.oracleId, verdict: 'faithful' as const, confidence: 0.9 };
+  const scenario = { oracleId: bolt.oracleId, scenarioFile: 'x.json', passed: true, names: ['bolt to the face'] };
+  const good = promoteCard(bolt.oracleId, { store, cards, judges: 1, at: 'now', scenarios: [scenario], verdicts: [faithful] });
+  assert.equal(good.row.bucket, 'judged');
+  store.reset();
+  assert.equal(store.get(bolt.oracleId)!.verification!.status, 'judged');
+
+  // the same script with a covers entry naming a line the card does not print: scripts:check's "line is not a line
+  // of that face" — the file is written with the refusal so `stateOf` reads it the way the summary does
+  const verified = store.get(bolt.oracleId)!;
+  const bad: CardScript = { ...verified, keywords: ['flying'], covers: [{ line: 'Flying', by: 'keywords' }], verification: { ...verified.verification!, status: 'verified', problems: [] } };
+  bad.verification!.scriptHash = scriptHash(bad);
+  fs.writeFileSync(store.pathFor(bolt.oracleId), JSON.stringify(bad, null, 2) + '\n');
+  store.reset();
+  const refused = promoteCard(bolt.oracleId, { store, cards, judges: 1, at: 'now', scenarios: [scenario], verdicts: [faithful] });
+  assert.equal(refused.row.bucket, 'refused');
+  assert.equal(refused.row.status, 'scripted');
+  assert.match(refused.row.note ?? '', /covers line is not a line of that face/);
+  const onDisk = JSON.parse(fs.readFileSync(store.pathFor(bolt.oracleId), 'utf8')) as CardScript;
+  assert.equal(onDisk.verification!.status, 'scripted');
+  assert.ok(onDisk.verification!.problems.some(p => p.startsWith('check: ') && p.includes('covers line is not a line of that face')), JSON.stringify(onDisk.verification!.problems));
+  assert.equal(onDisk.verification!.judge?.[0]?.verdict, 'faithful', 'the verdict is still recorded');
+  assert.equal(fs.readFileSync(store.pathFor(bolt.oracleId), 'utf8').includes('\r'), false);
+  // and scriptState agrees with the file
+  store.reset();
+  assert.equal(stateOf(bolt.oracleId, { ...defaultSources({ scripts: store, judges: 1 }), def: parsedDef(cards, 'Lightning Bolt') }).state, 'scripted');
+  // --dry-run: nothing written
+  fs.writeFileSync(store.pathFor(bolt.oracleId), JSON.stringify(verified, null, 2) + '\n');
+  store.reset();
+  const dry = promoteCard(bolt.oracleId, { store, cards, judges: 1, at: 'now', dryRun: true });
+  assert.equal(dry.row.bucket, 'judged');
 });

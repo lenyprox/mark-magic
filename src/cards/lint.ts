@@ -55,6 +55,17 @@ export function discriminators(variants: readonly unknown[], key: string): strin
 
 const union = (core: readonly string[], registry: Record<string, unknown>): ReadonlySet<string> => new Set<string>([...core, ...Object.keys(registry)]);
 
+/**
+ * Whether a node's `count` is an `AmountExpr.count` — the only `count` the amount-count vocabulary applies to. Three
+ * other shapes carry a `count` field of their own: a `TargetSpec` (`kind`; its `'X'` is "up to X target …"), an op
+ * (`op`; `token.count: 'X'`, `impulse.count`), and the `move` chosen set (`filter`). Both lint and `scripts:verify`
+ * read this one predicate, so they cannot disagree about it (10.0 / 10.1 authors had to add an empty `filter: {}`
+ * to a target spec to get past "unknown amount count 'X'").
+ */
+export function isAmountCountNode(node: Record<string, unknown>): boolean {
+  return typeof node.count === 'string' && node.kind === undefined && node.op === undefined && node.filter === undefined;
+}
+
 /** The composed vocabulary: the core lists plus every generated family schema (read once, when this module loads). */
 const COMPOSED = schemaVocabulary();
 
@@ -164,7 +175,7 @@ export function lintScript(script: CardScript, def: CardDef, tier: PoolTier = 'p
         && !COST_MODIFIER_VOCAB.has(kind) && !TARGET_KIND_VOCAB.has(kind) && !ABILITY_KINDS.has(kind)) {
         problems.push(`${where}unknown kind '${kind}' (no condition, static effect, as-enters, cost modifier, target kind or ability kind of that name)`);
       }
-      if (typeof node.count === 'string' && node.filter === undefined && !AMOUNT_COUNT_VOCAB.has(node.count) && !/^\d+$/.test(node.count)) {
+      if (isAmountCountNode(node) && !AMOUNT_COUNT_VOCAB.has(node.count as string) && !/^\d+$/.test(node.count as string)) {
         problems.push(`${where}unknown amount count '${node.count}'`);
       }
       if (node.count === 'objects' && node.filter === undefined) warnings.push(`${where}an 'objects' amount with no filter counts every object`);

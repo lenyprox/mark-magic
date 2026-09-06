@@ -96,7 +96,7 @@
   },
   "notes": "Neither equip line has a covers kind, so each is written as the activated ability the keyword means (attach to a creature you control, sorcery speed) - the shape Bitterthorn, Nissa Animus was judged on. The equipment static carries the {3} equip cost as well (legal.ts:265 reads the FIRST equipment static for its own equip action), so the {3} action exists twice at runtime; \"Equip Wizard {1}\" exists only as the activated ability, since one equipment static can hold one cost and one filter.",
   "verification": {
-    "at": "2026-09-06T05:10:55.835Z",
+    "at": "2026-09-06T08:21:15.702Z",
     "parserVersion": 5,
     "registryHash": "36c06c1a",
     "oracleHash": "7101f506",
@@ -128,14 +128,8 @@
       ]
     },
     "roundTrip": {
-      "score": 0.154,
-      "lowest": [
-        {
-          "text": "Equip Wizard {1}",
-          "rendered": "{1}: attach ~ to target Wizard you control. activate only as a sorcery",
-          "score": 0.154
-        }
-      ]
+      "score": 0.667,
+      "lowest": []
     },
     "scenarios": {
       "file": "",
@@ -143,9 +137,7 @@
       "failed": 0,
       "names": []
     },
-    "status": "scripted",
-    "problems": [
-      "round trip 0.15 < 0.55: \"Equip Wizard {1}\" rendered as \"{1}: attach ~ to target Wizard you control. activate only as a sorcery\""
-    ]
+    "status": "verified",
+    "problems": []
   }
 }

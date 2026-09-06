@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  AI_ROLES, AMOUNT_COUNT_VOCAB, CONDITION_VOCAB, countersOf, discriminators, EFFECT_OP_VOCAB, KEYWORD_VOCAB,
+  AI_ROLES, AMOUNT_COUNT_VOCAB, CONDITION_VOCAB, countersOf, discriminators, EFFECT_OP_VOCAB, isAmountCountNode, KEYWORD_VOCAB,
   lintScript, STATIC_VOCAB, TARGET_KIND_VOCAB, TRIGGER_VOCAB,
 } from '../src/cards/lint.js';
 import { EFFECT_VARIANTS } from '../src/cards/schema.js';
@@ -122,4 +122,14 @@ test('aiHints.role is a closed vocabulary and value is a warning', () => {
   assert.deepEqual(warn.problems, []);
   assert.equal(warn.level, 'warn');
   assert.match(warn.warnings.join(), /outside 0\.\.10/);
+});
+
+test("8c-1 L-1: a TargetSpec's or an op's `count: 'X'` is not an amount count", () => {
+  assert.equal(isAmountCountNode({ kind: 'creature', count: 'X' }), false);
+  assert.equal(isAmountCountNode({ op: 'token', count: 'X' }), false);
+  assert.equal(isAmountCountNode({ filter: {}, zone: 'graveyard', who: 'you', count: 'all' }), false);
+  assert.equal(isAmountCountNode({ count: 'creatures-you-control' }), true);
+  assert.deepEqual(boltLint([{ op: 'damage', amount: 'X', target: { kind: 'creature', count: 'X' } }]).problems, [], 'up to X target creatures');
+  assert.deepEqual(boltLint([{ op: 'token', count: 'X', power: 1, toughness: 1, colors: [], types: ['Creature'], subtypes: ['Elf'], keywords: [] }]).problems, [], 'create X tokens');
+  assert.match(boltLint([{ op: 'damage', amount: { count: 'X' }, target: { kind: 'any' } }]).problems.join(), /unknown amount count 'X'/, "an AmountExpr count of 'X' is still wrong");
 });

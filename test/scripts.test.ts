@@ -1031,3 +1031,50 @@ test('composition core: a content-free script made only of the new container ops
   assert.equal(CardScriptChecked.safeParse(scriptFor('Shock', { abilities: [{ kind: 'spell', effects: real, text: line }] })).success, true);
   void bears;
 });
+
+// ---------------------------------------------------------------------------
+// 8c-1: the cover shapes the 10.0 / 10.1 authors could not claim (CR-1, CR-2)
+// ---------------------------------------------------------------------------
+
+test('covers (CR-1): "choose a basic land type", the combined shockland line, and enter-as-copy are asEnters shapes', () => {
+  const passage = "As ~ enters, choose a basic land type. Then you may pay 2 life. If you don't, it enters tapped.";
+  assert.ok(normalizeOracleLines(db.get('Multiversal Passage')!).includes(passage));
+  const both: ScriptFace = { asEnters: [{ kind: 'choose-type', what: 'basic-land-type' } as never, { kind: 'pay-life-or-tapped', life: 2 }] };
+  assert.equal(coverProblem(both, { line: passage, by: 'asEnters' }), null);
+  assert.match(coverProblem({ asEnters: [{ kind: 'choose-type', what: 'basic-land-type' } as never] }, { line: passage, by: 'asEnters' })!, /pay-life-or-tapped/, 'both declarations are required');
+  assert.match(coverProblem({ asEnters: [{ kind: 'pay-life-or-tapped', life: 2 }] }, { line: passage, by: 'asEnters' })!, /choose-type/);
+  assert.match(coverProblem({ asEnters: [{ kind: 'choose-type', what: 'basic-land-type' } as never, { kind: 'pay-life-or-tapped', life: 3 }] }, { line: passage, by: 'asEnters' })!, /life 2/);
+  assert.equal(coverProblem({ asEnters: [{ kind: 'choose-type', what: 'basic-land-type' } as never] }, { line: 'As ~ enters, choose a basic land type.', by: 'asEnters' }), null);
+  assert.match(coverProblem({ asEnters: [{ kind: 'choose', what: 'creature-type' }] }, { line: 'As ~ enters, choose a basic land type.', by: 'asEnters' })!, /choose-type/);
+  assert.equal(coverProblem({ asEnters: [{ kind: 'choose', what: 'creature-type' }, { kind: 'pay-life-or-tapped', life: 2 }] }, { line: "As ~ enters, choose a creature type. Then you may pay 2 life. If you don't, it enters tapped.", by: 'asEnters' }), null);
+  const clone = 'You may have ~ enter as a copy of any creature on the battlefield.';
+  assert.ok(normalizeOracleLines(db.get('Clone')!).includes(clone));
+  assert.equal(coverProblem({ asEnters: [{ kind: 'enter-as-copy', optional: true } as never] }, { line: clone, by: 'asEnters' }), null);
+  assert.match(coverProblem({ asEnters: [{ kind: 'enter-as-copy' } as never] }, { line: clone, by: 'asEnters' })!, /optional true/, '"you may have" is the optional form');
+  for (const other of COVER_KINDS) if (other !== 'asEnters') assert.ok(coverProblem(both, { line: passage, by: other }), `not coverable by '${other}'`);
+});
+
+test('covers (CR-2): the free-spell cycle, a non-mana buyback clause, and the {X} kicker rider', () => {
+  const swat = 'If you control a commander, you may cast ~ without paying its mana cost.';
+  assert.ok(normalizeOracleLines(db.get('Deflecting Swat')!).includes(swat));
+  const free: ScriptFace = { altCosts: [{ id: 'pitch', label: 'without paying its mana cost', cost: {}, condition: { kind: 'controls-commander' }, from: 'hand' }] };
+  assert.equal(coverProblem(free, { line: swat, by: 'altCosts' }), null);
+  assert.match(coverProblem({ altCosts: [{ id: 'pitch', label: '', cost: { mana: mana('{2}') }, condition: { kind: 'controls-commander' }, from: 'hand' }] }, { line: swat, by: 'altCosts' })!, /no mana cost/);
+  assert.match(coverProblem({ altCosts: [{ id: 'pitch', label: '', cost: {}, from: 'hand' }] }, { line: swat, by: 'altCosts' })!, /controls-commander/);
+  for (const other of COVER_KINDS) if (other !== 'altCosts') assert.ok(coverProblem(free, { line: swat, by: other }), `not coverable by '${other}'`);
+
+  // "Buyback—Sacrifice a land." used to be claimable by ANY buyback altCost: the clause names the cost part now
+  const mists = 'Buyback—Sacrifice a land.';
+  assert.ok(normalizeOracleLines(db.get('Constant Mists')!).includes(mists));
+  const right: ScriptFace = { altCosts: [{ id: 'buyback', label: 'buyback', cost: { mana: mana('{1}{G}'), sacrifice: { types: ['Land'] } }, from: 'hand', returnToHand: true }] };
+  assert.equal(coverProblem(right, { line: mists, by: 'altCosts' }), null);
+  assert.match(coverProblem({ altCosts: [{ id: 'buyback', label: 'buyback', cost: { mana: mana('{1}{G}') }, from: 'hand', returnToHand: true }] }, { line: mists, by: 'altCosts' })!, /sacrifice \/ sacrificeSelf cost part/);
+  assert.match(coverProblem({ altCosts: [{ id: 'buyback', label: 'buyback', cost: { mana: mana('{1}{G}'), discard: 1 }, from: 'hand', returnToHand: true }] }, { line: mists, by: 'altCosts' })!, /sacrifice/);
+  // the mana form is untouched
+  assert.equal(coverProblem({ altCosts: [{ id: 'buyback', label: 'buyback {3}', cost: { mana: mana('{1}{G}{3}') }, from: 'hand', returnToHand: true }] }, { line: 'Buyback {3}', by: 'altCosts' }), null);
+
+  const skydiver = "Kicker {X}. X can't be 0.";
+  assert.ok(normalizeOracleLines(db.get('Thieving Skydiver')!).includes(skydiver));
+  assert.equal(coverProblem({ kicker: mana('{X}') }, { line: skydiver, by: 'kicker' }), null);
+  assert.match(coverProblem({ kicker: mana('{2}') }, { line: skydiver, by: 'kicker' })!, /prints kicker \{X\}/);
+});

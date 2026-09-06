@@ -364,3 +364,34 @@ test('the README, the shape validator and the types describe the same DSL', () =
   assert.match(doc, /every step except `untap`/);
   for (const st of PASS_STEPS) assert.deepEqual(scenarioShape(bolt({ script: [{ passUntil: st }] })), [], st);
 });
+
+// ---------------------------------------------------------------- 8c-1: DSL-1 modes on activate, DSL-2 the legal steps, a named answer crash
+test('DSL-1: `modes` on an activate step picks the mode of a modal activated ability (Bow of Nylea)', { skip: !hasDb }, async () => {
+  const bow = (modes: number[]): Scenario => ({
+    name: 'Bow of Nylea, one mode', cr: '700.2',
+    seats: [{ bf: ['Bow of Nylea', 'Forest', 'Forest'] }, {}],
+    script: [{ activate: 'Bow of Nylea', modes }, { resolve: true }],
+    expect: [{ life: [0, 23] }],
+  });
+  assert.deepEqual(validateScenario(bow([2]), { card: 'Bow of Nylea' }), []);
+  const g = buildScenario(bow([2]));
+  await runScript(g, bow([2]).script);
+  assert.equal(g.state.players[0].life, 23, 'mode 2 is "You gain 3 life"');
+  assert.match(scenarioShape(bolt({ script: [bad<ScriptStep>({ activate: 'Bow of Nylea', modes: 'two' })] })).join('\n'), /modes has a bad value/);
+});
+
+test('DSL-2: a bad passUntil value names the legal steps', () => {
+  const problems = scenarioShape(bolt({ script: [bad<ScriptStep>({ passUntil: 'end-combat' })] }));
+  assert.match(problems.join('\n'), /passUntil has a bad value "end-combat" \(one of: /);
+  for (const step of PASS_STEPS) assert.ok(problems.join('\n').includes(step), `${step} is listed`);
+});
+
+test('a queued answer of the wrong shape is named at the prompt it reached, not thrown as a TypeError', { skip: !hasDb }, async () => {
+  const sc: Scenario = {
+    name: 'a true where a card list is wanted', cr: '601.2b',
+    seats: [{ bf: ['Mountain', 'Mountain'], hand: ['Tormenting Voice', 'Lightning Bolt'] }, {}],
+    script: [{ answer: true }, { cast: 'Tormenting Voice' }, { resolve: true }],
+    expect: [],
+  };
+  await assert.rejects(() => runScenario(sc), /scenario: the queued answer true reached a choose-cards prompt/);
+});

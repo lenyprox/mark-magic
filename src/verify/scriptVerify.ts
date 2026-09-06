@@ -25,10 +25,11 @@ import { tierOf, type PoolTier } from '../cards/pool.js';
 import { scoreCard, type LineScore } from '../cards/render.js';
 import { CardScriptChecked } from '../cards/schema.js';
 import {
-  applyScript, DEFAULT_SCRIPTS_DIR, hasUnknown, oracleHash, ScriptStore, scriptHash, secondFaceOf, secondFaceUnclaimed,
+  applyScript, DEFAULT_SCRIPTS_DIR, hasUnknown, oracleHash, scriptFileText, ScriptStore, scriptHash, secondFaceOf, secondFaceUnclaimed,
   type CardScript, type ScriptFace, type Verification,
 } from '../cards/scripts.js';
-import { EFFECT_OP_VOCAB, TRIGGER_VOCAB, CONDITION_VOCAB, STATIC_VOCAB, AS_ENTERS_VOCAB, COST_MODIFIER_VOCAB, TARGET_KIND_VOCAB, AMOUNT_COUNT_VOCAB } from '../cards/lint.js';
+import { VERIFICATION_RANK } from '../cards/scriptState.js';
+import { EFFECT_OP_VOCAB, TRIGGER_VOCAB, CONDITION_VOCAB, STATIC_VOCAB, AS_ENTERS_VOCAB, COST_MODIFIER_VOCAB, TARGET_KIND_VOCAB, AMOUNT_COUNT_VOCAB, isAmountCountNode } from '../cards/lint.js';
 import type { CardDef } from '../cards/types.js';
 import { registryHash } from '../engine/ops/_registry.js';
 import { probeAbilities, unreachable, type AbilityProbe } from './probes.js';
@@ -128,7 +129,7 @@ function registryProblems(script: CardScript): string[] {
         && !COST_MODIFIER_VOCAB.has(kind) && !TARGET_KIND_VOCAB.has(kind) && !ABILITY_KINDS.has(kind)) {
         out.push(`${where}no condition / static / as-enters / cost modifier / target kind '${kind}' is registered`);
       }
-      if (typeof node.count === 'string' && node.filter === undefined && !AMOUNT_COUNT_VOCAB.has(node.count)) out.push(`${where}no amount count '${node.count}' is registered`);
+      if (isAmountCountNode(node) && !AMOUNT_COUNT_VOCAB.has(node.count as string)) out.push(`${where}no amount count '${node.count}' is registered`);
     });
   }
   return out;
@@ -273,17 +274,26 @@ export async function verifyCards(ids: string[], opts: VerifyOptions = {}): Prom
     row.rendererGaps = scored.gaps;
     if (scored.score < ROUND_TRIP_PASS) problems.push(`round trip ${scored.score.toFixed(2)} < ${ROUND_TRIP_PASS}: ${scored.lines.filter(l => l.score === scored.score).slice(0, 2).map(l => `${JSON.stringify(l.text)} rendered as ${JSON.stringify(l.rendered)}`).join('; ')}`);
     if (scored.gaps.length) warnings.push(`no renderer for ${scored.gaps.join(', ')} — the round-trip score for those lines is a lower bound`);
+    // modal bullets are MEASURED, not gated (render.ts `CardScore.bullets`, 8c-1 M-1): a low one is a warning
+    for (const b of scored.bullets ?? []) {
+      if (b.score < ROUND_TRIP_PASS) warnings.push(`modal bullet ${JSON.stringify(b.text)} scores ${b.score.toFixed(2)} against ${JSON.stringify(b.rendered)}${b.why ? ` (${b.why})` : ''} — measured, not gated`);
+    }
 
     // ---- 7. write back -------------------------------------------------------------------------------------
     const passed = problems.length === 0;
     row.status = stale ? 'stale' : passed ? 'verified' : 'scripted';
+    // A card another stage already moved past `verified` (a `tested` / `judged` block whose hashes still match
+    // this script and this oracle text) keeps that status when the gate passes again: re-verifying is not a
+    // demotion, any more than it clears `scenarios` / `judge`. A failed gate writes `scripted` whatever came before.
+    const keep = passed && !stale && prev && prev.scriptHash === scriptHash(script) && prev.oracleHash === fresh
+      && (VERIFICATION_RANK[prev.status] ?? 0) > VERIFICATION_RANK.verified ? prev.status : null;
     const verification: Verification = {
       at, parserVersion: PARSER_VERSION, registryHash: rHash, oracleHash: fresh, scriptHash: scriptHash(script),
       schema: row.schema, lint: row.lint, sandbox: row.sandbox, roundTrip: { score: row.roundTrip.score, lowest: row.roundTrip.lowest.map(l => ({ text: l.text, rendered: l.rendered, score: l.score })) },
       // stage 8d owns `scenarios` and the judge slice owns `judge`: carry whatever is already there, never clear it
       scenarios: prev?.scenarios ?? { file: '', passed: 0, failed: 0, names: [] },
       ...(prev?.judge ? { judge: prev.judge } : {}),
-      status: passed && !stale ? 'verified' : 'scripted',
+      status: keep ?? (passed && !stale ? 'verified' : 'scripted'),
       problems,
     };
     if (opts.write !== false) writeVerification(store, file, verification);
@@ -322,7 +332,7 @@ export function writeVerification(store: ScriptStore, file: string, verification
   delete raw.verification;
   const next = { ...raw, verification };
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(next, null, 2).replace(/\r\n/g, '\n') + '\n');
+  fs.writeFileSync(file, scriptFileText(next));
   store.reset();
 }
 

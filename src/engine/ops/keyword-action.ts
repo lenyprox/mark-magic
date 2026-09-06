@@ -25,7 +25,7 @@
 // Discover is NOT one of them any more: CR 701.56a's cast half really casts the card, during the discover's own
 // resolution, through `Game.performAction` — see `castDiscovered`.
 import type { Amount, CardType, Effect, Filter, ManaCost, Ref, TargetSpec } from '../../cards/types.js';
-import type { FamilyModule, Game, GameObject, GameState, LegalAction, OpCtx, PlayerAction, PlayerId, StackItem, TargetRef, TokenSpec } from './types.js';
+import type { FamilyModule, Game, GameObject, GameState, LegalAction, OpCtx, PlayerAction, PlayerId, RenderHelpers, StackItem, TargetRef, TokenSpec } from './types.js';
 import { extDel, extGet, extGetOr, extSet } from './ext.js';
 import { chars } from './chars.js';
 
@@ -747,43 +747,52 @@ const KEYWORD_ACTION: FamilyModule = {
   },
 
   render: {
-    'investigate': (e: KaInvestigate) => e.amount === 1 ? 'Investigate' : e.amount === 2 ? 'Investigate twice' : `Investigate ${amtText(e.amount)} times`,
-    'bolster': (e: KaBolster) => `Bolster ${amtText(e.amount)}`,
+    'investigate': (e: KaInvestigate, h) => e.amount === 1 ? 'Investigate' : e.amount === 2 ? 'Investigate twice' : `Investigate ${amtText(e.amount, h)} times`,
+    'bolster': (e: KaBolster, h) => `Bolster ${amtText(e.amount, h)}`,
     'support': (e: KaSupport) => `Support ${e.amount}`,
-    'adapt': (e: KaAdapt) => `Adapt ${amtText(e.amount)}`,
-    'monstrosity': (e: KaMonstrosity) => `Monstrosity ${amtText(e.amount)}`,
-    'manifest': (e: KaManifest) => e.amount === 1 ? 'Manifest the top card of your library' : `Manifest the top ${amtText(e.amount)} cards of your library`,
+    'adapt': (e: KaAdapt, h) => `Adapt ${amtText(e.amount, h)}`,
+    'monstrosity': (e: KaMonstrosity, h) => `Monstrosity ${amtText(e.amount, h)}`,
+    'manifest': (e: KaManifest, h) => e.amount === 1 ? 'Manifest the top card of your library' : `Manifest the top ${amtText(e.amount, h)} cards of your library`,
     'manifest-dread': () => 'Manifest dread',
     'cloak': () => 'Cloak the top card of your library',
     'populate': () => 'Populate',
-    'goad': (e: KaGoad) => `Goad ${targetText(e.target)}`,
-    'incubate': (e: KaIncubate) => `Incubate ${amtText(e.amount)}${e.count === undefined || e.count === 1 ? '' : ` ${amtText(e.count)} times`}`,
-    'connive': (e: KaConnive) => `${targetText(e.target, true)} connives ${amtText(e.amount)}`,
+    'goad': (e: KaGoad, h) => `Goad ${targetText(e.target, h)}`,
+    'incubate': (e: KaIncubate, h) => `Incubate ${amtText(e.amount, h)}${e.count === undefined || e.count === 1 ? '' : ` ${amtText(e.count, h)} times`}`,
+    'connive': (e: KaConnive, h) => `${targetText(e.target, h)} connives ${amtText(e.amount, h)}`,
     'learn': () => 'Learn',
-    'discover': (e: KaDiscover) => `Discover ${amtText(e.amount)}`,
+    'discover': (e: KaDiscover, h) => `Discover ${amtText(e.amount, h)}`,
     'forage': () => 'Forage',
     'clash': () => 'Clash with an opponent',
-    'exert': (e: KaExert) => `Exert ${targetText(e.target)}`,
-    'collect-evidence': (e: KaCollectEvidence) => `Collect evidence ${amtText(e.amount)}`,
-    'endure': (e: KaEndure) => `${targetText(e.target, true)} endures ${amtText(e.amount)}`,
-    'suspect': (e: KaSuspect) => `Suspect ${targetText(e.target)}`,
+    'exert': (e: KaExert, h) => `Exert ${targetText(e.target, h)}`,
+    'collect-evidence': (e: KaCollectEvidence, h) => `Collect evidence ${amtText(e.amount, h)}`,
+    // "it endures X, where X is the number of counters on ~": the amount in the renderer's words, never a bare "X"
+    'endure': (e: KaEndure, h) => `${targetText(e.target, h)} endures ${amtText(e.amount, h)}`,
+    'suspect': (e: KaSuspect, h) => `Suspect ${targetText(e.target, h)}`,
     'behold': (e: KaBehold) => `Behold ${filterText(e.what)}`,
     'villainous-choice': (e: KaVillainousChoice) => `${e.who === 'each-opponent' ? 'Each opponent' : 'That player'} faces a villainous choice`,
-    'exploit': () => 'Exploit',
-    'harness': (e: KaHarness) => `Harness ${targetText(e.target)}`,
+    // the keyword's own rules text (CR 702.110a) — "Exploit" alone shares no word with the expansion the printed
+    // keyword line is scored against
+    'exploit': () => 'you may sacrifice a creature',
+    'harness': (e: KaHarness, h) => `Harness ${targetText(e.target, h)}`,
+    'trigger:exploits': () => 'when ~ exploits a creature',
   },
 };
 
-/** An Amount as the round-trip renderer prints it ("3", "X", "the number of …" is left as X). */
-function amtText(a: Amount): string { return typeof a === 'number' ? String(a) : typeof a === 'string' ? a : 'X'; }
-/** A target as the renderer prints it: `self` is "this creature", a Ref is "that creature", a spec is "target …". */
-function targetText(t: TargetSpec | Ref, subject = false): string {
-  const cap = (x: string) => subject ? x.slice(0, 1).toUpperCase() + x.slice(1) : x;
-  if (typeof t === 'string') return cap(t === 'self' ? 'this creature' : 'that creature');
-  if (t.self) return cap('this creature');
+/**
+ * An Amount as the round-trip renderer prints it: a number or `X` as itself; a computed amount as "X, where X is
+ * <the renderer's phrase>" — the printed line prints the letter X and then explains it the same way ("incubate X,
+ * where X is its power"), so the rendering carries both the X and the words (the bare phrase lost the X and cost
+ * Bloated Processor / Furnace Gremlin the gate; the bare X lost the words). Without helpers a computed amount is `X`.
+ */
+function amtText(a: Amount, h?: RenderHelpers): string { return typeof a === 'number' ? String(a) : typeof a === 'string' ? a : h ? `X, where X is ${h.renderAmount(a)}` : 'X'; }
+/** A target as the renderer prints it: `self` is "this creature", a Ref is "that creature", a spec is "target …". Never capitalised — it sits mid-sentence after a trigger clause. */
+function targetText(t: TargetSpec | Ref, h?: RenderHelpers): string {
+  if (typeof t === 'string') return t === 'self' ? 'this creature' : 'that creature';
+  if (t.self) return 'this creature';
+  if (h) return h.renderTarget(t);
   const many = typeof t.count === 'number' && t.count > 1;
   const upTo = t.count === undefined ? '' : t.count === 'X' ? 'up to X ' : many ? `up to ${t.count} ` : '';
-  return cap(`${upTo}target ${t.filter?.other ? 'other ' : ''}creature${many || t.count === 'X' ? 's' : ''}`);
+  return `${upTo}target ${t.filter?.other ? 'other ' : ''}creature${many || t.count === 'X' ? 's' : ''}`;
 }
 /** A filter as "a Dragon" / "an Elf" — enough for the behold wordings, which always name one subtype. */
 function filterText(f: Filter): string {

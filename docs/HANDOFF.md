@@ -473,6 +473,53 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
       under the ceilings). Until the gate sets `MTG_SCRIPTS` per leg or both fixtures are deliberately re-accepted in
       one mode, run the two legs separately as the 9.1x paragraph in §3 does.
 
+34. **Left open by the 8c-1 renderer slice (2026-09-06)** — the authors' findings in data/scripts/reports/10.0-run2.json
+    and 10.1-g1-run1.json that are engine defects or DSL gaps, not renderer work (the renderer items are done; see §9):
+    * **Engine defects (7):** (a) `Filter.mvLE` / `mvEQ` evaluated with X hard-coded to 0 (characteristics.ts:260/276,
+      legal.ts's target scan passes no x) — "mana value X or less" means "0 or less" (Kozilek's Command mode 3, dead
+      text in blind play); (b) `opMove` keeps the move's own count in `item.lastAmount` and a reflexive trigger's
+      stack item inherits no `lastAmount` — "when one or more … are exiled this way, put that many counters" has no
+      faithful expression (Augusta); (c) `dig` with `reveal: true` reveals the whole looked-at set publicly before any
+      choice (game.ts:1090; parse.ts emits it for "look at the top X … you may reveal a … card"); (d) `counters` honours
+      its `filter` only for the `creatures-you-control` group word — a Ref / TargetSpec target ignores it silently
+      (game.ts:1390); (e) Mind Rot cast with `targets: [['P0']]` resolves without a card leaving the hand; (f) mana
+      payment is not found when the board holds exactly enough lands (Doran + Plains + Island could not cast a
+      {1}{W} spell; a third land made it castable and it then tapped the same two); (g) `events: { type:
+      'create-token' }` counts one event per effect not per token, and tokens answer to their creator's name rather
+      than their own (CR 111.4; shadows the source card in name lookups). Also `TriggeredAbility.condition` is accepted
+      by the schema and rendered but never read by the engine (game.ts:2311 gates on `intervening` only) — a silent
+      no-op that mints wrong `verified` cards; `gain-ability` pushes onto the SOURCE (its name reads like "X gains");
+      `cascade` reads the ability source's mana value, not the cast spell's (Imoti, The First Sliver).
+    * **Scenario DSL gaps (still open after DSL-1 / DSL-2):** casting during declare-attackers / declare-blockers
+      while creatures are attacking (`attack` runs combat to completion); activating a permanent's mana ability from
+      a script; an empty `script`; steering a triggered ability's target; two consecutive `answer` steps
+      (order-dependent, one silently declines); `ext` cannot express an absent key from JSON.
+    * **Format gaps the renderer cannot paper over:** `add-mana.restriction` has no "noncreature spells" value
+      (Immortus' second sentence is unexpressible — the card now passes on the rest of the line); a granted
+      parameterised keyword carries no value (`anthem.keywords` / `token.keywords` are bare `Keyword[]`: "have toxic 1"
+      hard-zeroes on the 1); a computed BASE P/T (`set-pt` static takes numbers only) — Toph models "power is equal
+      to the number of +1/+1 counters on lands you control" as an additive `self-pt`, which the renderer's contract
+      (render.ts, `self-pt`) deliberately renders as a bonus, so the card stays at 0.50 (its earthbend line); `token-copy` has no P/T
+      override (offspring); `token.text` is decorative (a token's printed ability does nothing; `supertypes` absent).
+    * **Parser AST the gate now catches (parse.ts, not this slice):** Perilous Predicament's "Each opponent sacrifices
+      an artifact creature and a nonartifact creature of their choice." parses as ONE `sacrifice` with
+      `{ types: [Artifact, Creature, Creature], notTypes: [Artifact] }` — an impossible filter for two sacrifices —
+      and scores 0.545 (0.60 at 505c43d, by the glued tokens of the old rendering). Subtype counts pluralise the
+      subtype word blindly ("Elvess", "Merfolk Faeries") — harmless to the score, ugly in `scripts:render`.
+    * **Process:** the blind-author blindness leak (CardDB via `npx tsx -e` returns the applied script — slice C adds a
+      printed-facts-only accessor) and the batch `vocabulary` defect (the queue writes only "Family — other" and
+      omits every `named-keyword:*` and secondary-family section).
+    * **Renderer, still open:** printed keyword lines with no rules text (graft, outlast, transmute, sunburst, bestow,
+      plot, ravenous, soulbond, squad, cipher, demonstrate, dethrone, tiered, storm, reconfigure, changeling, melee,
+      madness, job select, devour, disturb, freerunning, mayhem, mentor, offspring, ascend, phasing, suspend, ninjutsu,
+      annihilator, foretell, overload, station, splice, training, undaunted, web-slinging, aftermath, blitz) still score
+      0 and gate the card — each needs its `KEYWORD_EXPANSIONS` entry landed WITH its family; a comma-separated
+      keyword line ("Flying, myriad") is scored as prose; group-word targets drop their `filter` ("destroy all
+      creatures with power 3 or greater"); a negative `counters` amount prints "put -1 … counters"; `vote` prints only
+      its labels; the cost-alter `cast-from` static, piles-choices `extra-votes` static and `reveal-cards` effect have
+      no renderer; family conditions / amounts (dice-coin's results tables) fall through to `words(kind)` — the
+      `trigger:<on>` render-map key added in 8c-1 is the pattern to extend to `condition:<kind>` / `amount:<count>`.
+
 ## 4. Remaining Phase 8 slices
 
 - ~~8c `scripts:verify`~~ — **merged** (a9ef523): `npm run scripts:verify -- --batch <file> | --ids … | --changed | --stale`,
@@ -667,3 +714,75 @@ Then re-queue 10.0 (blocked + rejected) and 10.1.
   should run `scripts:check` on what it promotes, or `scripts:verify` should apply the same claim test.
 - 10.1 queued from fbf6f97: 3,002 cards in 112 batches (data/scripts/batches/10.1, rebuildable); run as groups of
   20 batches with one judge (process rule 5), promoted and committed per group as `Phase 10.1.g`.
+
+## 9. Phase 8c-1 — the renderer slice (2026-09-06)
+
+- **Renderer** (src/cards/render.ts): `renderGaps` walks static kinds (`CORE_STATIC_KINDS` pinned against the schema
+  union; a family static with no renderer is `static:<kind>`); `set-pt` static and the layers `type-change` static
+  render; `renderAmount` computes a base for every form and applies `times` / `half` / `plus` / `max` to all of them,
+  honours `agg` / `over`, and prints the counter and filter of `counters-on-*`; `COUNT_EXPRESSION_RE` replaces the
+  literal "the number of" exemption (every form pinned against it); `return-from-graveyard` prints `count` /
+  `optional`; `move` discriminates a TargetSpec first (`graveyard-card` prints "from your graveyard"); `add-mana` prints
+  `restriction`, `sticky` and a bare "for each …"; `KEYWORD_EXPANSIONS` gains exploit / embalm / eternalize / fuse /
+  ward and synthesises "Equip <Quality>", "Craft with <what>" and typecycling; `trigger-twice` prints filter / equipped
+  / event; `extra-mana-on-tap` prints the controller form; family cost parts print through `COST_PART_TEMPLATES` (an
+  unknown part prints every number it carries); an article after if / whenever / unless / as long as is existential;
+  a non-mana `Ward—` line does not demand "ward"; `renderFilter` prints supertypes, joins several types with "or"
+  ("target artifact or enchantment" — 348 of the pool's 387 printed type lists) or with "and" where they are counted
+  (`countPhrase`: "each tapped artifact, creature, and land you control"), lists a type once, and calls "noninstant
+  nonsorcery" a permanent card; `lemmas` folds another → other and 've → have; a prose line granting a named keyword is
+  also scored with the keyword written out (best of the two readings); P/T bonuses print "+1/+1 for each …" /
+  "-1/-1 for each …" / "-X/-X" / "+X/+Y, where X is …" instead of slash-glued expressions (the parser's own "for each"
+  statics moved from 0.42 to 1.0), and a ±1 "for each" bonus — one AST for "+1/+1 for each Elf" and "+X/+X, where X
+  is the number of Elves" — is rendered in both forms by `renderingsOf` (best reading wins, like keyword prose); a
+  computed magnitude never prints as an object (scry / surveil X, "up to X target lands, where X is …"); a count that
+  names a characteristic prints as it ("where X is ~'s power"). Family renderers receive `RenderHelpers` (amount /
+  target / filter) and may render a trigger event under `trigger:<on>` (keyword-action's `endure` and `exploits`;
+  layers' `type-change`); keyword-action prints a computed amount as "X, where X is …" (incubate / bolster / adapt /
+  monstrosity / connive / discover / collect evidence / endure).
+- **Modal bullets (M-1, measured only):** `CardScore.bullets` scores each `• ` line against the mode at its position;
+  `scripts:render` prints them, `scripts:verify` warns, the log-only calibration test reports the rate — 8 cards, 19
+  bullets, 1 below 0.55 (5.3%) over the 1,500 sample. Gate them in a later slice.
+- **Calibration** (seed 20260905): median 0.938 over 400 (386 scored), zeros 8/386 (2.1%), below the gate 88/1425 =
+  6.2% (was 7.1%). Pinned cards, before → after (scripted form): Urborg 0.09 → 1.00, Super State 0.00 → 0.50 (the
+  pinned set-pt line 0 → 1.00; a third line caps it), Toph 0.17 → 0.50 (see §3 item 34), Crackle 0 → 0.77, Excava 0 →
+  0.81, Brought Back 0 → 0.57, Victimize 0 → 0.68, Great Hall 0.50 → 0.70, Immortus 0.48 → 0.61, Overcharged Amalgam
+  0 → 0.82, Nissa 0.54 → 0.78, Roaming Throne 0.10 → 0.80, Grim Reaper's Scythe 0 → 0.71, Perpetual Timepiece 0.32 →
+  0.55, Doran 0.59 → 0.75, Relic Retriever 0 → 0.55, The Serpent Society 0.29 → 0.57, Warden of the Grove 0.25 → 0.60,
+  Kozilek's Command 1.00, Vizier of Many Faces 1.00 (parser form; its quarantined script's "Embalm" line now has rules
+  text), Cayth 0.46 → 1.00. None of the 23 cards 10.0-run2 verified moved down (five moved up).
+- **Review round (fix 1):** the reviewer re-scored EVERY parser-finished card against the 505c43d renderer (the
+  aggregate gates hide a class that regresses while a larger class improves) and found 9 cards crossing the 0.55 gate
+  downward from three causes: `ptBonus` printed a negative "for each" bonus as "+-1/+-1" and "-X/-X" as "+X/+X, where
+  X is -1 times the total of X" (18 cards; Mutilate, Death Wind, The Meathook Massacre); keyword-action's `amtText`
+  printed the bare amount phrase where the line prints "X, where X is …" (Bloated Processor, Furnace Gremlin); the
+  "or" join of a COUNTED multi-type filter (Toil to Renown). All three fixed as described above and pinned in
+  test/render.test.ts. The same sweep after the fix (10,987 parser-finished cards with an ability-claimed line, working
+  tree vs 505c43d, `MTG_SCRIPTS=0`): 1,294 improved, 81 lower, 311 crossed the gate upward, ONE crossed downward —
+  Perilous Predicament 0.60 → 0.545, whose parser AST is a single `sacrifice` of `{ types: [Artifact, Creature,
+  Creature], notTypes: [Artifact] }` for "an artifact creature and a nonartifact creature": the old rendering "a
+  nonartifact artifact creature creature" passed by its glued tokens, the honest "a nonartifact artifact or creature"
+  does not, and the AST is wrong (parse.ts; §3 item 34). No rendering in the pool prints `undefined`, `[object
+  Object]`, `NaN` or `+-` any more (the 505c43d tree printed 9 such cards, the first 8c-1 cut 27). The sweep is a
+  scratch script (parse every oracle row, `scoreCard` with both trees via `git archive`), not a harness test: a
+  renderer slice should re-run it, since the calibration gates cannot see this class.
+- **Cover rules:** asEnters "choose a basic land type" (replacement's `choose-type`), the combined shockland line (both
+  declarations required), copy-clone's `enter-as-copy`; altCosts "If you control a commander, you may cast ~ without
+  paying its mana cost." (no mana, condition `controls-commander`) and a non-mana buyback / flashback clause now names
+  the cost part the declaration must carry; the kicker `{X}. X can't be 0.` rider. A scenario in
+  test/scenarios/copy-clone.ts plays Deflecting Swat for free through a scenario-local script with the cover.
+- **Lint / verify / promote:** `isAmountCountNode` (lint.ts) — a TargetSpec's or an op's `count: 'X'` is not an
+  amount count (one predicate for lint and scripts:verify); every script writer goes through `scriptFileText` (LF
+  only); scripts:verify keeps a `tested` / `judged` status whose hashes still match (B-3); the per-id body of
+  scripts:check is `checkScript` in src/cards/scriptCheck.ts and scripts:promote runs it per card and REFUSES a
+  failure (bucket `refused`, status `scripted`, `check: …` problems, block still written) (B-4).
+- **DSL:** `modes` on an `activate` step (Bow of Nylea); a bad `passUntil` lists the legal steps; a non-list answer
+  reaching a choose-cards prompt is named instead of "ids is not iterable".
+- **Quarantine re-verify** (the three cards named by the plan): Deflecting Swat and Multiversal Passage still fail
+  `scripts:check` — their lines are coverable now, but neither script carries a `covers` entry (claiming is explicit:
+  `claimedLines` counts abilities + valid covers + ignores), so each needs a one-line `covers` patch at merge; both
+  re-quarantined. Wizard's Staff was never in quarantine at 505c43d (its live script is tracked; the copy under
+  `_quarantine/30` is a stale leftover): re-verified in place it is now `verified`, round trip 0.67, reach 2/4, 0
+  check problems — the A-10 "Equip <Quality>" line was its only failure, and the verification block in
+  data/scripts/30/30c3c700-….json carries that result (the slice's one tracked data change besides Overcharged
+  Amalgam's re-verification timestamp).

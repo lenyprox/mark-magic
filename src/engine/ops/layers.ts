@@ -483,6 +483,19 @@ const LAYERS: FamilyModule = {
     },
     'choose-type': (e: ChooseTypeEffect) => `Choose a ${e.what.replace(/-/g, ' ')}`,
     'exchange-life-toughness': (_e: ExchangeLifeToughnessEffect) => "Exchange target opponent's life total with ~'s toughness",
+    // "Each land is a Swamp in addition to its other land types" / "~ is the chosen type in addition to its other
+    // types" / "This land is the chosen type" (a land's chosen basic type REPLACES, CR 305.7 — no "in addition")
+    'type-change': (e: TypeChangeStatic, h) => {
+      const filter = (fallback: string) => (h ? h.renderFilter(e.filter, fallback) : e.filter?.types?.[0]?.toLowerCase() ?? fallback);
+      const subject = e.scope === 'self' ? '~' : e.scope === 'enchanted' ? 'enchanted permanent' : e.scope === 'equipped' ? 'equipped creature'
+        : e.scope === 'you-control' ? `${filter('permanent')}s you control` : `each ${filter('permanent')}`;
+      const are = e.scope === 'you-control' ? 'are' : 'is';
+      const what = describe(e);
+      const literal = Array.isArray(e.subtypes) && e.subtypes.length === 1 && !e.types?.length && !e.colors;
+      const article = literal ? (/^[aeiou]/i.test(what) ? 'an ' : 'a ') : '';
+      const addition = e.subtypes === 'chosen-basic-land-type' || e.everyCreatureType ? '' : ' in addition to its other types';
+      return `${subject} ${are} ${article}${what}${addition}`;
+    },
   },
 };
 

@@ -11,8 +11,8 @@
 import { CardDB } from '../src/cards/db.js';
 import { parseCard } from '../src/cards/parse.js';
 import { ROUND_TRIP_LOW, ROUND_TRIP_PASS } from '../src/verify/scriptVerify.js';
-import { scorableClaims, scoreClaimedLine } from '../src/cards/render.js';
-import { scriptStore, secondFaceOf } from '../src/cards/scripts.js';
+import { scorableClaims, scoreBullets, scoreClaimedLine } from '../src/cards/render.js';
+import { normalizeOracleLines, scriptStore, secondFaceOf } from '../src/cards/scripts.js';
 import type { CardDef } from '../src/cards/types.js';
 
 const args = process.argv.slice(2);
@@ -70,6 +70,15 @@ for (const oracleId of targets) {
         console.log(`             -> ${best.rendered}`);
         if (best.why) console.log(`                (${best.why})`);
       }
+    }
+    // the modal bullets, MEASURED and shown but not in the card score (render.ts `CardScore.bullets`, 8c-1 M-1)
+    if (prefix === '/ ') continue;
+    const faceDef = prefix === '// ' ? def.backFace! : def;
+    for (const b of scoreBullets(face, normalizeOracleLines({ ...faceDef, backFace: undefined }), cardName)) {
+      const mark = b.score < ROUND_TRIP_LOW ? 'LOW ' : b.score < ROUND_TRIP_PASS ? 'weak' : '    ';
+      console.log(`  ${mark} ${b.score.toFixed(2)}  ${prefix}${b.text}   (bullet: measured, not gated)`);
+      console.log(`             -> ${b.rendered}`);
+      if (b.why) console.log(`                (${b.why})`);
     }
   }
   console.log(`  card score ${worst.toFixed(2)} (${worst >= ROUND_TRIP_PASS ? 'passes' : 'FAILS'} the ${ROUND_TRIP_PASS} gate)`);

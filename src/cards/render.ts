@@ -16,12 +16,13 @@
 import { RENDERERS } from '../engine/ops/_registry.js';
 import { KEYWORDS } from './schema.js';
 import {
-  abilityClaimLines, COVER_KINDS, COVER_LINE_RE, coverProblem, keywordLineClaimed, type CoverKind, type KeywordParams,
+  abilityClaimLines, COVER_KINDS, COVER_LINE_RE, coverProblem, keywordLineClaimed, normalizeOracleLines, type CoverKind, type KeywordParams,
 } from './scripts.js';
 import type {
-  Ability, AbilityCost, AltCost, Amount, AsEnters, CardDef, Condition, CostModifier, Effect, Filter, Keyword,
-  ManaCost, ObjectSet, Ref, StaticEffect, TargetSpec, TriggerEvent,
+  Ability, AbilityCost, AltCost, Amount, AmountExpr, AsEnters, CardDef, Condition, CostModifier, Effect, Filter,
+  Keyword, ManaCost, ObjectSet, Ref, StaticEffect, TargetSpec, TriggerEvent,
 } from './types.js';
+import type { RenderHelpers } from '../engine/ops/_registry.js';
 
 // ---------------------------------------------------------------------------
 // Small text helpers
@@ -35,6 +36,48 @@ const list = (xs: string[], conj = 'and'): string =>
 const plural = (n: string, word: string): string => (n === '1' ? word : `${word}s`);
 /** A signed pump term: `+2`, `-1`, `+X`. */
 const signed = (a: Amount): string => { const s = renderAmount(a); return /^[+-]/.test(s) ? s : `+${s}`; };
+/**
+ * A P/T bonus pair as the oracle prints it. Two numbers are `+2/+2`; "-X" is the parser's negated X (`pm` in
+ * parse.ts writes `{ sum: ['X'], times: -1 }` for it — Death Wind) and prints as the line does. A COUNT EXPRESSION
+ * shared by both sides is the "+1/+1 for each creature you control" form: the `times` is the printed magnitude, SIGN
+ * INCLUDED ("-1/-1 for each Swamp you control" — Mutilate; the 8c-1 review found this printed as "+-1/+-1"), and the
+ * number gate reads it; anything else computed is "+X/+Y, where X is …" — never "+the number of …/+0", whose
+ * slash-glued tokens matched nothing the line prints (every parser `self-pt` "for each" card scored 0.42 that way).
+ */
+function ptBonus(power: Amount, toughness: Amount): string {
+  const negX = (a: Amount): boolean => typeof a === 'object' && a.times === -1 && a.sum?.length === 1 && a.sum[0] === 'X' && Object.keys(a).length === 2;
+  const simple = (a: Amount) => typeof a === 'number' || a === 'X' || negX(a);
+  const term = (a: Amount) => (negX(a) ? '-X' : signed(a));
+  if (simple(power) && simple(toughness)) return `${term(power)}/${term(toughness)}`;
+  // the parser writes `plus: 0` on its "+1/+1 for each" form: a zero plus is no plus
+  const each = (a: Amount): a is AmountExpr => typeof a === 'object' && a.count !== undefined && !a.plus && a.half === undefined && a.max === undefined;
+  const stem = (a: AmountExpr): AmountExpr => { const { times: _t, plus: _p, ...rest } = a; return rest as AmountExpr; };
+  const n = (a: AmountExpr) => a.times ?? 1;
+  const sign = (k: number) => (k < 0 ? '-' : '+');
+  const mag = (a: AmountExpr) => `${sign(n(a))}${Math.abs(n(a))}`;
+  // "+X/+X, where X is the number of Elves on the battlefield" — the other printed form of a ±1 "for each" bonus
+  const asWhere = (a: AmountExpr, other: string) => `${sign(n(a))}X/${other}, where X is ${renderAmount(stem(a))}`;
+  const unit = (a: AmountExpr) => Math.abs(n(a)) === 1;
+  if (each(power) && each(toughness) && JSON.stringify(stem(power)) === JSON.stringify(stem(toughness))) {
+    return ptEachForm === 'where' && unit(power) && unit(toughness) ? asWhere(power, `${sign(n(toughness))}X`) : `${mag(power)}/${mag(toughness)} for each ${countPhrase(power)}`;
+  }
+  if (each(power) && toughness === 0) return ptEachForm === 'where' && unit(power) ? asWhere(power, '+0') : `${mag(power)}/+0 for each ${countPhrase(power)}`;
+  if (each(toughness) && power === 0) return ptEachForm === 'where' && unit(toughness) ? `+0/${sign(n(toughness))}X, where X is ${renderAmount(stem(toughness))}` : `+0/${mag(toughness)} for each ${countPhrase(toughness)}`;
+  if (!simple(power) && JSON.stringify(power) === JSON.stringify(toughness)) return `+X/+X, where X is ${renderAmount(power)}`;
+  const x = simple(power) ? term(power) : '+X';
+  const y = simple(toughness) ? term(toughness) : simple(power) ? '+X' : '+Y';
+  const where = dropEmpty([simple(power) ? '' : `X is ${renderAmount(power)}`, simple(toughness) ? '' : `${y.slice(1)} is ${renderAmount(toughness)}`]);
+  return `${x}/${y}, where ${where.join(' and ')}`;
+}
+/**
+ * Which printed form a ±1 "for each" P/T bonus takes. The parser writes ONE AST for "~ gets +1/+1 for each Elf you
+ * control" and for "target creature gets +X/+X until end of turn, where X is the number of Elves on the battlefield"
+ * (Timberwatch Elf, Wirewood Pride), so `renderingsOf` renders such an ability in both forms and the better reading
+ * wins — the way a prose keyword line is read both ways. Set only there, and only for the second rendering.
+ */
+let ptEachForm: 'each' | 'where' = 'each';
+/** A rendering that carries a ±1 "for each" P/T bonus — the only shape `ptEachForm` changes. */
+const PT_EACH_UNIT_RE = /[+-]1\/[+-][01] for each |\+0\/[+-]1 for each /;
 /** Whether an anthem / aura / equipment grants no P/T at all — `+0/+0` is a bonus the oracle never prints. */
 const zeroPT = (x: Record<string, unknown>): boolean => x.power === 0 && x.toughness === 0;
 const dropEmpty = (xs: (string | undefined | null | false)[]): string[] => xs.filter((x): x is string => !!x && x.trim() !== '');
@@ -79,28 +122,71 @@ const COUNT_PHRASE: Record<string, string> = {
 };
 
 /**
- * An `Amount` as the oracle prints it: a literal number, `X`, or the count expression's phrase
- * ("the number of creatures you control", "twice the number of…", "half that much, rounded up").
+ * The THING a `count` amount counts, without "the number of": "creatures you control", "+1/+1 counters on lands
+ * you control", "cards you have drawn this turn". `renderAmount` prefixes "the number of"; the "for each …" forms
+ * (`add-mana.perEach`, `ptBonus`) print it bare, the way the oracle does. Several card types in a COUNTED filter are
+ * an "and"-list ("each tapped artifact, creature, and land you control", "the number of instant and sorcery cards"):
+ * over the parser-finished pool every "and" between type words sits after each / the number of / one or more, and
+ * every "or" after target / a / another (8c-1 review, Toil to Renown).
+ */
+function countPhrase(a: AmountExpr): string {
+  const counter = a.counter ? `${a.counter} ` : '';
+  if (a.count === 'objects') return `${renderFilter(a.filter ?? {}, 'permanent', false, 'and')}s${a.zone && a.zone !== 'battlefield' ? ` in ${zoneOf(a.zone, a.who)}` : ''}${a.who && a.who !== 'you' ? ` ${words(a.who)}` : ''}`;
+  if (a.count === 'counters-on-source') return `${counter}counters on ~`;
+  if (a.count === 'counters-on-permanents') return `${counter}counters on ${a.filter ? `${renderFilter(a.filter, 'permanent', false, 'and')}s` : 'permanents'} you control`;
+  if (a.filter && (a.count === 'permanents-on-battlefield' || a.count === 'permanents-you-control' || a.count === 'creatures-you-control' || a.count === 'opponent-creatures')) {
+    return `${renderFilter(a.filter, a.count === 'permanents-on-battlefield' || a.count === 'permanents-you-control' ? 'permanent' : 'creature', false, 'and')}s${a.count === 'permanents-on-battlefield' ? ' on the battlefield' : a.count === 'opponent-creatures' ? ' your opponents control' : ' you control'}`;
+  }
+  return COUNT_PHRASE[a.count ?? ''] ?? words(a.count ?? '');
+}
+
+/** "your" / "that player's" / "that permanent's" — the possessive of what `AmountExpr.of` refers to. */
+const possessive = (of: string): string =>
+  of === 'you' ? 'your' : of === 'that-player' ? "that player's" : of === 'target-player' ? "target player's" : `${renderRef(of)}'s`;
+
+/** The characteristic an `AmountExpr.prop` names, as the oracle prints it. */
+const PROP_WORD: Record<string, string> = { mv: 'mana value', life: 'life total', 'cards-in-hand': 'cards in hand' };
+
+/**
+ * An `Amount` as the oracle prints it: a literal number, `X`, or a computed expression's phrase ("the number of
+ * creatures you control", "twice the number of…", "half that much, rounded up", "the difference between X and Y",
+ * "that permanent's power", "the greatest power among creatures you control"). Every FORM computes a base and every
+ * modifier (`times` / `half` / `plus` / a numeric `max`) applies to it — the engine's `finishAmount` does the same,
+ * and the renderer used to return early on `sum` / `diff` / `prop` / `min` / `max` and drop the printed `times`
+ * (Crackle with Power's "five times X" rendered as "the total of X"). `COUNT_EXPRESSION_RE` must match every
+ * phrase this can produce — test/render.test.ts pins each form against it.
  */
 export function renderAmount(a: Amount | undefined): string {
   if (a === undefined) return '';
   if (typeof a === 'number') return String(a);
   if (a === 'X') return 'X';
-  if (a.prop !== undefined) return `${renderRef(a.of ?? 'that')}'s ${a.prop === 'mv' ? 'mana value' : words(a.prop)}`;
-  if (a.diff) return `the difference between ${renderAmount(a.diff[0])} and ${renderAmount(a.diff[1])}`;
-  if (a.sum) return `the total of ${list(a.sum.map(renderAmount))}`;
-  if (Array.isArray(a.max)) return `the greatest of ${list(a.max.map(renderAmount))}`;
-  if (a.min) return `the least of ${list(a.min.map(renderAmount))}`;
-  const base = a.count === 'objects'
-    ? `the number of ${renderFilter(a.filter ?? {}, 'permanent')}${a.zone && a.zone !== 'battlefield' ? ` in ${zoneOf(a.zone, a.who)}` : ''}${a.who && a.who !== 'you' ? ` ${words(a.who)}` : ''}`
-    : a.filter && (a.count === 'permanents-on-battlefield' || a.count === 'permanents-you-control' || a.count === 'creatures-you-control' || a.count === 'opponent-creatures')
-      ? `the number of ${renderFilter(a.filter, a.count === 'permanents-on-battlefield' || a.count === 'permanents-you-control' ? 'permanent' : 'creature')}s${a.count === 'permanents-on-battlefield' ? ' on the battlefield' : a.count === 'opponent-creatures' ? ' your opponents control' : ' you control'}`
-      : `the number of ${COUNT_PHRASE[a.count ?? ''] ?? words(a.count ?? '')}`;
+  let base: string;
+  if (a.prop !== undefined) {
+    const p = PROP_WORD[a.prop] ?? words(a.prop);
+    base = a.agg && a.over
+      ? a.agg === 'sum' ? `the total ${p} of ${renderObjectSet(a.over)}` : `the ${a.agg === 'max' ? 'greatest' : 'least'} ${p} among ${renderObjectSet(a.over)}`
+      : `${possessive(a.of ?? 'that')} ${p}`;
+  } else if (a.diff) base = `the difference between ${renderAmount(a.diff[0])} and ${renderAmount(a.diff[1])}`;
+  else if (a.sum) base = `the total of ${list(a.sum.map(renderAmount))}`;
+  else if (Array.isArray(a.max)) base = `the greatest of ${list(a.max.map(renderAmount))}`;
+  else if (a.min) base = `the least of ${list(a.min.map(renderAmount))}`;
+  else if (a.count === 'that-many') base = 'that many';
+  // a count that names a characteristic is the characteristic: "where X is ~'s power", never "the number of ~'s power"
+  else if (a.count === 'power-of-source' || a.count === 'power-of-that' || a.count === 'mv-of-that') base = countPhrase(a);
+  else base = `the number of ${countPhrase(a)}`;
   const scaled = a.times !== undefined && a.times !== 1 ? `${a.times === 2 ? 'twice' : `${a.times} times`} ${base}` : base;
   const halved = a.half ? `half ${scaled}, rounded ${a.half}` : scaled;
   const plus = a.plus ? `${halved} plus ${a.plus}` : halved;
   return typeof a.max === 'number' ? `${plus}, up to ${a.max}` : plus;
 }
+
+/**
+ * Every phrase `renderAmount` can put in front of (or in place of) a magnitude — the shapes of a COMPUTED amount.
+ * `scoreRendering` exempts the `1` / `X` of a line whose rendering carries one of these (the magnitude IS the
+ * expression); it used to key on the literal "the number of", so a correct `diff` / `prop` / `max` amount failed the
+ * hard X gate (Doran, Besieged by Time scored 0.00 for an exact absolute-difference pump).
+ */
+export const COUNT_EXPRESSION_RE = /(?:\b(?:the number of|the total of|the difference between|the greatest of|the least of|that many|that much|for each|twice the|\d+ times the|half (?:the|that))\b|(?:'s|\byour) (?:power|toughness|mana value|life total|cards in hand)\b|\bthe (?:total|greatest|least) (?:power|toughness|mana value|life total|cards in hand) (?:of|among)\b)/;
 
 /** A zone as oracle text names it, from the point of view of `who` (default: the acting player). */
 function zoneOf(zone: string, who?: string): string {
@@ -115,9 +201,11 @@ const COLOR_WORD: Record<string, string> = { W: 'white', U: 'blue', B: 'black', 
 
 /**
  * A `Filter` as the noun phrase the oracle prints — "another red Goblin creature you control with power 2 or less".
- * `fallback` is the head noun when the filter names no card type ("creature", "card", "permanent").
+ * `fallback` is the head noun when the filter names no card type ("creature", "card", "permanent"); `conj` joins
+ * several card types — "or" for one object ("target artifact or enchantment", 348 of the pool's 387 printed lists),
+ * "and" where the caller counts them (`countPhrase`).
  */
-export function renderFilter(f: Filter | undefined, fallback = 'creature'): string {
+export function renderFilter(f: Filter | undefined, fallback = 'creature', cardNoun = false, conj: 'or' | 'and' = 'or'): string {
   if (!f) return fallback;
   const pre: string[] = [];
   if (f.other) pre.push('another');
@@ -132,11 +220,22 @@ export function renderFilter(f: Filter | undefined, fallback = 'creature'): stri
   if (f.colorless) pre.push('colorless');
   for (const c of f.colors ?? []) pre.push(COLOR_WORD[c] ?? c);
   for (const c of f.notColors ?? []) pre.push(`non${COLOR_WORD[c] ?? c}`);
-  for (const t of f.notTypes ?? []) pre.push(`non${t.toLowerCase()}`);
+  // "noninstant nonsorcery card" is a set the oracle has one word for: a PERMANENT card (CR 110.4c)
+  const permanentCard = permanentCardFilter(f);
+  for (const t of f.notTypes ?? []) if (!(permanentCard && (t === 'Instant' || t === 'Sorcery'))) pre.push(`non${t.toLowerCase()}`);
+  for (const s of f.supertypes ?? []) pre.push(s.toLowerCase());
+  for (const s of f.notSupertypes ?? []) pre.push(`non${s.toLowerCase()}`);
   if (f.chosenType) pre.push('of the chosen type');
   for (const s of f.subtypes ?? []) pre.push(s);
-  // a filter with a SUBTYPE and no card type needs no head noun: the oracle prints "a Mountain", "another Goblin"
-  const head = f.types?.length ? f.types.map(t => t.toLowerCase()).join(' ') : f.subtypes?.length ? '' : fallback;
+  for (const s of f.notSubtypes ?? []) pre.push(`non-${s}`);
+  // a filter with a SUBTYPE and no card type needs no head noun: the oracle prints "a Mountain", "another Goblin";
+  // several types are a list ("artifact, creature, or enchantment") unless `typesAll` makes them one noun phrase; a
+  // type the parser listed twice is one noun (Perilous Predicament's "an artifact creature and a nonartifact creature")
+  const types = [...new Set((f.types ?? []).map(t => t.toLowerCase()))];
+  const noun = types.length ? (f.typesAll ? types.join(' ') : list(types, conj)) : permanentCard ? 'permanent' : f.subtypes?.length ? '' : fallback;
+  // off the battlefield the oracle says "creature card" / "Goblin card": the word attaches to the HEAD, before any
+  // "with …" modifier ("creature card with mana value 3 or less from your graveyard")
+  const head = cardNoun && (types.length || f.subtypes?.length || permanentCard) ? `${noun} card`.trim() : noun;
   const post: string[] = [];
   if (f.flying) post.push('with flying');
   if (f.withKeyword) post.push(`with ${f.withKeyword}`);
@@ -158,9 +257,12 @@ export function renderFilter(f: Filter | undefined, fallback = 'creature'): stri
  */
 function zoneNoun(f: Filter | undefined, zone: string | undefined): string {
   const offBattlefield = !!zone && zone !== 'battlefield';
-  const noun = renderFilter(f, offBattlefield ? 'card' : 'permanent');
-  return offBattlefield && (f?.types?.length || f?.subtypes?.length) ? `${noun} card` : noun;
+  return renderFilter(f, offBattlefield ? 'card' : 'permanent', offBattlefield);
 }
+
+/** A filter that is every card type but instant and sorcery — what the oracle calls a PERMANENT card (CR 110.4c). */
+const permanentCardFilter = (f: Filter | undefined): boolean =>
+  !!f && !f.types?.length && ['Instant', 'Sorcery'].every(t => f.notTypes?.includes(t as never));
 
 /** An `ObjectSet` (a filter plus where and whose) as "creatures you control", "cards in each opponent's graveyard". */
 export function renderObjectSet(o: ObjectSet): string {
@@ -209,14 +311,24 @@ export function renderTarget(t: TargetSpec | Ref | string | undefined): string {
     return renderRef(t);
   }
   if (t.kind === 'multi') return list((t.specs ?? []).map(renderTarget));
+  // a COMPUTED count is "up to X target lands, where X is the number of verse counters on ~" (Rumbling Crescendo;
+  // it used to print "[object Object]")
+  const computed = typeof t.count === 'object' ? t.count as Amount : undefined;
+  const n = computed ? 'X' : (t.count ?? 1);
+  const where = computed ? `, where X is ${renderAmount(computed)}` : '';
+  const head = t.optional ? `up to ${n === 1 ? 'one' : n} target` : n === 1 ? 'target' : `${n} target`;
+  // "target creature card from your graveyard": the card noun, then whose graveyard (`who`; absent = any)
+  if (t.kind === 'graveyard-card') {
+    const noun = t.filter ? renderFilter(t.filter, 'card', true) : 'card';
+    const whose = t.who === 'you' ? 'your graveyard' : t.who === 'opponent' ? "an opponent's graveyard" : 'a graveyard';
+    return `${head} ${n === 1 ? noun : plural(String(n), noun)} from ${whose}${where}`;
+  }
   const noun = TARGET_NOUN[t.kind] ?? words(t.kind);
   const filtered = t.filter ? `${renderFilter(t.filter, noun === 'any target' ? 'permanent' : noun)}` : noun;
   const control = t.controller === 'you' ? ' you control' : t.controller === 'opponent' ? " an opponent controls" : '';
-  const n = t.count ?? 1;
-  const head = t.optional ? `up to ${n === 1 ? 'one' : n} target` : n === 1 ? 'target' : `${n} target`;
   // "any target" already contains its own quantifier; the parser never counts or makes it optional
   if (t.kind === 'any' && !t.filter && n === 1 && !t.optional) return 'any target';
-  return `${head} ${n === 1 ? filtered : plural(String(n), filtered)}${control}`;
+  return `${head} ${n === 1 ? filtered : plural(String(n), filtered)}${control}${where}`;
 }
 
 /** One `AbilityCost` as the oracle prints a cost line: `{2}{R}, {T}, Sacrifice a creature`. */
@@ -240,13 +352,41 @@ export function renderCost(c: AbilityCost | undefined): string {
   if (c.returnToHand) parts.push(`return a ${renderFilter(c.returnToHand)} you control to its owner's hand`);
   if (c.tapUntappedCreature) parts.push(`tap an untapped ${renderFilter(c.tapUntappedCreature)} you control`);
   if (c.tapCreaturesTotalPower) parts.push(`tap any number of ${c.tapCreaturesTotalPower.other ? 'other ' : ''}creatures you control with total power ${c.tapCreaturesTotalPower.power} or greater`);
-  // a family cost part with no core field: name the key so the number it carries still reaches the score
+  // a family cost part: its template, or — for one no template knows — its humanised key plus EVERY number it
+  // carries, so a magnitude the line prints still reaches the hard gate (`sacrificeMany: { count: 2 }` used to print
+  // the bare word "sacrificeMany" and hard-zero Grim Reaper's Scythe on the 2 it dropped)
   for (const [k, v] of Object.entries(c as Record<string, unknown>)) {
-    if (CORE_COST_FIELDS.has(k) || v === undefined) continue;
-    parts.push(`${words(k)}${typeof v === 'number' || typeof v === 'string' ? ` ${String(v)}` : ''}`);
+    if (CORE_COST_FIELDS.has(k) || v === undefined || v === false) continue;
+    const tpl = COST_PART_TEMPLATES[k];
+    parts.push(tpl ? tpl(v) : dropEmpty([words(k), ...numericLeaves(v)]).join(' '));
   }
   return parts.join(', ');
 }
+
+/** Every number inside a value, depth first — what the fallback cost template prints so no magnitude is lost. */
+function numericLeaves(v: unknown): string[] {
+  if (typeof v === 'number') return [String(v)];
+  if (typeof v === 'string') return /^\d+$|^X$/.test(v) ? [v] : [];
+  if (Array.isArray(v)) return v.flatMap(numericLeaves);
+  if (v && typeof v === 'object') return Object.values(v as Record<string, unknown>).flatMap(numericLeaves);
+  return [];
+}
+
+/**
+ * The English of the FAMILY cost parts (`AbilityCostExt` augmentations in src/engine/ops/*.ts), keyed by field. A
+ * family that adds a cost part adds its line here; one that forgets gets the numeric fallback above, never a bare key.
+ */
+const COST_PART_TEMPLATES: Record<string, (v: unknown) => string> = {
+  exileSelf: () => 'exile ~',
+  exileSelfFromGraveyard: () => 'exile ~ from your graveyard',
+  exertSelf: () => 'exert ~',
+  forage: () => 'forage',
+  collectEvidence: v => `collect evidence ${String(v)}`,
+  beholdWhat: v => `behold a ${renderFilter(v as Filter, 'permanent')}`,
+  sacrificeMany: v => { const c = v as { filter?: Filter; count: number }; return `sacrifice ${c.count} ${plural(String(c.count), renderFilter(c.filter))}`; },
+  returnToHandMany: v => { const c = v as { filter?: Filter; count: number }; return `return ${c.count} ${plural(String(c.count), renderFilter(c.filter))} you control to their owner's hand`; },
+  exileFromGraveyardMatching: v => { const c = v as { filter?: Filter; count: number }; return `exile ${c.count} ${renderFilter(c.filter, 'card', true)}s from your graveyard`; },
+};
 
 const CORE_COST_FIELDS: ReadonlySet<string> = new Set([
   'mana', 'tap', 'untap', 'sacrificeSelf', 'sacrifice', 'discard', 'discardSelf', 'energy', 'discardHand', 'payLife',
@@ -350,7 +490,11 @@ export function renderTrigger(t: TriggerEvent | undefined): string {
     case 'end-step': return `at the beginning of ${e.whose === 'each' ? "each player's" : 'your'} end step`;
     case 'draw-step': return 'at the beginning of your draw step';
     case 'combat-begin': return 'at the beginning of combat on your turn';
-    case 'cast': return `whenever ${e.who === 'you' ? 'you' : e.who === 'opponent' ? 'an opponent' : 'a player'} casts ${renderFilter(e.filter as Filter, 'spell')}${e.nth ? ` for the ${e.nth === 2 ? 'second' : `${e.nth}th`} time this turn` : ''}`;
+    case 'cast': {
+      const who = e.who === 'you' ? 'you cast' : e.who === 'opponent' ? 'an opponent casts' : 'a player casts';
+      const nth = e.nth ? ` for the ${['', 'first', 'second', 'third'][e.nth as number] ?? `${e.nth}th`} time this turn` : '';
+      return `whenever ${who} ${spellNoun(e.filter as Filter | undefined)}${nth}`;
+    }
     case 'landfall': return `whenever a land ${e.played ? 'you play ' : ''}enters the battlefield under your control`;
     case 'draw': return `whenever ${e.who === 'opponent' ? 'an opponent' : 'you'} draw${e.who === 'opponent' ? 's' : ''} a card`;
     case 'chapter': return `chapter ${(e.chapters as number[] ?? []).join(', ')}`;
@@ -365,8 +509,21 @@ export function renderTrigger(t: TriggerEvent | undefined): string {
     case 'end-of-turn': return 'at the beginning of the end step';
     case 'reflexive': return 'when you do';
     case 'unknown': return '<unknown trigger>';
-    default: return `whenever ${words(String((e as { on: string }).on))}`;
+    default: {
+      // a FAMILY event renders through a `trigger:<on>` entry in its `render` map; without one, its humanised name
+      const on = String((e as { on: string }).on);
+      const r = RENDERERS[`trigger:${on}`];
+      return r ? r(t as never, HELPERS) : `whenever ${e.self ? '~ ' : ''}${words(on)}`;
+    }
   }
+}
+
+/** A spell filter as the noun the oracle prints after "cast": "a spell", "an instant or sorcery spell", "a Sliver spell". */
+function spellNoun(f: Filter | undefined): string {
+  if (!f || !Object.keys(f).length) return 'a spell';
+  const rest = renderFilter({ ...f, types: [] }, '');
+  const types = (f.types ?? []).map(t => t.toLowerCase());
+  return dropEmpty([rest, list(types, 'or'), 'spell']).join(' ');
 }
 
 // ---------------------------------------------------------------------------
@@ -406,10 +563,24 @@ export function renderStatic(s: StaticEffect | undefined): string {
     }
     case 'damage-by-toughness': return `${x.scope === 'self' ? '~' : 'creatures you control'} assigns combat damage equal to its toughness rather than its power`;
     case 'flash-for': return `you may cast ${renderFilter(x.filter as Filter, 'spell')} as though it had flash`;
-    case 'trigger-twice': return `if ${x.equipped ? 'equipped creature' : 'a permanent'} would trigger${x.event ? ` on ${words(String(x.event))}` : ''}, it triggers an additional time`;
+    // the parser's four printed forms (parse.ts `trigger-twice`): the equipped one, the three event-scoped ones, and
+    // the filter form ("a triggered ability of another creature you control of the chosen type" — Roaming Throne)
+    case 'trigger-twice': {
+      const cause = x.event === 'land-etb' ? 'a land entering' : x.event === 'dies' ? 'a creature dying' : x.event === 'etb' ? 'a permanent entering'
+        : x.event === 'cast' ? `you casting or copying ${x.filter ? `${renderFilter(x.filter as Filter, 'spell')} spell` : 'a spell'}` : '';
+      if (cause) return `if ${cause} causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time`;
+      const of = x.equipped ? 'equipped creature' : x.filter ? `${renderFilter(x.filter as Filter, 'permanent')} you control` : 'a permanent you control';
+      return `if a triggered ability of ${of} triggers, that ability triggers an additional time`;
+    }
     case 'counters-replacement': return `if a ${x.counter ?? ''} counter would be put on a permanent you control, ${x.mode === 'double' ? 'twice that many' : 'that many plus one'} are put on it instead`;
     case 'tokens-replacement': return 'if you would create one or more tokens, you create twice that many instead';
-    case 'extra-mana-on-tap': return `whenever ${x.enchanted ? 'enchanted permanent' : renderFilter(x.filter as Filter, 'a permanent')} is tapped for mana, its controller adds an additional ${Array.isArray(x.mana) ? (x.mana as string[]).map(m => `{${m}}`).join('') : words(String(x.mana))}`;
+    // the filter form is printed from the controller's side ("Whenever you tap a Forest for mana, add an additional
+    // {G}" — parse.ts's own regex); only the Aura form says "its controller adds"
+    case 'extra-mana-on-tap': {
+      const mana = Array.isArray(x.mana) ? (x.mana as string[]).map(m => `{${m}}`).join('') : x.mana === 'chosen-color' ? 'one mana of the chosen color' : words(String(x.mana));
+      return x.enchanted ? `whenever enchanted permanent is tapped for mana, its controller adds an additional ${mana}`
+        : `whenever you tap ${renderFilter(x.filter as Filter, 'a permanent')} for mana, add an additional ${mana}`;
+    }
     case 'grant-mana-ability': return `${x.enchanted ? 'enchanted permanent' : renderFilter(x.filter as Filter, 'permanent')} has "${renderEffect(x.effect as Effect)}"`;
     case 'grant-ability': return `${x.enchanted ? 'enchanted permanent' : renderFilter(x.filter as Filter, 'creature')}${x.scope === 'you-control' ? ' you control' : ''} has "${renderAbility(x.ability as Ability)}"`;
     case 'opponents-cant-cast': return `your opponents can't cast ${renderFilter(x.filter as Filter, 'spell')}s during your turn`;
@@ -418,7 +589,16 @@ export function renderStatic(s: StaticEffect | undefined): string {
     // `self-pt` ADDS to the printed characteristics (src/engine/characteristics.ts: `m.p += …`), so the oracle line it
     // stands for is "~ gets +1/+1", not "~'s power and toughness are 1/1". A card that really SETS its P/T and is
     // parsed into a `self-pt` is a parser bug the round trip is meant to expose, and now does (see openIssues).
-    case 'self-pt': return `~ gets ${signed(x.power as Amount)}/${signed(x.toughness as Amount)}${cond}`;
+    case 'self-pt': return `~ gets ${ptBonus(x.power as Amount, x.toughness as Amount)}${cond}`;
+    // layer 7b as a static (types.ts `set-pt`): "enchanted creature has base power and toughness 9/9 and has flying"
+    case 'set-pt': {
+      const one = x.scope === 'enchanted' || x.scope === 'equipped' || x.scope === 'self';
+      const who = x.scope === 'enchanted' ? 'enchanted creature' : x.scope === 'equipped' ? 'equipped creature' : x.scope === 'self' ? '~'
+        : `${renderFilter(x.filter as Filter)}s${x.scope === 'you-control' ? ' you control' : ''}`;
+      const has = one ? 'has' : 'have';
+      const kws = (x.keywords as Keyword[] | undefined)?.length ? ` and ${has} ${KEYWORD_LIST(x.keywords as Keyword[])}` : '';
+      return `${who} ${has} base power and toughness ${renderAmount(x.power as Amount)}/${renderAmount(x.toughness as Amount)}${kws}${cond}`;
+    }
     case 'self-keywords': {
       const flags = dropEmpty([
         x.cantBlock ? "~ can't block" : '', x.mustAttack ? '~ attacks each combat if able' : '',
@@ -461,10 +641,17 @@ export function renderStatic(s: StaticEffect | undefined): string {
       // in one map); only a kind nobody renders falls back to its humanised name (9.1: 'cant-block-creatures' was
       // "cant block creatures" while the family printed "~ can't block creatures with power 2 or less")
       const r = RENDERERS[String((x as { kind: string }).kind)];
-      return r ? `${r(s as never)}${cond}` : words(String((x as { kind: string }).kind));
+      return r ? `${r(s as never, HELPERS)}${cond}` : words(String((x as { kind: string }).kind));
     }
   }
 }
+
+/**
+ * The core leaf renderers a FAMILY `render` entry may call (registry `RenderHelpers`): the engine barrel cannot
+ * import this tooling-only module, so the helpers travel as an argument instead (keyword-action's `endure` used to
+ * print every computed amount as "X" and lose the "the number of counters on ~" its line is scored on).
+ */
+const HELPERS: RenderHelpers = { renderAmount, renderTarget, renderFilter };
 
 // ---------------------------------------------------------------------------
 // Effects
@@ -530,8 +717,8 @@ export function renderEffect(e: Effect | undefined, ctx: RenderCtx = ROOT): stri
     case 'lose-life': { const s = sub(); return `${s.s} ${s.verb('lose')} ${amt()} life`; }
     case 'set-life': { const s = sub(); return `${s.s} life total becomes ${x.amount}`; }
     case 'mill': { const s = sub(); const n = amt(); return `${s.s} ${s.verb('mill')} ${n} ${plural(n, 'card')}`; }
-    case 'scry': return `scry ${x.amount}`;
-    case 'surveil': return `surveil ${x.amount}`;
+    case 'scry': return `scry ${amt()}`;
+    case 'surveil': return `surveil ${amt()}`;
     case 'energy': return `${ctx.you} get ${amt()} {E}`;
     case 'poison': { const s = sub(); const n = amt(); return `${s.s} ${s.verb('get')} ${n} poison ${plural(n, 'counter')}`; }
     case 'counters': { const n = amt(); return `put ${n === '1' ? 'a' : n} ${x.counter} ${plural(n, 'counter')} on ${tgt()}`; }
@@ -550,7 +737,15 @@ export function renderEffect(e: Effect | undefined, ctx: RenderCtx = ROOT): stri
     case 'play-exiled': return `you may play that card until ${x.until === 'eot' ? 'end of turn' : 'the end of your next turn'}${x.free ? ' without paying its mana cost' : ''}`;
     case 'search': return `search your library for ${x.count === 1 ? 'a' : x.count} ${renderFilter(x.filter as Filter, 'card')}${x.count === 1 ? '' : ' cards'}, put ${x.count === 1 ? 'it' : 'them'} into your ${x.to === 'top' ? 'library' : x.to}${x.tapped ? ' tapped' : ''}, then shuffle`;
     case 'search-land': return `search your library for ${x.basic ? 'a basic' : 'a'} ${(x.subtypes as string[] | undefined)?.length ? (x.subtypes as string[]).join(' or ') + ' ' : ''}land card, put it onto the ${x.toBattlefield ? 'battlefield' : 'your hand'}${x.tapped ? ' tapped' : ''}, then shuffle`;
-    case 'return-from-graveyard': return `return ${x.target ? 'target ' : ''}${renderFilter(x.what as Filter, 'card')} from ${x.anyGraveyard ? 'a graveyard' : 'your graveyard'} to ${x.to === 'hand' ? 'your hand' : x.to === 'battlefield' ? `the battlefield${x.tapped ? ' tapped' : ''}` : `the ${x.to === 'library-top' ? 'top' : 'bottom'} of your library`}`;
+    // `count` / `optional` print as "up to two target …" (the numbers the line prints and the gate reads); a script
+    // without either renders exactly as it always did
+    case 'return-from-graveyard': {
+      const what = zoneNoun(x.what as Filter, 'graveyard');
+      const n = x.count === undefined ? 1 : Number(x.count);
+      const head = x.optional ? `up to ${n === 1 ? 'one' : n} ` : n === 1 ? '' : `${n} `;
+      const noun = x.count === undefined && !x.optional ? what : n === 1 ? what : plural(String(n), what);
+      return `return ${head}${x.target ? 'target ' : ''}${noun} from ${x.anyGraveyard ? 'a graveyard' : 'your graveyard'} to ${x.to === 'hand' ? 'your hand' : x.to === 'battlefield' ? `the battlefield${x.tapped ? ' tapped' : ''}` : `the ${x.to === 'library-top' ? 'top' : 'bottom'} of your library`}`;
+    }
     case 'return-own': return `return ${x.count === 1 ? 'a' : x.count} ${renderFilter(x.filter as Filter)}${x.count === 1 ? '' : 's'} you control to ${x.count === 1 ? "its" : 'their'} owner's hand`;
     case 'return-self-to-battlefield': return `return ~ to the battlefield${x.counters ? ` with a ${(x.counters as { counter: string }).counter} counter on it` : ''}`;
     case 'return-to-battlefield': return `return that card to the battlefield under ${x.underControlOf === 'you' ? 'your' : "its owner's"} control`;
@@ -573,7 +768,7 @@ export function renderEffect(e: Effect | undefined, ctx: RenderCtx = ROOT): stri
     case 'gain-control': return `gain control of ${tgt()} ${duration(x.duration as 'eot' | 'permanent')}`.trim();
     case 'pump': {
       const kws = (x.keywords as Keyword[] | undefined)?.length ? ` and gains ${KEYWORD_LIST(x.keywords as Keyword[])}` : '';
-      return `${tgt()} gets ${signed(x.power as Amount)}/${signed(x.toughness as Amount)}${kws} ${duration(x.duration as 'eot' | 'permanent')}`.trim();
+      return `${tgt()} gets ${ptBonus(x.power as Amount, x.toughness as Amount)}${kws} ${duration(x.duration as 'eot' | 'permanent')}`.trim();
     }
     // `unblockable` is an internal name for a printed sentence, not a printed keyword: the oracle says
     // "Target creature can't be blocked this turn.", never "target creature gains unblockable"
@@ -626,7 +821,12 @@ export function renderEffect(e: Effect | undefined, ctx: RenderCtx = ROOT): stri
       const options = Array.isArray(x.options) && x.options.length ? list((x.options as string[]).map(s => `{${s}}`), 'or') : '';   // `options` is also a word ('chosen-color', …): only a list prints symbols
       const symbols = choices || options || (Array.isArray(m) ? (m as string[]).map(s => `{${s}}`).join('') : m === 'any' || m === 'any-one' ? 'one mana of any color' : words(String(m)));
       const n = x.amount !== undefined && x.amount !== 1 ? `${x.amount} ` : '';
-      return `add ${n}${symbols}${x.perEach ? ` for each ${renderAmount(x.perEach as Amount)}` : ''}`;
+      // "for each card you've drawn this turn" counts the THING, never "for each the number of …"
+      const per = x.perEach as Amount | undefined;
+      const each = per === undefined ? '' : ` for each ${typeof per === 'object' && per.count !== undefined && per.times === undefined ? countPhrase(per) : renderAmount(per)}`;
+      const restriction = x.restriction ? `. spend this mana only to cast ${RESTRICTION_PHRASE[String(x.restriction)] ?? words(String(x.restriction))}` : '';
+      const sticky = x.sticky ? ". until end of turn, you don't lose this mana as steps and phases end" : '';
+      return `add ${n}${symbols}${each}${restriction}${sticky}`;
     }
     // --- containers and composition ---------------------------------------
     case 'conditional': return `if ${renderCondition(x.condition as Condition)}, ${renderEffects(x.then as Effect[], ctx)}${(x.else as Effect[] | undefined)?.length ? `. otherwise, ${renderEffects(x.else as Effect[], ctx)}` : ''}`;
@@ -650,12 +850,18 @@ export function renderEffect(e: Effect | undefined, ctx: RenderCtx = ROOT): stri
     case 'unless-pays': { const s = subject(x.who as string, ctx.you); return `${renderEffects(x.otherwise as Effect[], { you: s.s })} unless ${s.s} ${s.verb('pay')} ${renderCost(x.cost as AbilityCost)}`; }
     case 'move': {
       const what = x.what;
-      const subj = typeof what === 'object' && what !== null && 'filter' in (what as object)
-        ? (() => { const w = what as { filter: Filter; zone: string; who: string; count: Amount | 'all' }; const n = w.count === 'all' ? 'all' : renderAmount(w.count as Amount); return `${n === '1' ? 'a' : n} ${zoneNoun(w.filter, w.zone)}${n === '1' ? '' : 's'} from ${zoneOf(w.zone, w.who)}`; })()
-        : renderTarget(what as TargetSpec | Ref);
-      const verb = x.to === 'exile' ? 'exile' : x.to === 'graveyard' ? 'put' : x.to === 'hand' ? 'return' : 'put';
+      // a TargetSpec first — as `opMove` tests `'kind' in e.what` — then the chosen-set form; a spec's zone is in its
+      // `kind` (`graveyard-card` prints "from your graveyard" through `renderTarget`), never in a `zone` field
+      const spec = typeof what === 'object' && what !== null && 'kind' in (what as object) ? (what as TargetSpec) : null;
+      const subj = spec ? renderTarget(spec)
+        : typeof what === 'object' && what !== null && 'filter' in (what as object)
+          ? (() => { const w = what as { filter: Filter; zone: string; who: string; count: Amount | 'all' }; const n = w.count === 'all' ? 'all' : renderAmount(w.count as Amount); return `${n === '1' ? 'a' : n} ${zoneNoun(w.filter, w.zone)}${n === '1' ? '' : 's'} from ${zoneOf(w.zone, w.who)}`; })()
+          : renderTarget(what as Ref);
+      // a card leaving a graveyard for the battlefield is "returned" there, in the oracle's word for it
+      const verb = x.to === 'exile' ? 'exile' : x.to === 'graveyard' ? 'put' : x.to === 'hand' ? 'return' : spec?.kind === 'graveyard-card' && x.to === 'battlefield' ? 'return' : 'put';
       const dest = x.to === 'exile' ? '' : ` ${x.to === 'battlefield' ? `onto the battlefield${x.tapped ? ' tapped' : ''}${x.faceDown ? ' face down' : ''}` : x.to === 'hand' ? "to its owner's hand" : x.to === 'library' ? `on the ${x.pos === 'bottom' ? 'bottom' : 'top'} of its owner's library` : `into ${x.to === 'graveyard' ? "its owner's graveyard" : 'the command zone'}`}`;
-      const counters = x.withCounters ? ` with ${renderAmount((x.withCounters as { amount: Amount }).amount)} ${(x.withCounters as { counter: string }).counter} counters on it` : '';
+      const wc = x.withCounters as { amount: Amount; counter: string } | undefined;
+      const counters = wc ? ` with ${renderAmount(wc.amount) === '1' ? `a ${wc.counter} counter` : `${renderAmount(wc.amount)} ${wc.counter} counters`} on it` : '';
       const until = x.until === 'leaves' ? ' until ~ leaves the battlefield' : x.until === 'eot' ? ' until end of turn' : x.until === 'your-next-end-step' ? ' until your next end step' : '';
       return `${verb} ${subj}${dest}${counters}${until}`;
     }
@@ -663,17 +869,26 @@ export function renderEffect(e: Effect | undefined, ctx: RenderCtx = ROOT): stri
     case 'lose-abilities': return `${tgt()} loses ${x.keywords === undefined || x.keywords === 'all' ? 'all abilities' : KEYWORD_LIST(x.keywords as Keyword[])} ${duration(x.duration as 'eot' | 'permanent')}`.trim();
     case 'exchange': return x.what === 'life' ? `${renderExchangeSide(x.a)} and ${renderExchangeSide(x.b)} exchange life totals` : `exchange control of ${renderExchangeSide(x.a)} and ${renderExchangeSide(x.b)}`;
     // --- parser-internal fold markers (never reach the engine; they render as nothing) ------------------------
-    case 'alt-if-target': case 'alt-take': case 'fold-counter-if-yours': case 'fold-restriction':
+    case 'alt-if-target': case 'alt-take': case 'fold-counter-if-yours':
     case 'fold-alt-mana': case 'fold-new-targets': return '';
+    // the parser folds this into the `add-mana` before it (parse.ts); an unfolded one still prints its sentence
+    case 'fold-restriction': return `spend this mana only to cast ${RESTRICTION_PHRASE[String(x.restriction)] ?? words(String(x.restriction))}`;
     case 'alt-kicked-amount': return String(x.text ?? '');
     case 'unknown': return '<unknown effect>';
     default: {
       // a family op renders itself; anything else is a gap the report names
       const r = RENDERERS[op];
-      return r ? r(e as never) : `<${words(op)}>`;
+      return r ? r(e as never, HELPERS) : `<${words(op)}>`;
     }
   }
 }
+
+/** The "Spend this mana only to cast …" phrase of an `add-mana.restriction` / `fold-restriction`. */
+const RESTRICTION_PHRASE: Record<string, string> = {
+  'creature-spell': 'a creature spell', 'instant-sorcery': 'an instant or sorcery spell',
+  'chosen-type-creature': 'a creature spell of the chosen type',
+  'colorless-eldrazi': 'colorless Eldrazi spells or activate abilities of colorless Eldrazi',
+};
 
 /**
  * The "if it …" rider `destroy` / `exile` carry (Fatal Push's "if it has mana value 2 or less"): the numbers in it
@@ -778,9 +993,29 @@ export function renderGaps(value: unknown, out: Set<string> = new Set()): string
   const o = value as Record<string, unknown>;
   const op = typeof o.op === 'string' ? o.op : undefined;
   if (op && !CORE_OPS.has(op) && !RENDERERS[op]) out.add(op);
+  // a static's `kind` — read only off a `kind: 'static'` ability's `effect`, since `kind` also discriminates
+  // conditions, target specs, as-enters and cost modifiers (the layers `type-change` static scored 0.09 for a year
+  // without ever being reported, because only `op` was walked)
+  if (o.kind === 'static' && o.effect && typeof o.effect === 'object') {
+    const kind = (o.effect as { kind?: unknown }).kind;
+    if (typeof kind === 'string' && !CORE_STATIC_KINDS.has(kind) && !RENDERERS[kind]) out.add(`static:${kind}`);
+  }
   for (const v of Object.values(o)) renderGaps(v, out);
   return [...out];
 }
+
+/**
+ * Every static kind `renderStatic`'s switch handles — the static counterpart of `CORE_OPS`, pinned by
+ * test/render.test.ts against the schema's own static union so a new core static cannot become a silent gap.
+ */
+export const CORE_STATIC_KINDS: ReadonlySet<string> = new Set([
+  'anthem', 'damage-by-toughness', 'flash-for', 'trigger-twice', 'counters-replacement', 'tokens-replacement',
+  'extra-mana-on-tap', 'grant-mana-ability', 'grant-ability', 'opponents-cant-cast', 'play-lands-from',
+  'unspent-mana-becomes-red', 'self-pt', 'set-pt', 'self-keywords', 'can-be-commander', 'look-top-anytime',
+  'may-not-untap', 'no-max-hand-size', 'cant-attack-unless-defender-controls', 'extra-blocks',
+  'cant-be-blocked-by-more-than-one', 'aura', 'equipment', 'cost-adjust', 'opponent-creatures-etb-tapped',
+  'extra-land', 'cant-be-countered', 'lifegain-multiplier', 'unknown',
+]);
 
 /**
  * Every op `renderEffect`'s switch handles. Derived from the switch itself would need the TypeScript AST, so the list
@@ -877,6 +1112,8 @@ const IRREGULAR: Record<string, string> = {
   discards: 'discard', sacrifices: 'sacrifice', creates: 'create', puts: 'put', gets: 'get', has: 'have',
   controls: 'control', attacks: 'attack', blocks: 'block', mills: 'mill', reveals: 'reveal', taps: 'tap',
   untaps: 'untap', copies: 'copy', abilities: 'ability', libraries: 'library', graveyards: 'graveyard',
+  // "another creature" and "other creatures" are one word of meaning; "you've" splits at the apostrophe into you + ve
+  another: 'other', ve: 'have', re: 'are',
 };
 
 /**
@@ -896,7 +1133,7 @@ function lemma(w: string): string {
  * ("Draw two cards." prints a 2), and "one or more" does not (see `dropQuantifiers`).
  */
 export function numbersIn(text: string): string[] {
-  const clean = counted(digits(dropQuantifiers(text.replace(/\([^)]*\)/g, ' ').toLowerCase())));
+  const clean = counted(digits(dropQuantifiers(existential(text.replace(/\([^)]*\)/g, ' ').toLowerCase()))));
   // WITH multiplicity: "a 1/1 token" prints 1 three times, and a rendering that prints "9 1/1 tokens" prints it only
   // twice — the count article is a magnitude too (8c re-review 2)
   return [...(clean.match(/\d+/g) ?? []), ...(/\bx\b/.test(clean) ? ['x'] : [])];
@@ -907,6 +1144,12 @@ export function numbersIn(text: string): string[] {
  * description), "put a +1/+1 counter" (up to two words of counter name), "loses a life".
  */
 const COUNT_NOUN_RE = /\b(a|an)(?:(\s+(?:additional|random|extra))?\s+(cards?)|((?:\s+[\w+/-]+){0,6}?)\s+(tokens?)|((?:\s+[\w+/-]+){0,2}?)\s+(counters?)|\s+(life))\b/g;
+/**
+ * The article straight after `if` / `whenever` / `unless` / `as long as` is EXISTENTIAL, not a count: "if a card left
+ * your graveyard this turn" says nothing about how many, and the AST of an intervening-if carries no number for it
+ * (Relic Retriever hard-zeroed on that 1). "if you do, draw a card" keeps its count: the article is not adjacent.
+ */
+const existential = (s: string): string => s.replace(/\b(if|whenever|unless|as long as) (?:a|an)\b/g, '$1 any');
 const counted = (s: string): string => s.replace(COUNT_NOUN_RE, (_m, _a: string, cAdj?: string, card?: string, tAdj?: string, token?: string, kAdj?: string, counter?: string, life?: string) =>
   card ? `1${cAdj ?? ''} ${card}` : token ? `1${tAdj ?? ''} ${token}` : counter ? `1${kAdj ?? ''} ${counter}` : `1 ${life}`);
 
@@ -921,7 +1164,10 @@ const KEYWORD_SET: ReadonlySet<string> = new Set<string>(KEYWORDS.map(k => Strin
 export function vocabularyIn(text: string): string[] {
   const low = collapseWording(text.toLowerCase().replace(/\([^)]*\)/g, ' '));
   const out = new Set<string>();
-  for (const k of KEYWORD_SET) if (new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(low)) out.add(k);
+  // "Ward—Get five poison counters." is a ward whose cost no `wardCost` can declare (scripts.ts WARD_LINE_RE): it is
+  // scripted as the triggered ability it stands for, whose rendering never says "ward" — so the line may not demand it
+  const nonManaWard = /^ward\s*[—-]\s*[^{]/.test(low.trim());
+  for (const k of KEYWORD_SET) if (!(k === 'ward' && nonManaWard) && new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(low)) out.add(k);
   for (const z of ZONE_WORDS) if (low.includes(z)) out.add(z);
   for (const m of low.matchAll(/([+-]?\d+\/[+-]?\d+|[a-z]+)\s+counters?\b/g)) if (m[1] !== 'a' && m[1] !== 'the') out.add(`${m[1]} counter`);
   return [...out];
@@ -944,7 +1190,8 @@ export function printedKeywordLine(line: string): boolean {
   if (!t || /[.,:;"~•]/.test(t)) return false;
   if (/^Gift (?:a|an) [A-Za-z][a-z]+(?: [a-z]+)?$/.test(t)) return true;   // "Gift a Treasure", "Gift a card", "Gift an extra turn"
   if (t.split(/\s+/).length > 4) return false;
-  return /^[A-Z][A-Za-z'!-]*(?: [a-z'!-]+){0,2}(?:[ —-]*(?:\d+|(?:\{[^}]*\})+|[a-z][a-z ]*))?$/.test(t);
+  // one capitalised continuation word is a SUBTYPE parameter — "Equip Wizard {1}", "Craft with Elf {3}" — not prose
+  return /^[A-Z][A-Za-z'!-]*(?: [a-z'!-]+){0,2}(?: [A-Z][a-z'-]+)?(?:[ —-]*(?:\d+|(?:\{[^}]*\})+|[a-z][a-z ]*))?$/.test(t);
 }
 
 /** A printed keyword line split into the keyword's NAME (lower-cased) and the parameter it prints, if it has one. */
@@ -1003,15 +1250,37 @@ export const KEYWORD_EXPANSIONS: Record<string, string> = {
   undying: 'when ~ dies, if ~ has no +1/+1 counters on it, return ~ to the battlefield with a +1/+1 counter on it',
   unearth: '{cost}: unearth. activate only as a sorcery',
   vanishing: 'at the beginning of your upkeep, if ~ has a time counter on it, remove a time counter from it. otherwise, sacrifice ~',
+  // 8c-1, from the 10.0 / 10.1 author reports
+  exploit: 'when ~ enters, you may sacrifice a creature',
+  embalm: '{cost}, exile ~ from your graveyard: create a token that is a copy of ~, except it is a white Zombie with no mana cost. activate only as a sorcery',
+  eternalize: '{cost}, exile ~ from your graveyard: create a token that is a copy of ~, except it is a 4/4 black Zombie with no mana cost. activate only as a sorcery',
+  fuse: 'you may cast one or both halves of this card from your hand',
+  ward: 'whenever ~ becomes the target of a spell or ability an opponent controls, counter it unless that player pays {cost}',
 };
 
 /** The rules text of one printed keyword line, or `null` when the renderer has no rules text for that keyword. */
 export function keywordExpansion(line: string): string | null {
   const { name, n, cost } = keywordLineParts(line);
   // "Enchant creature" / "Enchant permanent you control" IS its own rules text, and `renderStatic` prints it verbatim
-  const tpl = KEYWORD_EXPANSIONS[name] ?? (/^enchant /.test(name) ? name : KEYWORD_SET.has(name) ? `~ has ${name}` : null);
+  const tpl = KEYWORD_EXPANSIONS[name] ?? parameterisedExpansion(line, name) ?? (/^enchant /.test(name) ? name : KEYWORD_SET.has(name) ? `~ has ${name}` : null);
   if (tpl === null) return null;
   return tpl.replace(/\{n\}/g, n ?? '').replace(/\{cost\}/g, cost ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Keywords whose NAME carries a parameter of its own: "Equip Wizard {1}" (CR 702.6c, the quality is a subtype the
+ * target must have), "Craft with artifact {2}{G}" (CR 702.166a), "Plainscycling {2}" (CR 702.29c). The word is read
+ * from the line as printed, so the subtype keeps its capital.
+ */
+function parameterisedExpansion(line: string, name: string): string | null {
+  const printed = line.trim().replace(/[ —-]*(?:(?:\{[^}]*\})+|\d+)\s*$/, '').trim();
+  const equip = /^equip (.+)$/i.exec(printed);
+  if (equip) return `{cost}: attach ~ to target ${equip[1]} creature you control. activate only as a sorcery`;
+  const craft = /^craft with (.+)$/i.exec(printed);
+  if (craft) return `{cost}, exile ~, exile ${craft[1]} you control and/or ${craft[1]} cards from your graveyard: return ~ transformed under its owner's control. activate only as a sorcery`;
+  const cycling = /^(.+)cycling$/.exec(name);
+  if (cycling && cycling[1] !== 'basic land') return `{cost}, discard ~: search your library for a ${printed.slice(0, -'cycling'.length)} card, reveal it, put it into your hand, then shuffle`;
+  return null;
 }
 
 /**
@@ -1063,14 +1332,20 @@ export function scoreKeywordLine(line: string, rendered: string): LineScore {
 }
 
 /**
- * Every rendering a claimed line is scored against: the whole ability, each of its top-level effects, and — for a
+ * Every rendering a claimed line is scored against: the whole ability, each of its top-level effects, the same again
+ * in the "+X/+X, where X is …" form when a ±1 "for each" P/T bonus has one (`ptEachForm`), and — for a
  * MODAL ability — the whole ability up to its first bullet. "When ~ enters, choose one —" is an oracle line of its
  * own and each "• …" below it is another; the ability that claims the parent renders every bullet with it, so
  * scoring the parent against the full rendering charged it for four lines it does not print.
  */
 export function renderingsOf(a: Ability): string[] {
-  const parts = a.kind === 'static' ? [] : ((a as { effects?: Effect[] }).effects ?? []).map(e => renderEffect(e));
-  const out = [renderAbility(a), ...parts];
+  const render = () => [renderAbility(a), ...(a.kind === 'static' ? [] : ((a as { effects?: Effect[] }).effects ?? []).map(e => renderEffect(e)))];
+  const out = render();
+  // a ±1 "for each" P/T bonus is also printed as "+X/+X, where X is the number of …": read it that way too
+  if (out.some(r => PT_EACH_UNIT_RE.test(r))) {
+    ptEachForm = 'where';
+    try { for (const r of render()) if (!out.includes(r)) out.push(r); } finally { ptEachForm = 'each'; }
+  }
   for (const r of [...out]) if (r.includes('•')) out.push(r.slice(0, r.indexOf('•')).trim());
   return out;
 }
@@ -1083,8 +1358,29 @@ export function renderingsOf(a: Ability): string[] {
 export function scoreClaimedLine(a: Ability, line: string): LineScore {
   const score = printedKeywordLine(line) ? scoreKeywordLine : scoreRendering;
   let best: LineScore | null = null;
-  for (const r of renderingsOf(a)) { const s = score(line, r); if (!best || s.score > best.score) best = s; }
+  for (const l of [line, ...keywordProseVariants(line)]) {
+    for (const r of renderingsOf(a)) { const s = score(l, r); if (!best || s.score > best.score) best = { ...s, text: line }; }
+  }
   return best ?? { text: line, rendered: '', score: 0 };
+}
+
+/** The keyword names `KEYWORD_EXPANSIONS` knows, longest first, as one alternation. */
+const EXPANDABLE_RE = new RegExp(`\\b(${Object.keys(KEYWORD_EXPANSIONS).sort((a, b) => b.length - a.length).join('|')})(?: (\\d+|(?:\\{[^}]*\\})+))?(?=[.,;]|$)`, 'i');
+
+/**
+ * A PROSE line that grants a named keyword — "Artifact creatures you control have afflict 3." — read with the
+ * keyword written out as its rules text: the ability that implements it renders the expansion (a `grant-ability`
+ * carrying the afflict trigger, which is what parse.ts writes for the keyword itself), and scoring that rendering
+ * against the two printed words gave a correct script 0.40. `scoreClaimedLine` scores both readings and keeps the
+ * better, so nothing that scored well before scores worse now. A printed keyword LINE ("Afflict 3") is not prose
+ * and goes through `scoreKeywordLine` instead.
+ */
+export function keywordProseVariants(line: string): string[] {
+  if (printedKeywordLine(line)) return [];
+  const m = EXPANDABLE_RE.exec(line);
+  if (!m) return [];
+  const expansion = keywordExpansion(`${m[1]}${m[2] ? ` ${m[2]}` : ''}`);
+  return expansion ? [`${line.slice(0, m.index)}${expansion}${line.slice(m.index + m[0].length)}`] : [];
 }
 
 /**
@@ -1101,8 +1397,9 @@ export function scoreRendering(line: string, rendered: string): LineScore {
   // A COUNT EXPRESSION is printed two ways — "1 life for each Elf card in your graveyard" and "+X/+X, where X is the
   // number of Gates you control" — and neither the `1` nor the `X` is a magnitude a script could get wrong: the
   // magnitude IS the expression (whose own `times` / `plus` still print as numbers and are still gated). So when the
-  // rendering carries a count expression, those two tokens alone are exempt. Every other number stays hard.
-  const counted = rlow.includes('the number of');
+  // rendering carries a computed amount in any of `renderAmount`'s shapes, those two tokens alone are exempt. Every
+  // other number stays hard.
+  const counted = COUNT_EXPRESSION_RE.test(rlow);
   const exempt = (n: string) => counted && (n === '1' || n === 'x');
   // multiset inclusion: every number the line prints must be printed at least as often by the rendering
   const lNums = new Map<string, number>(); for (const n of numbersIn(line)) lNums.set(n, (lNums.get(n) ?? 0) + 1);
@@ -1127,6 +1424,13 @@ export interface CardScore {
   lines: LineScore[];
   /** ops with neither a core template nor a registry renderer. */
   gaps: string[];
+  /**
+   * The modal `• ` bullets, each scored against the mode the claiming ability declares at that position — MEASURED
+   * and reported (scripts:render prints them, scripts:verify warns), never folded into `score`: `faceLines` drops
+   * bullets, so the gate has never seen them and their false-fail rate is unknown (8c-1 M-1; the calibration test
+   * logs it). Gate them in a later slice once that rate is known.
+   */
+  bullets: LineScore[];
 }
 
 /**
@@ -1185,11 +1489,47 @@ export function scoreAbilities(claims: Map<Ability, string[]>): CardScore {
     for (const g of renderGaps(a)) gaps.add(g);
     for (const line of claimed) { const s = scoreClaimedLine(a, line); lines.push(s); if (s.gap) gaps.add(s.gap); }
   }
-  return { score: lines.length ? Math.min(...lines.map(l => l.score)) : 1, lines, gaps: [...gaps].sort() };
+  return { score: lines.length ? Math.min(...lines.map(l => l.score)) : 1, lines, gaps: [...gaps].sort(), bullets: [] };
 }
 
 /** One face of a card as `scoreCard` scores it: its declarations, the abilities it has, and the name lines print. */
 export interface ScorableFace extends KeywordParams { covers?: { line: string; by: string }[]; abilities?: readonly Ability[] }
+
+/**
+ * The modal bullets of a face, scored one by one: a `• ` line under a modal line is compared with the rendering of
+ * the mode at the same position in the ability that claims the line above it (the core `choose-mode`'s `modes`, or a
+ * family op's `modes` list). A bullet with no mode at its position, or whose parent no ability claims, scores 0 and
+ * says why. `lines` are `normalizeOracleLines` of the face, bullets included.
+ */
+export function scoreBullets(face: ScorableFace, lines: readonly string[], cardName: string): LineScore[] {
+  const out: LineScore[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith('• ') || !lines[i + 1]?.startsWith('• ')) continue;
+    const bullets: string[] = [];
+    for (let j = i + 1; j < lines.length && lines[j].startsWith('• '); j++) bullets.push(lines[j]);
+    const owner = (face.abilities ?? []).find(a => abilityClaimLines(a, cardName).includes(lines[i]));
+    const modes = owner ? modesOf(owner) : null;
+    bullets.forEach((b, k) => {
+      const mode = modes?.[k];
+      if (!mode) {
+        out.push({ text: b, rendered: '', score: 0, why: owner ? `the claiming ability declares ${modes?.length ?? 0} mode(s) and none at position ${k + 1}` : 'no ability claims the modal line above this bullet' });
+        return;
+      }
+      out.push({ ...scoreRendering(b.slice(2), renderEffects(mode)), text: b });
+    });
+  }
+  return out;
+}
+
+/** The mode lists of the first modal effect in an ability: `Effect[][]`, or a family's `{ effects }[]`, as `Effect[][]`. */
+function modesOf(a: Ability): Effect[][] | null {
+  for (const e of (a as { effects?: Effect[] }).effects ?? []) {
+    const m = (e as { modes?: unknown }).modes;
+    if (!Array.isArray(m)) continue;
+    return m.map(x => (Array.isArray(x) ? x as Effect[] : x && typeof x === 'object' && Array.isArray((x as { effects?: unknown }).effects) ? (x as { effects: Effect[] }).effects : []));
+  }
+  return null;
+}
 
 /**
  * The round-trip score of a parsed (or scripted) card: EVERY face's abilities against the lines they claim.
@@ -1201,13 +1541,17 @@ export interface ScorableFace extends KeywordParams { covers?: { line: string; b
  */
 export function scoreCard(
   def: Pick<CardDef, 'name' | 'abilities' | 'backFace' | 'keywords' | 'protectionFrom' | 'wardCost' | 'toxic' | 'bushido' | 'rampage' | 'landwalk' | 'firebending'>
-    & { covers?: { line: string; by: string }[] },
+    & Partial<Pick<CardDef, 'oracleText' | 'layout' | 'faces'>> & { covers?: { line: string; by: string }[] },
   secondFace?: { face: ScorableFace; name: string } | null,
 ): CardScore {
   const scored = [scoreAbilities(scorableClaims(def, def.abilities, def.name))];
   if (def.backFace) scored.push(scoreAbilities(scorableClaims(def.backFace, def.backFace.abilities, def.backFace.name)));
   if (secondFace) scored.push(scoreAbilities(scorableClaims(secondFace.face, secondFace.face.abilities, secondFace.name)));
-  if (scored.length === 1) return scored[0];
+  // the modal bullets (measured, never gated — see `CardScore.bullets`): a def that carries its oracle text has them
+  const bullets: LineScore[] = [];
+  if (def.oracleText !== undefined) bullets.push(...scoreBullets(def, normalizeOracleLines({ name: def.name, oracleText: def.oracleText, layout: def.layout ?? 'normal', faces: def.faces, backFace: undefined } as never), def.name));
+  if (def.backFace?.oracleText !== undefined) bullets.push(...scoreBullets(def.backFace, normalizeOracleLines({ ...def.backFace, backFace: undefined } as never), def.backFace.name).map(b => ({ ...b, text: `// ${b.text}` })));
+  if (scored.length === 1) return { ...scored[0], bullets };
   const lines = scored.flatMap(s => s.lines);
-  return { score: lines.length ? Math.min(...lines.map(l => l.score)) : 1, lines, gaps: [...new Set(scored.flatMap(s => s.gaps))].sort() };
+  return { score: lines.length ? Math.min(...lines.map(l => l.score)) : 1, lines, gaps: [...new Set(scored.flatMap(s => s.gaps))].sort(), bullets };
 }

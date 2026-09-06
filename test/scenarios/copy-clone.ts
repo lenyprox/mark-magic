@@ -328,6 +328,43 @@ export const copyClone: Scenario[] = [
       // cost-alter family and is still unparsed, so exactly one clause is skipped
     ],
   },
+  {
+    // the free-spell cycle: a script declares the conditional altCost and COVERS the printed line with it (8c-1
+    // CR-2), so the card is fully simulated; the cast is legal for nothing only while the commander is in play
+    name: 'Deflecting Swat is cast without paying its mana cost while its controller controls their commander', cr: '118.9',
+    ruling: 'CR 118.9: an alternative cost may be paid instead of the mana cost; this one is offered only while "you control a commander" holds.',
+    format: 'commander',
+    seats: [
+      { bf: ['Forest', 'Forest'], hand: ['Deflecting Swat'], command: ['Grizzly Bears'] },
+      { bf: ['Mountain'], hand: ['Lightning Bolt'] },
+    ],
+    scripts: {
+      'Deflecting Swat': {
+        mode: 'replace',
+        altCosts: [{ id: 'pitch', label: 'without paying its mana cost', cost: {}, condition: { kind: 'controls-commander' }, from: 'hand' }],
+        covers: [{ line: 'If you control a commander, you may cast ~ without paying its mana cost.', by: 'altCosts' }],
+        abilities: [{
+          kind: 'spell',
+          effects: [{ op: 'may', effects: [{ op: 'change-targets', target: { kind: 'spell-or-ability' }, how: 'choose-new' }] }],
+          text: 'You may choose new targets for target spell or ability.',
+        }],
+      },
+    },
+    script: [
+      { cast: 'Grizzly Bears', by: 0 },
+      { resolve: true },
+      { cast: 'Lightning Bolt', by: 1, targets: [['P0']] },
+      // both Forests are tapped for the commander: the only cast left is the free one
+      { cast: 'Deflecting Swat', by: 0, alt: 'pitch', targets: [['Lightning Bolt']] },
+      { resolve: true },
+    ],
+    expect: [
+      { zone: ['Grizzly Bears', 'battlefield'] },
+      { life: [0, 40] },
+      { life: [1, 37] },
+      { unsimulated: 0 },
+    ],
+  },
 
   // ------------------------------------------------------------------ become-copy
   {

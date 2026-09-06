@@ -6,11 +6,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCard } from '../src/cards/parse.js';
 import {
-  CORE_OPS, lemmas, numbersIn, printedKeywordLine, renderAbility, renderAmount, renderCondition, renderCost,
-  declarationCovers, keywordExpansion, renderEffect, renderFilter, renderStatic, renderTarget, renderTrigger,
-  scoreCard, scoreClaimedLine, scoreRendering, vocabularyIn,
+  CORE_OPS, CORE_STATIC_KINDS, COUNT_EXPRESSION_RE, lemmas, numbersIn, printedKeywordLine, renderAbility, renderAmount, renderCondition, renderCost,
+  declarationCovers, keywordExpansion, keywordProseVariants, renderEffect, renderFilter, renderGaps, renderStatic, renderTarget, renderTrigger,
+  renderingsOf, scoreBullets, scoreCard, scoreClaimedLine, scoreRendering, vocabularyIn,
 } from '../src/cards/render.js';
-import { EFFECT_VARIANTS } from '../src/cards/schema.js';
+import { EFFECT_VARIANTS, STATIC_VARIANTS } from '../src/cards/schema.js';
+import type { Amount } from '../src/cards/types.js';
 import { discriminators } from '../src/cards/lint.js';
 import type { Ability, CardDef } from '../src/cards/types.js';
 import { db } from './helpers.js';
@@ -319,4 +320,240 @@ test('the printed keyword lines the 10.0 authors hit have rules text: equip, bac
   }
   assert.match(keywordExpansion('Equip {3}')!, /\{3\}: attach ~ to target creature you control/);
   assert.match(keywordExpansion('Gift a Treasure')!, /a treasure/);
+});
+
+// ---------------------------------------------------------------------------
+// 8c-1: the renderer slice (data/scripts/reports/10.0-run2.json and 10.1-g1-run1.json toolProblems)
+// ---------------------------------------------------------------------------
+
+test('A-1: every core static kind has a template, and a static nobody renders is a reported gap', () => {
+  const schemaKinds = discriminators(STATIC_VARIANTS, 'kind').sort();
+  const mine = [...CORE_STATIC_KINDS].sort();
+  assert.deepEqual(mine.filter(k => !schemaKinds.includes(k)), [], 'CORE_STATIC_KINDS names kinds the schema does not have');
+  assert.deepEqual(schemaKinds.filter(k => !CORE_STATIC_KINDS.has(k)), [], 'a core static has no renderer template — add one to renderStatic and to CORE_STATIC_KINDS');
+  const probe = { kind: 'static', effect: { kind: 'not-a-real-static' }, text: 'x' };
+  assert.deepEqual(renderGaps([probe]), ['static:not-a-real-static']);
+  assert.deepEqual(renderGaps([{ kind: 'static', effect: { kind: 'anthem', power: 1, toughness: 1, filter: {}, scope: 'all' }, text: 'x' }]), []);
+  // the layers family's `type-change` renders through the registry, so it is not a gap either
+  assert.deepEqual(renderGaps([{ kind: 'static', effect: { kind: 'type-change', scope: 'self', subtypes: 'chosen-creature-type' }, text: 'x' }]), []);
+  // a `kind` that is not a static (a condition, a target spec) is never read as one
+  assert.deepEqual(renderGaps([{ kind: 'triggered', event: { on: 'etb', self: true }, effects: [{ op: 'destroy', target: { kind: 'creature' } }], intervening: { kind: 'metalcraft' }, text: 'x' }]), []);
+});
+
+test('A-2 / A-3: the `set-pt` static and the layers `type-change` static render as their cards print them', () => {
+  assert.equal(
+    renderStatic({ kind: 'set-pt', power: 9, toughness: 9, scope: 'enchanted', keywords: ['flying', 'first strike', 'trample', 'haste'] } as never),
+    'enchanted creature has base power and toughness 9/9 and has flying, first strike, trample, and haste');
+  assert.equal(renderStatic({ kind: 'set-pt', power: 1, toughness: 1, scope: 'you-control', filter: { types: ['Creature'] } } as never), 'creatures you control have base power and toughness 1/1');
+  assert.equal(renderStatic({ kind: 'type-change', scope: 'all', filter: { types: ['Land'] }, subtypes: ['Swamp'] } as never), 'each land is a Swamp in addition to its other types');
+  assert.equal(renderStatic({ kind: 'type-change', scope: 'self', subtypes: 'chosen-creature-type' } as never), '~ is the chosen type in addition to its other types');
+  assert.equal(renderStatic({ kind: 'type-change', scope: 'self', subtypes: 'chosen-basic-land-type' } as never), '~ is the chosen type', 'a land of the chosen basic type is only that type (CR 305.7)');
+  assert.equal(renderStatic({ kind: 'type-change', scope: 'you-control', filter: { types: ['Creature'] }, everyCreatureType: true } as never), 'creatures you control are every creature type');
+});
+
+test('A-4 / A-5 / A-6: every amount form takes the modifiers, prints what it counts, and matches COUNT_EXPRESSION_RE', () => {
+  assert.equal(renderAmount({ sum: ['X'], times: 5 }), '5 times the total of X', 'Crackle with Power: the printed 5 reaches the gate');
+  assert.equal(renderAmount({ diff: ['X', 2], plus: 1 }), 'the difference between X and 2 plus 1');
+  assert.equal(renderAmount({ prop: 'power', of: 'that', half: 'up' }), "half that permanent's power, rounded up");
+  assert.equal(renderAmount({ prop: 'life', of: 'you' }), 'your life total');
+  assert.equal(renderAmount({ prop: 'power', agg: 'max', over: { types: ['Creature'], who: 'you' } }), 'the greatest power among creature you control');
+  assert.equal(renderAmount({ prop: 'mv', agg: 'sum', over: { types: ['Artifact'], who: 'you' } }), 'the total mana value of artifact you control');
+  assert.equal(renderAmount({ count: 'counters-on-permanents', filter: { types: ['Land'] }, counter: '+1/+1' }), 'the number of +1/+1 counters on lands you control', 'Toph');
+  assert.equal(renderAmount({ count: 'counters-on-source', counter: 'charge' }), 'the number of charge counters on ~', 'Everflowing Chalice');
+  assert.equal(renderAmount({ count: 'that-many' }), 'that many');
+  // every shape renderAmount can emit is a computed magnitude the exemption must see
+  const forms: Amount[] = [
+    { count: 'creatures-you-control' }, { count: 'creatures-you-control', times: 2 }, { count: 'creatures-you-control', times: 3 },
+    { count: 'cards-in-hand', half: 'down' }, { count: 'objects', filter: { types: ['Elf'] }, zone: 'graveyard' }, { count: 'that-many' },
+    { prop: 'power', of: 'that' }, { prop: 'toughness', of: 'enchanted' }, { prop: 'mv', of: 'that' }, { prop: 'life', of: 'target-player' }, { prop: 'cards-in-hand', of: 'you' },
+    { prop: 'power', agg: 'max', over: { types: ['Creature'] } }, { prop: 'toughness', agg: 'sum', over: { types: ['Creature'], who: 'you' } }, { prop: 'mv', agg: 'min', over: {} },
+    { diff: ['X', 1] }, { sum: ['X', 2] }, { max: ['X', 3] }, { min: [1, 'X'] }, { sum: ['X'], times: 5 }, { diff: [{ prop: 'power', of: 'that' }, { prop: 'toughness', of: 'that' }] },
+  ];
+  for (const f of forms) assert.match(renderAmount(f), COUNT_EXPRESSION_RE, JSON.stringify(f));
+  assert.doesNotMatch('~ deals 3 damage to any target', COUNT_EXPRESSION_RE);
+  // Doran: a `prop` difference is a computed magnitude, so the X the line prints is exempt from the hard gate
+  const doran = scoreRendering('It gets +X/+X until end of turn, where X is the difference between its power and toughness.',
+    "that permanent gets +X/+X, where X is the difference between that permanent's power and that permanent's toughness until end of turn");
+  assert.ok(doran.score >= 0.55, `expected the X to be exempt, got ${doran.score} (${doran.why})`);
+  // a plain "5 times X" still hard-gates on the 5
+  assert.equal(scoreRendering('~ deals five times X damage to any target.', '~ deals the total of X damage to any target').score, 0);
+  assert.ok(scoreRendering('~ deals five times X damage to any target.', '~ deals 5 times the total of X damage to any target').score > 0.55);
+});
+
+test('the P/T bonus forms: "+1/+1 for each …" for the parser\'s count shape, "+X/+Y, where …" for anything else computed', () => {
+  const each = { count: 'creatures-you-control', plus: 0 } as Amount;
+  assert.equal(renderStatic({ kind: 'self-pt', power: each, toughness: each } as never), '~ gets +1/+1 for each creatures you control');
+  assert.equal(renderStatic({ kind: 'self-pt', power: { count: 'lands-you-control', times: 2 }, toughness: { count: 'lands-you-control', times: 2 } } as never), '~ gets +2/+2 for each lands you control');
+  assert.equal(renderStatic({ kind: 'self-pt', power: { count: 'creatures-you-control', filter: { subtypes: ['Goblin'] } }, toughness: 0 } as never), '~ gets +1/+0 for each Goblins you control');
+  assert.equal(renderEffect({ op: 'pump', target: 'self', power: { diff: ['X', 1] }, toughness: { diff: ['X', 1] }, duration: 'eot' } as never), '~ gets +X/+X, where X is the difference between X and 1 until end of turn');
+  assert.equal(renderEffect({ op: 'pump', target: 'self', power: 2, toughness: { count: 'cards-in-hand', plus: 1 }, duration: 'eot' } as never), '~ gets +2/+X, where X is the number of cards in your hand plus 1 until end of turn');
+  // a parser "for each" card now scores its own line back at 1
+  assert.equal(scoreClaimedLine({ kind: 'static', effect: { kind: 'self-pt', power: each, toughness: each }, text: '~ gets +1/+1 for each creature you control.' } as never, '~ gets +1/+1 for each creature you control.').score, 1);
+});
+
+test('a NEGATIVE bonus keeps its sign: "-1/-1 for each …", "-X/-X" (8c-1 review: these printed "+-1/+-1" and "+X/+X")', () => {
+  const swamps = (times: number) => ({ count: 'permanents-you-control', filter: { subtypes: ['Swamp'] }, times });
+  assert.equal(renderEffect({ op: 'pump', target: 'all-creatures', power: swamps(-1), toughness: swamps(-1), duration: 'eot' } as never), 'all creatures gets -1/-1 for each Swamps you control until end of turn', 'Mutilate');
+  assert.equal(renderStatic({ kind: 'self-pt', power: { count: 'cards-in-hand', times: -4 }, toughness: { count: 'cards-in-hand', times: -4 } } as never), '~ gets -4/-4 for each cards in your hand', 'Dread Slag');
+  assert.equal(renderEffect({ op: 'pump', target: { kind: 'creature' }, power: swamps(-1), toughness: 0, duration: 'eot' } as never), 'target creature gets -1/+0 for each Swamps you control until end of turn');
+  // the parser's negated X (`pm`: `{ sum: ['X'], times: -1 }`) is the printed "-X"
+  const negX = { sum: ['X'], times: -1 };
+  assert.equal(renderEffect({ op: 'pump', target: { kind: 'creature' }, power: negX, toughness: negX, duration: 'eot' } as never), 'target creature gets -X/-X until end of turn', 'Death Wind');
+  assert.equal(renderEffect({ op: 'pump', target: { kind: 'creature' }, power: negX, toughness: 0, duration: 'eot' } as never), 'target creature gets -X/+0 until end of turn');
+  assert.equal(renderEffect({ op: 'pump', target: { kind: 'creature' }, power: 'X', toughness: negX, duration: 'eot' } as never), 'target creature gets +X/-X until end of turn');
+  for (const r of [renderStatic({ kind: 'self-pt', power: swamps(-1), toughness: swamps(-1) } as never), renderEffect({ op: 'pump', target: 'self', power: negX, toughness: { count: 'cards-in-hand', times: -1 }, duration: 'eot' } as never)]) {
+    assert.doesNotMatch(r, /\+-|undefined|\[object/, r);
+  }
+});
+
+test('a ±1 "for each" bonus is read both ways — "+1/+1 for each Elf" and "+X/+X, where X is the number of Elves" share one AST', () => {
+  const elves = { count: 'permanents-on-battlefield', filter: { subtypes: ['Elves'] } };
+  const pump = { kind: 'spell', effects: [{ op: 'pump', target: { kind: 'creature' }, power: elves, toughness: elves, duration: 'eot' }], text: '' } as never;
+  const both = renderingsOf(pump);
+  assert.ok(both.includes('target creature gets +1/+1 for each Elvess on the battlefield until end of turn'), both.join(' | '));
+  assert.ok(both.includes('target creature gets +X/+X, where X is the number of Elvess on the battlefield until end of turn'), both.join(' | '));
+  // Wirewood Pride (0.58 → 0.47 in the first 8c-1 cut) and a "+1/+1 for each" line both pass through the same AST
+  assert.ok(scoreClaimedLine(pump, 'Target creature gets +X/+X until end of turn, where X is the number of Elves on the battlefield.').score >= 0.8);
+  assert.ok(scoreClaimedLine(pump, 'Target creature gets +1/+1 until end of turn for each Elf on the battlefield.').score >= 0.8);
+  // the second reading is confined to that shape: a ±4 bonus and a plain pump render once
+  assert.equal(renderingsOf({ kind: 'spell', effects: [{ op: 'pump', target: 'self', power: { ...elves, times: 4 }, toughness: { ...elves, times: 4 }, duration: 'eot' }], text: '' } as never).length, 2);
+  assert.equal(renderEffect({ op: 'pump', target: 'self', power: 2, toughness: 2, duration: 'eot' } as never), '~ gets +2/+2 until end of turn');
+  // and a negative one: Silvergill Douser's "-X/-0 … where X is the number of Merfolk and/or Faeries you control"
+  const merfolk = { count: 'permanents-you-control', filter: { subtypes: ['Merfolk', 'Faerie'] }, times: -1 };
+  assert.ok(renderingsOf({ kind: 'spell', effects: [{ op: 'pump', target: { kind: 'creature' }, power: merfolk, toughness: 0, duration: 'eot' }], text: '' } as never)
+    .includes('target creature gets -X/+0, where X is the number of Merfolk Faeries you control until end of turn'));
+});
+
+test("computed magnitudes never print as an object: scry / surveil X, \"up to X target lands, where X is …\", a keyword action's X", () => {
+  const verse = { count: 'counters-on-source', counter: 'verse' };
+  assert.equal(renderEffect({ op: 'surveil', amount: { count: 'permanents-you-control', filter: { tapped: true, subtypes: ['Assassin'] } } } as never), 'surveil the number of tapped Assassins you control', 'Lydia Frye');
+  assert.equal(renderEffect({ op: 'scry', amount: 2 } as never), 'scry 2');
+  assert.equal(renderTarget({ kind: 'land', count: verse, optional: true } as never), 'up to X target lands, where X is the number of verse counters on ~', 'Rumbling Crescendo');
+  assert.equal(renderTarget({ kind: 'creature', count: 2, optional: true } as never), 'up to 2 target creatures');
+  // keyword actions print a computed amount as "X, where X is …": the line prints the X and the words, so does the rendering
+  const gremlin = { kind: 'triggered', event: { on: 'dies', self: true }, effects: [{ op: 'incubate', amount: { count: 'power-of-source' } }], text: '' } as never;
+  assert.equal(renderAbility(gremlin), "when ~ dies, Incubate X, where X is ~'s power");
+  assert.ok(scoreClaimedLine(gremlin, 'When ~ dies, incubate X, where X is its power.').score >= 0.55, 'Furnace Gremlin / Bloated Processor');
+  assert.equal(renderEffect({ op: 'bolster', amount: 2 } as never), 'Bolster 2');
+  assert.equal(renderEffect({ op: 'adapt', amount: 'X' } as never), 'Adapt X');
+});
+
+test('A-7 / A-8: return-from-graveyard prints count and optional; move discriminates a TargetSpec first and never prints undefined', () => {
+  const plain = { op: 'return-from-graveyard', what: { types: ['Creature'] }, to: 'battlefield', target: true, tapped: true };
+  assert.equal(renderEffect(plain as never), 'return target creature card from your graveyard to the battlefield tapped');
+  assert.equal(renderEffect({ ...plain, count: 2 } as never), 'return 2 target creature cards from your graveyard to the battlefield tapped', 'Victimize');
+  assert.equal(renderEffect({ ...plain, what: { notTypes: ['Instant', 'Sorcery'] }, count: 2, optional: true } as never), 'return up to 2 target permanent cards from your graveyard to the battlefield tapped', 'Brought Back');
+  assert.equal(renderEffect({ ...plain, count: 1, optional: true, to: 'hand' } as never), 'return up to one target creature card from your graveyard to your hand');
+  const excava = { op: 'move', to: 'battlefield', controller: 'you', withCounters: { counter: 'finality', amount: 1 }, what: { kind: 'graveyard-card', who: 'you', optional: true, count: 1, filter: { types: ['Artifact', 'Creature', 'Enchantment'], notSubtypes: ['Aura'], mvLE: 3 } } };
+  const r = renderEffect(excava as never);
+  assert.equal(r, 'return up to one target non-Aura artifact, creature, or enchantment card with mana value 3 or less from your graveyard onto the battlefield with a finality counter on it');
+  assert.doesNotMatch(r, /undefined/);
+  // the chosen-set form is byte-identical to what it always rendered
+  assert.equal(renderEffect({ op: 'move', what: { filter: { types: ['Creature'] }, zone: 'graveyard', who: 'you', count: 1 }, to: 'battlefield', controller: 'you' }), 'put a creature card from your graveyard onto the battlefield');
+  assert.equal(renderTarget({ kind: 'graveyard-card', who: 'you', count: 99, optional: true }), 'up to 99 target cards from your graveyard');
+});
+
+test('A-9: add-mana prints its restriction, its sticky rider and a bare "for each" count; fold-restriction prints its sentence', () => {
+  assert.equal(renderEffect({ op: 'add-mana', mana: 'any', amount: 1, restriction: 'instant-sorcery' } as never), 'add one mana of any color. spend this mana only to cast an instant or sorcery spell', 'Great Hall of the Biblioplex');
+  assert.equal(renderEffect({ op: 'add-mana', mana: ['R'], sticky: true } as never), "add {R}. until end of turn, you don't lose this mana as steps and phases end", 'Birgi');
+  assert.equal(renderEffect({ op: 'add-mana', mana: ['U'], perEach: { count: 'cards-drawn-this-turn' } } as never), 'add {U} for each cards you have drawn this turn', 'Immortus');
+  assert.equal(renderEffect({ op: 'fold-restriction', restriction: 'creature-spell', text: '' } as never), 'spend this mana only to cast a creature spell');
+});
+
+test('A-10: exploit / embalm / eternalize / fuse / ward have rules text; "Equip Wizard {1}" and "Craft with artifact {2}" are keyword lines with synthesised text', () => {
+  for (const line of ['Exploit', 'Embalm {3}{U}{U}', 'Eternalize {5}{B}{B}', 'Fuse', 'Ward {2}', 'Equip Wizard {1}', 'Craft with artifact {2}{G}', 'Plainscycling {2}']) {
+    assert.ok(printedKeywordLine(line), `${line} is a printed keyword line`);
+    assert.ok(keywordExpansion(line), `${line} has rules text`);
+  }
+  assert.equal(keywordExpansion('Equip Wizard {1}'), '{1}: attach ~ to target Wizard creature you control. activate only as a sorcery');
+  assert.match(keywordExpansion('Embalm {3}{U}{U}')!, /^\{3\}\{U\}\{U\}, exile ~ from your graveyard: create a token that is a copy of ~, except it is a white Zombie/);
+  assert.match(keywordExpansion('Craft with artifact {2}{G}')!, /exile artifact you control and\/or artifact cards from your graveyard: return ~ transformed/);
+  assert.equal(printedKeywordLine('Destroy Target Creature'), false, 'two capitalised continuations are prose');
+  // Overcharged Amalgam: the family's exploit op now prints the rules text the keyword line is scored against
+  const amalgam = { kind: 'triggered', event: { on: 'etb', self: true }, effects: [{ op: 'exploit' }], text: 'Exploit' } as never;
+  assert.ok(scoreClaimedLine(amalgam, 'Exploit').score >= 0.55, `got ${scoreClaimedLine(amalgam, 'Exploit').score}`);
+  assert.equal(renderTrigger({ on: 'exploits', self: true } as never), 'when ~ exploits a creature', 'a family trigger renders through its `trigger:<on>` entry');
+});
+
+test('A-11: trigger-twice prints its filter / equipped flag / event; extra-mana-on-tap prints the controller form for a filter', () => {
+  assert.equal(renderStatic({ kind: 'trigger-twice', equipped: true } as never), 'if a triggered ability of equipped creature triggers, that ability triggers an additional time');
+  assert.equal(renderStatic({ kind: 'trigger-twice', filter: { types: ['Creature'], chosenType: true } } as never), 'if a triggered ability of of the chosen type creature you control triggers, that ability triggers an additional time');
+  assert.equal(renderStatic({ kind: 'trigger-twice', event: 'land-etb' } as never), 'if a land entering causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time');
+  assert.equal(renderStatic({ kind: 'extra-mana-on-tap', filter: { subtypes: ['Forest'] }, mana: ['G'] } as never), 'whenever you tap Forest for mana, add an additional {G}');
+  assert.equal(renderStatic({ kind: 'extra-mana-on-tap', enchanted: true, mana: 'chosen-color' } as never), 'whenever enchanted permanent is tapped for mana, its controller adds an additional one mana of the chosen color');
+  // Nissa: the parser's own AST for the line it parses today clears the gate
+  const nissa = { kind: 'static', effect: { kind: 'extra-mana-on-tap', filter: { subtypes: ['Forest'] }, mana: ['G'] }, text: 'Whenever you tap a Forest for mana, add an additional {G}.' } as never;
+  assert.ok(scoreClaimedLine(nissa, 'Whenever you tap a Forest for mana, add an additional {G}.').score >= 0.55);
+});
+
+test('A-12: family cost parts print through their templates, and an unknown part still prints every number it carries', () => {
+  assert.equal(renderCost({ mana: { generic: 3, x: 0, pips: ['B'], hybrid: [], phyrexian: [], raw: '{3}{B}' }, tap: true, sacrificeMany: { filter: { types: ['Creature'] }, count: 2 } } as never), '{3}{B}, {T}, sacrifice 2 creatures', "Grim Reaper's Scythe");
+  assert.equal(renderCost({ mana: { generic: 2, x: 0, pips: [], hybrid: [], phyrexian: [], raw: '{2}' }, exileSelf: true } as never), '{2}, exile ~', 'Perpetual Timepiece');
+  assert.equal(renderCost({ exileSelfFromGraveyard: true } as never), 'exile ~ from your graveyard');
+  assert.equal(renderCost({ exileFromGraveyardMatching: { count: 3, filter: { types: ['Creature'] } } } as never), 'exile 3 creature cards from your graveyard');
+  assert.equal(renderCost({ collectEvidence: 6 } as never), 'collect evidence 6');
+  assert.equal(renderCost({ somethingNew: { nested: { count: 4 }, list: [7] } } as never), 'somethingNew 4 7');
+});
+
+test('A-13 / A-14 / A-15: existential articles, non-mana ward, supertypes, another/other, and family helpers', () => {
+  assert.deepEqual(numbersIn('At the beginning of each end step, if a card left your graveyard this turn, create a Treasure token.'), ['1'], 'the article after "if" is existential');
+  assert.deepEqual(numbersIn('Whenever a Treasure token enters, draw a card.'), ['1']);
+  assert.deepEqual(numbersIn('If you do, draw a card.'), ['1'], 'an article not adjacent to the conjunction is still a count');
+  assert.deepEqual(vocabularyIn('Ward—Get five poison counters.'), ['poison counter'], 'a non-mana ward line does not demand the word ward');
+  assert.deepEqual(vocabularyIn('Ward {2}'), ['ward']);
+  assert.equal(renderFilter({ supertypes: ['Legendary'], types: ['Creature'] }), 'legendary creature');
+  assert.equal(renderFilter({ types: ['Artifact', 'Creature'] }), 'artifact or creature');
+  // a COUNTED filter lists its types with "and" (Toil to Renown), a type listed twice is one noun (Perilous Predicament)
+  assert.equal(renderAmount({ count: 'permanents-you-control', filter: { tapped: true, types: ['Artifact', 'Creature', 'Land'] } }), 'the number of tapped artifact, creature, and lands you control');
+  assert.equal(renderFilter({ types: ['Artifact', 'Creature', 'Creature'], notTypes: ['Artifact'] }), 'nonartifact artifact or creature');
+  assert.deepEqual(lemmas("another creature you've drawn"), ['other', 'creature', 'you', 'have', 'drawn']);
+  // keyword-action's endure prints the amount in the renderer's words, lower-cased mid-sentence
+  const warden = { kind: 'triggered', event: { on: 'etb', self: false, filter: { types: ['Creature'], other: true, nontoken: true }, controller: 'you' }, effects: [{ op: 'endure', target: 'that', amount: { count: 'counters-on-source' } }], text: '' } as never;
+  const r = renderAbility(warden);
+  assert.match(r, /that creature endures X, where X is the number of counters on ~$/);
+  assert.doesNotMatch(r, /That creature/);
+});
+
+test('a prose line granting a named keyword is also read with the keyword written out, and the better reading wins', () => {
+  assert.deepEqual(keywordProseVariants('Artifact creatures you control have afflict 3.'), ['Artifact creatures you control have whenever ~ becomes blocked, defending player loses 3 life.']);
+  assert.deepEqual(keywordProseVariants('Afflict 3'), [], 'a printed keyword line is not prose');
+  assert.deepEqual(keywordProseVariants('Destroy target creature.'), []);
+  const patrol = { kind: 'static', effect: { kind: 'grant-ability', scope: 'you-control', filter: { types: ['Artifact', 'Creature'], typesAll: true }, ability: { kind: 'triggered', event: { on: 'becomes-blocked', self: true }, effects: [{ op: 'lose-life', amount: 3, who: 'defending-player' }], text: 'Afflict 3' } }, text: 'Artifact creatures you control have afflict 3.' } as never;
+  const s = scoreClaimedLine(patrol, 'Artifact creatures you control have afflict 3.');
+  assert.ok(s.score >= 0.55, `Cyberman Patrol: expected the expansion reading to pass, got ${s.score}`);
+  assert.equal(s.text, 'Artifact creatures you control have afflict 3.', 'the line reported is the printed one');
+  // and the magnitude is still gated through the expansion
+  const wrong = { ...patrol, effect: { ...patrol.effect, ability: { ...patrol.effect.ability, effects: [{ op: 'lose-life', amount: 2, who: 'defending-player' }] } } } as never;
+  assert.ok(scoreClaimedLine(wrong, 'Artifact creatures you control have afflict 3.').score < 0.55);
+});
+
+test('M-1: modal bullets are scored one by one against the mode at that position, reported, and never in the card score', () => {
+  const lines = ['When ~ enters, choose one —', '• Draw a card.', '• You gain 3 life.', 'Flying'];
+  const modal = { kind: 'triggered', event: { on: 'etb', self: true }, effects: [{ op: 'choose-mode', count: 1, modes: [[{ op: 'draw', amount: 1, who: 'you' }], [{ op: 'gain-life', amount: 9, who: 'you' }]] }], text: 'When ~ enters, choose one —' } as never;
+  const bullets = scoreBullets({ keywords: [], abilities: [modal] }, lines, 'Probe');
+  assert.deepEqual(bullets.map(b => b.text), ['• Draw a card.', '• You gain 3 life.']);
+  assert.ok(bullets[0].score >= 0.55, `"draw a card" against "you draw a card", got ${bullets[0].score}`);
+  assert.equal(bullets[1].score, 0, 'gain 9 for a bullet that prints 3 is a hard zero');
+  // a bullet with no mode at its position says so
+  const short = scoreBullets({ keywords: [], abilities: [{ ...modal, effects: [{ op: 'choose-mode', count: 1, modes: [[{ op: 'draw', amount: 1, who: 'you' }]] }] } as never] }, lines, 'Probe');
+  assert.match(short[1].why ?? '', /none at position 2/);
+  // through scoreCard: measured, not gated
+  const card = scoreCard({ name: 'Probe', keywords: [], abilities: [modal], oracleText: 'When Probe enters, choose one —\n• Draw a card.\n• You gain 3 life.\nFlying', layout: 'normal' } as never);
+  assert.equal(card.bullets.length, 2);
+  assert.equal(card.bullets[1].score, 0);
+  assert.equal(card.score, 1, 'the whole-ability line still scores on the modal head alone');
+});
+
+test('calibration (log only): the three gates and the modal-bullet rate over the seeded samples', () => {
+  const s400 = sample(400).map(def => scoreCard(def)).filter(s => s.lines.length);
+  const sorted = s400.map(s => s.score).sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const zeros = sorted.filter(s => s === 0).length;
+  const s1500 = sample(1500).map(def => scoreCard(def)).filter(s => s.lines.length);
+  const below = s1500.filter(s => s.score < 0.55).length;
+  const withBullets = s1500.filter(s => s.bullets.length);
+  const bullets = s1500.flatMap(s => s.bullets);
+  const bulletsBelow = bullets.filter(b => b.score < 0.55).length;
+  console.log(`calibration: median(400)=${median.toFixed(3)} zeros=${zeros}/${sorted.length} below-gate(1500)=${below}/${s1500.length} (${(100 * below / s1500.length).toFixed(1)}%) `
+    + `modal bullets: ${withBullets.length} cards, ${bullets.length} bullets, ${bulletsBelow} below 0.55 (${bullets.length ? (100 * bulletsBelow / bullets.length).toFixed(1) : '0.0'}%)`);
 });

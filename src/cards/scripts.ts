@@ -339,6 +339,15 @@ const scriptIdOf = (fileName: string) => {
   return ORACLE_ID_RE.test(id) ? id : null;
 };
 
+/**
+ * The bytes a script file is written with — pretty JSON, LF only, one trailing newline. EVERY writer of a script
+ * file goes through this (`ScriptStore.put`, the verification write-back, the promoter): the README's "files must
+ * be LF only" held for what authors wrote and not for what the tools wrote back (10.0 / 10.1 author reports).
+ */
+export function scriptFileText(script: unknown): string {
+  return JSON.stringify(script, null, 2).replace(/\r\n?/g, '\n') + '\n';
+}
+
 /** Lazily indexed script directory: `<2-hex>/<oracle_id>.json` shards plus any flat `<oracle_id>.json` at the root. */
 export class ScriptStore {
   private index: Map<string, string> | null = null;
@@ -389,7 +398,7 @@ export class ScriptStore {
     if (existing && !opts.force && !this.mayOverwrite(script, existing)) return false;
     const file = this.pathFor(script.oracleId);
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify(script, null, 2) + '\n');
+    fs.writeFileSync(file, scriptFileText(script));
     // a flat file for the same id would shadow nothing (the shard wins) but would linger; drop it
     const flat = path.join(this.dir, `${script.oracleId}.json`);
     if (flat !== file && fs.existsSync(flat)) fs.rmSync(flat);
@@ -1040,6 +1049,14 @@ function asEntersProblem(f: ScriptFace, want: (a: AsEnters) => boolean, describe
     : `the line needs an asEnters entry ${describe}, and this face declares ${JSON.stringify(f.asEnters ?? [])}`;
 }
 
+/** The as-enters declaration an "As ~ enters, choose a <what>" clause needs, or what is missing. */
+function chooseProblem(f: ScriptFace, printed: string): string | null {
+  const w = printed.toLowerCase();
+  if (w === 'basic land type') return asEntersProblem(f, a => a.kind === 'choose-type' && (a as { what?: string }).what === 'basic-land-type', "of kind 'choose-type' with what 'basic-land-type'");
+  const what = w === 'color' ? 'color' : 'creature-type';
+  return asEntersProblem(f, a => a.kind === 'choose' && a.what === what, `of kind 'choose' with what '${what}'`);
+}
+
 /** An `AltCost` matching the line's keyword and cost, or a description of what is missing. */
 function altCostProblem(f: ScriptFace, want: (a: AltCost) => boolean, describe: string): string | null {
   return (f.altCosts ?? []).some(want) ? null
@@ -1068,6 +1085,8 @@ export const COVER_RULES: Record<CoverKind, CoverRule> = {
       /^impending (\d+)[—-] ?(\{.+\})$/i,
       /^escape[—-] ?(\{.+\}), exile (.+?)\.?$/i,
       /^(?:if .+?, )?you may (.+?) rather than pay ~'s mana cost\.?$/i,
+      // the free-spell cycle (Deflecting Swat, Fierce Guardianship, …): a conditional cast for nothing
+      /^if you control a commander, you may cast ~ without paying its mana cost\.?$/i,
     ],
     declared: f => !!f.altCosts?.length,
     value: (f, m, idx) => {
@@ -1078,7 +1097,16 @@ export const COVER_RULES: Record<CoverKind, CoverRule> = {
         // own mana cost), so the printed increment is the tail of the declared raw rather than the whole of it
         const costOk = (a: AltCost) => !symbols || manaKey(a.cost.mana?.raw) === manaKey(symbols)
           || (id === 'buyback' && manaKey(a.cost.mana?.raw).endsWith(manaKey(symbols)));
-        return altCostProblem(f, a => a.id === id && costOk(a), `with id '${id}'${symbols ? ` and cost ${symbols}` : ''}`);
+        // a NON-MANA clause ("Buyback—Sacrifice a land.") names the cost part the declaration must carry — without
+        // this any altCost of the right id claimed it (10.1 group 1); the mana-bearing forms are unchanged
+        const verb = symbols ? undefined : ADDITIONAL_COST_VERB.find(([re]) => re.test(m[2].trim()));
+        if (!symbols && !verb) return `the clause ${JSON.stringify(m[2])} names no cost this format can declare (sacrifice / discard / pay life / exile / tap / return)`;
+        const partOk = (a: AltCost) => !verb || (verb[1](a.cost) && (id === 'buyback' || a.cost.mana === undefined));
+        return altCostProblem(f, a => a.id === id && costOk(a) && partOk(a), `with id '${id}'${symbols ? ` and cost ${symbols}` : verb ? ` and a ${verb[2]} cost part` : ''}`);
+      }
+      if (idx === 5) {
+        return altCostProblem(f, a => a.cost.mana === undefined && a.condition?.kind === 'controls-commander',
+          "with no mana cost and condition 'controls-commander'");
       }
       if (idx === 1) return altCostProblem(f, a => a.id === 'jump-start', "with id 'jump-start'");
       if (idx === 2) {
@@ -1111,8 +1139,12 @@ export const COVER_RULES: Record<CoverKind, CoverRule> = {
       /^~ enters (?:the battlefield )?tapped unless (.+?)\.?$/i,
       /^as ~ enters, you may pay (\d+) life\. if you don't, it enters tapped\.?$/i,
       /^(?:if ~ was kicked, it|~) enters with ([a-z]+|\d+) ([+-]1\/[+-]1|[a-z]+) counters? on it(?: (?:if|for each) .+?)?\.?$/i,
-      /^as ~ enters, choose a (creature type|color)\.?$/i,
+      /^as ~ enters, choose a (creature type|color|basic land type)\.?$/i,
       /^if ~ would enter, you may discard an? (.+?) card instead\. if you do, put ~ onto the battlefield\. if you don't, put it into its owner's graveyard\.?$/i,
+      // the choice AND the shockland clause in one printed line (Multiversal Passage): both declarations required
+      /^as ~ enters, choose a (creature type|color|basic land type)\. then you may pay (\d+) life\. if you don't, it enters tapped\.?$/i,
+      // copy-clone's `enter-as-copy` replacement (CR 706.9): "You may have ~ enter as a copy of any creature on the battlefield[, except …]"
+      /^(you may have )?~ enters? (?:the battlefield )?as a copy of (.+?)\.?$/i,
     ],
     declared: f => !!f.asEnters?.length,
     value: (f, m, idx) => {
@@ -1125,10 +1157,14 @@ export const COVER_RULES: Record<CoverKind, CoverRule> = {
         return asEntersProblem(f, a => a.kind === 'counters' && a.counter === counter && (typeof amount !== 'number' || a.amount === amount),
           `of kind 'counters' with counter ${JSON.stringify(counter)}${typeof amount === 'number' ? ` and amount ${amount}` : ''}`);
       }
-      if (idx === 4) {
-        const what = m[1].toLowerCase() === 'color' ? 'color' : 'creature-type';
-        return asEntersProblem(f, a => a.kind === 'choose' && a.what === what, `of kind 'choose' with what '${what}'`);
+      // "choose a creature type / color" is the core `choose`; "choose a basic land type" is the replacement
+      // family's `choose-type` (the kind the layers `type-change` static reads its chosen type from)
+      if (idx === 4 || idx === 6) {
+        const chosen = chooseProblem(f, m[1]);
+        if (chosen || idx === 4) return chosen;
+        return asEntersProblem(f, a => a.kind === 'pay-life-or-tapped' && a.life === Number(m[2]), `of kind 'pay-life-or-tapped' with life ${m[2]}`);
       }
+      if (idx === 7) return asEntersProblem(f, a => a.kind === 'enter-as-copy' && !!a.optional === !!m[1], `of kind 'enter-as-copy'${m[1] ? ' with optional true' : ' without optional'}`);
       return asEntersProblem(f, a => a.kind === 'discard-or-graveyard', "of kind 'discard-or-graveyard'");
     },
   },
@@ -1179,8 +1215,9 @@ export const COVER_RULES: Record<CoverKind, CoverRule> = {
         + (expression ? " (a count-expression amount is only printed by a 'for each …' line)" : '');
     },
   },
+  // "Kicker {X}. X can't be 0." — the rider Wizards prints with an {X} kicker is part of the same declaration
   kicker: {
-    lines: [/^(multi)?kicker (\{.+\})$/i],
+    lines: [/^(multi)?kicker (\{.+\})(?:\. x can't be 0\.?)?$/i],
     declared: f => f.kicker !== undefined,
     value: (f, m) => manaKey(f.kicker?.raw) === manaKey(m[2]) ? null
       : `the line prints kicker ${m[2]} but this face declares ${JSON.stringify(f.kicker?.raw)}`,

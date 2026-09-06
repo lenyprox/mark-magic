@@ -74,7 +74,8 @@ export type PassStep = Exclude<Step, 'untap'>;
 
 export type ScriptStep =
   | { cast: string; targets?: Ref[][]; x?: number; by?: number; modes?: number[]; alt?: string; kicked?: boolean }
-  | { activate: string; ability?: number; targets?: Ref[][]; by?: number }
+  /** `modes` picks the mode(s) of a modal activated ability, exactly as on `cast` (the engine offers one action per mode set). */
+  | { activate: string; ability?: number; targets?: Ref[][]; by?: number; modes?: number[] }
   | { playLand: string; by?: number }
   /**
    * Declare attackers, and optionally the defending seat's blocks as [blocker, attacker] pairs (see attackWith).
@@ -191,16 +192,16 @@ const SCENARIO_FIELDS: Record<string, Guard> = {
   scripts: v => isPlainObj(v) && Object.values(v as Record<string, unknown>).every(isPlainObj),
 };
 /** Script steps: the discriminating key with a guard for its value, plus the extra keys that step may carry. */
-const SCRIPT_STEPS: Record<string, { value: Guard; opts: Record<string, Guard> }> = {
+const SCRIPT_STEPS: Record<string, { value: Guard; opts: Record<string, Guard>; /** what a well-formed value is, for the error message */ hint?: string }> = {
   cast: { value: isStr, opts: { targets: isTargets, x: isInt, by: isInt, modes: arrOf(isInt), alt: isStr, kicked: isBool } },
-  activate: { value: isStr, opts: { ability: isInt, targets: isTargets, by: isInt } },
+  activate: { value: isStr, opts: { ability: isInt, targets: isTargets, by: isInt, modes: arrOf(isInt) } },
   playLand: { value: isStr, opts: { by: isInt } },
   attack: { value: arrOf(isStr), opts: { blocks: isBlocks, refused: isBlocks } },
   block: { value: isBlocks, opts: {} },
   resolve: { value: oneOf(true), opts: {} },
   sba: { value: oneOf(true), opts: {} },
   turnFaceUp: { value: isStr, opts: { by: isInt } },
-  passUntil: { value: isPassStep, opts: {} },
+  passUntil: { value: isPassStep, opts: {}, hint: `one of: ${PASS_STEPS.join(', ')}` },
   turns: { value: isInt, opts: {} },
   answer: { value: anything, opts: {} },
 };
@@ -260,7 +261,7 @@ function scriptStepProblems(st: unknown, i: number): string[] {
   if (!heads.length) return [`${at}: not a step — no known keyword in {${keys.join(', ')}} (one of: ${SCRIPT_STEP_KEYS.join(', ')})`];
   if (heads.length > 1) return [`${at}: ${heads.join(' and ')} in one step (write one step per entry)`];
   const head = heads[0]; const spec = SCRIPT_STEPS[head];
-  const out = spec.value(rec[head]) ? [] : [`${at}: ${head} has a bad value ${show(rec[head])}`];
+  const out = spec.value(rec[head]) ? [] : [`${at}: ${head} has a bad value ${show(rec[head])}${spec.hint ? ` (${spec.hint})` : ''}`];
   for (const k of keys) {
     if (k === head) continue;
     if (!(k in spec.opts)) out.push(`${at}: unknown key "${k}" on a ${head} step (allowed: ${[head, ...Object.keys(spec.opts)].join(', ')})`);
@@ -377,7 +378,14 @@ class ScenarioAgent implements Agent {
   async decide(_s: GameState, _me: PlayerId, d: Decision): Promise<unknown> {
     const stop = this.stop;
     if (stop && !stop.hit && _me === _s.activePlayer && atOrAfter(_s, stop)) { stop.hit = true; throw new PassUntilStop(_s.step); }
-    if (this.queue.length) return this.queue.shift();
+    if (this.queue.length) {
+      const answer = this.queue.shift();
+      // a queued `answer` that cannot be a card list is named here, not as a TypeError ("ids is not iterable") deep in
+      // the engine. (A non-boolean reaching a yes-no prompt is left alone: the corpus queues a card list that answers
+      // the "may" as truthy and lets the default agent pick the card — a documented-enough idiom to keep working.)
+      if (d.kind === 'choose-cards' && !Array.isArray(answer)) throw new Error(`scenario: the queued answer ${JSON.stringify(answer)} reached a choose-cards prompt (${JSON.stringify(d.reason)}) for ${this.name}, which needs a list of card ids`);
+      return answer;
+    }
     switch (d.kind) {
       case 'priority': return { type: 'pass' };
       case 'attackers': return { attackers: d.mustAttack };
@@ -494,7 +502,7 @@ export async function runScript(g: Game, steps: ScriptStep[]) {
     if ('activate' in st) {
       const by = (st.by ?? s.priority) as PlayerId;
       const obj = findByName(s, st.activate, by); if (!obj) throw new Error(`scenario: ${st.activate} not found`);
-      const l = legalFor(g, by, x => x.action.type === 'activate' && x.action.objectId === obj.id && (st.ability === undefined || x.action.abilityIndex === st.ability));
+      const l = legalFor(g, by, x => x.action.type === 'activate' && x.action.objectId === obj.id && (st.ability === undefined || x.action.abilityIndex === st.ability) && (!st.modes || JSON.stringify(x.action.modes) === JSON.stringify(st.modes)));
       const targets = st.targets?.map(group => group.map(r => toRef(s, r)));
       const ok = await g.performAction(by, { ...l.action, ...(targets ? { targets } : {}) } as typeof l.action);
       if (!ok) throw new Error(`scenario: activate ${st.activate} was rejected`);

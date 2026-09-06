@@ -9,7 +9,7 @@
 //      the hook, because the core imports the barrel and the barrel imports the families. Computed characteristics are
 //      the exception: `import { chars } from './chars.js'` is a leaf import a family may make at module scope, and it
 //      is how a *synchronous* hook (which cannot await) reads power/toughness/keywords/matchesFilter — see chars.ts.
-import type { Ability, AbilityCost, AltCost, Amount, CardDef, CastZone, Effect, Filter, Keyword, ManaCost, ManaSymbol, TargetSpec } from '../../cards/types.js';
+import type { Ability, AbilityCost, AltCost, Amount, CardDef, CastZone, Effect, Filter, Keyword, ManaCost, ManaSymbol, Ref, TargetSpec } from '../../cards/types.js';
 import type { AmountCtx } from '../characteristics.js';
 import type { GameEventBody } from '../events.js';
 import type { Game, TriggerCtx } from '../game.js';
@@ -87,6 +87,17 @@ export interface TokenAbility {
 
 /** Metadata for a family event type: whether it reaches the string log, its CR citation and its renderer. */
 export interface EventMeta { logged?: boolean; cr?: string; render?(ev: GameEventBody, pname: (p: PlayerId) => string): string }
+
+/**
+ * The core leaf renderers src/cards/render.ts hands every family `render` entry (it cannot be imported from here —
+ * the renderer is tooling, and nothing under src/engine may depend on it): amounts, targets and filters in the
+ * oracle's own words, so a family prints "the number of counters on ~" rather than an "X" the line never says.
+ */
+export interface RenderHelpers {
+  renderAmount(a: Amount | undefined): string;
+  renderTarget(t: TargetSpec | Ref | string | undefined): string;
+  renderFilter(f: Filter | undefined, fallback?: string): string;
+}
 
 export interface FamilyModule {
   /** Unique family name; also the file's basename by convention. */
@@ -193,8 +204,11 @@ export interface FamilyModule {
   castFrom?: (g: Game, p: PlayerId, card: GameObject, from: CastZone) => boolean | undefined;
   /** `castSpell`'s free-cast computation: `true` = no mana cost is paid, `undefined` abstains. */
   freeCast?: (g: Game, p: PlayerId, card: GameObject, from: CastZone) => boolean | undefined;
-  /** Round-trip English per op (the renderer the script verification pipeline uses). */
-  render?: Record<string, (e: never) => string>;
+  /**
+   * Round-trip English per op / static kind (the renderer the script verification pipeline uses), or per trigger
+   * event under the key `trigger:<on>`. The second argument is the core renderer's leaf helpers (`RenderHelpers`).
+   */
+  render?: Record<string, (e: never, h?: RenderHelpers) => string>;
   /** zod schemas live in `<family>.schema.ts` as `export const schema: FamilySchema` (tooling only, never imported by the engine). */
   schema?: never;
 }

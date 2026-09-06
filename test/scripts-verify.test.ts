@@ -250,3 +250,55 @@ test('scripts:render reports the number scripts:verify gated on', () => {
     assert.equal(printed[i], Math.round(gate * 100) / 100, `${names[i]}: scripts:render says ${printed[i]}, the gate scores ${gate}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// 8c-1: B-3 (a higher status survives a re-run) and L-2 (LF-only writes)
+// ---------------------------------------------------------------------------
+
+test('B-3: re-verifying a `tested` / `judged` script whose hashes still match keeps that status; a failed gate or a changed script does not', async () => {
+  const bolt = fixtures['Lightning Bolt'];
+  const { dir, row } = await verifyOne(bolt);
+  assert.equal(row.status, 'verified');
+  const store = new ScriptStore(dir);
+  const file = store.fileOf(bolt.oracleId)!;
+  const bump = (status: string) => {
+    const s = JSON.parse(fs.readFileSync(file, 'utf8')) as CardScript;
+    s.verification!.status = status as never;
+    fs.writeFileSync(file, JSON.stringify(s, null, 2) + '\n');
+  };
+  bump('tested');
+  const again = await verifyCards([bolt.oracleId], { dir, cards: db });
+  assert.deepEqual(again.cards[0].problems, []);
+  assert.equal(new ScriptStore(dir).get(bolt.oracleId)!.verification!.status, 'tested', 'a passing re-run is not a demotion');
+  bump('judged');
+  await verifyCards([bolt.oracleId], { dir, cards: db });
+  assert.equal(new ScriptStore(dir).get(bolt.oracleId)!.verification!.status, 'judged');
+  // the script changed under the block: the old status was earned by a different script
+  const edited = JSON.parse(fs.readFileSync(file, 'utf8')) as CardScript;
+  edited.aiHints = { role: 'removal', value: 6, timing: 'instant' };
+  fs.writeFileSync(file, JSON.stringify(edited, null, 2) + '\n');
+  await verifyCards([bolt.oracleId], { dir, cards: db });
+  assert.equal(new ScriptStore(dir).get(bolt.oracleId)!.verification!.status, 'verified', 'a changed scriptHash drops back to what this run earned');
+  // a failing gate writes `scripted` whatever was there
+  bump('judged');
+  const broken = JSON.parse(fs.readFileSync(file, 'utf8')) as CardScript;
+  (broken.abilities![0] as { effects: { amount: number }[] }).effects[0].amount = 2;
+  broken.verification!.scriptHash = 'stale-on-purpose';
+  fs.writeFileSync(file, JSON.stringify(broken, null, 2) + '\n');
+  const failed = await verifyCards([bolt.oracleId], { dir, cards: db });
+  assert.equal(failed.cards[0].status, 'scripted');
+  assert.equal(new ScriptStore(dir).get(bolt.oracleId)!.verification!.status, 'scripted');
+});
+
+test('L-2: every script writer emits LF only — ScriptStore.put and the verification write-back', async () => {
+  const dir = freshDir();
+  const store = new ScriptStore(dir);
+  const bolt = { ...fixtures['Lightning Bolt'], notes: 'line one\r\nline two' };
+  assert.ok(store.put(bolt));
+  const bytes = fs.readFileSync(store.fileOf(bolt.oracleId)!, 'utf8');
+  assert.equal(bytes.includes('\r'), false, 'a CR inside a string is escaped, never a raw byte');
+  assert.ok(bytes.endsWith('}\n'));
+  const report = await verifyCards([bolt.oracleId], { dir, cards: db });
+  assert.equal(report.cards[0].status, 'verified');
+  assert.equal(fs.readFileSync(store.fileOf(bolt.oracleId)!, 'utf8').includes('\r'), false);
+});

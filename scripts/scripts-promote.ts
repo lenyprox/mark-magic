@@ -31,7 +31,8 @@ import {
   blockedPathFor, defaultSources, judgeCountFor, poolRows, readBlocked, readReview, reviewPathFor, stateOf,
   unearnedHumanSource, type BlockedNeed, type BlockedNote, type Judges, type ReviewNote,
 } from '../src/cards/scriptState.js';
-import { ORACLE_ID_RE, oracleHash, ScriptStore, scriptHash, type CardScript, type Verification } from '../src/cards/scripts.js';
+import { ORACLE_ID_RE, oracleHash, scriptFileText, ScriptStore, scriptHash, type CardScript, type Verification } from '../src/cards/scripts.js';
+import { checkScript } from '../src/cards/scriptCheck.js';
 import { CardDB } from '../src/cards/db.js';
 
 // ---------------------------------------------------------------------------
@@ -96,9 +97,42 @@ export interface PromotionRow {
   name: string;
   /** The status written into the script (or that would be written, under --dry-run). */
   status: Verification['status'] | null;
-  /** 'judged' | 'tested' | 'verified' | 'scripted' | 'rejected' | 'blocked' | 'missing' — the summary bucket. */
+  /** 'judged' | 'tested' | 'verified' | 'scripted' | 'rejected' | 'refused' | 'blocked' | 'missing' — the summary bucket. */
   bucket: string;
   note?: string;
+}
+
+export interface PromoteCardInput {
+  store: ScriptStore; cards: CardDB; judges: Judges; at: string;
+  scenarios?: WaveScenario[]; verdicts?: WaveVerdict[]; dryRun?: boolean;
+}
+
+/**
+ * Promote ONE card: fold the wave's scenario rows and verdicts into its `verification`, derive the status, run the
+ * structural check `scripts:check` runs (src/cards/scriptCheck.ts) and REFUSE a card that fails it — the block is
+ * still written, with `status: 'scripted'` and the check's messages recorded as `check: …` problems, so the file
+ * and `stateOf` agree and the row lands in the `refused` bucket for the orchestrator to read. `scripts:verify`
+ * used to mint `verified` for a card whose printed line stayed unclaimed, and the check then rejected the promoted
+ * file (Deflecting Swat, Multiversal Passage — fbf6f97); the two tools now cannot disagree here.
+ */
+export function promoteCard(oracleId: string, inp: PromoteCardInput): { row: PromotionRow; next?: CardScript; rejectedIssues?: string[] } {
+  const { store } = inp;
+  const script = store.get(oracleId);
+  if (!script) return { row: { oracleId, name: '?', status: null, bucket: 'missing', note: `no script under ${path.relative(projectRoot(), store.pathFor(oracleId))}` } };
+  if (!script.verification) return { row: { oracleId, name: script.name, status: null, bucket: 'missing', note: 'no verification block — run scripts:verify before promoting' } };
+  const v: Verification = { ...script.verification };
+  if (inp.scenarios?.length) v.scenarios = scenarioBlock(inp.scenarios);
+  if (inp.verdicts?.length) v.judge = judgeBlock(inp.verdicts, inp.at);
+  v.status = deriveStatus(v, inp.judges);
+  const check = checkScript(oracleId, { store, cards: inp.cards }).problems;
+  if (check.length) { v.status = 'scripted'; v.problems = [...(v.problems ?? []), ...check.map(p => `check: ${p}`)]; }
+  // `scriptHash` excludes `verification`, so this write-back never invalidates the verification it just wrote
+  const next: CardScript = { ...script, verification: { ...v, scriptHash: scriptHash(script) } };
+  const bad = (inp.verdicts ?? []).filter(x => x.verdict === 'unfaithful');
+  const rejectedIssues = bad.length ? (v.judge ?? []).flatMap(j => (j.verdict === 'unfaithful' ? j.issues : [])) : undefined;
+  const bucket = check.length ? 'refused' : bad.length ? 'rejected' : v.status;
+  if (!inp.dryRun) fs.writeFileSync(store.pathFor(oracleId), scriptFileText(next));
+  return { row: { oracleId, name: script.name, status: v.status, bucket, ...(check.length ? { note: check[0] } : {}) }, next, ...(rejectedIssues ? { rejectedIssues } : {}) };
 }
 
 /** Fold one card's scenario results into the `verification.scenarios` block. */
@@ -242,25 +276,16 @@ function main() {
     const idOf = (s: string): string => /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(s)?.[0].toLowerCase() ?? s;
     const ids = [...new Set([...(batch.written ?? []), ...(batch.verified ?? [])].map(idOf))].sort();
     for (const oracleId of ids) {
-      const script = store.get(oracleId);
-      if (!script) { rows.push({ oracleId, name: '?', status: null, bucket: 'missing', note: `no script under ${path.relative(projectRoot(), store.pathFor(oracleId))}` }); continue; }
-      if (!script.verification) { rows.push({ oracleId, name: script.name, status: null, bucket: 'missing', note: 'no verification block — run scripts:verify before promoting' }); continue; }
       // a script that CLAIMS a person wrote it, with no review note to back that up, is reported and otherwise
       // treated as any other machine-authored script (see src/cards/scriptState.ts `unearnedHumanSource`)
-      if (unearnedHumanSource(script, readReview(oracleId))) unearned.push(`${oracleId} ${script.name} (source: '${script.source}')`);
-      const judges = judgeCountFor(sources, oracleId);
-      const v: Verification = { ...script.verification };
-      const sc = scenariosBy.get(oracleId);
-      if (sc?.length) v.scenarios = scenarioBlock(sc);
-      const vs = verdictsBy.get(oracleId);
-      if (vs?.length) v.judge = judgeBlock(vs, at);
-      v.status = deriveStatus(v, judges);
-      // `scriptHash` excludes `verification`, so this write-back never invalidates the verification it just wrote
-      const next: CardScript = { ...script, verification: { ...v, scriptHash: scriptHash(script) } };
-      const bad = (vs ?? []).filter(x => x.verdict === 'unfaithful');
-      if (bad.length) rejected.push({ oracleId, name: script.name, issues: (v.judge ?? []).flatMap(j => (j.verdict === 'unfaithful' ? j.issues : [])) });
-      rows.push({ oracleId, name: script.name, status: v.status, bucket: bad.length ? 'rejected' : v.status });
-      if (!dryRun) fs.writeFileSync(store.pathFor(oracleId), JSON.stringify(next, null, 2) + '\n');
+      const script = store.get(oracleId);
+      if (script && unearnedHumanSource(script, readReview(oracleId))) unearned.push(`${oracleId} ${script.name} (source: '${script.source}')`);
+      const { row, rejectedIssues } = promoteCard(oracleId, {
+        store, cards: db, judges: judgeCountFor(sources, oracleId), at, dryRun,
+        scenarios: scenariosBy.get(oracleId), verdicts: verdictsBy.get(oracleId),
+      });
+      if (rejectedIssues) rejected.push({ oracleId, name: row.name, issues: rejectedIssues });
+      rows.push(row);
     }
 
     // blocked[] -> data/scripts/blocked/<2-hex>/<id>.json, attempts incremented, needs matched by cardIds
@@ -291,8 +316,10 @@ function main() {
   const count = (bucket: string) => rows.filter(r => r.bucket === bucket).length;
   const header = `${dryRun ? '[dry run] ' : ''}promote ${path.basename(resultFile)} (wave ${wave}, ${forced ? `${forced} judge${forced > 1 ? 's' : ''} forced` : 'judges per card: 2 for the owner\'s decks and the EDHREC top-1k'})`;
   console.log(header);
-  console.log(`  judged ${count('judged')} / tested ${count('tested')} / verified ${count('verified')} / scripted ${count('scripted')} / blocked ${count('blocked')} / rejected ${count('rejected')}${count('missing') ? ` / missing ${count('missing')}` : ''}`);
+  console.log(`  judged ${count('judged')} / tested ${count('tested')} / verified ${count('verified')} / scripted ${count('scripted')} / blocked ${count('blocked')} / rejected ${count('rejected')}${count('refused') ? ` / refused ${count('refused')}` : ''}${count('missing') ? ` / missing ${count('missing')}` : ''}`);
   for (const r of rows.filter(x => x.bucket === 'missing')) console.log(`  MISSING ${r.oracleId} ${r.name}: ${r.note}`);
+  // a card scripts:check rejects is written as `scripted` with the check's message: never promoted past the check
+  for (const r of rows.filter(x => x.bucket === 'refused')) console.log(`  REFUSED ${r.oracleId} ${r.name}: ${r.note}`);
   if (rejected.length) {
     console.log(`  ${rejected.length} card(s) rejected by a judge — re-author pass:`);
     for (const r of rejected) console.log(`    ${r.oracleId} ${r.name}: ${r.issues.slice(0, 2).join(' | ') || 'no issue text'}`);

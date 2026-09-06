@@ -386,8 +386,8 @@ export function stateOf(oracleId: string, opts: StateOptions = {}): ScriptStateI
   return { ...base, state: 'todo', why: 'not parsed and not scripted' };
 }
 
-/** `Verification.status` as a rank, so the ladder is one comparison. */
-const VERIFICATION_RANK: Record<Verification['status'], number> = { scripted: 1, verified: 2, tested: 3, judged: 4 };
+/** `Verification.status` as a rank, so the ladder is one comparison (scriptVerify keeps a higher rung on re-run). */
+export const VERIFICATION_RANK: Record<Verification['status'], number> = { scripted: 1, verified: 2, tested: 3, judged: 4 };
 
 /**
  * `tested` needs a PASSING blind scenario per REACHABLE ability, and the scenario shard has to be on disk — the
