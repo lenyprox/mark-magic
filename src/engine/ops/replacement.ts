@@ -871,7 +871,8 @@ const REPLACEMENT: FamilyModule = {
       : e.instead === 'skip' ? `${e.who === 'you' ? 'You' : e.who === 'opponent' ? 'Your opponents' : 'Players'} can't draw cards`
         : `If ${e.who === 'you' ? 'you' : 'a player'} would draw a card${e.exceptFirstInDrawStep ? ' except the first one drawn in each draw step' : ''}, draw ${e.instead} cards instead`),
     'enters-untapped': (e: EntersUntappedStatic) => `${filterWords(e.filter, 'Permanents')}${e.who === 'you' ? ' you control' : ''} enter untapped`,
-    'choose-type': () => 'As ~ enters, choose a basic land type',
+    // no renderer for the `choose-type` as-enters: RENDERERS is keyed by effect op / static kind and never consulted for
+    // an as-enters, and the key belongs to the layers family's `choose-type` EFFECT (9.1 merge)
   },
 };
 

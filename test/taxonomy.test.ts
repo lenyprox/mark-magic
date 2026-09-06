@@ -37,7 +37,9 @@ const CARDS: [name: string, primary: Family | null][] = [
   ['Pick Your Poison', 'piles-choices'],
   ['Crackle with Power', 'generic'],
   ['Bow of Nylea', 'generic'],
-  ['Roaming Throne', 'layers'],
+  // Phase 9.1: the layers family parses "~ is the chosen type in addition to its other types", so the only line
+  // Roaming Throne still needs is the trigger-doubling one — which is the replacement family's, not this one's.
+  ['Roaming Throne', 'replacement'],
   ['Darksteel Garrison', 'named-keyword:fortify'],
   ['Angel of Indemnity', 'named-keyword:encore'],
   ['Lure', 'combat-restr'],

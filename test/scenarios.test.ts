@@ -25,10 +25,11 @@ import { control } from './scenarios/control.js';
 import { transform } from './scenarios/transform.js';
 import { copyClone } from './scenarios/copy-clone.js';
 import { diceCoin } from './scenarios/dice-coin.js';
+import { layers } from './scenarios/layers.js';
 import { runScenario, type Scenario } from './scenarios/dsl.js';
 
 const hasDb = fs.existsSync(MASTER_DB());
-const suites: { file: string; scenarios: Scenario[] }[] = [{ file: 'basics', scenarios: basics }, { file: 'mechanics', scenarios: mechanics }, { file: 'owned', scenarios: owned }, { file: 'owned2', scenarios: owned2 }, { file: 'owned3', scenarios: owned3 }, { file: 'keywords', scenarios: keywords }, { file: 'for-each', scenarios: foreach }, { file: 'dsl-extras', scenarios: dslExtras }, { file: 'composition', scenarios: composition }, { file: 'composition-cards', scenarios: compositionCards }, { file: 'cost-alter', scenarios: costAlter }, { file: 'replacement', scenarios: replacement }, { file: 'keyword-action', scenarios: keywordAction }, { file: 'planeswalker', scenarios: planeswalker }, { file: 'saga', scenarios: saga }, { file: 'piles-choices', scenarios: pilesChoices }, { file: 'control', scenarios: control }, { file: 'transform', scenarios: transform }, { file: 'copy-clone', scenarios: copyClone }, { file: 'dice-coin', scenarios: diceCoin }];
+const suites: { file: string; scenarios: Scenario[] }[] = [{ file: 'basics', scenarios: basics }, { file: 'mechanics', scenarios: mechanics }, { file: 'owned', scenarios: owned }, { file: 'owned2', scenarios: owned2 }, { file: 'owned3', scenarios: owned3 }, { file: 'keywords', scenarios: keywords }, { file: 'for-each', scenarios: foreach }, { file: 'dsl-extras', scenarios: dslExtras }, { file: 'composition', scenarios: composition }, { file: 'composition-cards', scenarios: compositionCards }, { file: 'cost-alter', scenarios: costAlter }, { file: 'replacement', scenarios: replacement }, { file: 'keyword-action', scenarios: keywordAction }, { file: 'planeswalker', scenarios: planeswalker }, { file: 'saga', scenarios: saga }, { file: 'piles-choices', scenarios: pilesChoices }, { file: 'control', scenarios: control }, { file: 'transform', scenarios: transform }, { file: 'copy-clone', scenarios: copyClone }, { file: 'dice-coin', scenarios: diceCoin }, { file: 'layers', scenarios: layers }];
 
 for (const suite of suites) for (const sc of suite.scenarios) {
   test(`[${suite.file}] ${sc.name}${sc.cr ? ` (CR ${sc.cr})` : ''}`, { skip: !hasDb }, async () => {

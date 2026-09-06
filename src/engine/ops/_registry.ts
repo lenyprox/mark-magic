@@ -21,6 +21,7 @@ import family_copy_clone from './copy-clone.js';
 import family_cost_alter from './cost-alter.js';
 import family_dice_coin from './dice-coin.js';
 import family_keyword_action from './keyword-action.js';
+import family_layers from './layers.js';
 import family_piles_choices from './piles-choices.js';
 import family_planeswalker from './planeswalker.js';
 import family_replacement from './replacement.js';
@@ -33,6 +34,7 @@ const GENERATED: RegistryEntry[] = [
   { file: "cost-alter.ts", mod: family_cost_alter },
   { file: "dice-coin.ts", mod: family_dice_coin },
   { file: "keyword-action.ts", mod: family_keyword_action },
+  { file: "layers.ts", mod: family_layers },
   { file: "piles-choices.ts", mod: family_piles_choices },
   { file: "planeswalker.ts", mod: family_planeswalker },
   { file: "replacement.ts", mod: family_replacement },

@@ -779,7 +779,7 @@ export function parseEffectSentence(sentence: string, useRegistry = true): Effec
   // haste to the sorcery. Such a pronoun becomes the registry's `thatobj` marker (src/cards/rules/composition.ts
   // reads it as the `that` binding) for the sentence shapes the composition rules take; the built-ins never match
   // the marker, so a shape nobody claims is honestly unknown rather than silently the source.
-  if (antecedent && /^(?:it|that creature|that permanent) (?:gains?|gets?|has base power|loses?) /i.test(s)) s = s.replace(/^(?:it|that creature|that permanent)\b/i, 'thatobj');
+  if (antecedent && /^(?:it|that creature|that permanent) (?:gains?|gets?|has base power|loses?|becomes?|deals?) /i.test(s)) s = s.replace(/^(?:it|that creature|that permanent)\b/i, 'thatobj');   // 9.1: becomes / deals too (layers, Wolf Strike)
   else s = s.replace(/^(?:it|that creature|that permanent|this creature|this permanent)\b/i, '~');
   // "put a counter on it" → the source — except under a "for each …" head, where "it" is the iterated object and no
   // built-in template ever starts with "for each" (the registry's for-each rule reads the pronoun itself, 9.0b)
@@ -1088,7 +1088,7 @@ function sentenceEffects(sent: string, depth: number, useRegistry: boolean): Eff
   const body = sent.replace(/\.$/, '');
   // "If <condition>, <effects>" / "<effects> if <condition>" / "<effects> instead if <condition>" → conditional
   let cm = body.replace(/^then /i, '').match(/^if (.+?), (.+)$/i);
-  if (cm) { const c = parseCondition(cm[1], useRegistry); if (c.kind !== 'unknown') { const sub = sentenceEffects(cm[2], depth + 1, useRegistry); if (sub.every(x => x.op !== 'unknown')) return [{ op: 'conditional', condition: c, then: sub }]; } }
+  if (cm) { const c = parseCondition(cm[1], useRegistry); if (c.kind !== 'unknown') { const sub = sentenceEffects(/~/.test(cm[1]) ? cm[2].replace(/^it\b/i, '~') : cm[2], depth + 1, useRegistry); /* "If ~ was kicked, it deals …": the condition names the source, so its "it" is ~ (9.1) */ if (sub.every(x => x.op !== 'unknown')) return [{ op: 'conditional', condition: c, then: sub }]; } }
   cm = body.match(/^(.+?) if (.+)$/i);
   if (cm && !/\bunless\b/i.test(body)) { const c = parseCondition(cm[2], useRegistry); if (c.kind !== 'unknown') { const sub = sentenceEffects(cm[1], depth + 1, useRegistry); if (sub.every(x => x.op !== 'unknown')) return [{ op: 'conditional', condition: c, then: sub }]; } }
   const parts = body.split(/,? then |\. /i);
@@ -1144,7 +1144,7 @@ function parseCondition(s: string, useRegistry = true): Condition {
   if (t === 'you control three or more artifacts') return { kind: 'metalcraft' };
   if (t === 'you have no cards in hand') return { kind: 'hellbent' };
   if (t === 'you control a creature with power 4 or greater') return { kind: 'ferocious' };
-  if (t === 'it was kicked' || t === "this spell was kicked") return { kind: 'kicked' };
+  if (t === 'it was kicked' || t === "this spell was kicked" || t === '~ was kicked') return { kind: 'kicked' };   // "~ was kicked": the sentence ladder's "if …, …" split (9.1)
   if (t === 'you attacked this turn' || t === 'you attacked with a creature this turn') return { kind: 'raid' };
   if (t === 'a creature died this turn') return { kind: 'morbid' };
   if ((m = t.match(/^there are (\w+) or more (?:basic )?land types among lands you control$/))) return { kind: 'domain-ge', value: num(m[1]) as number };
