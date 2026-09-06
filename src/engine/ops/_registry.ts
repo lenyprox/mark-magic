@@ -16,6 +16,7 @@ import type {
 /** One family with the file it came from (runtime registrations report `(runtime)`). */
 export interface RegistryEntry { file: string; mod: FamilyModule }
 
+import family_combat_restr from './combat-restr.js';
 import family_control from './control.js';
 import family_copy_clone from './copy-clone.js';
 import family_cost_alter from './cost-alter.js';
@@ -29,6 +30,7 @@ import family_saga from './saga.js';
 import family_transform from './transform.js';
 
 const GENERATED: RegistryEntry[] = [
+  { file: "combat-restr.ts", mod: family_combat_restr },
   { file: "control.ts", mod: family_control },
   { file: "copy-clone.ts", mod: family_copy_clone },
   { file: "cost-alter.ts", mod: family_cost_alter },

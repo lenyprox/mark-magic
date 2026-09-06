@@ -93,7 +93,9 @@ export function renderAmount(a: Amount | undefined): string {
   if (a.min) return `the least of ${list(a.min.map(renderAmount))}`;
   const base = a.count === 'objects'
     ? `the number of ${renderFilter(a.filter ?? {}, 'permanent')}${a.zone && a.zone !== 'battlefield' ? ` in ${zoneOf(a.zone, a.who)}` : ''}${a.who && a.who !== 'you' ? ` ${words(a.who)}` : ''}`
-    : `the number of ${COUNT_PHRASE[a.count ?? ''] ?? words(a.count ?? '')}`;
+    : a.filter && (a.count === 'permanents-on-battlefield' || a.count === 'permanents-you-control' || a.count === 'creatures-you-control' || a.count === 'opponent-creatures')
+      ? `the number of ${renderFilter(a.filter, a.count === 'permanents-on-battlefield' || a.count === 'permanents-you-control' ? 'permanent' : 'creature')}s${a.count === 'permanents-on-battlefield' ? ' on the battlefield' : a.count === 'opponent-creatures' ? ' your opponents control' : ' you control'}`
+      : `the number of ${COUNT_PHRASE[a.count ?? ''] ?? words(a.count ?? '')}`;
   const scaled = a.times !== undefined && a.times !== 1 ? `${a.times === 2 ? 'twice' : `${a.times} times`} ${base}` : base;
   const halved = a.half ? `half ${scaled}, rounded ${a.half}` : scaled;
   const plus = a.plus ? `${halved} plus ${a.plus}` : halved;
@@ -454,7 +456,13 @@ export function renderStatic(s: StaticEffect | undefined): string {
     case 'cant-be-countered': return "~ can't be countered";
     case 'lifegain-multiplier': return `if you would gain life, you gain twice that much${x.plus ? ` plus ${x.plus}` : ''} instead`;
     case 'unknown': return '<unknown static>';
-    default: return words(String((x as { kind: string }).kind));
+    default: {
+      // a FAMILY static renders through its own `render` entry (the registry barrel keys effect ops and static kinds
+      // in one map); only a kind nobody renders falls back to its humanised name (9.1: 'cant-block-creatures' was
+      // "cant block creatures" while the family printed "~ can't block creatures with power 2 or less")
+      const r = RENDERERS[String((x as { kind: string }).kind)];
+      return r ? `${r(s as never)}${cond}` : words(String((x as { kind: string }).kind));
+    }
   }
 }
 
@@ -627,7 +635,9 @@ export function renderEffect(e: Effect | undefined, ctx: RenderCtx = ROOT): stri
     // an EMPTY mode is the parser's fold marker (`modes: [[]]` is how "It can't be regenerated." reaches the AST as
     // a claim of nothing); rendering it as "choose one — •" put a bullet with no text on the card
     case 'choose-mode': {
-      const bullets = ((x.modes ?? []) as Effect[][]).map(m => renderEffects(m, ctx)).filter(s => s.trim() !== '');
+      const modes = (x.modes ?? []) as Effect[][];
+      if (modes.length === 1 && modes[0].length === 0) return "it can't be regenerated";   // the fold marker IS that sentence (parse.ts)
+      const bullets = modes.map(m => renderEffects(m, ctx)).filter(s => s.trim() !== '');
       return bullets.length ? `choose ${x.count === 1 ? 'one' : x.count} — ${bullets.map(b => `• ${b}`).join(' ')}` : '';
     }
     case 'gain-ability': return `it gains "${renderAbility(x.ability as Ability)}"`;

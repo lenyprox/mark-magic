@@ -42,7 +42,7 @@ const CARDS: [name: string, primary: Family | null][] = [
   ['Roaming Throne', 'replacement'],
   ['Darksteel Garrison', 'named-keyword:fortify'],
   ['Angel of Indemnity', 'named-keyword:encore'],
-  ['Lure', 'combat-restr'],
+  ['Lure', null],                        // 9.1: the combat-restr parser rules finish it, so it is never queued
   ["Innkeeper's Talent", 'named-keyword:level up'],
   ['Comet Storm', 'named-keyword:multikicker'],
   ['Leyline of Anticipation', 'other'],
@@ -55,7 +55,7 @@ const CARDS: [name: string, primary: Family | null][] = [
   ['Gandalf the Grey', 'piles-choices'],
   ['Horizon Explorer', 'generic'],        // 9.1: "lands you control enter untapped" parses; the attack trigger is what is left
   ['Archetype of Finality', 'layers'],
-  ['Ochran Assassin', 'combat-restr'],
+  ['Ochran Assassin', null],             // 9.1: likewise — "All creatures able to block ~ do so." now parses
   ['Kindred Dominance', 'generic'],
   ['Unstoppable Slasher', 'generic'],
   ['Wand of Orcus', 'generic'],

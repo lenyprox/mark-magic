@@ -18,6 +18,7 @@
 // from src/cards/schema.js at module scope always finds them initialised.
 import type { FamilySchema } from '../engine/ops/types.js';
 import { CORE_VOCABULARY, mergeFamilySchemas, type FamilySchemaEntry } from './schema-core.js';
+import { schema as schema_combat_restr } from '../engine/ops/combat-restr.schema.js';
 import { schema as schema_control } from '../engine/ops/control.schema.js';
 import { schema as schema_copy_clone } from '../engine/ops/copy-clone.schema.js';
 import { schema as schema_cost_alter } from '../engine/ops/cost-alter.schema.js';
@@ -32,6 +33,7 @@ import { schema as schema_transform } from '../engine/ops/transform.schema.js';
 
 /** Every family schema with the file it came from, in file-name order. */
 export const FAMILY_SCHEMA_ENTRIES: readonly FamilySchemaEntry[] = [
+  { family: "combat-restr", file: "src/engine/ops/combat-restr.schema.ts", schema: schema_combat_restr },
   { family: "control", file: "src/engine/ops/control.schema.ts", schema: schema_control },
   { family: "copy-clone", file: "src/engine/ops/copy-clone.schema.ts", schema: schema_copy_clone },
   { family: "cost-alter", file: "src/engine/ops/cost-alter.schema.ts", schema: schema_cost_alter },

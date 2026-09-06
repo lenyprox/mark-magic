@@ -212,8 +212,9 @@ test('no zeroes the oracle does not print: a keyword-only Aura, a noncreature to
     'permanent you control have hexproof');
   assert.equal(renderEffect({ op: 'token', count: 1, power: 0, toughness: 0, colors: [], types: ['Artifact'], subtypes: ['Clue'], keywords: [], clue: true } as never),
     'create a Clue artifact token');
-  // `modes: [[]]` is the parser's fold marker for "It can't be regenerated." — a bullet with nothing in it
-  assert.equal(renderEffect({ op: 'choose-mode', count: 1, modes: [[]] } as never), '');
+  // `modes: [[]]` is the parser's fold marker for "It can't be regenerated." — it prints that sentence, never a bullet
+  // with nothing in it (9.1: an empty rendering scored the printed line 0 on every "Destroy … It can't be regenerated.")
+  assert.equal(renderEffect({ op: 'choose-mode', count: 1, modes: [[]] } as never), "it can't be regenerated");
 });
 
 test('renderer gaps are reported rather than silently scored down', () => {
