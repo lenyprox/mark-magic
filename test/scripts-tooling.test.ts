@@ -11,7 +11,7 @@ import { oracleHash, ScriptStore, scriptHash, type CardScript, type Verification
 import { defaultSources, judgeCountFor, readReview, reviewPathFor, stateOf, unlockedOpFamilies, type BlockedNote } from '../src/cards/scriptState.js';
 import { judgeRuleOver } from '../src/cards/waveScope.js';
 import { clauseTokens, jaccard, ownerDeckIds, parseSelection, typeBucket } from '../scripts/scripts-queue.js';
-import { deriveStatus, dirtyPaths, GUARDED_PATHS, humanReview, judgeBlock, promoteCard, readResult, scenarioBlock } from '../scripts/scripts-promote.js';
+import { deriveStatus, dirtyPaths, GUARDED_PATHS, humanReview, judgeBlock, promoteCard, readResult, scenarioBlock, UNSAMPLED_SCENARIOS, unsampledOf } from '../scripts/scripts-promote.js';
 import { verifyCards } from '../scripts/scripts-verify.js';
 import { freshDir, goodFixtures, parsedDef, writeScript } from './scripts-verify-fixtures.js';
 import { idsOfBatch, move, quarantinePathFor } from '../scripts/scripts-quarantine.js';
@@ -337,4 +337,103 @@ test('promoteCard: a script scripts:check rejects is refused — status scripted
   store.reset();
   const dry = promoteCard(bolt.oracleId, { store, cards, judges: 1, at: 'now', dryRun: true });
   assert.equal(dry.row.bucket, 'judged');
+});
+
+// ---------------------------------------------------------------------------
+// Process slice (D6): the sampled blind leg — an unsampled card is judged on the judge alone, never `tested`
+// ---------------------------------------------------------------------------
+
+const UNSAMPLED: Verification['scenarios'] = { file: '', passed: 0, failed: 0, names: [], sampled: false };
+
+test('deriveStatus: an unsampled card skips the tested rung — judge alone decides between verified and judged', () => {
+  const faithful = { model: 'opus', verdict: 'faithful' as const, issues: [], at: 'now' };
+  const unfaithful = { ...faithful, verdict: 'unfaithful' as const };
+  const uncertain = { ...faithful, verdict: 'uncertain' as const };
+  assert.deepEqual(UNSAMPLED_SCENARIOS, UNSAMPLED, 'the block the promoter writes');
+  assert.equal(deriveStatus(baseVerification({ scenarios: UNSAMPLED, judge: [faithful] }), 1), 'judged');
+  assert.equal(deriveStatus(baseVerification({ scenarios: UNSAMPLED }), 1), 'verified', 'no judge: verified, never tested');
+  assert.equal(deriveStatus(baseVerification({ scenarios: UNSAMPLED, judge: [unfaithful] }), 1), 'verified', 'unfaithful: verified, never tested');
+  assert.equal(deriveStatus(baseVerification({ scenarios: UNSAMPLED, judge: [faithful, unfaithful] }), 1), 'verified');
+  assert.equal(deriveStatus(baseVerification({ scenarios: UNSAMPLED, judge: [uncertain] }), 1), 'verified');
+  assert.equal(deriveStatus(baseVerification({ scenarios: UNSAMPLED, judge: [faithful] }), 2), 'verified', 'one of two: verified, never tested');
+  assert.equal(deriveStatus(baseVerification({ scenarios: UNSAMPLED, judge: [faithful, faithful] }), 2), 'judged');
+  // absence of `sampled` means sampled: the 10.0 files read exactly as before
+  assert.equal(deriveStatus(baseVerification({ scenarios: { file: '', passed: 0, failed: 0, names: [] }, judge: [faithful] }), 1), 'verified');
+  assert.equal(deriveStatus(baseVerification({ judge: [unfaithful] }), 1), 'tested');
+  // the problems guard still wins over everything
+  assert.equal(deriveStatus(baseVerification({ scenarios: UNSAMPLED, judge: [faithful], problems: ['unclaimed line'] }), 1), 'scripted');
+  assert.equal(deriveStatus(baseVerification({ scenarios: UNSAMPLED, judge: [faithful], roundTrip: { score: 0.4, lowest: [] } }), 1), 'scripted');
+});
+
+test('promoteCard: an unsampled card is written sampled:false and judged on the verdict; an unfaithful one is verified and rejected', () => {
+  const cards = CardDB.shared();
+  const bolt = goodFixtures(cards)['Lightning Bolt'];
+  const dir = freshDir();
+  const store = new ScriptStore(dir);
+  const fresh = () => {
+    // a current verification block (both hashes match) that scripts:verify would write for a never-sampled card
+    const v = baseVerification({ oracleHash: bolt.oracleHash, scriptHash: scriptHash(bolt), scenarios: { file: '', passed: 0, failed: 0, names: [] }, status: 'verified' });
+    writeScript(dir, { ...bolt, verification: v });
+    store.reset();
+  };
+  const def = parsedDef(cards, 'Lightning Bolt');
+  const faithful = { oracleId: bolt.oracleId, verdict: 'faithful' as const, confidence: 0.9 };
+  const unfaithful = { ...faithful, verdict: 'unfaithful' as const, issues: ['3 damage, not 2'] };
+
+  fresh();
+  const judged = promoteCard(bolt.oracleId, { store, cards, judges: 1, at: 'now', unsampled: true, verdicts: [faithful] });
+  assert.equal(judged.row.bucket, 'judged');
+  assert.equal(judged.row.status, 'judged');
+  store.reset();
+  assert.deepEqual(store.get(bolt.oracleId)!.verification!.scenarios, UNSAMPLED);
+  const st = stateOf(bolt.oracleId, { ...defaultSources({ scripts: store, judges: 1 }), def });
+  assert.equal(st.state, 'judged', 'stateOf reads the file the same way');
+  assert.equal(st.blindSampled, false);
+
+  fresh();
+  const rejected = promoteCard(bolt.oracleId, { store, cards, judges: 1, at: 'now', unsampled: true, verdicts: [unfaithful] });
+  assert.equal(rejected.row.bucket, 'rejected');
+  assert.equal(rejected.row.status, 'verified', 'never tested');
+  assert.deepEqual(rejected.rejectedIssues, ['3 damage, not 2']);
+  store.reset();
+  const rs = stateOf(bolt.oracleId, { ...defaultSources({ scripts: store, judges: 1 }), def });
+  assert.equal(rs.state, 'verified');
+  assert.equal(rs.blindSampled, false);
+
+  fresh();
+  const noJudge = promoteCard(bolt.oracleId, { store, cards, judges: 1, at: 'now', unsampled: true });
+  assert.equal(noJudge.row.status, 'verified');
+  assert.equal(noJudge.row.bucket, 'verified');
+
+  // scenario rows outrank the flag: a card that DID get a blind scenario is folded as sampled
+  fresh();
+  const scenario = { oracleId: bolt.oracleId, scenarioFile: 'x.json', passed: true, names: ['bolt to the face'] };
+  const sampled = promoteCard(bolt.oracleId, { store, cards, judges: 1, at: 'now', unsampled: true, scenarios: [scenario], verdicts: [faithful] });
+  assert.equal(sampled.row.status, 'judged');
+  store.reset();
+  assert.deepEqual(store.get(bolt.oracleId)!.verification!.scenarios, { file: 'x.json', passed: 1, failed: 0, names: ['bolt to the face'] });
+  assert.equal(stateOf(bolt.oracleId, { ...defaultSources({ scripts: store, judges: 1 }), def }).blindSampled, undefined);
+
+  // the problems guard still wins: an unsampled card with a faithful verdict and a recorded problem is scripted
+  fresh();
+  const s = store.get(bolt.oracleId)!;
+  fs.writeFileSync(store.pathFor(bolt.oracleId), JSON.stringify({ ...s, verification: { ...s.verification!, problems: ['unclaimed line'] } }, null, 2) + '\n');
+  store.reset();
+  assert.equal(promoteCard(bolt.oracleId, { store, cards, judges: 1, at: 'now', unsampled: true, verdicts: [faithful] }).row.status, 'scripted');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('a wave row folds blindSampled:false to sampled:false only for ids outside the owner\'s decks', () => {
+  const db = CardDB.shared();
+  const decks = tmp();
+  fs.writeFileSync(path.join(decks, 'burn.txt'), '4 Lightning Bolt\n');
+  const owner = new Set(ownerDeckIds(db, decks).ids);
+  const bolt = db.get('Lightning Bolt')!.oracleId;
+  assert.deepEqual([...owner], [bolt]);
+  const row = { blindRate: 3, blindSampling: [{ oracleId: bolt, blindSampled: false }, { oracleId: ID, blindSampled: false }, { oracleId: ID2, blindSampled: true }, { oracleId: `Name (${ID2.toUpperCase()}) — path`, blindSampled: false }] };
+  const split = unsampledOf(row, owner);
+  assert.deepEqual([...split.unsampled].sort(), [ID2, ID].sort(), 'ID is unsampled; the decorated ID2 row folds to its uuid');
+  assert.deepEqual(split.ownerUnsampled, [bolt], 'an owner card is reported, never promoted unsampled');
+  assert.deepEqual(unsampledOf({}, owner), { unsampled: new Set(), ownerUnsampled: [] }, 'a 10.0 row with no blindSampling is fully sampled');
+  assert.deepEqual(unsampledOf({ blindSampling: [{ oracleId: ID, blindSampled: true }] }, owner).unsampled.size, 0);
 });

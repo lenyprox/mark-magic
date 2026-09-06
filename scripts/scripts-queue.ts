@@ -72,6 +72,8 @@ export interface BatchCardFacts {
   oracleId: string;
   name: string;
   typeLine: string;
+  /** The printed mana cost ("{1}{R}"), null for a land — the blind scenario author needs it to seed the right lands. */
+  manaCost: string | null;
   /** "2/3" for a creature, null otherwise. */
   pt: string | null;
   loyalty: number | null;
@@ -129,7 +131,7 @@ function facts(row: PoolRowDef, st: ScriptStateInfo, tax: TaxonomyResult, rank: 
   const def = row.def;
   const raw = row.raw as { keywords?: unknown; faces?: { name: string; type_line: string; oracle_text: string }[] };
   const f: BatchCardFacts = {
-    oracleId: def.oracleId, name: def.name, typeLine: def.typeLine, pt: PT(def), loyalty: def.loyalty, layout: def.layout,
+    oracleId: def.oracleId, name: def.name, typeLine: def.typeLine, manaCost: def.manaCost?.raw ?? null, pt: PT(def), loyalty: def.loyalty, layout: def.layout,
     oracleText: def.oracleText, oracleHash: oracleHash(def.oracleText), unparsedLines: unparsedLines(def),
     scryfallKeywords: Array.isArray(raw.keywords) ? (raw.keywords as string[]).map(String).sort() : [],
     families: tax.families, primaryFamily: tax.primary, edhrecRank: rank, state: st.state, stateWhy: st.why, openNeeds: st.openNeeds,
@@ -297,8 +299,8 @@ export function buildWave(opts: WaveOptions): BuiltWave {
   const createdAt = opts.createdAt ?? new Date().toISOString();
 
   const store = opts.sources?.scripts ?? new ScriptStore();
-  // `judges` is deliberately NOT set here: `defaultSources` installs the per-CARD rule of plan 2.4 (two judges for
-  // the owner's decks and the EDHREC top-1k, one elsewhere), so the queue and every other reader agree card by card.
+  // `judges` is deliberately NOT set here: `defaultSources` installs the per-CARD rule (two judges for the owner's
+  // decks, one elsewhere — process rule 5), so the queue and every other reader agree card by card.
   const sources = defaultSources({ ...opts.sources, scripts: store });
 
   // legality and EDHREC rank, preloaded: one query each beats 34,513 point lookups

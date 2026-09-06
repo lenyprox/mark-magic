@@ -128,7 +128,12 @@ export interface Verification {
     abilities: { index: number; reached: boolean; how?: string }[];
   };
   roundTrip: { score: number; lowest: { text: string; rendered: string; score: number }[] };
-  scenarios: { file: string; passed: number; failed: number; names: string[] };
+  /**
+   * The blind scenario run. `sampled: false` says the wave did NOT draw this card for a blind scenario (script-wave
+   * `blindRate`, process rule 8): the card is `judged` on the mechanical gate + the judge alone, never `tested`.
+   * Absent = sampled (every file written before the sampled leg); `true` is never written.
+   */
+  scenarios: { file: string; passed: number; failed: number; names: string[]; sampled?: false };
   judge?: { model: string; verdict: 'faithful' | 'unfaithful' | 'uncertain'; issues: string[]; at: string }[];
   status: 'scripted' | 'verified' | 'tested' | 'judged';
   problems: string[];

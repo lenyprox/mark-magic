@@ -966,6 +966,18 @@ function verifiedBlock(status: Verification['status'] = 'verified'): Verificatio
   };
 }
 
+test('the script schema accepts verification.scenarios.sampled: false, rejects true, and needs no key at all', () => {
+  const d = db.get('Lightning Bolt')!;
+  const withScenarios = (scenarios: Record<string, unknown>) => scriptFor('Lightning Bolt', {
+    abilities: [{ kind: 'spell', effects: [{ op: 'damage', amount: 3, target: { kind: 'any' } }], text: d.oracleText }],
+    verification: { ...verifiedBlock(), scenarios } as unknown as Verification,
+  });
+  assert.equal(CardScriptChecked.safeParse(withScenarios({ file: 'x.json', passed: 1, failed: 0, names: ['x'] })).success, true, 'a 10.0 block (no sampled key) still passes stage 1');
+  assert.equal(CardScriptChecked.safeParse(withScenarios({ file: '', passed: 0, failed: 0, names: [], sampled: false })).success, true, 'the block scripts:promote writes for an unsampled card');
+  assert.equal(CardScriptChecked.safeParse(withScenarios({ file: '', passed: 0, failed: 0, names: [], sampled: true })).success, false, '`sampled: true` is never written and never accepted');
+  assert.equal(CardScriptChecked.safeParse(withScenarios({ file: '', passed: 0, failed: 0, names: [], blindSampled: false })).success, false, 'the strict object takes no other key');
+});
+
 test('scriptHash: stable across key order, and unchanged by the verification block', () => {
   const a: CardScript = { oracleId: 'a', name: 'A', oracleHash: 'h', source: 'llm', mode: 'extend', covers: [{ line: 'one', by: 'keywords' }, { line: 'two', by: 'keywords' }], keywords: ['flying'] };
   const reordered = JSON.parse(JSON.stringify({ keywords: a.keywords, covers: a.covers, mode: a.mode, source: a.source, oracleHash: a.oracleHash, name: a.name, oracleId: a.oracleId })) as CardScript;

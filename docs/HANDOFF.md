@@ -519,6 +519,17 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
       its labels; the cost-alter `cast-from` static, piles-choices `extra-votes` static and `reveal-cards` effect have
       no renderer; family conditions / amounts (dice-coin's results tables) fall through to `words(kind)` — the
       `trigger:<on>` render-map key added in 8c-1 is the pattern to extend to `condition:<kind>` / `amount:<count>`.
+35. **Left open by the process slice (D6, 2026-09-06; see §10):** (a) the blind batch files already on disk
+    (data/scripts/batches/10.1/*.blind.json) carry no `manaCost` — the field was added to `BlindCard` in this slice
+    (the blind prompt now forbids CardDB / `npx tsx -e` and says the fact is in the file), so re-queue group 1's
+    batches (`scripts:queue`) before re-running them, or expect "mana cost missing" toolProblems; (b) `script-wave.js`'s
+    `resume` reuses a prior row's `toolProblems` verbatim, and a 10.1-g1-run1 row's list is the author + plan-mode
+    scenario union — filter the plan-mode strings when merging the resumed result into `10.1-g1.json`; (c) the plan's
+    "one dry Workflow run over one batch with `blindRate: 3`" was not run here (the implementer has no Workflow tool):
+    the sampling and resume logic is proved by the `blindSample` unit test and the syntax check only — the first real
+    run should confirm the `<batch>: blind scenarios for K/N` log line and the `blindSampling` array; (d) a 10.0 script
+    that is re-authored unsampled keeps its shard under data/scenarios/ — nothing deletes it; scenarios-data.test.ts
+    skips it by name, and a retirement tool (delete the shard when `blindSampled === false`) is still to write.
 
 ## 4. Remaining Phase 8 slices
 
@@ -786,3 +797,26 @@ Then re-queue 10.0 (blocked + rejected) and 10.1.
   check problems — the A-10 "Equip <Quality>" line was its only failure, and the verification block in
   data/scripts/30/30c3c700-….json carries that result (the slice's one tracked data change besides Overcharged
   Amalgam's re-verification timestamp).
+
+## 10. Process slice — sampled blind leg, one judge by default, script-wave resume (2026-09-06)
+
+Plan D6, brief docs/workflows/briefs/process-slice.md, run through `tooling-slice.js` on main (Fable 5.1 implementer).
+- **script-wave.js:** `blindRate` / `alwaysSample` draw the blind leg by index over each batch's sorted verified ids
+  (`blindSample`, mirrored verbatim in src/cards/waveScope.ts and unit-tested; 10 ids at rate 3 → indices 0, 3, 6, 9
+  plus every always-id); a batch with no sampled id skips the scenario agent (`s: null`); the result row carries
+  `blindRate` and `blindSampling: [{ oracleId, blindSampled }]`; `resume: { results, reauthor }` reuses a prior
+  author row (author agent skipped) unless the batch is listed in `reauthor`; `rerun` ends every prompt (`Run N.`)
+  so a cached refusal never replays. The blind prompt forbids `npx tsx -e`, CardDB, `scripts:render` / `scripts:check`
+  and anything under data/scripts (the 10.1-g1 blindness leak); a missing fact goes to `toolProblems`.
+- **Data shape:** `Verification.scenarios.sampled?: false` (type + strict zod object; `true` rejected, absence =
+  sampled — every 10.0 file reads as before); `WaveBatchResult.blindRate` / `blindSampling`; `BlindCard.manaCost`.
+- **Promoter:** `unsampledOf(batch, owner)` splits a row's `blindSampled: false` ids by `ownerDeckIds(db)` (owner
+  cards get a NOTE and untouched scenarios; never `sampled: false`); an unsampled non-owner card with no scenario rows
+  is written `{ file: '', passed: 0, failed: 0, names: [], sampled: false }`; `deriveStatus` lets `sampled: false`
+  satisfy the scenario gate and drops to `verified` (never `tested`) when the judge is missing / short / unfaithful.
+  `stateOf` agrees (`scenarioVerdict` → `ok, unsampled` with no shard; `blindSampled: false` on the info; the
+  `problems` guard still first); test/scenarios-data.test.ts skips such a card's stale shard by name.
+- **One judge by default:** `twoJudgeIds` = owner decks only; `TWO_JUDGE_EDHREC_MAX` deleted (`edhrecTopIds(db, max)`
+  keeps an explicit max); every reader's comment updated; `--judges N` still forces a run. README rules 5 and 8
+  rewritten; table rows for renderer-slice.js, tooling-slice.js and script-wave's new args.
+- Open: §3 item 35.

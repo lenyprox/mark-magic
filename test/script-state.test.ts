@@ -12,7 +12,7 @@ import {
   unearnedHumanSource, unlockedOpFamilies,
   type BlockedNote, type ReviewNote, type ScriptState, type StateDef, type StateSources,
 } from '../src/cards/scriptState.js';
-import { edhrecTopIds, judgeRuleOver, ownerDeckIds, twoJudgeIds, TWO_JUDGE_EDHREC_MAX } from '../src/cards/waveScope.js';
+import { blindSample, edhrecTopIds, judgeRuleOver, ownerDeckIds, twoJudgeIds } from '../src/cards/waveScope.js';
 import { oracleHash, ScriptStore, scriptHash, shardOf, type CardScript, type Verification } from '../src/cards/scripts.js';
 
 // ---------------------------------------------------------------------------
@@ -348,8 +348,8 @@ test('tested: one faithful verdict is NOT enough when two judges are required (w
 });
 
 test('the judge count is a property of the CARD, not of the invocation', () => {
-  // plan 2.4: two judges for the owner's decks and the EDHREC top-1k, one elsewhere. Before this the queue decided
-  // it once per RUN, so the same card was `judged` under `defaultSources()` and `tested` under the owner-decks queue.
+  // process rule 5: two judges for the owner's decks, one elsewhere. Before this the queue decided it once per RUN,
+  // so the same card was `judged` under `defaultSources()` and `tested` under the owner-decks queue.
   const other = '99999999-8888-7777-6666-555555555555';
   const rule = judgeRuleOver(new Set([ID]));
   assert.equal(judgeCountFor({ judges: rule }, ID), 2);
@@ -365,7 +365,134 @@ test('the judge count is a property of the CARD, not of the invocation', () => {
   assert.match(info.why, /1 of 2 faithful/);
   // the same script under a card the rule does not name IS judged
   assert.equal(stateOf(ID, { ...src, judges: judgeRuleOver(new Set([other])), def: def() }).state, 'judged');
-  assert.equal(TWO_JUDGE_EDHREC_MAX, 1000, "plan 2.4's EDHREC top-1k");
+});
+
+// ---------------------------------------------------------------------------
+// The sampled blind leg (process rule 8): `scenarios.sampled === false` skips the `tested` rung
+// ---------------------------------------------------------------------------
+
+const unsampled = (s: CardScript, over: Partial<Verification> = {}) => verification(s, { scenarios: { file: '', passed: 0, failed: 0, names: [], sampled: false }, ...over });
+
+test('judged: an unsampled card with one faithful verdict and NO scenario shard', () => {
+  const src = fixture();
+  const s = script();
+  put(src, { ...s, verification: unsampled(s, { judge: [judge('faithful')] }) });
+  const info = stateOf(ID, { ...src, def: def() });
+  assert.equal(info.state, 'judged');
+  assert.equal(info.blindSampled, false);
+  assert.match(info.why, /1 faithful verdict/);
+  assert.equal(SCRIPT_STATE_TABLE.judged.covered, true, 'it counts as covered like any judged card');
+});
+
+test('verified (never tested): an unsampled card whose judge is missing, uncertain, unfaithful or short of the count', () => {
+  const cases: [label: string, over: Partial<Verification>, count: 1 | 2][] = [
+    ['no judge', {}, 1],
+    ['uncertain', { judge: [judge('uncertain', ['hinges on CR 613'])] }, 1],
+    ['unfaithful', { judge: [judge('faithful'), judge('unfaithful', ['the pump is +1/+1'])] }, 1],
+    ['one of two', { judge: [judge('faithful')] }, 2],
+  ];
+  for (const [label, over, count] of cases) {
+    const src = fixture({ judges: count });
+    putScenarios(src);   // even a stale shard on disk does not make it `tested`
+    const s = script();
+    put(src, { ...s, verification: unsampled(s, over) });
+    const info = stateOf(ID, { ...src, def: def() });
+    assert.equal(info.state, 'verified', label);
+    assert.equal(info.blindSampled, false, label);
+    assert.match(info.why, /not sampled for this wave/, label);
+    assert.equal(SCRIPT_STATE_TABLE.verified.queueable, true, 'so a rejected unsampled card is re-issued');
+  }
+});
+
+test('an unsampled card: the problems guard still comes first, and absence of `sampled` means sampled', () => {
+  const src = fixture();
+  const s = script();
+  put(src, { ...s, verification: unsampled(s, { judge: [judge('faithful')], problems: ['unclaimed: Until end of turn, ~ has flying.'] }) });
+  const info = stateOf(ID, { ...src, def: def() });
+  assert.equal(info.state, 'scripted');
+  assert.equal(info.blindSampled, undefined);
+  // a 10.0 file (no `sampled` key, no scenario run) with a faithful verdict is still only verified without a shard
+  put(src, { ...s, verification: verification(s, { judge: [judge('faithful')] }) });
+  const old = stateOf(ID, { ...src, def: def() });
+  assert.equal(old.state, 'verified');
+  assert.equal(old.blindSampled, undefined);
+  assert.match(old.why, /no blind scenario shard/);
+});
+
+test('blindSample: one id in N by index over the sorted unique ids, plus every always-id', () => {
+  const ids = Array.from({ length: 10 }, (_, i) => `${String(i).padStart(8, '0')}-0000-0000-0000-000000000000`);
+  const shuffled = [ids[7], ids[2], ids[0], ids[9], ids[4], ids[1], ids[8], ids[3], ids[6], ids[5], ids[2]];
+  assert.deepEqual(blindSample(shuffled, 3, new Set()), [ids[0], ids[3], ids[6], ids[9]]);
+  assert.deepEqual(blindSample(shuffled, 3, new Set([ids[5], 'not-in-the-batch'])), [ids[0], ids[3], ids[5], ids[6], ids[9]]);
+  assert.deepEqual(blindSample(shuffled, 1, new Set()), ids, 'rate 1 keeps every id');
+  assert.deepEqual(blindSample([], 3, new Set()), []);
+  assert.deepEqual(blindSample([ids[4]], 3, new Set()), [ids[4]], 'a single id is index 0 and always drawn');
+  // the workflow file carries the same body (the reviewer diffs them by eye; this pins that the text is there)
+  const wave = fs.readFileSync(path.join('docs', 'workflows', 'script-wave.js'), 'utf8');
+  assert.ok(wave.includes('[...new Set(ids)].sort().filter((id, i) => always.has(id) || i % rate === 0)'), 'script-wave.js mirrors blindSample');
+});
+
+/** A dry run of docs/workflows/script-wave.js under the Workflow runtime's hooks, with `agent` replaced by a recorder
+ *  that answers each phase with `answers[phase]` — the same harness as the brief's syntax check, plus stubs. */
+async function dryRunWave(args: Record<string, unknown>, answers: Record<string, unknown>) {
+  const src = fs.readFileSync(path.join('docs', 'workflows', 'script-wave.js'), 'utf8').replace(/^export const meta/m, 'const meta');
+  const calls: { prompt: string; label: string; phase: string }[] = [];
+  const logs: string[] = [];
+  const agent = (prompt: string, opts: { label: string; phase: string }) => { calls.push({ prompt, label: opts.label, phase: opts.phase }); return Promise.resolve(answers[opts.phase]); };
+  const parallel = (thunks: (() => Promise<unknown>)[]) => Promise.all(thunks.map(t => t()));
+  const pipeline = (items: unknown[], ...stages: ((prev: unknown, item: unknown, i: number) => unknown)[]) =>
+    Promise.all(items.map(async (item, i) => { let v: unknown = item; for (const stage of stages) v = await stage(v, item, i); return v; }));
+  const body = new Function('args', 'agent', 'parallel', 'pipeline', 'phase', 'log', 'budget', 'workflow', 'return (async()=>{' + src + '})()');
+  const rows = await body(args, agent, parallel, pipeline, () => {}, (m: string) => logs.push(m), { total: null, remaining: () => Infinity }, () => { throw new Error('no nested workflow'); });
+  return { calls, logs, rows };
+}
+
+test('script-wave dry run: the blind author is never told to read under data/scripts (the vocabulary rule is author-only), rerun is in every prompt, blindRate 3 samples by index', async () => {
+  const ids = Array.from({ length: 10 }, (_, i) => `${String(i).padStart(8, '0')}-0000-0000-0000-000000000000`);
+  const batch = 'data/scripts/batches/10.1/001.json';
+  const { calls, logs, rows } = await dryRunWave(
+    { wave: '10.1', judges: 1, blindRate: 3, alwaysSample: [ids[5]], rerun: 2, batches: [batch] },
+    { Author: { written: ids, verified: ids, blocked: [], needs: [], iterations: 1 }, Scenario: { results: [], failures: [] }, Judge: { verdicts: [] } });
+  assert.deepEqual(calls.map(c => c.phase), ['Author', 'Scenario', 'Judge']);
+  const [author, scenario, judge] = calls.map(c => c.prompt);
+  // C-1c: the author reads the vocabulary; the blind author's composed prompt (its own text + HARD) must not point at any
+  // file under data/scripts/ — the only mention of that directory is the ban itself
+  assert.match(author, /Read data\/scripts\/README\.md .*data\/scripts\/VOCABULARY\.md/);
+  assert.match(author, /Use only ops documented in data\/scripts\/VOCABULARY\.md/);
+  assert.match(scenario, /never open or list anything under data\/scripts\//);
+  assert.ok(!scenario.includes('VOCABULARY.md') || /not README\.md or VOCABULARY\.md either/.test(scenario), 'VOCABULARY.md appears in the blind prompt only inside the ban');
+  assert.doesNotMatch(scenario, /Use only ops documented|no 'unknown' effect|Read data\/scripts/);
+  assert.deepEqual([...scenario.matchAll(/data\/scripts\/\S*/g)].map(m => m[0]), [`${batch.replace('.json', '.blind.json')}`, 'data/scripts/', 'data/scripts/<2-hex>/<oracle_id>.json'],
+    'data/scripts/ in the blind prompt: the blind file, the ban, and the script authors\' write scope — nothing else');
+  assert.match(scenario, /never run 'npx tsx -e'/);
+  assert.match(scenario, /never import or query src\/cards\/db\.ts/);
+  assert.match(scenario, /missing from the blind file, report it in toolProblems/);
+  // rerun folded into every prompt (reviewer lens 5)
+  for (const c of calls) assert.ok(c.prompt.endsWith('Run 2.'), `${c.label} ends with the rerun marker`);
+  // blindRate 3 over ten sorted ids: indices 0, 3, 6, 9 plus the always-id, logged and carried in the row
+  assert.deepEqual(logs.filter(l => l.includes('blind scenarios')), [`${batch}: blind scenarios for 5/10`]);
+  assert.match(scenario, new RegExp(JSON.stringify([ids[0], ids[3], ids[5], ids[6], ids[9]]).replace(/[[\]]/g, '\\$&')));
+  assert.match(judge, /compare the oracle text/);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].blindRate, 3);
+  assert.deepEqual(rows[0].blindSampling.filter((s: { blindSampled: boolean }) => s.blindSampled).map((s: { oracleId: string }) => s.oracleId), [ids[0], ids[3], ids[5], ids[6], ids[9]]);
+  assert.equal(rows[0].blindSampling.length, 10);
+});
+
+test('script-wave dry run: resume reuses the prior author row unless the batch is in reauthor; a batch with no sampled id skips the scenario agent', async () => {
+  const a = 'data/scripts/batches/10.1/001.json', b = 'data/scripts/batches/10.1/002.json';
+  const id = '00000001-0000-0000-0000-000000000000';
+  const priorRow = { batch: a, written: [id], verified: [], blocked: [{ oracleId: id, clause: 'x', reason: 'y' }], needs: [], parserRuleSuggestions: ['r'], toolProblems: ['t'] };
+  const { calls, logs, rows } = await dryRunWave(
+    { wave: '10.1', judges: 1, blindRate: 1, rerun: 1, batches: [a, b], resume: { results: [priorRow, { batch: b, written: [], verified: [] }], reauthor: [b] } },
+    { Author: { written: [id], verified: [id], blocked: [], needs: [], iterations: 1 }, Scenario: { results: [], failures: [] }, Judge: { verdicts: [] } });
+  assert.deepEqual(calls.map(c => c.label), ['author:002.json', 'scenario:002.json', 'judge1:002.json'], 'batch 001 reused its row: no author, nothing verified so no scenario, no judge');
+  assert.ok(logs.includes(`${a}: author result reused from the prior run`));
+  assert.ok(logs.includes(`${a}: blind scenarios for 0/0`));
+  const reused = rows.find((r: { batch: string }) => r.batch === a);
+  assert.deepEqual([reused.written, reused.verified, reused.blocked, reused.parserRuleSuggestions, reused.toolProblems], [[id], [], priorRow.blocked, ['r'], ['t']]);
+  assert.deepEqual(reused.blindSampling, []);
+  for (const c of calls) assert.ok(c.prompt.endsWith('Run 1.'));
 });
 
 test('judged: two faithful verdicts satisfy the two-judge rule', () => {
@@ -413,19 +540,26 @@ test('unlockedOpFamilies carries the core vocabulary and no `unknown`', () => {
   assert.ok(!u.has('unknown'));
 });
 
-test('the real two-judge set is the owner decks PLUS the EDHREC top-1k (plan 2.4)', () => {
+test('the real two-judge set is the owner decks ONLY (process rule 5; the EDHREC top-1k was dropped 2026-09-06)', () => {
   const db = CardDB.shared();
-  const top = edhrecTopIds(db, TWO_JUDGE_EDHREC_MAX);
-  assert.ok(top.size > 500 && top.size <= TWO_JUDGE_EDHREC_MAX, `top-1k has ${top.size} cards`);
-  const two = twoJudgeIds(db);
-  for (const id of top) assert.ok(two.has(id), `${id} is EDHREC top-1k and must need two judges`);
   const decks = ownerDeckIds(db).ids;
   assert.ok(decks.length > 400);
-  for (const id of decks) assert.ok(two.has(id), `${id} is in the owner's decks and must need two judges`);
-  // Lightning Bolt is top-1k; a random un-ranked card is not, and needs one judge
+  const two = twoJudgeIds(db);
+  assert.deepEqual([...two].sort(), decks, 'exactly the owner\'s decks');
+  // EDHREC rank no longer buys a second judge: a top-1k card outside the decks needs one
+  const top = edhrecTopIds(db, 1000);
+  assert.ok(top.size > 500 && top.size <= 1000, `top-1k has ${top.size} cards`);
   const rule = judgeRuleOver(two);
+  const popular = [...top].filter(id => !two.has(id));
+  assert.ok(popular.length > 0, 'some top-1k card is not in the owner\'s decks');
+  for (const id of popular) assert.equal(rule(id), 1, `${id} is EDHREC top-1k but not an owner card: one judge`);
+  // Lightning Bolt is in decks/mono-red-burn.txt; a random un-ranked card needs one judge
   assert.equal(rule(db.get('Lightning Bolt')!.oracleId), 2);
   assert.equal(rule('00000000-0000-0000-0000-000000000000'), 1);
+  // a temp decks dir is the whole set
+  const dir = tmp();
+  fs.writeFileSync(path.join(dir, 'one.txt'), '1 Grizzly Bears\n');
+  assert.deepEqual([...twoJudgeIds(db, { decksDir: dir })], [db.get('Grizzly Bears')!.oracleId]);
 });
 
 test('PLAYABLE_SQL selects exactly the rows CardDB.all() walks', () => {

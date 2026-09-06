@@ -904,7 +904,8 @@ export function buildSchemas(familiesOf: () => readonly FamilySchemaEntry[]) {
       abilities: z.array(z.strictObject({ index: N, reached: B, how: S.optional() })),
     }),
     roundTrip: z.strictObject({ score: N, lowest: z.array(z.strictObject({ text: S, rendered: S, score: N })) }),
-    scenarios: z.strictObject({ file: S, passed: N, failed: N, names: z.array(S) }),
+    // `sampled: false` = the wave drew no blind scenario for this card (absent = sampled; `true` is never written)
+    scenarios: z.strictObject({ file: S, passed: N, failed: N, names: z.array(S), sampled: z.literal(false).optional() }),
     judge: z.array(z.strictObject({ model: S, verdict: z.enum(['faithful', 'unfaithful', 'uncertain']), issues: z.array(S), at: S })).optional(),
     status: z.enum(['scripted', 'verified', 'tested', 'judged']),
     problems: z.array(S),

@@ -10,7 +10,10 @@
 //   scripted  a fresh script applies (its oracleHash matches), but it carries no current verification
 //   verified  the mechanical gate passed (schema/lint/sandbox/round-trip) — verification.status >= 'verified'
 //   tested    + at least one PASSING blind scenario per REACHABLE ability (unreachable abilities are excused)
-//   judged    + the judge(s) called it faithful (one judge, or two for wave 10.0 / the owner's decks)
+//   judged    + the judge(s) called it faithful (one judge, or two for the owner's decks). A card the wave did not
+//             sample for a blind scenario (`verification.scenarios.sampled === false`, process rule 8) goes from
+//             `verified` straight to `judged` on the judge alone and is never `tested`
+//             (`ScriptStateInfo.blindSampled === false` says so)
 //   reviewed  a PERSON signed off on this exact script — a review note under data/scripts/reviewed/<2-hex>/ whose
 //             scriptHash and oracleHash still match (written only by `scripts:promote --human`). A script that
 //             merely DECLARES `source: 'hand' | 'reviewed'` is not reviewed: an author agent can write that word.
@@ -270,8 +273,8 @@ export interface StateSources {
   /** Op families that exist (see `unlockedOpFamilies`). */
   unlocked: ReadonlySet<string>;
   /**
-   * Faithful verdicts needed for `judged`. Plan 2.4 wants TWO for the owner's decks and the EDHREC top-1k and one
-   * elsewhere — a per-CARD question, so this is normally a `JudgeRule`; a bare count is for fixtures and for
+   * Faithful verdicts needed for `judged`. Process rule 5 wants TWO for the owner's decks and one elsewhere — a
+   * per-CARD question, so this is normally a `JudgeRule`; a bare count is for fixtures and for
    * `scripts:promote --judges N`.
    */
   judges: Judges | JudgeRule;
@@ -317,6 +320,12 @@ export interface ScriptStateInfo {
   reviewStale?: boolean;
   /** True when the script says `source: 'hand' | 'reviewed'` and no review note backs that up. */
   unearnedHumanSource?: boolean;
+  /**
+   * `false` when the wave drew no blind scenario for this card (`verification.scenarios.sampled === false`): it is
+   * `verified` or `judged` on the judge alone, never `tested`, and a scenario shard on disk is stale evidence
+   * (test/scenarios-data.test.ts skips it). Absent = sampled, or no current verification.
+   */
+  blindSampled?: false;
   /** Op families the card still waits for. Non-empty for `blocked`, and for any other state whose card kept a note. */
   openNeeds: string[];
 }
@@ -375,9 +384,11 @@ export function stateOf(oracleId: string, opts: StateOptions = {}): ScriptStateI
     if (rank < 2) return { ...rest, state: 'scripted', verification: v.status, why: `verification status is '${v.status}'` };
     const scenarios = scenarioVerdict(oracleId, v, src.scenarioDir);
     if (!scenarios.ok) return { ...rest, state: 'verified', verification: v.status, why: scenarios.why };
+    // an unsampled card skips the `tested` rung: the judge alone decides between `verified` and `judged`
+    const sampled = scenarios.unsampled ? { blindSampled: false as const } : {};
     const judge = judgeVerdict(v, judgeCountFor(src, oracleId));
-    if (!judge.ok) return { ...rest, state: 'tested', verification: v.status, why: judge.why };
-    return { ...rest, state: 'judged', verification: v.status, why: judge.why };
+    if (!judge.ok) return { ...rest, ...sampled, state: scenarios.unsampled ? 'verified' : 'tested', verification: v.status, why: scenarios.unsampled ? `${scenarios.why}; ${judge.why}` : judge.why };
+    return { ...rest, ...sampled, state: 'judged', verification: v.status, why: judge.why };
   }
 
   if (def.fullyParsed) return { ...base, state: 'parsed', why: 'the parser alone claims every line' };
@@ -393,8 +404,13 @@ export const VERIFICATION_RANK: Record<Verification['status'], number> = { scrip
  * `tested` needs a PASSING blind scenario per REACHABLE ability, and the scenario shard has to be on disk — the
  * verification block alone is not evidence, because a shard can be deleted after a verification was written.
  * A card whose abilities are all unreachable (or which has none) still needs one passing scenario.
+ *
+ * A card the wave did not SAMPLE for a blind scenario (`scenarios.sampled === false`, script-wave `blindRate`) is
+ * `ok` with `unsampled: true` and needs no shard: the judge verdict alone carries it (process rule 8). Absence of
+ * the key means sampled, so every file written before the sampled leg reads as before.
  */
-function scenarioVerdict(oracleId: string, v: Verification, dir: string): { ok: boolean; why: string } {
+function scenarioVerdict(oracleId: string, v: Verification, dir: string): { ok: boolean; why: string; unsampled?: true } {
+  if (v.scenarios?.sampled === false) return { ok: true, unsampled: true, why: 'blind scenario not sampled for this wave (1 in N); judge verdict alone' };
   const file = path.join(dir, shardOf(oracleId), `${oracleId}.json`);
   if (!fs.existsSync(file)) return { ok: false, why: 'no blind scenario shard under data/scenarios' };
   const s = v.scenarios;

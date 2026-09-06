@@ -1,7 +1,11 @@
-// Which cards the plan holds to the HIGHER bar (plan 2.4: "two judges by majority for the owner's decks and EDHREC
-// top-1k, one elsewhere"). That is a property of the CARD, not of the wave that happens to be running: before this
-// module `scripts:queue` decided it once per invocation, so the same card was `judged` under one tool and `tested`
-// under another, and the "EDHREC top-1k" half was missing entirely.
+// Which cards the process holds to the HIGHER bar: two judges for the owner's decks, one elsewhere (process rule 5,
+// docs/workflows/README.md — plan 2.4's "EDHREC top-1k" half of the two-judge set was dropped on 2026-09-06; the 2%
+// re-judge audit is the check on the one-judge default). That is a property of the CARD, not of the wave that happens
+// to be running: before this module `scripts:queue` decided it once per invocation, so the same card was `judged`
+// under one tool and `tested` under another.
+//
+// The same file holds the wave's blind-scenario SAMPLE (process rule 8): `blindSample` is the exact body
+// docs/workflows/script-wave.js runs, and the owner's decks are what the orchestrator passes as `alwaysSample`.
 //
 // Everything here is derived from files: `decks/*.csv|*.txt` in the checkout and `printing_meta.edhrec_rank` in
 // master.db. `scriptState.defaultSources()` installs `defaultJudgeRule()` so every reader — the queue, the promotion,
@@ -17,10 +21,16 @@ export type Judges = 1 | 2;
 /** How many judges THIS card needs. `scriptState.StateSources.judges` accepts one of these or a bare count. */
 export type JudgeRule = (oracleId: string) => Judges;
 
-/** Plan 2.4's "EDHREC top-1k": rank 1…1000 of the card's representative printing. */
-export const TWO_JUDGE_EDHREC_MAX = 1000;
-
 export const DEFAULT_DECKS_DIR = (): string => path.join(projectRoot(), 'decks');
+
+/**
+ * The blind-scenario sample of one batch: the sorted unique ids, keeping every `always` id and one in `rate` of the
+ * rest by INDEX (the workflow runtime has no Math.random / Date, and the same ids must draw the same sample on a
+ * resume). `rate` 1 keeps every id. The body is mirrored verbatim in docs/workflows/script-wave.js (`blindSample`).
+ */
+export function blindSample(ids: readonly string[], rate: number, always: ReadonlySet<string>): string[] {
+  return [...new Set(ids)].sort().filter((id, i) => always.has(id) || i % rate === 0);
+}
 
 /**
  * The distinct cards of every decks/*.csv and decks/*.txt. A CSV is a collection sheet and a .txt an Arena/plain
@@ -41,19 +51,17 @@ export function ownerDeckIds(db: CardDB, dir = DEFAULT_DECKS_DIR()): { ids: stri
   return { ids: [...ids].sort(), missing };
 }
 
-/** Oracle ids whose representative printing is ranked `<= max` on EDHREC. */
-export function edhrecTopIds(db: CardDB, max = TWO_JUDGE_EDHREC_MAX): Set<string> {
+/** Oracle ids whose representative printing is ranked `<= max` on EDHREC (no longer part of the two-judge set; kept for the queue's selections and the audit). */
+export function edhrecTopIds(db: CardDB, max: number): Set<string> {
   const rows = db.db.prepare(
     'SELECT o.oracle_id AS id FROM oracle_cards o JOIN printing_meta m ON m.printing_id = o.representative_id WHERE m.edhrec_rank IS NOT NULL AND m.edhrec_rank <= ?',
   ).all(max) as { id: string }[];
   return new Set(rows.map(r => r.id));
 }
 
-/** Every card that needs two faithful verdicts: the owner's decks plus the EDHREC top-`edhrecMax`. */
-export function twoJudgeIds(db: CardDB, opts: { decksDir?: string; edhrecMax?: number } = {}): Set<string> {
-  const out = edhrecTopIds(db, opts.edhrecMax ?? TWO_JUDGE_EDHREC_MAX);
-  for (const id of ownerDeckIds(db, opts.decksDir ?? DEFAULT_DECKS_DIR()).ids) out.add(id);
-  return out;
+/** Every card that needs two faithful verdicts: the owner's decks, nothing else (process rule 5). */
+export function twoJudgeIds(db: CardDB, opts: { decksDir?: string } = {}): Set<string> {
+  return new Set(ownerDeckIds(db, opts.decksDir ?? DEFAULT_DECKS_DIR()).ids);
 }
 
 /** A rule over an explicit id set — what the unit tests use, and what `defaultJudgeRule` wraps. */

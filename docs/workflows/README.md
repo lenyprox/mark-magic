@@ -20,6 +20,9 @@ each merge, and commits; agents never commit to `main` and never push.
 | `harness-wave.js` | Harness slices that only add new files (core files forbidden in the prompt) | `{ wave, items: [{ key, base, title, deliverables }] }` |
 | `example-serial-core-slice.js` | The Phase 8a-1 run: one implementer in the **main checkout** (nothing else running), three lenses, one fix round | none (prompts inline) |
 | `example-fix-round.js` | A targeted second/third/fourth fix round on an existing worktree branch + re-review | none (prompts inline) |
+| `renderer-slice.js` | Phase 8c-1: one Fable 5.1 high implementer in the **main checkout**, one adversarial Opus reviewer, one fix round, one re-review (prompts inline; the plan file is read for the item list) | `{ plan, base }` |
+| `tooling-slice.js` | A tooling slice on main under the 2026-09-05/06 rules — the same shape as `renderer-slice.js` with the deliverables, proofs and reviewer lens read from a markdown brief (`docs/workflows/briefs/<name>.md`); the process slice ran through it | `{ name, brief, plan, base }` |
+| `script-wave.js` | Phase 10.x: author → blind scenario (sampled) → judge per batch file; the return value is what `scripts:promote -- --result` reads | `{ wave, judges, batches, blindRate: 3, alwaysSample: [<owner-deck ids>], resume: { results: [<prior rows>], reauthor: [<batch paths>] }, rerun: 1 }` — `blindRate` (default 1 = every verified card) and `alwaysSample` draw the blind leg (rule 8); `resume` reuses the author result of any batch with a prior row not listed in `reauthor`; `rerun` is folded into every prompt so a refused agent is never replayed from the cache |
 
 `base` is the branch or commit the worktree must `git reset --hard` to before starting (worktrees are created
 from an older commit, see below). `deliverables` is the whole task text; write it the way the Phase 8 items were
@@ -84,9 +87,12 @@ roughly half of the Phase 8 overrun was process weight, not engineering.
 4. **Sequencing**: 8i (speed ladder, parse cache, Playwright leg) and 8j (dashboard v2) are deferred until after
    Phase 10.0 has produced real data; 9.0 runs first, then 8c + 8k in parallel worktrees, then a reduced Phase 8 gate
    (`verify:all`, `verify:deep`, `fuzz:deep`; no Playwright, no dashboard), then 10.0.
-5. **Judges**: one judge per card. The double judge is kept only for Phase 10.0 (the owner's decks are the
-   calibration set); the 2% re-judge audit stays for every wave, and a second judge returns only if the audit
-   shows > 3% disagreement.
+5. **Judges**: one judge per card — the default judge rule (`src/cards/waveScope.ts` `twoJudgeIds`, installed by
+   `scriptState.defaultSources()`) asks two faithful verdicts of the owner's decks and ONE of every other card; the
+   EDHREC top-1k half of plan 2.4's two-judge set was dropped on 2026-09-06 (`edhrecTopIds` stays exported for the
+   queue's selections and the audit). `scripts:promote -- --judges N` still forces a whole run. The 2% re-judge audit
+   stays for every wave (sorted judged ids, every 50th, one Opus judge, disagreements to HANDOFF), and a second judge
+   returns only if the audit shows > 3% disagreement.
 6. **Models**: serial Phase 9 work (9.0 and any later core slice on `main`) runs on **Fable 5.1 at high effort**
    (`model: 'fable', effort: 'high'`). Parallel worktree families (9.1, 9.2, 9.3+), the Phase 10 author / blind
    scenario / judge roles and reviewers stay on Opus unless the owner says otherwise. The orchestrating session
@@ -94,6 +100,14 @@ roughly half of the Phase 8 overrun was process weight, not engineering.
 7. **Op-coverage ratchet**: its `unknown` assertion and the type-only vocabularies (keywords, alt costs) are known
    half-built (HANDOFF §3 item 12); do not spend a review round on them — wire them to the schema barrel when 8c
    touches that area.
-8. **Long tail evidence bar** (to revisit after the first ~3k judged cards): the per-card blind scenario stays for
-   the owner's decks and EDHREC ≤ 5k; for the ranked long tail the orchestrator may drop to mechanical gates +
-   judge if the scenario/judge disagreement rate on the first 3k cards is low. Not decided yet — the data decides.
+8. **Sampled blind leg** (decided 2026-09-06; revisit the rate after the first ~3k judged cards): the per-card blind
+   scenario is universal for the owner's decks — the orchestrator computes `ownerDeckIds(db).ids` once per wave and
+   passes it as `script-wave.js`'s `alwaysSample` — and SAMPLED elsewhere: `blindRate: 3` for the EDHREC waves from
+   10.1 on (one verified card in three, drawn by index over the batch's sorted verified ids — `blindSample` in
+   `src/cards/waveScope.ts`, no randomness, so a resume draws the same cards). An unsampled card is `judged` on the
+   mechanical gate + one faithful verdict alone, recorded in its script as `verification.scenarios.sampled: false`
+   (absence of the key = sampled); it is NEVER `tested` — a missing, uncertain or unfaithful verdict leaves it
+   `verified` (queueable, so a rejected one is re-issued), and a scenario shard left on disk for such a card is
+   skipped by test/scenarios-data.test.ts as stale. An owner's-deck card is never recorded unsampled: the promoter
+   prints a NOTE and leaves its scenarios alone. The 2% re-judge audit of rule 5 stays; a rising audit disagreement
+   rate is the signal to lower `blindRate` back toward 1.

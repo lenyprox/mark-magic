@@ -14,8 +14,13 @@
 // `"source": "hand"` does not, because an author agent can write that word (and both worked examples used to).
 //
 // How many faithful verdicts a card needs is a property of the CARD, not of this invocation: `src/cards/waveScope.ts`
-// says two for the owner's decks and the EDHREC top-1k and one elsewhere, and `defaultSources()` installs it. Pass
+// says two for the owner's decks and one elsewhere (process rule 5), and `defaultSources()` installs it. Pass
 // `--judges N` only to force the whole run to one number (a re-derivation experiment).
+//
+// A wave that sampled its blind leg (script-wave `blindRate`, process rule 8) reports `blindSampling` per verified id:
+// a non-owner card with `blindSampled: false` and no scenario rows is written `scenarios: { …, sampled: false }` and
+// is `judged` on the mechanical gate + the judge alone (never `tested`); an owner's-deck card is never recorded
+// unsampled — the wave's `alwaysSample` carries the owner's decks, and a row that says otherwise prints a NOTE.
 //
 // IT REFUSES TO RUN ON A DIRTY TREE. `git status --porcelain -- src test apps scripts package.json` must be empty:
 // promotion writes into data/, and a change anywhere else means an agent edited code it was told not to touch (plan
@@ -33,6 +38,7 @@ import {
 } from '../src/cards/scriptState.js';
 import { ORACLE_ID_RE, oracleHash, scriptFileText, ScriptStore, scriptHash, type CardScript, type Verification } from '../src/cards/scripts.js';
 import { checkScript } from '../src/cards/scriptCheck.js';
+import { ownerDeckIds } from '../src/cards/waveScope.js';
 import { CardDB } from '../src/cards/db.js';
 
 // ---------------------------------------------------------------------------
@@ -51,6 +57,10 @@ export interface WaveBatchResult {
   needs?: WaveNeed[];
   scenarios?: WaveScenario[];
   verdicts?: WaveVerdict[];
+  /** script-wave's `blindRate` (1 = every verified card got a blind scenario). */
+  blindRate?: number;
+  /** One entry per verified id: whether the wave drew it for a blind scenario (`blindSampled: false` = judged without one). */
+  blindSampling?: { oracleId: string; blindSampled: boolean }[];
 }
 
 /** The file may be the bare array the workflow returns, or `{ wave, results: [...] }` after the orchestrator stamps it. */
@@ -105,7 +115,16 @@ export interface PromotionRow {
 export interface PromoteCardInput {
   store: ScriptStore; cards: CardDB; judges: Judges; at: string;
   scenarios?: WaveScenario[]; verdicts?: WaveVerdict[]; dryRun?: boolean;
+  /**
+   * The wave drew NO blind scenario for this card (`blindSampling[].blindSampled === false`) and it is not in the
+   * owner's decks: with no scenario rows the block becomes `{ …, sampled: false }` and the card is `judged` on the
+   * mechanical gate + the judge alone (process rule 8). `main()` never sets this for an owner-deck card.
+   */
+  unsampled?: boolean;
 }
+
+/** The scenarios block of a card the wave did not sample: no run, and `sampled: false` says so. */
+export const UNSAMPLED_SCENARIOS: Verification['scenarios'] = { file: '', passed: 0, failed: 0, names: [], sampled: false };
 
 /**
  * Promote ONE card: fold the wave's scenario rows and verdicts into its `verification`, derive the status, run the
@@ -122,6 +141,7 @@ export function promoteCard(oracleId: string, inp: PromoteCardInput): { row: Pro
   if (!script.verification) return { row: { oracleId, name: script.name, status: null, bucket: 'missing', note: 'no verification block — run scripts:verify before promoting' } };
   const v: Verification = { ...script.verification };
   if (inp.scenarios?.length) v.scenarios = scenarioBlock(inp.scenarios);
+  else if (inp.unsampled) v.scenarios = { ...UNSAMPLED_SCENARIOS };
   if (inp.verdicts?.length) v.judge = judgeBlock(inp.verdicts, inp.at);
   v.status = deriveStatus(v, inp.judges);
   const check = checkScript(oracleId, { store, cards: inp.cards }).problems;
@@ -133,6 +153,25 @@ export function promoteCard(oracleId: string, inp: PromoteCardInput): { row: Pro
   const bucket = check.length ? 'refused' : bad.length ? 'rejected' : v.status;
   if (!inp.dryRun) fs.writeFileSync(store.pathFor(oracleId), scriptFileText(next));
   return { row: { oracleId, name: script.name, status: v.status, bucket, ...(check.length ? { note: check[0] } : {}) }, next, ...(rejectedIssues ? { rejectedIssues } : {}) };
+}
+
+/** An author may return "Name (uuid) — path" instead of a bare id (10.0 did): the uuid inside is the id. */
+const idOf = (s: string): string => /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(s)?.[0].toLowerCase() ?? s;
+
+/**
+ * The ids a wave row marks `blindSampled: false`, split by whether the card is in the owner's decks: `unsampled` is
+ * promoted without a scenario (`scenarios.sampled: false`); `ownerUnsampled` NEVER is — the wave's `alwaysSample`
+ * should have carried the owner's decks (process rule 8), so `main()` prints a NOTE per id and leaves their
+ * scenarios block alone. A row that says `blindSampled: true` (or carries no `blindSampling` at all) is sampled.
+ */
+export function unsampledOf(batch: Pick<WaveBatchResult, 'blindSampling'>, owner: ReadonlySet<string>): { unsampled: Set<string>; ownerUnsampled: string[] } {
+  const unsampled = new Set<string>(); const ownerUnsampled = new Set<string>();
+  for (const b of batch.blindSampling ?? []) {
+    if (b.blindSampled !== false) continue;
+    const id = idOf(b.oracleId);
+    if (owner.has(id)) ownerUnsampled.add(id); else unsampled.add(id);
+  }
+  return { unsampled, ownerUnsampled: [...ownerUnsampled].sort() };
 }
 
 /** Fold one card's scenario results into the `verification.scenarios` block. */
@@ -158,6 +197,11 @@ export function judgeBlock(rows: WaveVerdict[], at: string): NonNullable<Verific
  * The status plan 2.4 derives. `judges` faithful verdicts and no unfaithful one make it `judged`; a passing blind
  * scenario per reachable ability makes it `tested`; the mechanical gate alone makes it `verified`.
  *
+ * A card the wave did not sample for a blind scenario (`scenarios.sampled === false`, process rule 8) skips the
+ * `tested` rung: the judge alone takes it from `verified` to `judged`, and it is NEVER `tested` — a missing,
+ * uncertain or unfaithful verdict leaves it `verified` (queueable, so a rejected one is re-issued). `stateOf`
+ * (src/cards/scriptState.ts) derives the same answer from the file.
+ *
  * A verification that RECORDS a problem is not verified, whatever its sub-scores say: scripts:verify writes
  * `status: 'scripted'` for exactly that case (scriptVerify.ts, `passed = problems.length === 0`), and re-deriving the
  * status from schema / lint / sandbox / round trip alone used to promote a card that left a printed line unclaimed
@@ -169,11 +213,14 @@ export function deriveStatus(v: Verification, judges: Judges): Verification['sta
   const sandboxOk = v.sandbox.seats2 !== 'throws' && v.sandbox.seats2 !== 'invariant' && v.sandbox.seats4 !== 'throws' && v.sandbox.seats4 !== 'invariant';
   if (!sandboxOk || v.roundTrip.score < 0.55) return 'scripted';
   const reachable = v.sandbox.abilities.filter(a => a.reached).length;
-  const tested = v.scenarios.failed === 0 && v.scenarios.passed >= Math.max(1, reachable);
+  const unsampled = v.scenarios?.sampled === false;
+  const tested = unsampled || (v.scenarios.failed === 0 && v.scenarios.passed >= Math.max(1, reachable));
   if (!tested) return 'verified';
+  // the rung below `judged`: `tested` only when a blind scenario actually ran
+  const below = unsampled ? 'verified' : 'tested';
   const list = v.judge ?? [];
-  if (list.some(j => j.verdict === 'unfaithful')) return 'tested';
-  return list.filter(j => j.verdict === 'faithful').length >= judges ? 'judged' : 'tested';
+  if (list.some(j => j.verdict === 'unfaithful')) return below;
+  return list.filter(j => j.verdict === 'faithful').length >= judges ? 'judged' : below;
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +289,7 @@ function main() {
 
   const resultFile = opt('--result');
   if (!resultFile) { console.error('scripts:promote: --result <workflow-result.json> is required (or --human --by … --ids …)'); process.exit(1); }
-  // per CARD by default (waveScope: the owner's decks and the EDHREC top-1k need two); --judges forces the run
+  // per CARD by default (waveScope: the owner's decks need two, everything else one); --judges forces the run
   const forced = opt('--judges') ? ((Number(opt('--judges')) === 2 ? 2 : 1) as Judges) : undefined;
   const allow = many('--allow-dirty').map(p => p.split(path.sep).join('/'));
 
@@ -261,19 +308,22 @@ function main() {
   const store = new ScriptStore();
   const db = CardDB.shared();
   const sources = defaultSources({ scripts: store, ...(forced ? { judges: forced } : {}) });
+  // the owner's decks are never promoted unsampled, whatever the wave row says (process rule 8: `alwaysSample`)
+  const owner = new Set(ownerDeckIds(db).ids);
   const rows: PromotionRow[] = [];
   const rejected: { oracleId: string; name: string; issues: string[] }[] = [];
   const blockedWritten: string[] = [];
   const unearned: string[] = [];
+  const notes: string[] = [];
 
   for (const batch of results) {
     const scenariosBy = new Map<string, WaveScenario[]>();
     for (const s of batch.scenarios ?? []) (scenariosBy.get(s.oracleId) ?? scenariosBy.set(s.oracleId, []).get(s.oracleId)!).push(s);
     const verdictsBy = new Map<string, WaveVerdict[]>();
     for (const v of batch.verdicts ?? []) (verdictsBy.get(v.oracleId) ?? verdictsBy.set(v.oracleId, []).get(v.oracleId)!).push(v);
+    const { unsampled: unsampledIds, ownerUnsampled } = unsampledOf(batch, owner);
+    for (const id of ownerUnsampled) notes.push(`NOTE ${id} ${store.get(id)?.name ?? '?'}: an owner's-deck card arrived unsampled (the wave's alwaysSample did not carry it) — scenarios left as they are, not recorded sampled: false`);
 
-    // an author may return "Name (uuid) — path" instead of a bare id (10.0 did): the uuid inside is the id
-    const idOf = (s: string): string => /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(s)?.[0].toLowerCase() ?? s;
     const ids = [...new Set([...(batch.written ?? []), ...(batch.verified ?? [])].map(idOf))].sort();
     for (const oracleId of ids) {
       // a script that CLAIMS a person wrote it, with no review note to back that up, is reported and otherwise
@@ -281,7 +331,7 @@ function main() {
       const script = store.get(oracleId);
       if (script && unearnedHumanSource(script, readReview(oracleId))) unearned.push(`${oracleId} ${script.name} (source: '${script.source}')`);
       const { row, rejectedIssues } = promoteCard(oracleId, {
-        store, cards: db, judges: judgeCountFor(sources, oracleId), at, dryRun,
+        store, cards: db, judges: judgeCountFor(sources, oracleId), at, dryRun, unsampled: unsampledIds.has(oracleId),
         scenarios: scenariosBy.get(oracleId), verdicts: verdictsBy.get(oracleId),
       });
       if (rejectedIssues) rejected.push({ oracleId, name: row.name, issues: rejectedIssues });
@@ -314,9 +364,10 @@ function main() {
 
   // the summary the orchestrator pastes into the commit message
   const count = (bucket: string) => rows.filter(r => r.bucket === bucket).length;
-  const header = `${dryRun ? '[dry run] ' : ''}promote ${path.basename(resultFile)} (wave ${wave}, ${forced ? `${forced} judge${forced > 1 ? 's' : ''} forced` : 'judges per card: 2 for the owner\'s decks and the EDHREC top-1k'})`;
+  const header = `${dryRun ? '[dry run] ' : ''}promote ${path.basename(resultFile)} (wave ${wave}, ${forced ? `${forced} judge${forced > 1 ? 's' : ''} forced` : 'judges per card: 2 for the owner\'s decks, 1 elsewhere'})`;
   console.log(header);
   console.log(`  judged ${count('judged')} / tested ${count('tested')} / verified ${count('verified')} / scripted ${count('scripted')} / blocked ${count('blocked')} / rejected ${count('rejected')}${count('refused') ? ` / refused ${count('refused')}` : ''}${count('missing') ? ` / missing ${count('missing')}` : ''}`);
+  for (const n of notes) console.log(`  ${n}`);
   for (const r of rows.filter(x => x.bucket === 'missing')) console.log(`  MISSING ${r.oracleId} ${r.name}: ${r.note}`);
   // a card scripts:check rejects is written as `scripted` with the check's message: never promoted past the check
   for (const r of rows.filter(x => x.bucket === 'refused')) console.log(`  REFUSED ${r.oracleId} ${r.name}: ${r.note}`);
