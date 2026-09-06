@@ -18,6 +18,7 @@ export interface RegistryEntry { file: string; mod: FamilyModule }
 
 import family_cost_alter from './cost-alter.js';
 import family_keyword_action from './keyword-action.js';
+import family_piles_choices from './piles-choices.js';
 import family_planeswalker from './planeswalker.js';
 import family_replacement from './replacement.js';
 import family_saga from './saga.js';
@@ -25,6 +26,7 @@ import family_saga from './saga.js';
 const GENERATED: RegistryEntry[] = [
   { file: "cost-alter.ts", mod: family_cost_alter },
   { file: "keyword-action.ts", mod: family_keyword_action },
+  { file: "piles-choices.ts", mod: family_piles_choices },
   { file: "planeswalker.ts", mod: family_planeswalker },
   { file: "replacement.ts", mod: family_replacement },
   { file: "saga.ts", mod: family_saga },

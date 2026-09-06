@@ -98,7 +98,7 @@ const CARDS: [name: string, primary: Family | null][] = [
   ['Ancestral Vision', 'named-keyword:suspend'],
 
   // --- piles / votes
-  ['Fact or Fiction', 'piles-choices'],
+  ['Fact or Fiction', null],              // 9.1: fully parsed by the family
   ["Council's Judgment", 'piles-choices'],
   ['Browbeat', 'generic'],
 

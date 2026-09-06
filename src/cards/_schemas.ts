@@ -20,6 +20,7 @@ import type { FamilySchema } from '../engine/ops/types.js';
 import { CORE_VOCABULARY, mergeFamilySchemas, type FamilySchemaEntry } from './schema-core.js';
 import { schema as schema_cost_alter } from '../engine/ops/cost-alter.schema.js';
 import { schema as schema_keyword_action } from '../engine/ops/keyword-action.schema.js';
+import { schema as schema_piles_choices } from '../engine/ops/piles-choices.schema.js';
 import { schema as schema_planeswalker } from '../engine/ops/planeswalker.schema.js';
 import { schema as schema_replacement } from '../engine/ops/replacement.schema.js';
 import { schema as schema_saga } from '../engine/ops/saga.schema.js';
@@ -28,6 +29,7 @@ import { schema as schema_saga } from '../engine/ops/saga.schema.js';
 export const FAMILY_SCHEMA_ENTRIES: readonly FamilySchemaEntry[] = [
   { family: "cost-alter", file: "src/engine/ops/cost-alter.schema.ts", schema: schema_cost_alter },
   { family: "keyword-action", file: "src/engine/ops/keyword-action.schema.ts", schema: schema_keyword_action },
+  { family: "piles-choices", file: "src/engine/ops/piles-choices.schema.ts", schema: schema_piles_choices },
   { family: "planeswalker", file: "src/engine/ops/planeswalker.schema.ts", schema: schema_planeswalker },
   { family: "replacement", file: "src/engine/ops/replacement.schema.ts", schema: schema_replacement },
   { family: "saga", file: "src/engine/ops/saga.schema.ts", schema: schema_saga },
