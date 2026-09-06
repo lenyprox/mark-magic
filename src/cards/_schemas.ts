@@ -19,6 +19,7 @@
 import type { FamilySchema } from '../engine/ops/types.js';
 import { CORE_VOCABULARY, mergeFamilySchemas, type FamilySchemaEntry } from './schema-core.js';
 import { schema as schema_control } from '../engine/ops/control.schema.js';
+import { schema as schema_copy_clone } from '../engine/ops/copy-clone.schema.js';
 import { schema as schema_cost_alter } from '../engine/ops/cost-alter.schema.js';
 import { schema as schema_keyword_action } from '../engine/ops/keyword-action.schema.js';
 import { schema as schema_piles_choices } from '../engine/ops/piles-choices.schema.js';
@@ -30,6 +31,7 @@ import { schema as schema_transform } from '../engine/ops/transform.schema.js';
 /** Every family schema with the file it came from, in file-name order. */
 export const FAMILY_SCHEMA_ENTRIES: readonly FamilySchemaEntry[] = [
   { family: "control", file: "src/engine/ops/control.schema.ts", schema: schema_control },
+  { family: "copy-clone", file: "src/engine/ops/copy-clone.schema.ts", schema: schema_copy_clone },
   { family: "cost-alter", file: "src/engine/ops/cost-alter.schema.ts", schema: schema_cost_alter },
   { family: "keyword-action", file: "src/engine/ops/keyword-action.schema.ts", schema: schema_keyword_action },
   { family: "piles-choices", file: "src/engine/ops/piles-choices.schema.ts", schema: schema_piles_choices },

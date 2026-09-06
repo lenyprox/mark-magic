@@ -94,7 +94,7 @@ export class CardDB {
     const want = scanTierFilter(opts.tier);
     const windowed = opts.from !== undefined || opts.to !== undefined;
     const sql = `SELECT json FROM oracle_cards WHERE ${NON_PLAYABLE}${windowed ? ' AND rowid BETWEEN ? AND ?' : ''}`;
-    const stmt = this.stmt(`all:${windowed}`, sql);
+    const stmt = this.db.prepare(sql);   // a FRESH statement per scan: a cached one is still busy for a nested scan started from inside a trial (copy-clone's verify:pool, 9.1)
     const rows = (windowed ? stmt.iterate(opts.from ?? 0, opts.to ?? Number.MAX_SAFE_INTEGER) : stmt.iterate()) as Iterable<{ json: string }>;
     for (const r of rows) {
       const raw = JSON.parse(r.json) as PoolRow & Record<string, unknown>;

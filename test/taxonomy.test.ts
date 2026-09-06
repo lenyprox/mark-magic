@@ -62,9 +62,9 @@ const CARDS: [name: string, primary: Family | null][] = [
   ['Ray of Command', 'control'],
 
   // --- copy / clone
-  ['Clone', 'copy-clone'],
+  ['Clone', null],              // 9.1: fully parsed by the family
   ['Fork', 'copy-clone'],
-  ['Reverberate', 'copy-clone'],
+  ['Reverberate', null],              // 9.1: fully parsed by the family
   ['Phantasmal Image', 'copy-clone'],
   ['Twinflame', 'copy-clone'],
 
