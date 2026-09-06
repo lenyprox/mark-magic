@@ -450,3 +450,33 @@ test('deriveStates over a handful of real ids agrees with stateOf and fills the 
     assert.equal(stateOf(row.def.oracleId, { def: row.def }).state, out.cards.find(c => c.oracleId === row.def.oracleId)!.state);
   }
 });
+
+// ---------------------------------------------------------------------------
+// A recorded problem beats the status field
+// ---------------------------------------------------------------------------
+
+test('scripted: a verification whose status says verified (or judged) but whose problems are non-empty', () => {
+  const src = fixture();
+  const s = script();
+  const unclaimed = 'applyScript does not make the card fully simulated (unclaimed: Until end of turn, ~ has flying.)';
+  put(src, { ...s, verification: verification(s, { status: 'verified', problems: [unclaimed] }) });
+  const st = stateOf(ID, { ...src, def: def() });
+  assert.equal(st.state, 'scripted');
+  assert.match(st.why, /records 1 problem/);
+  // even a faithful judge and a scenario shard do not lift it: the promoter never writes this shape any more,
+  // and a file that carries it must not read as covered
+  putScenarios(src);
+  put(src, { ...s, verification: verification(s, { status: 'judged', problems: [unclaimed], scenarios: { file: 'x', passed: 1, failed: 0, names: ['n'] }, judge: [{ model: 'opus', verdict: 'faithful', issues: [], at: 'now' }] }) });
+  assert.equal(stateIn(src), 'scripted');
+  // and the 10.0 re-run file itself (Deflecting Swat, quarantined in fbf6f97) reads as scripted against its real
+  // oracle text — CardDB.getByOracleId applies the live script store, so only the def's text and name are borrowed
+  const swat = JSON.parse(fs.readFileSync(path.join('test', 'fixtures', 'scripts', 'deflecting-swat.verified-with-problems.json'), 'utf8')) as CardScript;
+  const real = CardDB.shared().getByOracleId(swat.oracleId);
+  if (real) {
+    const src2 = fixture();
+    put(src2, swat);
+    const st2 = stateOf(swat.oracleId, { ...src2, def: { oracleId: swat.oracleId, name: real.name, oracleText: real.oracleText, fullyParsed: false } });
+    assert.equal(st2.state, 'scripted', st2.why);
+    assert.match(st2.why, /unclaimed: If you control a commander/);
+  }
+});

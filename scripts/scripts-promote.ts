@@ -123,9 +123,15 @@ export function judgeBlock(rows: WaveVerdict[], at: string): NonNullable<Verific
 /**
  * The status plan 2.4 derives. `judges` faithful verdicts and no unfaithful one make it `judged`; a passing blind
  * scenario per reachable ability makes it `tested`; the mechanical gate alone makes it `verified`.
+ *
+ * A verification that RECORDS a problem is not verified, whatever its sub-scores say: scripts:verify writes
+ * `status: 'scripted'` for exactly that case (scriptVerify.ts, `passed = problems.length === 0`), and re-deriving the
+ * status from schema / lint / sandbox / round trip alone used to promote a card that left a printed line unclaimed
+ * (Deflecting Swat, 10.0 re-run) to `verified` — which scripts:check then rejected.
  */
 export function deriveStatus(v: Verification, judges: Judges): Verification['status'] {
   if (v.schema !== 'ok' || v.lint === 'fail') return 'scripted';
+  if (v.problems?.length) return 'scripted';
   const sandboxOk = v.sandbox.seats2 !== 'throws' && v.sandbox.seats2 !== 'invariant' && v.sandbox.seats4 !== 'throws' && v.sandbox.seats4 !== 'invariant';
   if (!sandboxOk || v.roundTrip.score < 0.55) return 'scripted';
   const reachable = v.sandbox.abilities.filter(a => a.reached).length;

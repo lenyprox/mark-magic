@@ -107,6 +107,19 @@ test('deriveStatus walks the plan 2.4 ladder', () => {
   assert.equal(deriveStatus(baseVerification({ sandbox: { seats2: 'ok', seats4: 'ok', abilities: [{ index: 0, reached: true }, { index: 1, reached: false }] } }), 1), 'tested');
 });
 
+test('deriveStatus: a verification that records a problem is scripted, whatever its sub-scores or judges say', () => {
+  const faithful = { model: 'opus', verdict: 'faithful' as const, issues: [], at: 'now' };
+  const unclaimed = 'applyScript does not make the card fully simulated (unclaimed: If you control a commander, you may cast ~ without paying its mana cost.)';
+  assert.equal(deriveStatus(baseVerification({ problems: [unclaimed] }), 1), 'scripted');
+  assert.equal(deriveStatus(baseVerification({ problems: [unclaimed], judge: [faithful] }), 1), 'scripted');
+  assert.equal(deriveStatus(baseVerification({ problems: [unclaimed], status: 'verified' }), 1), 'scripted');
+  // the file the 10.0 re-run promoted to `verified` with that exact problem recorded (quarantined in fbf6f97)
+  const swat = JSON.parse(fs.readFileSync(path.join('test', 'fixtures', 'scripts', 'deflecting-swat.verified-with-problems.json'), 'utf8')) as CardScript;
+  assert.equal(swat.verification?.status, 'verified');
+  assert.equal(swat.verification?.problems.length, 1);
+  assert.equal(deriveStatus(swat.verification!, 1), 'scripted');
+});
+
 test('scenario and judge blocks fold the workflow rows the tools write back', () => {
   const block = scenarioBlock([
     { oracleId: ID, scenarioFile: 'data/scenarios/aa/x.json', passed: true, names: ['etb draws'] },

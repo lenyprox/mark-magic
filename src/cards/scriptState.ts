@@ -365,6 +365,12 @@ export function stateOf(oracleId: string, opts: StateOptions = {}): ScriptStateI
     if (v.oracleHash !== fresh) {
       return { ...rest, state: 'scripted', verificationStale: true, why: 'the oracle text changed since the verification ran' };
     }
+    // A verification that records a problem is `scripted` whatever its `status` field says: scripts:verify never writes
+    // a higher status with a non-empty problems list, and scripts:promote agrees (deriveStatus) — this guard makes a
+    // hand-edited or historically mis-promoted file read the same way the tools would rewrite it.
+    if (v.problems?.length) {
+      return { ...rest, state: 'scripted', verification: v.status, why: `the verification records ${v.problems.length} problem(s): ${v.problems[0]}` };
+    }
     const rank = VERIFICATION_RANK[v.status] ?? 0;
     if (rank < 2) return { ...rest, state: 'scripted', verification: v.status, why: `verification status is '${v.status}'` };
     const scenarios = scenarioVerdict(oracleId, v, src.scenarioDir);
