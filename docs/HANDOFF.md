@@ -662,3 +662,8 @@ Then re-queue 10.0 (blocked + rejected) and 10.1.
 - The two Deflecting Swat scenarios in test/scenarios/copy-clone.ts no longer pin `unsimulated: 1` (that count was
   the commander-cost line, which a script in the store now covers; the scenarios pin retargeting).
 - docs/workflows/script-wave.js: inner backticks in the author prompt broke the workflow parser; fixed.
+- Tooling item (8c backlog): `scripts:verify` marked Multiversal Passage and Deflecting Swat 'verified' although a
+  printed line stays unclaimed, which `scripts:check` rejects; both are quarantined (fbf6f97). The promote step
+  should run `scripts:check` on what it promotes, or `scripts:verify` should apply the same claim test.
+- 10.1 queued from fbf6f97: 3,002 cards in 112 batches (data/scripts/batches/10.1, rebuildable); run as groups of
+  20 batches with one judge (process rule 5), promoted and committed per group as `Phase 10.1.g`.
