@@ -491,3 +491,4 @@ built-in.
 | `npm run coverage:ops` | the op-coverage ratchet report: uncovered ops with exemplar cards to write scenarios with |
 | `npm run verify:all` | typecheck:all, full test suite, scripts check, `coverage:pool`, `parse:diff`, `verify:pool`, `bench:games` |
 | `npm run bench:games` | the performance gate: ≥ 45 games/s 60-card, ≥ 4.8 games/s Commander |
+| [saga.md](saga.md) | Phase 9.1 saga family: the lore track and CR 714.2b chapter *crossing*, `read ahead`, the `saga-lore` op, the `saga` target kind, the `lore-counter-put` / `saga-final-chapter` triggers, the `saga-lore-ge` condition, and the two chapter-line parser rules |

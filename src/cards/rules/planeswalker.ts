@@ -223,6 +223,7 @@ const effects: EffectRule[] = [
   //      "+2: Put a +1/+1 counter on each of up to two target creatures." — the built-in counters template does not
   //      take an "up to" target slot, so the guarded target parser is used here.
   { re: new RegExp(`^put ${N} ${COUNTER} counters? on (?:each of )?((?:up to (?:one|two|three) )?target .+)$`, 'i'), make: (m, ctx) => {
+    if (m[2].toLowerCase() === 'lore') return null;                              // a lore counter raises a `chapter` event: the saga family's `saga-lore` owns it (9.1 merge)
     const n = count(m[1], ctx); const t = target(m[3], ctx);
     if (n === null || !t || t.kind === 'player' || t.kind === 'opponent') return null;
     return { op: 'counters', target: t, counter: m[2].toLowerCase(), amount: n };

@@ -238,6 +238,9 @@ function parseTarget(phrase: string): TargetSpec | null {
 const TGT = '((?:up to (?:one|two|three|four|X) )?(?:two |three )?(?:(?:another |other )?target [^.,]+?|any target))';
 
 interface Rule { re: RegExp; make: (m: RegExpMatchArray) => Effect | null }
+/** A lore counter on a Saga raises a `chapter` event the plain `counters` op cannot: the saga family's `saga-lore`
+ *  owns every "put … lore counter(s) on …" wording (9.1), so the built-in counter templates decline it. */
+const isLore = (word: string): boolean => word.toLowerCase() === 'lore';
 const EFFECT_RULES: Rule[] = [
   // damage
   { re: new RegExp(`^~ deals ${NUMRE} damage to ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[2]); return t && { op: 'damage', amount: num(m[1]), target: t }; } },
@@ -350,8 +353,8 @@ const EFFECT_RULES: Rule[] = [
   { re: new RegExp(`^create ${NUMRE} (\\d+)/(\\d+) ([a-z ]+?) creature tokens? with (.+?)$`, 'i'), make: m => tokenEffect(m) },
   // counters
   { re: new RegExp(`^put ${NUMRE} \\+1/\\+1 counters? on ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[2]); return t && { op: 'counters', target: t, counter: '+1/+1', amount: num(m[1]) }; } },
-  { re: new RegExp(`^put ${NUMRE} ([a-z]+|[+-]1/[+-]1) counters? on ${TGT}$`, 'i'), make: m => { const t = parseTarget(m[3]); return t && { op: 'counters', target: t, counter: m[2].toLowerCase(), amount: num(m[1]) }; } },
-  { re: new RegExp(`^put ${NUMRE} ([a-z]+|[+-]1/[+-]1) counters? on each creature you control$`, 'i'), make: m => ({ op: 'counters', target: 'creatures-you-control', counter: m[2].toLowerCase(), amount: num(m[1]) }) },
+  { re: new RegExp(`^put ${NUMRE} ([a-z]+|[+-]1/[+-]1) counters? on ${TGT}$`, 'i'), make: m => { if (isLore(m[2])) return null; const t = parseTarget(m[3]); return t && { op: 'counters', target: t, counter: m[2].toLowerCase(), amount: num(m[1]) }; } },
+  { re: new RegExp(`^put ${NUMRE} ([a-z]+|[+-]1/[+-]1) counters? on each creature you control$`, 'i'), make: m => isLore(m[2]) ? null : ({ op: 'counters', target: 'creatures-you-control', counter: m[2].toLowerCase(), amount: num(m[1]) }) },
   { re: new RegExp(`^put ${NUMRE} \\+1/\\+1 counters? on ~$`, 'i'), make: m => ({ op: 'counters', target: 'self', counter: '+1/+1', amount: num(m[1]) }) },
   { re: new RegExp(`^put ${NUMRE} \\+1/\\+1 counters? on each creature you control$`, 'i'), make: m => ({ op: 'counters', target: 'creatures-you-control', counter: '+1/+1', amount: num(m[1]) }) },
   { re: new RegExp(`^put ${NUMRE} \\+1/\\+1 counters? on each other creature you control$`, 'i'), make: m => ({ op: 'counters', target: 'each-other-creature-you-control', counter: '+1/+1', amount: num(m[1]) }) },
@@ -480,7 +483,7 @@ const EFFECT_RULES: Rule[] = [
   { re: /^exile each opponent's graveyard$/i, make: () => ({ op: 'exile-graveyard', who: 'each-opponent' }) },
   { re: /^exile all cards from all graveyards$/i, make: () => ({ op: 'exile-graveyard', who: 'each-player' }) },
   { re: /^(?:its|~'s|that creature's|that land's) controller may search their library for a basic land card, put (?:it|that card) onto the battlefield( tapped)?, then shuffle$/i, make: m => ({ op: 'search', filter: { types: ['Land'], basic: true }, to: 'battlefield', tapped: !!m[1], count: 1, optional: true, who: 'that-controller' }) },
-  { re: new RegExp(`^put ${NUMRE} ([a-z]+) counters? on ~$`, 'i'), make: m => ({ op: 'counters', target: 'self', counter: m[2].toLowerCase(), amount: num(m[1]) }) },
+  { re: new RegExp(`^put ${NUMRE} ([a-z]+) counters? on ~$`, 'i'), make: m => isLore(m[2]) ? null : ({ op: 'counters', target: 'self', counter: m[2].toLowerCase(), amount: num(m[1]) }) },
   { re: /^put an? (.+?) card with mana value equal to the number of (\w+) counters on ~ from your hand onto the battlefield$/i, make: m => { const f = parseFilterWords(m[1]); return f && { op: 'put-from-hand', amount: 1, to: 'battlefield', filter: { ...f, mvEQ: { count: 'counters-on-source', counter: m[2].toLowerCase() } }, optional: true }; } },
   { re: /^counter that spell$/i, make: () => ({ op: 'counter-triggering' }) },
   { re: /^if you control an? (.+?) and an? (.+?), add ((?:\{[WUBRGC]\})+) instead$/i, make: m => { const a = parseFilterWords(m[1]), b = parseFilterWords(m[2]); const mana = [...m[3].matchAll(/\{([WUBRGC])\}/g)].map(x => x[1] as ManaSymbol); return a && b ? { op: 'fold-alt-mana', condition: { kind: 'controls-each', filters: [a, b] }, mana, text: m[0] } : null; } },
@@ -540,7 +543,7 @@ const EFFECT_RULES: Rule[] = [
   { re: /^if a creature would die this turn, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'all-creatures' }) },
   { re: /^if a creature an opponent controls would die(?: this turn)?, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'opponent-creatures' }) },
   { re: /^if ~ would die, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'self' }) },
-  { re: new RegExp(`^put ${NUMRE} ([a-z]+|[+-]1/[+-]1) counters? on each (.+?) you control$`, 'i'), make: m => { const f = parseFilterWords(m[3]) ?? subtypeFilter(m[3]); return f ? { op: 'counters', target: 'creatures-you-control', counter: m[2].toLowerCase(), amount: num(m[1]), filter: singularSubtypes(f) } : null; } },
+  { re: new RegExp(`^put ${NUMRE} ([a-z]+|[+-]1/[+-]1) counters? on each (.+?) you control$`, 'i'), make: m => { if (isLore(m[2])) return null; const f = parseFilterWords(m[3]) ?? subtypeFilter(m[3]); return f ? { op: 'counters', target: 'creatures-you-control', counter: m[2].toLowerCase(), amount: num(m[1]), filter: singularSubtypes(f) } : null; } },
   { re: new RegExp(`^put ${TGT} from your graveyard on top of your library$`, 'i'), make: m => { const t = parseTarget(m[1].replace(/^target /, 'target ')); const f = parseFilterWords(m[1].replace(/^target /, '').replace(/ card$/, '')) ?? subtypeFilter(m[1].replace(/^target /, '').replace(/ card$/, '')); return f ? { op: 'return-from-graveyard', what: singularSubtypes(f), to: 'library-top', target: true } : (t ? null : null); } },
   { re: /^each creature gets ([+-]x)\/([+-]x) until end of turn$/i, make: m => ({ op: 'pump', target: 'all-creatures', power: pm(m[1]), toughness: pm(m[2]), duration: 'eot' }) },
   { re: new RegExp(`^remove ${TGT} from combat(?: and untap it)?$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'remove-from-combat', target: t, untap: /untap/i.test(m[0]) }; } },

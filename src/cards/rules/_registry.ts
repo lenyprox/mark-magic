@@ -22,6 +22,7 @@ import family_cost_alter from './cost-alter.js';
 import family_keyword_action from './keyword-action.js';
 import family_planeswalker from './planeswalker.js';
 import family_replacement from './replacement.js';
+import family_saga from './saga.js';
 
 const GENERATED: RuleFamily[] = [
   family_composition,
@@ -29,6 +30,7 @@ const GENERATED: RuleFamily[] = [
   family_keyword_action,
   family_planeswalker,
   family_replacement,
+  family_saga,
 ];
 
 // ---------------------------------------------------------------- flat arrays (mutated in place by rebuild())

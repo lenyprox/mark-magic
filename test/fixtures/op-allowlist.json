@@ -82,7 +82,6 @@
     "you-lost-life-this-turn"
   ],
   "triggers": [
-    "chapter",
     "combat-begin",
     "draw",
     "draw-step",
@@ -98,7 +97,6 @@
     "extra-land",
     "extra-mana-on-tap",
     "opponent-creatures-etb-tapped",
-    "tokens-replacement",
     "unspent-mana-becomes-red"
   ],
   "amounts": [
