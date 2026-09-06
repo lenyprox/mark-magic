@@ -119,18 +119,17 @@
       "names": [],
       "sampled": false
     },
-    "status": "judged",
+    "status": "verified",
     "problems": [],
     "judge": [
       {
-        "model": "opus/judge1",
-        "verdict": "faithful",
+        "model": "opus/audit",
+        "verdict": "unfaithful",
         "issues": [
-          "• Target creature can't block this turn. — expected a target chosen as the trigger is put on the stack, subject to shroud/hexproof/protection — scripted choose-objects {types:[Creature], who:each-player} + cant-block target:that — picked at resolution, no targeting legality check (forced: 'hasn't been chosen this turn' is only expressible with the family choose-modes, whose modes may not target — piles-choices.md §5) — CR 115.1, 603.3d",
-          "Whenever a Pirate you control attacks — expected only Pirates you control, including Breeches itself — scripted attacks self:false + filter subtypes:[Pirate]; game.ts:2270 adds ctx.player===perm.controller, so 'you control' is enforced and Breeches itself qualifies — correct — CR 508.1",
-          "• Exile the top card of your library. You may play it this turn. — expected exile, playable this turn paying costs — scripted impulse count:1 until:'eot' -> castableFromExile untilTurn=this turn, free:false (game.ts:1189) — CR 701.?"
+          "• Target creature can't block this turn. — expected a TARGET chosen as the triggered ability is put on the stack (CR 603.3d, 601.2c): an opponent's hexproof creature can never be chosen (CR 702.11b), the ability is countered on resolution if the target has become illegal (CR 608.2b), and the mode may not be chosen at all if no legal target exists (CR 700.2d) — scripted choose-objects {chooser:'you', from:{filter:{types:['Creature']}, who:'each-player'}, count:1} followed by cant-block {target:'that', duration:'eot'} — the creature is picked at resolution with no targeting legality check; probe: seat 1's Gladecover Scout (hexproof) was chosen and stopped from blocking. The renderer scores this line 0.29 while the card score reads 1.00. — CR 115.1a, 601.2c, 603.3d, 608.2b, 700.2d, 702.11b",
+          "Whenever a Pirate you control attacks, choose one that hasn't been chosen this turn — — expected the mode is chosen as the ability is put onto the stack (CR 700.2a, 601.2b) — scripted the family choose-modes op asks the mode question during resolution (piles-choices.ts ~285-323); family-wide timing divergence, low severity, and the same limitation that forces issue 1 — CR 601.2b, 700.2a"
         ],
-        "at": "2026-09-06T10:34:09.077Z"
+        "at": "2026-09-06T12:26:19.491Z"
       }
     ]
   }
