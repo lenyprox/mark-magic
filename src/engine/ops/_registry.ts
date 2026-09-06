@@ -23,6 +23,7 @@ import family_piles_choices from './piles-choices.js';
 import family_planeswalker from './planeswalker.js';
 import family_replacement from './replacement.js';
 import family_saga from './saga.js';
+import family_transform from './transform.js';
 
 const GENERATED: RegistryEntry[] = [
   { file: "control.ts", mod: family_control },
@@ -32,6 +33,7 @@ const GENERATED: RegistryEntry[] = [
   { file: "planeswalker.ts", mod: family_planeswalker },
   { file: "replacement.ts", mod: family_replacement },
   { file: "saga.ts", mod: family_saga },
+  { file: "transform.ts", mod: family_transform },
 ];
 
 // ---------------------------------------------------------------- flat lookups (mutated in place by rebuild())

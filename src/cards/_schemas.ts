@@ -25,6 +25,7 @@ import { schema as schema_piles_choices } from '../engine/ops/piles-choices.sche
 import { schema as schema_planeswalker } from '../engine/ops/planeswalker.schema.js';
 import { schema as schema_replacement } from '../engine/ops/replacement.schema.js';
 import { schema as schema_saga } from '../engine/ops/saga.schema.js';
+import { schema as schema_transform } from '../engine/ops/transform.schema.js';
 
 /** Every family schema with the file it came from, in file-name order. */
 export const FAMILY_SCHEMA_ENTRIES: readonly FamilySchemaEntry[] = [
@@ -35,6 +36,7 @@ export const FAMILY_SCHEMA_ENTRIES: readonly FamilySchemaEntry[] = [
   { family: "planeswalker", file: "src/engine/ops/planeswalker.schema.ts", schema: schema_planeswalker },
   { family: "replacement", file: "src/engine/ops/replacement.schema.ts", schema: schema_replacement },
   { family: "saga", file: "src/engine/ops/saga.schema.ts", schema: schema_saga },
+  { family: "transform", file: "src/engine/ops/transform.schema.ts", schema: schema_transform },
 ];
 
 /** The family schemas by family name (the file's basename, which is also the FamilyModule's `name` by convention). */

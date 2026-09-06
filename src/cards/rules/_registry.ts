@@ -25,6 +25,7 @@ import family_piles_choices from './piles-choices.js';
 import family_planeswalker from './planeswalker.js';
 import family_replacement from './replacement.js';
 import family_saga from './saga.js';
+import family_transform from './transform.js';
 
 const GENERATED: RuleFamily[] = [
   family_composition,
@@ -35,6 +36,7 @@ const GENERATED: RuleFamily[] = [
   family_planeswalker,
   family_replacement,
   family_saga,
+  family_transform,
 ];
 
 // ---------------------------------------------------------------- flat arrays (mutated in place by rebuild())
