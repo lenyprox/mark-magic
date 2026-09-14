@@ -1104,7 +1104,7 @@ Plan D6, brief docs/workflows/briefs/process-slice.md, run through `tooling-slic
   16 items of data/scripts/batches/parse-wave-1-pool.json (built at 17bffda; no parser change between). 50 Opus
   agents (16 implementers, 16 correctness reviewers, 9 fix rounds, 9 re-reviews), **27.8 agent-hours** (impl 14.0 /
   review 6.1 / fix 5.0 / re-review 2.7; per-agent transcript spans) over 5.0 h wall. Two families got a second fix
-  round + re-review afterwards (scratch `fix-round-parse.js`, now docs/workflows/parse-fix-round.js): generic-when-enchanted-dies (2 blockers: "its power" / "its toughness" bound to the target player / the Aura — a composition.ts `amountFor` defect; the round withdrew the head claim because a TriggerRule cannot decline two cards of a head, so the 27 finishers move to the core slice) and generic-you-may-pay-2 (4 issues: the payment sentence claimed without its "If you do" / "If you don't" / "When you do" continuation, the registry `may` double-wrap; the round withdrew the family — a sentence rule cannot see the next sentence — and left three core patches). Both re-reviews came back clean; neither family is merged; the fix rounds cost 2.7 agent-hours more (total **30.5**)..
+  round + re-review afterwards (scratch `fix-round-parse.js`, now docs/workflows/parse-fix-round.js): generic-when-enchanted-dies (2 blockers: "its power" / "its toughness" bound to the target player / the Aura — a composition.ts `amountFor` defect; the round withdrew the head claim because a TriggerRule cannot decline two cards of a head, so the 27 finishers move to the core slice) and generic-you-may-pay-2 (4 issues: the payment sentence claimed without its "If you do" / "If you don't" / "When you do" continuation, the registry `may` double-wrap; the round withdrew the family — a sentence rule cannot see the next sentence — and left three core patches). Both re-reviews came back clean; neither family is merged; the fix rounds cost 1.3 agent-hours more (total **29.1**)..
 - **Merged** (one commit per family, per-merge gate = gen:registry, typecheck:all, verify:quick, npm test,
   coverage:pool, parse:diff read group by group, `forge:diff --changed` read, MTG_SCRIPTS=0 golden:check,
   coverage:ops, CRLF; the scratch merge script is now docs/workflows/merge-parse-family.sh):
@@ -1140,8 +1140,8 @@ Plan D6, brief docs/workflows/briefs/process-slice.md, run through `tooling-slic
   9.2 brief: dealt-damage event, self-cast trigger + schema field, cycling seam, equipped-attacks controller,
   token-copy P/T/colour overrides, optional-pay X costs, speed, the Ring).
 - **What the wave says about the plan.** The pool-wide histogram's top constructs are not parser gaps: 10 of 16 need
-  engine vocabulary, and the six that were parser-only finished 26 paper cards for 27.8 agent-hours
-  (0.85 cards per agent-hour). For comparison, 10.1 group 1 (script wave, 416 cards) cost 7.9 agent-hours for
+  engine vocabulary, and the six that were parser-only finished 26 paper cards for 29.1 agent-hours
+  (0.89 cards per agent-hour). For comparison, 10.1 group 1 (script wave, 416 cards) cost 7.9 agent-hours for
   29 verified / 10 judged cards (3.7 verified or 1.3 judged per agent-hour), and Phase 9.1's twelve engine+parser
   families moved paper coverage 2.5 points. The parser-only lever is exhausted at the top of the histogram; the next
   coverage comes from (a) the 9.1px core slice — the antecedent seeding, the registry `may` double-wrap, "Whenever
@@ -1155,3 +1155,54 @@ Plan D6, brief docs/workflows/briefs/process-slice.md, run through `tooling-slic
   so. (2) Review agents delete "scratch files" in the session scratchpad, including the orchestrator's own scripts —
   they live in docs/workflows now. (3) The wave brief's `suggestedHome: registry` was wrong for 10 of 16 items: the
   brief builder should consult the engine's trigger / static vocabulary before suggesting a registry home.
+
+## 15. Phase 9.1px core slice, the enchanted-dies re-land, and the second checkpoint (2026-09-14)
+
+- **9.1px** (a8bc5d8): docs/workflows/parse-core-slice.js on 8f1f571 — one Fable 5.1 implementer on main (0.9 h
+  including the fix round), two Opus lenses + one re-review (1.1 h): **2.0 agent-hours**, 17 of the 20 items of
+  data/scripts/batches/parse-wave-1-core.json, PARSER_VERSION 5 -> 6, parse:diff 453 (325 reshaped, 54 deliberate
+  de-claims of parses that were wrong, the rest now parse). Paper with scripts 12,994 -> 13,033. Review: one major
+  (item 8's unknown-head seeding) fixed in the fix round; the minors are section 3 item 39 (j)-(p) — (j) matters
+  for the next 10.1 group: the CR 205.1b fold leaves about 25 cards with an unparsed line no card prints.
+- **9.1p.5** (6331a53): generic-when-enchanted-dies re-landed from its round-one commit a831336 once item 18's
+  amountFor guard was in — Dying Wish, Banewasp Affliction and Death Watch parse whole with the dead creature's
+  power / toughness; +27 cards (13,033 -> 13,060 with scripts).
+- **Coverage today** (paper, of 32,081): parser alone 12,837 -> 12,929 (+92: wave 26, core slice 39, re-land 27);
+  with scripts 12,974 -> 13,060 (+86 net of the six scripts the choose-objects lint quarantined). Whole pool with
+  scripts 13,216 / 34,513.
+- **Cost today**: forge slice 1.7 agent-hours; judge rule + lint (orchestrator); parser wave 29.1; core slice 2.0;
+  the re-land (orchestrator, one gated merge) — about 33 agent-hours of subagent time plus the orchestrator.
+
+### Second checkpoint (the owner paused here: "pause after this current workflow is done")
+
+| run | agents | agent-hours | result | per agent-hour |
+|---|---|---|---|---|
+| forge slice | 1 Fable + 3 Opus | 1.7 | forge:diff, calibration, 9 parser defects found | — |
+| parser wave 9.1p (+2 second rounds) | 50 + 4 Opus | 29.1 | 26 cards; 20 core + 9 engine items | 0.89 cards |
+| core slice 9.1px | 1 Fable + 3 Opus | 2.0 | 39 cards, and the 27-card family it unblocked | 20 (33 with the re-land) |
+| reference: 10.1 group 1 (scripts) | 58 Opus | 7.9 | 29 verified / 10 judged | 3.7 verified / 1.3 judged |
+| reference: Phase 9.1 (12 engine+parser families) | ~60 Opus | not timed | +800 cards (2.5 points) | — |
+
+What the data says: (1) the pool-wide histogram's top constructs are engine gaps — 10 of 16 families claimed
+nothing because the wording needs a trigger event, a player value or an op the engine lacks; (2) parser-only
+rules under a no-new-ops constraint are the least productive lever measured so far (0.89 cards per agent-hour),
+while a Fable-high core slice fed by the wave's findings was the most productive (20+); (3) the wave's product is
+its two item files, and the core file is now spent.
+
+Recommendation: run Phase 9.2 as engine+parser families (vocab-wave.js shape, worktrees, Opus, one reviewer),
+ranked by the histogram's finishes — whenever-dealt (65 cards / 43 finishes), the upkeep heads (145 / 29),
+when-cycle (49 / 22), speed (41 / 22), the Ring (39 / 20), whenever-more (42 / 17), equipped-attacks (51 / 14),
+when-cast self (88 / 13) — plus the engine items in data/scripts/batches/parse-wave-1-engine.json (token-copy
+overrides, optional-pay X / energy, the dealt-damage receiver event, the self-cast seam). A second parser wave
+only for constructs the brief builder can show are parser-only (the builder should consult the trigger / static
+vocabulary before suggesting a registry home). 10.1 groups 2+ (one judge, blindRate 3) can run alongside 9.2 —
+they share nothing but data/scripts — after a small fix for item 39 (j) so those 25 cards' lines are claimable.
+
+Decisions for the owner: (1) 9.2 first (recommended), 10.1 groups 2+ first, or both in parallel; (2) whether the
+second parser wave waits for 9.2 (recommended); (3) whether 39 (j) is fixed before 10.1 resumes (recommended).
+
+### Where to resume
+main 6331a53 (pushed), clean; no worktrees but codex/cloud-world (another session's); the sixteen
+worktree-wf_b1cfe93c-0b1-<n> branches are decline records (safe to delete once 9.2 has read their headers);
+the Forge checkout is at C:/Users/vprog/dev/forge (outside the repo); orchestration scripts are in docs/workflows;
+the wave rows, agent-hour tallies and merge logs of this session are in C:/Users/vprog/dev/mm-orchestrator.
