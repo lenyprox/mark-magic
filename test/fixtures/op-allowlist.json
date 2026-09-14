@@ -77,7 +77,6 @@
   ],
   "triggers": [
     "combat-begin",
-    "draw",
     "draw-step",
     "life-gain",
     "ltb",
