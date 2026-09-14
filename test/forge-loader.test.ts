@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { forgeCardFor, forgeColors, loadForge, parseForgeCard, parseParams, splitForgeTypes, TokenReader } from '../src/cards/forge/loader.js';
-import { FORGE_CLONE_RECIPE, FORGE_RES, MASTER_DB, projectRoot } from '../src/config/paths.js';
+import { FORGE_CLONE_RECIPE, FORGE_RES, MASTER_DB, projectRoot, mainCheckoutOf } from '../src/config/paths.js';
 import { changedIds, snapshotHash } from '../scripts/forge-diff.js';
 import { parseRow } from '../src/cards/scriptState.js';
 import { CardDB } from '../src/cards/db.js';
@@ -125,7 +125,8 @@ test('FORGE_RES: MTG_FORGE_RES wins when it holds a cardsfolder; a missing check
     process.env.MTG_FORGE_RES = res;
     assert.equal(FORGE_RES(), path.resolve(res));
     process.env.MTG_FORGE_RES = path.join(res, 'nowhere');
-    const real = fs.existsSync(path.resolve(projectRoot(), '..', 'forge', 'forge-gui', 'res', 'cardsfolder'));
+    // the same base FORGE_RES() resolves from: a linked worktree's root is not where the checkout lives
+    const real = fs.existsSync(path.resolve(mainCheckoutOf(projectRoot()) ?? projectRoot(), '..', 'forge', 'forge-gui', 'res', 'cardsfolder'));
     if (!real) assert.throws(() => FORGE_RES(), /git clone --depth 1 --filter=blob:none --sparse https:\/\/github\.com\/Card-Forge\/forge\.git/);
     assert.match(FORGE_CLONE_RECIPE('X'), /^git clone .* X\ncd X && git sparse-checkout set forge-gui\/res\/cardsfolder forge-gui\/res\/tokenscripts$/);
   } finally { if (saved === undefined) delete process.env.MTG_FORGE_RES; else process.env.MTG_FORGE_RES = saved; }
