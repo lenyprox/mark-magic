@@ -36,16 +36,20 @@ export const genericYouDo: Scenario[] = [
     ],
   },
   {
-    // The X half is "exile a creature card from your graveyard" (a `move` of a chosen graveyard set); the Y half is
-    // the printed target, chosen when the triggered ability goes on the stack.
-    name: "Masked Vandal exiles a creature card from its controller's graveyard and then exiles an artifact", cr: '608.2',
-    ruling: 'The optional exile from the graveyard is part of the resolution; the "if you do" exile follows it immediately.',
-    seats: [{ bf: ['Forest', 'Forest', 'Forest'], hand: ['Masked Vandal'], graveyard: ['Grizzly Bears'] }, { bf: ['Ornithopter'] }],
-    script: [{ cast: 'Masked Vandal' }, { answer: true }, { resolve: true }],
+    // The X half is "return another creature you control to its owner's hand" again, with a different Y half, so the
+    // template is exercised on a second printed card: Biblioplex Kraken's "~ can't be blocked this turn".
+    name: "Biblioplex Kraken returns another creature and, because it did, can't be blocked", cr: '608.2',
+    ruling: 'The "if you do" effect applies during the same resolution as the action that enabled it.',
+    seats: [{ bf: ['Biblioplex Kraken', 'Grizzly Bears', 'Island', 'Island'] }, { bf: ['Hill Giant'] }],
+    // The queued `true` answers the attack trigger's "you may". The Y half is asserted through the granted keyword
+    // and not through a refused block: simulateCombat is handed the attackers and the blocks in one call, so an
+    // unblockable granted while the attack trigger resolves does not reach that block decision (the block-order
+    // defect recorded in the 10.1.1 audit) — an engine bug, not this family's.
+    script: [{ answer: true }, { attack: ['Biblioplex Kraken'] }],
     expect: [
-      { zone: ['Grizzly Bears', 'exile'] },
-      { zone: ['Ornithopter', 'exile'] },
-      { zone: ['Masked Vandal', 'battlefield'] },
+      { zone: ['Grizzly Bears', 'hand'] },
+      { zone: ['Biblioplex Kraken', 'battlefield'] },
+      { keywords: ['Biblioplex Kraken', ['unblockable']] },
       { unsimulated: 0 },
     ],
   },

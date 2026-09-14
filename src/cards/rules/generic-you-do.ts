@@ -19,12 +19,35 @@
 // CLAIMED (each exactly expressible in the engine's existing vocabulary, each an X or a Y of a printed card):
 //
 //   "return another <filter> you control to its owner's hand"   -> `return-own` with `other: true`   (Temur Sabertooth)
-//   "exile a/an <filter> card from your graveyard"              -> `move` of a chosen graveyard set   (Masked Vandal)
 //   "exile ~ from your graveyard"                               -> `move` of `self` to exile          (Kozilek's Return)
 //   "return ~ to your hand"                                     -> `move` of `self` to hand           (Pyrewild Shaman)
 //   "discard all the cards in your hand"                        -> `discard` of the whole hand        (Forgotten Creation)
 //
 // DECLINED — left `unknown` on purpose, never approximated (the report's openIssues carries the same list):
+//
+//   "exile a/an <filter> card from your graveyard" (Masked Vandal, Master Skald, Aphemia, Forgotten Harvest) — CLAIMED
+//        in the first cut of this family and WITHDRAWN by the 9.1p review. The sentence itself is exactly a `move` of
+//        a chosen graveyard set and its own AST was right; what was wrong is what filling the `optional-then` X slot
+//        with it does to ONE printed card, God-Pharaoh's Gift:
+//          "At the beginning of combat on your turn, you may exile a creature card from your graveyard. If you do,
+//           create a token that's a copy of that card, except it's a 4/4 black Zombie. It gains haste until end of turn."
+//        (a) parseParagraph runs PARAGRAPH_RULES against the START of the paragraph and slices the template's match out
+//            of `rest` BEFORE the sentence loop; `antecedent` is only ever set inside that loop, from the sentences
+//            that survive. So the trailing "It gains haste until end of turn." is parsed with antecedent === false,
+//            the parse.ts:841 `it` -> `thatobj` rewrite never fires, and the haste lands on `self` — the noncreature
+//            Artifact — instead of the Zombie token the sentence before it made (CR 608.2, CR 110.5). The card's whole
+//            function is gone, and because the line is now `fullyParsed` nothing downstream can see it. The same
+//            paragraph with no template in front of it parses correctly (`grant-keyword` on `that`), so the defect is
+//            parse.ts's, not the wording's — but a rule that routes a card into it owns the result. Core change, not a
+//            rule (see coreChangeNeeded: set the paragraph antecedent from the template's own match text too).
+//        (b) the Y half's built-in, "create a token that's a copy of that card, except it's a 4/4 black Zombie",
+//            deliberately drops the size and the colour words (parse.ts:577 `if (/^\d+\/\d+$/.test(w) || w in
+//            COLOR_WORDS) continue;`) because `token-copy` has no power / toughness / colour fields (types.ts:271).
+//            Exiling a 1/1 would make a 1/1 token, not the printed 4/4 (CR 707.2). Widening that built-in is not this
+//            family's to do, and an approximation must not be hidden behind a `fullyParsed` flag.
+//        There is no narrowing that keeps the four honest cards and drops God-Pharaoh's Gift: its X sentence is
+//        character-for-character Masked Vandal's, and an `EffectRule` is handed that sentence alone — it never sees
+//        the Y half or the sentence after the template. So the whole wording goes back to `unknown`.
 //
 //   "If you do, <Y>" ON ITS OWN — every card whose "You may X." sentence is not the start of its paragraph
 //        ("Gain control of target creature … You may discard a card. If you do, draw a card." — Vengeful Possession;
@@ -79,13 +102,10 @@ const effects: EffectRule[] = [
     make: (m, ctx) => { const f = filterOf(ctx, m[1]); return f ? { op: 'return-own', filter: { ...f, other: true }, count: 1, to: 'hand' } : null; },
   },
 
-  // "When ~ enters, you may exile a creature card from your graveyard. If you do, exile target artifact or
-  // enchantment an opponent controls." (Masked Vandal, Master Skald, Aphemia). One card of your own graveyard,
-  // chosen by you (CR 400.6): the `move` op's chosen-set form.
-  {
-    re: /^exile (?:a|an) (.+?) card from your graveyard$/i,
-    make: (m, ctx) => { const f = filterOf(ctx, m[1]); return f ? { op: 'move', what: { filter: f, zone: 'graveyard', who: 'you', count: 1 }, to: 'exile' } : null; },
-  },
+  // NOTE: "exile a/an <filter> card from your graveyard" (Masked Vandal, Master Skald, Aphemia, Forgotten Harvest)
+  // used to live here and is now DECLINED — see (a) and (b) in the header. It is the one X half whose `optional-then`
+  // slot pulls a card (God-Pharaoh's Gift) into a paragraph the built-ins get wrong, and the rule cannot tell that
+  // card from the four honest ones: it is handed the X sentence alone.
 
   // "Whenever you cast an Eldrazi creature spell with mana value 7 or greater, you may exile ~ from your graveyard.
   // If you do, ~ deals 5 damage to each creature." (Kozilek's Return, Council's Deliberation, Ugin's Binding) — the

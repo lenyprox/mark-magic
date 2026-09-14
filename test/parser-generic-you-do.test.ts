@@ -47,18 +47,6 @@ test('"return another <filter> you control to its owner\'s hand" is `return-own`
     [{ op: 'return-own', filter: { types: ['Land'], other: true }, count: 1, to: 'hand' }]);
 });
 
-test('"exile a <filter> card from your graveyard" is a `move` of a chosen graveyard set (CR 400.6)', () => {
-  // Masked Vandal, Master Skald
-  assert.deepEqual(parsed('Exile a creature card from your graveyard.'),
-    [{ op: 'move', what: { filter: { types: ['Creature'] }, zone: 'graveyard', who: 'you', count: 1 }, to: 'exile' }]);
-  // Imoen, Occult Trickster: the comma-free "or" list the built-in filter parser does take
-  assert.deepEqual(parsed('Exile an instant or sorcery card from your graveyard.'),
-    [{ op: 'move', what: { filter: { types: ['Instant', 'Sorcery'] }, zone: 'graveyard', who: 'you', count: 1 }, to: 'exile' }]);
-  // Aphemia, the Cacophony
-  assert.deepEqual(parsed('Exile an enchantment card from your graveyard.'),
-    [{ op: 'move', what: { filter: { types: ['Enchantment'] }, zone: 'graveyard', who: 'you', count: 1 }, to: 'exile' }]);
-});
-
 test('"exile ~ from your graveyard" is a `move` of the source (Kozilek\'s Return)', () => {
   assert.deepEqual(parsed('Exile ~ from your graveyard.'), [{ op: 'move', what: 'self', to: 'exile' }]);
 });
@@ -123,6 +111,47 @@ test('"pay N life" is declined: `lose-life` would ignore CR 119.4 (a player may 
   assert.ok(spy.some(e => e.op === 'unknown'), `expected an unknown, got ${JSON.stringify(spy)}`);
 });
 
+// The 9.1p review's two findings, both on God-Pharaoh's Gift, both pinned as declines. The wording
+// "exile a/an <filter> card from your graveyard" was CLAIMED in the first cut of this family and is withdrawn:
+// filling the built-in `optional-then` X slot with it made that one card `fullyParsed` carrying a wrong AST.
+test('"exile a <filter> card from your graveyard" is declined: filling the optional-then X slot with it breaks God-Pharaoh\'s Gift', () => {
+  // The sentence on its own, with nothing else claiming it.
+  assert.ok(declined('Exile a creature card from your graveyard.'));
+  assert.ok(declined('Exile an enchantment card from your graveyard.'));
+  assert.ok(declined('Exile an instant or sorcery card from your graveyard.'));
+  // …so the printed paragraph keeps the whole "You may X. If you do, Y" unparsed rather than parsing it wrongly.
+  const gpg = parsed("You may exile a creature card from your graveyard. If you do, create a token that's a copy of that card, except it's a 4/4 black Zombie. It gains haste until end of turn.");
+  assert.ok(gpg.some(e => e.op === 'unknown'), `expected an unknown, got ${JSON.stringify(gpg)}`);
+  // (a) CR 608.2 / 110.5: the haste belongs to the token the sentence before it created, never to the source. The
+  // `optional-then` template slices its own match out of the paragraph before the sentence loop runs, so the trailing
+  // pronoun sentence is parsed with no antecedent and falls back to `self` — a noncreature Artifact here.
+  assert.ok(!gpg.some(e => e.op === 'grant-keyword' && (e as { target?: unknown }).target === 'self'),
+    `the trailing "It gains haste" must not become the source: ${JSON.stringify(gpg)}`);
+  // (b) CR 707.2: the printed override is "a 4/4 black Zombie". The built-in token-copy template keeps only the
+  // subtype (parse.ts drops the size and colour words because `token-copy` has no fields for them), so a claimed
+  // parse of this paragraph would silently make a copy of the exiled creature's own power, toughness and colour.
+  const y = parsed("Create a token that's a copy of that card, except it's a 4/4 black Zombie.");
+  assert.ok(y.every(e => e.op === 'unknown'), `the 4/4 black override must not be approximated away: ${JSON.stringify(y)}`);
+});
+
+test('a sentence trailing an `optional-then` loses its antecedent — the defect is parse.ts\'s, not the wording\'s', () => {
+  // Evidence for the decline above, written with BUILT-INS ONLY so it holds whatever this family does. The same
+  // trailing pronoun sentence, the same preceding token:
+  //   * in the plain sentence loop the paragraph's antecedent is set and "It" becomes the token (`that`) —
+  const flat = parsed("Create a token that's a copy of target creature. It gains haste until end of turn.");
+  assert.deepEqual(flat.find(e => e.op === 'grant-keyword'), { op: 'grant-keyword', target: 'that', keywords: ['haste'], duration: 'eot' });
+  //   * behind an `optional-then` it becomes the SOURCE. parseParagraph slices the template's match out of `rest`
+  //     before the sentence loop, and `antecedent` is only ever set inside that loop, so the pronoun is parsed as if
+  //     the paragraph had started with it. This is what would have given God-Pharaoh's Gift — a noncreature Artifact —
+  //     the haste its 4/4 Zombie token is printed to get.
+  const behind = parsed("You may sacrifice a creature. If you do, create a token that's a copy of target creature. It gains haste until end of turn.");
+  assert.deepEqual(behind.find(e => e.op === 'grant-keyword'), { op: 'grant-keyword', target: 'self', keywords: ['haste'], duration: 'eot' });
+  // This second assertion is the acceptance test for the core change the withdrawn wording is waiting on: it flips to
+  // `that` the day parseParagraph seeds the antecedent from the template's own match text, and that is when
+  // "exile a/an <filter> card from your graveyard" can come back (God-Pharaoh's Gift also needs (b), the token-copy
+  // power / toughness / colour fields, before it may be claimed).
+});
+
 test('a bare pronoun ("sacrifice it" / "exile it") is declined: the referent is not the family\'s to guess', () => {
   // "When ~ dies, you may exile it" is the source; "Whenever another creature you control dies, you may exile it"
   // is the dying creature. parse.ts suppresses its own `it` -> `~` rewrite as soon as the body names a target.
@@ -135,9 +164,21 @@ test('a bare pronoun ("sacrifice it" / "exile it") is declined: the referent is 
 // ---------------------------------------------------------------------------------------------------------------
 test('the printed cards the halves finish are fully parsed', { skip: !hasDb }, () => {
   const db = CardDB.shared();
-  for (const name of ['Temur Sabertooth', 'Masked Vandal', 'Master Skald', 'Forgotten Creation', 'Aphemia, the Cacophony', 'Gigapede', 'Loyal Gryff']) {
+  for (const name of ['Temur Sabertooth', 'Forgotten Creation', 'Book Devourer', 'Biblioplex Kraken', 'Gigapede', 'Loyal Gryff']) {
     const def = db.get(name);
     assert.ok(def, `${name} is not in the card database`);
     assert.deepEqual(def.unparsed, [], `${name} still has unparsed lines`);
   }
+});
+
+test("God-Pharaoh's Gift stays honestly unparsed rather than fully parsed with the wrong AST", { skip: !hasDb }, () => {
+  // The card-level form of the decline above: the line is recorded unparsed, and nowhere in the parsed card does the
+  // artifact itself gain haste. Masked Vandal, Master Skald, Aphemia and Forgotten Harvest are unparsed for the same
+  // reason and come back together with the core change (see the family header).
+  const def = CardDB.shared().get("God-Pharaoh's Gift");
+  assert.ok(def, "God-Pharaoh's Gift is not in the card database");
+  assert.equal(def.fullyParsed, false);
+  assert.ok(def.unparsed.some(l => /gains haste/i.test(l)), `expected the combat trigger unparsed, got ${JSON.stringify(def.unparsed)}`);
+  const json = JSON.stringify(def.abilities);
+  assert.ok(!/"op":"grant-keyword","target":"self","keywords":\["haste"\]/.test(json), `the Gift must not grant itself haste: ${json}`);
 });
