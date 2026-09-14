@@ -1,19 +1,19 @@
 {
-  "generated_at": "2026-09-06T12:13:56.381Z",
+  "generated_at": "2026-09-14T14:33:23.191Z",
   "playable_oracle_cards": 34513,
-  "fully_parsed": 13128,
-  "fully_parsed_pct": 38.04,
+  "fully_parsed": 13148,
+  "fully_parsed_pct": 38.1,
   "of_which_vanilla_or_keyword_only": 1506,
   "headline": {
     "total": 32081,
-    "fully_parsed": 12974,
-    "pct": 40.44
+    "fully_parsed": 12994,
+    "pct": 40.5
   },
   "tiers": {
     "paper": {
       "total": 32081,
-      "fully_parsed": 12974,
-      "pct": 40.44
+      "fully_parsed": 12994,
+      "pct": 40.5
     },
     "digital": {
       "total": 1000,
@@ -34,7 +34,7 @@
   "by_primary_type": {
     "Creature": {
       "total": 19233,
-      "full": 7993,
+      "full": 8007,
       "pct": 41.6
     },
     "Artifact": {
@@ -44,17 +44,17 @@
     },
     "Enchantment": {
       "total": 3564,
-      "full": 887,
-      "pct": 24.9
+      "full": 890,
+      "pct": 25
     },
     "Sorcery": {
       "total": 3620,
-      "full": 1114,
-      "pct": 30.8
+      "full": 1117,
+      "pct": 30.9
     },
     "Instant": {
       "total": 3849,
-      "full": 1475,
+      "full": 1474,
       "pct": 38.3
     },
     "Land": {
@@ -69,8 +69,8 @@
     },
     "Planeswalker": {
       "total": 335,
-      "full": 28,
-      "pct": 8.4
+      "full": 29,
+      "pct": 8.7
     },
     "Other": {
       "total": 29,
@@ -170,6 +170,10 @@
       "clause": "Soulbond"
     },
     {
+      "n": 23,
+      "clause": "You may choose the same mode more than once."
+    },
+    {
       "n": 22,
       "clause": "Fuse"
     },
@@ -184,10 +188,6 @@
     {
       "n": 21,
       "clause": "Spree"
-    },
-    {
-      "n": 21,
-      "clause": "You may choose the same mode more than once."
     },
     {
       "n": 21,

@@ -1034,3 +1034,61 @@ Plan D6, brief docs/workflows/briefs/process-slice.md, run through `tooling-slic
   snapshot with two altered hashes compares exactly those two cards.
 - Open: §3 item 38; the misses above; `additionalCosts` ("As an additional cost …") has no shape yet, so Forge's
   static for it is an `ability-count` / `unmatched` entry on such cards.
+
+## 14. Phase 9.1p — the first parser wave, pool-wide brief (2026-09-14)
+
+- **Run**: `docs/workflows/parse-wave.js`, workflow wf_b1cfe93c-0b1, base 0ad4199 (after the forge slice), the
+  16 items of data/scripts/batches/parse-wave-1-pool.json (built at 17bffda; no parser change between). 50 Opus
+  agents (16 implementers, 16 correctness reviewers, 9 fix rounds, 9 re-reviews), **27.8 agent-hours** (impl 14.0 /
+  review 6.1 / fix 5.0 / re-review 2.7; per-agent transcript spans) over 5.0 h wall. Two families got a second fix
+  round + re-review afterwards (scratch `fix-round-parse.js`, now docs/workflows/parse-fix-round.js): generic-when-enchanted-dies (2 blockers: "its power" / "its toughness" bound to the target player / the Aura — a composition.ts `amountFor` defect; the round withdrew the head claim because a TriggerRule cannot decline two cards of a head, so the 27 finishers move to the core slice) and generic-you-may-pay-2 (4 issues: the payment sentence claimed without its "If you do" / "If you don't" / "When you do" continuation, the registry `may` double-wrap; the round withdrew the family — a sentence rule cannot see the next sentence — and left three core patches). Both re-reviews came back clean; neither family is merged; the fix rounds cost 2.7 agent-hours more (total **30.5**)..
+- **Merged** (one commit per family, per-merge gate = gen:registry, typecheck:all, verify:quick, npm test,
+  coverage:pool, parse:diff read group by group, `forge:diff --changed` read, MTG_SCRIPTS=0 golden:check,
+  coverage:ops, CRLF; the scratch merge script is now docs/workflows/merge-parse-family.sh):
+  | # | family | commit | parse:diff | paper (with scripts) | note |
+  |---|---|---|---|---|---|
+  | 9.1p.1 | generic-you-do | 0f2174e | 34 | 12,968 → 12,983 | 22 lines now parse; 12 reshaped (inner unknown → delayed-trigger / optional-then / optional-pay under a still-unknown head) |
+  | 9.1p.2 | generic-deals-damage | 931620e | 65 | 12,983 → 12,993 | 12 lines now parse; 53 reshaped bodies under unknown heads (Manabarbs' "each player's upkeep", Eidolon's "mana value 3 or less") |
+  | 9.1p.3 | generic-still-land | c48af95 | 80 | 12,993 → 12,993 | CR 205.1b retention clause as an empty `scoped` (a no-op under the union layers); 11 standalone lines parse, 69 reshaped; finishes 0 by construction — the construct leaves the histogram |
+  | 9.1p.4 | generic-able | 8e4d159 | 2 | 12,993 → 12,994 | "each creature … blocks this turn if able" |
+  | — | generic-when-enchanted-dies | not merged | 0 | — | round 2 withdrew the claim; +27 cards after the composition.ts hunk (core item) |
+  | — | generic-you-may-pay-2 | not merged | 0 | — | round 2 withdrew the family; three core patches (paragraph template "When you do", PERMISSION_OPS optional-pay, render.ts) |
+  Parser-alone paper coverage: 12,837 → 12,863 (+26) / 32,081. `forge:diff --changed` at every merge: no finding on
+  a newly claimed line was parser-wrong; every disagreement was the card's remaining unknown head or a pre-existing
+  finding on another line (recorded in the commit messages).
+- **Wave gate** (`npm run verify:all` on 8e4d159 + these docs): typecheck:all, 1,617 tests / 0 fail, scripts:check 134 / 0
+  problems, coverage:pool 13,148 / 34,513 (paper 12,994 with scripts), parse:diff 0, verify:pool sandbox-ok 12,561 /
+  unreachable 587, bench:games 60-card 21–28 games/s and Commander 2.4–2.7 — BELOW the 45 / 4.66 baseline, but the
+  pre-wave commit 37d0c27 benchmarked alternately in a worktree gives the same numbers (25.0 / 2.82, 27.5 / 2.70) with
+  identical game statistics, so it is the machine's load (the owner's IDE and browser), not the wave (§3 item 7).
+- **Not merged — ten families that claim nothing.** Their implementers and reviewers agreed the construct needs
+  engine vocabulary this wave was forbidden to add (`opsAdded: []`), and each branch is a decline record with pins
+  (kept as branches `worktree-wf_b1cfe93c-0b1-<n>`, worktrees removed): generic-whenever-dealt (n=3; a `dealt-damage`
+  trigger event — Game.dealDamage never raises an event about the RECEIVER), generic-when-cast (4; a self-cast
+  trigger: `cast` has no `self` and queueTriggers never scans the stack), generic-when-cycle (8; the cycling trigger
+  seam in game.ts), generic-whenever-equipped-attacks (11; game.ts `case 'attacks'` hard-requires the controller, plus
+  two parse.ts items), generic-start-engines (12; speed is player state the engine lacks), generic-whenever-more (13;
+  CR 603.2 batched "one or more" triggers need an event-level trigger), generic-ring-tempts (14; the Ring emblem /
+  ring-bearer state, plan Phase 9.2), generic-beginning-player-upkeep (2; "the upkeep of enchanted land's controller"
+  and the each-player upkeep heads need an event the engine does not raise), generic-you-may-pay (6; the meaning is
+  in the NEXT sentence, which only parse.ts sees), generic-you-dont (16; same, with a corrected core record). Their
+  findings: `data/scripts/batches/parse-wave-1-core.json` (17 parse.ts / composition.ts / render.ts /
+  oracle-lines.ts items with patches — the 9.1px core slice) and `parse-wave-1-engine.json` (9 engine items — the
+  9.2 brief: dealt-damage event, self-cast trigger + schema field, cycling seam, equipped-attacks controller,
+  token-copy P/T/colour overrides, optional-pay X costs, speed, the Ring).
+- **What the wave says about the plan.** The pool-wide histogram's top constructs are not parser gaps: 10 of 16 need
+  engine vocabulary, and the six that were parser-only finished 26 paper cards for 27.8 agent-hours
+  (0.85 cards per agent-hour). For comparison, 10.1 group 1 (script wave, 416 cards) cost 7.9 agent-hours for
+  29 verified / 10 judged cards (3.7 verified or 1.3 judged per agent-hour), and Phase 9.1's twelve engine+parser
+  families moved paper coverage 2.5 points. The parser-only lever is exhausted at the top of the histogram; the next
+  coverage comes from (a) the 9.1px core slice — the antecedent seeding, the registry `may` double-wrap, "Whenever
+  you attack", the reflexive rider — which unblocks the you-do / you-may-pay constructs (542 + 78 + 52 cards carry
+  them) and (b) 9.2-style families that add the engine event AND the parser head together, ranked by the same
+  histogram (whenever-dealt 65 cards / 43 finishes, upkeep heads 145 / 29, when-cycle 49 / 22, speed 41 / 22, the
+  Ring 39 / 20, whenever-more 42 / 17, equipped-attacks 51 / 14, when-cast 88 / 13).
+- **Process notes.** (1) A parse:diff "(same unparsed lines)" group is NOT always an over-claim: when a rule resolves
+  an inner `unknown` inside an ability whose head stays unknown, the unparsed list is unchanged and the AST moves
+  — read the group (the merge script dumps parser-alone ASTs before/after); the lens text in parse-wave.js now says
+  so. (2) Review agents delete "scratch files" in the session scratchpad, including the orchestrator's own scripts —
+  they live in docs/workflows now. (3) The wave brief's `suggestedHome: registry` was wrong for 10 of 16 items: the
+  brief builder should consult the engine's trigger / static vocabulary before suggesting a registry home.

@@ -1,0 +1,202 @@
+{
+ "items": [
+  {
+   "id": 1,
+   "family": "generic-you-do",
+   "file": "src/cards/types.ts",
+   "why": "MAJOR (b). `token-copy` has no power / toughness / colour fields, so the built-in template at parse.ts:577 deliberately drops the size and colour words of a printed \"except it's a 4/4 black Zombie\" (`if (/^\\d+\\/\\d+$/.test(w) || w in COLOR_WORDS) continue;`) and keeps only extraSubtypes. Exiling a 1/1 would make a 1/1 token rather than the printed 4/4 (CR 707.2); Forge agrees with the printed text (`SetPower$ 4 | SetToughness$ 4 | SetColor$ Black | SetCreatureTypes$ Zombie`). This adds no engine op — only fields on an existing one — but it touches types.ts, schema.ts and the copy op in src/engine/, all out of scope here, so the wording stays declined. Land the fields, then the parse.ts:577 template stops discarding the words, then src/engine/ops must apply them as a copiable-values override (CR 707.2: the token is a copy of the exiled card except for the listed characteristics). Order matters: this alone does not unblock God-Pharaoh's Gift — it needs (a) as well.",
+   "patch": "--- a/src/cards/types.ts\n+++ b/src/cards/types.ts\n@@ -271,1 +271,3 @@\n-  | { op: 'token-copy'; target: TargetSpec | 'that' | 'self'; count: Amount; extraTypes?: CardType[]; extraSubtypes?: string[]; extraKeywords?: Keyword[]; tapped?: boolean; attacking?: 'each-other-opponent' | boolean }\n+  /** CR 707.2: the printed \"except it's a 4/4 black Zombie\" overrides the copiable values it names; `setSubtypes`\n+   *  REPLACES the copied creature types where `extraSubtypes` adds to them. */\n+  | { op: 'token-copy'; target: TargetSpec | 'that' | 'self'; count: Amount; extraTypes?: CardType[]; extraSubtypes?: string[]; setSubtypes?: string[]; setPower?: number; setToughness?: number; setColors?: Color[]; extraKeywords?: Keyword[]; tapped?: boolean; attacking?: 'each-other-opponent' | boolean }\n--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -577,1 +577,1 @@\n-  { re: /^create a (tapped )?token that's a copy of that (?:creature|permanent|card), except it's an? (.+)$/i, make: m => { const words = m[2].toLowerCase().replace(/ in addition to its other types$/, '').split(/\\s+/).filter(w => w !== 'and'); const extraSubtypes: string[] = []; for (const w of words) { if (/^\\d+\\/\\d+$/.test(w) || w in COLOR_WORDS) continue; extraSubtypes.push(w[0].toUpperCase() + w.slice(1)); } return { op: 'token-copy', target: 'that', count: 1, ...(m[1] ? { tapped: true } : {}), extraSubtypes }; } },\n+  { re: /^create a (tapped )?token that's a copy of that (?:creature|permanent|card), except it's an? (.+)$/i, make: m => { const inAddition = / in addition to its other types$/.test(m[2]); const words = m[2].toLowerCase().replace(/ in addition to its other types$/, '').split(/\\s+/).filter(w => w !== 'and'); const subs: string[] = []; const colors: Color[] = []; let pt: [number, number] | null = null; for (const w of words) { const size = w.match(/^(\\d+)\\/(\\d+)$/); if (size) { pt = [Number(size[1]), Number(size[2])]; continue; } if (w in COLOR_WORDS) { colors.push(COLOR_WORDS[w]); continue; } subs.push(w[0].toUpperCase() + w.slice(1)); } return { op: 'token-copy', target: 'that', count: 1, ...(m[1] ? { tapped: true } : {}), ...(inAddition ? { extraSubtypes: subs } : { setSubtypes: subs }), ...(pt ? { setPower: pt[0], setToughness: pt[1] } : {}), ...(colors.length ? { setColors: colors } : {}) }; } },",
+   "cards": [
+    "Victimize",
+    "Sylvan Library",
+    "Braids, Arisen Nightmare",
+    "Ripples of Undeath",
+    "Conduit of Worlds",
+    "Springheart Nantuko",
+    "Isochron Scepter",
+    "Bloodchief Ascension",
+    "Myr Battlesphere",
+    "Well of Lost Dreams",
+    "Sephiroth, Fabled SOLDIER // Sephiroth, One-Winged Angel",
+    "Call of the Ring"
+   ],
+   "key": "generic-you-do-2"
+  },
+  {
+   "id": 2,
+   "family": "generic-whenever-dealt",
+   "file": "src/engine/game.ts",
+   "why": "Game.dealDamage is the only place that knows which permanent RECEIVED damage, and it never raises an event about it: the last line queues 'deals-damage' with ctx.obj = the SOURCE (which is why the built-in head \"Whenever ~ deals damage\" maps onto it and why `case 'deals-damage'` reads `fires = ctx.obj === perm`). The damaged object `o` never reaches a TriggerCtx anywhere in the engine, so no TriggerEvent a parser rule could return — core or family-declared — would ever be offered it. This one inserted line is the whole irreducible core need; everything else the family can contribute itself. NOT needed (the review is right, and the first 9.1p pass was wrong to ask for them): src/cards/types.ts (a family declares the variant by augmenting TriggerRegistry — types.ts:402 says so, and 17 such variants already exist under src/engine/ops/), src/cards/schema-core.ts (the zod half arrives via FAMILY_TRIGGER_VARIANTS, src/cards/schema.ts:28, folded in by composed()), and a `case 'dealt-damage':` arm in queueTriggers (a registry trigger is offered EVERY event above the core switch, game.ts:2263-2264, and triggerKinds() adds '*' for one so the fast-path gate lets every event through, game.ts:2210). No TriggerCtx field is added either: `by?: GameObject` already exists. With this line in place the family half is an ordinary ops wave: `declare module '../../cards/types.js' { interface TriggerRegistry { dealtDamage: DealtDamageTrigger } }` plus a matcher `(ev, perm, ctx, _s, event) => event === 'dealt-damage' && ctx.obj === perm` (with filter/controller/amount-threshold variants for the neighbourhood wordings) in a new src/engine/ops/generic-whenever-dealt.ts. Worth 43 finished cards on the paper pool (parse:why: 65 cards, 43 finishes, weight 54 — the #2 trigger-head construct).",
+   "patch": "--- a/src/engine/game.ts\n+++ b/src/engine/game.ts\n@@ -2005,6 +2005,10 @@\n     if (hasKeyword(this.state, src, 'lifelink')) this.gainLife(src.controller, n);\n     // \"creature dealt damage by ~ this turn\" (Filter.dealtDamageBySource): a per-turn record of the sources, JSON-plain in `ext`\n     { const rec = o.ext?.damagedBy as { turn: number; by: number[] } | undefined; if (rec && rec.turn === this.state.turn) { if (!rec.by.includes(src.id)) rec.by.push(src.id); } else extSet(o, 'damagedBy', { turn: this.state.turn, by: [src.id] }); }\n     this.queueTriggers('deals-damage', { obj: src, amount: n });\n+    // \"Whenever ~ is dealt damage\" (CR 120.3) is about the permanent that RECEIVED the damage, which 'deals-damage'\n+    // cannot express: there ctx.obj is the source. Raise the other side of the same event, with the damaged permanent\n+    // as ctx.obj and the source as ctx.by (the field 'targeted' already uses); `n` is post-prevention/replacement, so\n+    // it is the \"that much\" / \"that many\" the bodies read. Raised here only - a family matcher decides who it fires for.\n+    this.queueTriggers('dealt-damage', { obj: o, by: src, amount: n });\n   }\n",
+   "cards": [
+    "Brash Taunter",
+    "Apex Altisaur",
+    "Body of Knowledge",
+    "Stuffy Doll",
+    "Hornet Nest",
+    "Ripjaw Raptor",
+    "Flumph",
+    "Ranging Raptors",
+    "Hungering Hydra",
+    "Polyraptor",
+    "Screaming Nemesis",
+    "Metropolis Reformer"
+   ],
+   "key": "generic-whenever-dealt-1"
+  },
+  {
+   "id": 3,
+   "family": "generic-when-cast",
+   "file": "src/cards/types.ts",
+   "why": "CoreTriggerEvent's `cast` variant is a filter over the spell that was cast with no way to say \"the source itself\": no `self` flag, and `Filter` has `other` but never `self`. Without it there is no AST for \"When you cast this spell\" (CR 601.2i) at all, so the whole construct (88 paper cards / 90 lines / 44 one-line cards) is declined.",
+   "patch": "--- a/src/cards/types.ts\n+++ b/src/cards/types.ts\n@@ -384,7 +384,7 @@ export type CoreTriggerEvent =\n   | { on: 'end-step'; whose: 'your' | 'each' }\n   | { on: 'draw-step'; whose: 'your' }\n   | { on: 'combat-begin'; whose: 'your' }\n-  | { on: 'cast'; filter: Filter; who: 'you' | 'opponent' | 'any'; nth?: number; mvEqualsCounter?: string }   // \"Whenever you cast a noncreature spell\" / \"your second spell each turn\" / Chalice\n+  | { on: 'cast'; filter: Filter; who: 'you' | 'opponent' | 'any'; nth?: number; mvEqualsCounter?: string; self?: boolean }   // \"Whenever you cast a noncreature spell\" / \"your second spell each turn\" / Chalice; `self`: \"When you cast this spell\" (CR 601.2i)\n   | { on: 'landfall'; played?: boolean; other?: boolean }                     // \"Whenever you play another land\" (City of Traitors)\n   | { on: 'draw'; who: 'you' | 'opponent'; exceptFirstInDrawStep?: boolean; nth?: number }   // Orcish Bowmasters, Tamiyo\n   | { on: 'chapter'; chapters: number[] }                                     // Sagas",
+   "cards": [
+    "Kozilek, Butcher of Truth",
+    "Artisan of Kozilek",
+    "Ulamog, the Ceaseless Hunger",
+    "Ulamog, the Infinite Gyre",
+    "Hydroid Krasis",
+    "Kozilek, the Great Distortion",
+    "Ulamog, the Defiler",
+    "Ugin, Eye of the Storms",
+    "Emrakul, the Promised End",
+    "Sowing Mycospawn",
+    "Oblivion Sower",
+    "Conduit of Ruin"
+   ],
+   "key": "generic-when-cast-1"
+  },
+  {
+   "id": 4,
+   "family": "generic-when-cast",
+   "file": "src/cards/schema-core.ts",
+   "why": "The same optional field on the zod variant, or a script carrying the shape dies at stage 1 of scripts:verify (strictObject rejects the unknown key).",
+   "patch": "--- a/src/cards/schema-core.ts\n+++ b/src/cards/schema-core.ts\n@@ -733,7 +733,7 @@ export function buildSchemas(familiesOf: () => readonly FamilySchemaEntry[]) {\n     z.strictObject({ on: z.literal('end-step'), whose: z.enum(['your', 'each']) }),\n     z.strictObject({ on: z.literal('draw-step'), whose: z.literal('your') }),\n     z.strictObject({ on: z.literal('combat-begin'), whose: z.literal('your') }),\n-    z.strictObject({ on: z.literal('cast'), filter: FilterRef, who: z.enum(['you', 'opponent', 'any']), nth: N.optional(), mvEqualsCounter: S.optional() }),\n+    z.strictObject({ on: z.literal('cast'), filter: FilterRef, who: z.enum(['you', 'opponent', 'any']), nth: N.optional(), mvEqualsCounter: S.optional(), self: z.boolean().optional() }),\n     z.strictObject({ on: z.literal('landfall'), played: B.optional(), other: B.optional() }),\n     z.strictObject({ on: z.literal('draw'), who: WHO_YOU_OPP, exceptFirstInDrawStep: B.optional(), nth: N.optional() }),\n     z.strictObject({ on: z.literal('chapter'), chapters: z.array(N) }),",
+   "cards": [
+    "Kozilek, Butcher of Truth",
+    "Artisan of Kozilek",
+    "Ulamog, the Ceaseless Hunger",
+    "Ulamog, the Infinite Gyre",
+    "Hydroid Krasis",
+    "Kozilek, the Great Distortion",
+    "Ulamog, the Defiler",
+    "Ugin, Eye of the Storms",
+    "Emrakul, the Promised End",
+    "Sowing Mycospawn",
+    "Oblivion Sower",
+    "Conduit of Ruin"
+   ],
+   "key": "generic-when-cast-2"
+  },
+  {
+   "id": 5,
+   "family": "generic-when-cast",
+   "file": "src/engine/game.ts",
+   "why": "The firing seam. `Game.queueTriggers` scans `triggerPerms(s)` = `allPermanents(s)` + family `triggerSources`; a spell being cast is in the stack zone, so `queueTriggers('cast', { obj: card, player: p })` (game.ts:648, and the cascade free-cast at :1250) can never reach the cast card's own trigger. That is exactly why storm and cascade are pushed onto `pendingTriggers` by hand two lines above it. Three hunks: let the fast-path gate through for a cast with an object (`triggerKinds()` is read off the battlefield and would return early), make an `ev.self` event inert in the battlefield scan (otherwise a resolved Kozilek would fire on every later spell you cast), and add a self-cast block mirroring the `dies`/`ltb` one that already fires the leaving object's own triggers. VALIDATED in this worktree and then reverted: with the three patches applied, `tsc --noEmit` is clean and a scenario casting Kozilek, Butcher of Truth logs `Trigger: ... When you cast ~, draw four cards.` -> 4 draws -> then the spell resolves (CR 603.3b/608.2 order); without them the scenario fails `draw events 0 >= 4` and nothing at all is logged.",
+   "patch": "--- a/src/engine/game.ts\n+++ b/src/engine/game.ts\n@@ -2250,7 +2250,7 @@ export class Game {\n \n   queueTriggers(event: string, ctx: TriggerCtx) {\n     const s = this.state;\n-    const selfLeaving = (event === 'dies' || event === 'ltb') && !!ctx.obj;\n+    const selfLeaving = ((event === 'dies' || event === 'ltb') || event === 'cast') && !!ctx.obj;\n     const kinds = this.triggerKinds();\n     const scan = kinds.has(event) || kinds.has('*');\n     if (!scan && !selfLeaving) return;\n@@ -2273,7 +2273,7 @@ export class Game {\n             case 'draw-step': case 'combat-begin': case 'you-attack': fires = ctx.player === perm.controller; break;\n-            case 'cast': fires = !!ctx.obj && matchesFilter(s, ctx.obj, ev.filter) && (ev.who === 'any' || (ev.who === 'you') === (ctx.player === perm.controller)) && (!ev.nth || (ctx.player !== undefined && s.players[ctx.player].spellsCastThisTurn === ev.nth))\n+            case 'cast': fires = !ev.self && !!ctx.obj && matchesFilter(s, ctx.obj, ev.filter) && (ev.who === 'any' || (ev.who === 'you') === (ctx.player === perm.controller)) && (!ev.nth || (ctx.player !== undefined && s.players[ctx.player].spellsCastThisTurn === ev.nth))\n               && (!ev.mvEqualsCounter || (perm.counters[ev.mvEqualsCounter] ?? 0) === ctx.obj.def.manaValue + (ctx.obj.def.manaCost?.x ?? 0) * (ctx.obj.castWith?.x ?? 0)); break;\n@@ -2298,6 +2298,11 @@ export class Game {\n     if ((event === 'dies' || event === 'ltb') && ctx.obj) {\n       for (const ab of abilitiesOf(ctx.obj)) if (ab.kind === 'triggered' && ab.event.on === event && (ab.event as { self?: boolean }).self) this.pendingTriggers.push({ ability: ab, source: ctx.obj, controller: ctx.player ?? ctx.obj.controller, triggerCtx: ctx });\n     }\n+    // \"When you cast this spell, ...\" (CR 601.2i): the ability triggers while the card is still on the stack, so the\n+    // battlefield scan above can never see it — the same hole storm and cascade are pushed past by hand in castSpell.\n+    if (event === 'cast' && ctx.obj) {\n+      for (const ab of abilitiesOf(ctx.obj)) if (ab.kind === 'triggered' && ab.event.on === 'cast' && ab.event.self) this.pendingTriggers.push({ ability: ab, source: ctx.obj, controller: ctx.player ?? ctx.obj.controller, triggerCtx: ctx });\n+    }\n   }\n \n   private putTriggersOnStack() {",
+   "cards": [
+    "Kozilek, Butcher of Truth",
+    "Artisan of Kozilek",
+    "Ulamog, the Ceaseless Hunger",
+    "Ulamog, the Infinite Gyre",
+    "Hydroid Krasis",
+    "Kozilek, the Great Distortion",
+    "Ulamog, the Defiler",
+    "Ugin, Eye of the Storms",
+    "Emrakul, the Promised End",
+    "Sowing Mycospawn",
+    "Oblivion Sower",
+    "Conduit of Ruin"
+   ],
+   "key": "generic-when-cast-3"
+  },
+  {
+   "id": 6,
+   "family": "generic-you-may-pay",
+   "file": "src/engine/game.ts",
+   "why": "The reason this family looked necessary at all, and the one change that removes the whole motivation for claiming the payment sentence. `case 'unknown'` emits an `unsimulated` event; `emit` counts every non-decision event in `this.changes` (game.ts:259); `applyEffect` therefore leaves `lastHappened` true, so the `reflexive` composition.ts builds from \"When you do,\" fires FOR FREE behind an unparsed payment (Sparktongue Dragon deals its 3 damage without the {2}{R}). An `unsimulated` event is a report, not a change. With this patch the 62 \"When you do\" printings are correct with the payment left `unknown`, and no parser rule has to take the player's mana to gate them.",
+   "patch": "--- a/src/engine/game.ts\n+++ b/src/engine/game.ts\n@@\n   /** Apply one effect of a resolving item. Records whether it changed anything observable, which is what a following `reflexive` (\"when you do\", CR 603.12) asks. */\n   async applyEffect(item: StackItem, e: Effect, idx: number, all: Effect[]) {\n     const mark = this.changes;\n     await this.applyEffectCore(item, e, idx, all);\n-    this.lastHappened = this.changes !== mark;\n+    // CR 603.12: a clause the parser could not read did not *happen*. `case 'unknown'` (and the `default` branch for\n+    // an op no family handles) emits an `unsimulated` event, which `emit` counts in `this.changes` like any other —\n+    // so without this guard a reflexive behind an unparsed effect fires for free, which is strictly worse than not\n+    // firing. Reporting a gap must never read as an action.\n+    this.lastHappened = e.op !== 'unknown' && this.changes !== mark;\n   }",
+   "cards": [
+    "Electro, Assaulting Battery",
+    "Rings of Brighthearth",
+    "Emiel the Blessed",
+    "Flameshadow Conjuring",
+    "Ezuri, Stalker of Spheres",
+    "Nim Deathmantle",
+    "Digsite Engineer",
+    "Cadric, Soul Kindler",
+    "Ultron, Artificial Malevolence",
+    "Terra, Herald of Hope",
+    "Go-Shintai of Hidden Cruelty",
+    "Battlemage's Bracers"
+   ],
+   "key": "generic-you-may-pay-1"
+  },
+  {
+   "id": 7,
+   "family": "generic-you-may-pay",
+   "file": "src/engine/game.ts",
+   "why": "`optional-pay` cannot carry an X cost today: `case 'optional-pay'` calls `this.findPayment(pl, e.mana)` with no x (game.ts:1194), `findPayment` declares `x = 0` (game.ts:123) and mana.ts:134 computes `generic = cost.generic + cost.x * x`, so `{X}` costs ZERO and the prompt always succeeds. Until an X payment asks the player for X, any template above must refuse `mana.x > 0` (both patched templates do), and the 13 X-cost printings of the construct stay unparsed — Wildborn Preserver, Halo Forager, Isareth the Awakener, Numa, Joraga Chieftain, Tilonalli's Summoner, Electro, Assaulting Battery, Shanna, Purifying Blade, Hollow Specter, Mortarion, Depala, Roalesk, The Disciple of Nissa. The same ask would also have to feed `x` to the `then`, whose amounts read `X` (characteristics.ts:152).",
+   "patch": "--- a/src/engine/game.ts\n+++ b/src/engine/game.ts\n@@\n       case 'optional-pay': {\n-        const pl = s.players[p]; const pay = this.findPayment(pl, e.mana);\n-        if (pay && await this.ask(p, { kind: 'yes-no', prompt: `${item.name}: pay ${e.mana.raw}?`, tag: 'unless-pay' })) { this.payMana(pl, pay); this.note(`${this.pname(p)} pays ${e.mana.raw} for ${item.name}.`); for (let i = 0; i < e.then.length; i++) await this.applyEffect(item, e.then[i], idx, all); }\n+        const pl = s.players[p];\n+        // CR 107.3: an X in a cost is a number the payer CHOOSES. Without this, findPayment's `x = 0` makes \"you may\n+        // pay {X}\" a free payment that always succeeds, and the `then`'s `amount: 'X'` reads 0.\n+        const x = e.mana.x > 0 ? await this.askNumber(p, { prompt: `${item.name}: pay ${e.mana.raw} — choose X`, max: this.maxAffordableX(pl, e.mana), tag: 'choose-x' }) : 0;\n+        const pay = this.findPayment(pl, e.mana, x);\n+        if (pay && await this.ask(p, { kind: 'yes-no', prompt: `${item.name}: pay ${e.mana.raw}?`, tag: 'unless-pay' })) { this.payMana(pl, pay); this.note(`${this.pname(p)} pays ${e.mana.raw} for ${item.name}.`); for (let i = 0; i < e.then.length; i++) await this.applyEffect(item, e.then[i], idx, all, x); }\n         break;\n       }",
+   "cards": [
+    "Electro, Assaulting Battery",
+    "Rings of Brighthearth",
+    "Emiel the Blessed",
+    "Flameshadow Conjuring",
+    "Ezuri, Stalker of Spheres",
+    "Nim Deathmantle",
+    "Digsite Engineer",
+    "Cadric, Soul Kindler",
+    "Ultron, Artificial Malevolence",
+    "Terra, Herald of Hope",
+    "Go-Shintai of Hidden Cruelty",
+    "Battlemage's Bracers"
+   ],
+   "key": "generic-you-may-pay-3"
+  },
+  {
+   "id": 8,
+   "family": "generic-when-cycle",
+   "file": "src/engine/game.ts",
+   "why": "The ONLY core gap this construct has (the review is right that the other three claimed patches — src/cards/types.ts, src/cards/schema-core.ts, src/cards/render.ts — were unnecessary: a family mints its trigger event by declaration merging into TriggerRegistry, its schema through ops/<family>.schema.ts's `triggers: [...]`, and its rendering through RENDERERS['trigger:<on>']). The cycling branch of `activateAbility` (obj.def.cycling && a.abilityIndex === -2) queues no event of its own, and `discard()` raises `queueTriggers('discard', { player, obj })` with no reason field — so nothing downstream can tell a cycling-cost discard from a Mind Rot discard or a discard to hand size. Fix: thread an optional `reason` through `discard()` and set it from the cycling branch. This is CORRECTED from the first draft's patch, which raised a NEW `cycled` event BEFORE the discard so the card would still be in hand: CR 702.29c says the ability triggers \"from whatever zone the card winds up in after it's cycled\" (the graveyard), never the hand, and CR 702.29d says a cycling fires such a trigger only ONCE — so the reason must ride the existing `discard` event raised after `moveTo`, not a second event beside it. CR 702.29f makes typecycling a cycling, so the `cyclingSearch` path of the same branch gets the same reason. Once the reason is on the event, a parser rule family can claim the head with no further core work: `triggerKinds`'s '*' gate already lets a registry trigger hear every core event, and `triggerSources` (src/engine/ops/types.ts:172) already lets a family add non-permanent scan objects so the cycled card can hear its own trigger from the graveyard.",
+   "patch": "--- a/src/engine/game.ts\n+++ b/src/engine/game.ts\n@@ -800,7 +800,9 @@\n     if (obj.zone === 'hand' && obj.def.cycling && a.abilityIndex === -2) {\n       const pay = this.findPayment(pl, obj.def.cycling); if (!pay) return false; this.payMana(pl, pay);\n-      this.discard(p, obj.id); this.note(`${this.pname(p)} cycles ${obj.def.name}.`);\n+      // CR 702.29c: \"When you cycle this card\" IS this discard, and the ability triggers from the zone the card\n+      // winds up in after it's cycled - so the reason rides the discard event `discard()` already raises AFTER the\n+      // move, never a second event before it (CR 702.29d: one cycling, one trigger). CR 702.29f: typecycling too.\n+      this.discard(p, obj.id, 'cycling'); this.note(`${this.pname(p)} cycles ${obj.def.name}.`);\n       if (obj.def.cyclingSearch) { // typecycling: search instead of drawing\n@@ -1946,1 +1948,1 @@\n-  discard(p: PlayerId, id: number) { const pl = this.state.players[p]; const c = pl.hand.find(x => x.id === id); if (!c) return; this.moveTo(c, 'graveyard', 'top', 'discard'); this.queueTriggers('discard', { player: p, obj: c }); }\n+  /** `reason` distinguishes a cycling-cost discard (CR 702.29c) from a Mind Rot or a discard to hand size; the event is raised after the move, so `obj.zone` is the post-cycle zone. */\n+  discard(p: PlayerId, id: number, reason?: 'cycling') { const pl = this.state.players[p]; const c = pl.hand.find(x => x.id === id); if (!c) return; this.moveTo(c, 'graveyard', 'top', 'discard'); this.queueTriggers('discard', { player: p, obj: c, ...(reason ? { reason } : {}) }); }\n",
+   "cards": [
+    "Shark Typhoon",
+    "Decree of Pain",
+    "Fractured Sanity",
+    "Magmakin Artillerist",
+    "Titanoth Rex",
+    "Vizier of Tumbling Sands",
+    "Dismantling Wave",
+    "Agonasaur Rex",
+    "The Balrog of Moria",
+    "Gempalm Incinerator",
+    "Nimble Obstructionist",
+    "Valor's Flagship"
+   ],
+   "key": "generic-when-cycle-1"
+  },
+  {
+   "id": 9,
+   "family": "generic-whenever-equipped-attacks",
+   "file": "src/engine/game.ts",
+   "why": "The major finding, confirmed. game.ts:2270 `case 'attacks'` hard-requires `ctx.player === perm.controller` and never reads `ev.controller`, so an attacks trigger about another object cannot fire when an opponent controls that object and attacks with it — you control Argentum Armor attached to your creature, an opponent takes control of the creature (Act of Treason) and attacks; the Equipment stays attached and the printed trigger fires (CR 603.2), the engine's does not. CR 702.6d governs what equip may ATTACH to, not continued attachment after a control change, so the old header's use of it to justify omitting `controller` was a misreading (that header text is gone). The `dies` branch one line above (game.ts:2268) already reads `ev.controller`, which is why the built-in \"Whenever equipped creature dies\" head (parse.ts:1335) emits `controller: 'any'`. The patch keeps today's behaviour for every head that omits the member. TriggerEvent's `attacks` variant needs the optional `controller` member (src/cards/types.ts) and EffectSchema/TriggerSchema the same, so this is an engine slice, not a rule-file change.",
+   "patch": "--- a/src/engine/game.ts\n+++ b/src/engine/game.ts\n@@ -2270,1 +2270,3 @@\n-            case 'attacks': fires = ev.self ? ctx.obj === perm : (!ev.filter || (!!ctx.obj && matchesFilter(s, ctx.obj, ev.filter, perm))) && ctx.player === perm.controller; break;\n+            // `controller` mirrors the `dies` branch above: omitted keeps the old reading (only YOUR attack fires it), 'any'\n+            // is the attached-permanent case — an Equipment stays attached when an opponent gains control of its host and\n+            // attacks with it, and the printed trigger still fires (CR 603.2; 702.6d is about attaching, not staying attached)\n+            case 'attacks': fires = ev.self ? ctx.obj === perm : (!ev.filter || (!!ctx.obj && matchesFilter(s, ctx.obj, ev.filter, perm)))\n+              && (ev.controller === 'any' ? true : ev.controller === 'opponent' ? ctx.player !== perm.controller : ctx.player === perm.controller); break;\n",
+   "cards": [
+    "Sword of the Animist",
+    "Genji Glove",
+    "Bitterthorn, Nissa's Animus",
+    "Adaptive Omnitool",
+    "Argentum Armor",
+    "Explorer's Scope",
+    "Two-Handed Axe // Sweeping Cleave",
+    "Andúril, Narsil Reforged",
+    "Pip-Boy 3000",
+    "Mjölnir, Storm Hammer",
+    "Andúril, Flame of the West",
+    "The Spear of Leonidas"
+   ],
+   "key": "generic-whenever-equipped-attacks-3"
+  }
+ ]
+}

@@ -1,0 +1,414 @@
+{
+ "items": [
+  {
+   "id": 1,
+   "family": "generic-you-do",
+   "file": "src/cards/parse.ts",
+   "why": "BLOCKER (a). parseParagraph matches PARAGRAPH_RULES against the start of the paragraph and slices the match out of `rest` BEFORE the sentence loop, but `antecedent` is only ever set inside that loop from the sentences that survive. A sentence trailing the template is therefore parsed with antecedent === false, the line-841 `it`/`that creature`/`that permanent` -> `thatobj` rewrite never fires, and the pronoun falls back to the source. On God-Pharaoh's Gift that gave a noncreature Artifact the haste printed for its 4/4 Zombie token (CR 608.2, 110.5). Proven with built-ins only, no registry rule involved: \"Create a token that's a copy of target creature. It gains haste until end of turn.\" -> grant-keyword target 'that' (correct), while \"You may sacrifice a creature. If you do, create a token that's a copy of target creature. It gains haste until end of turn.\" -> grant-keyword target 'self' (wrong). Both are pinned in test/parser-generic-you-do.test.ts; the second assertion is the acceptance test and flips to 'that' when this lands. Note `optional-pay` does NOT show the bug (its Y slot regex `(.+?)\\.?$` swallows the trailing sentence into a nested parseEffects, where the antecedent is set normally); only `optional-then`, whose Y slot is `([^.]+)`, leaves the sentence behind in `rest`. NOT VERIFIED END TO END: I could not apply the patch to measure it (editing parse.ts is out of scope for this wave, and the sandbox denied even a temporary probe). Seeding the flag is necessary but may not be sufficient \u2014 bindAntecedent/readsFrame/bindsFrame are then handed an `out` whose only member is the `optional-then` wrapper, so they must also look inside its `first`/`then` arrays to find the binding op. Both halves want checking together, then re-run parse:diff.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -1104,7 +1104,11 @@ function parseParagraph(text: string, useRegistry: boolean): Effect[] {\n       let effs = r.make(m, false);\n       if (!effs && useRegistry && ANY.sentence) { effs = r.make(m, true); if (effs) registryClaims++; }\n       if (!effs) continue;\n-      out.push(...admit(effs, m[0])); rest = rest.slice(m[0].length).trim(); matched = true; break;\n+      out.push(...admit(effs, m[0]));\n+      // the template's own text is part of this paragraph: a later \"it\" / \"that creature\" may refer to what it named\n+      // (God-Pharaoh's Gift's \"It gains haste until end of turn.\" is about the token the template just created)\n+      if (/\\btarget\\b|\\btokens?\\b|\\bthat (?:creature|permanent|card|token)\\b/i.test(m[0])) antecedent = true;\n+      rest = rest.slice(m[0].length).trim(); matched = true; break;\n     }\n   }",
+   "cards": [
+    "Victimize",
+    "Sylvan Library",
+    "Braids, Arisen Nightmare",
+    "Ripples of Undeath",
+    "Conduit of Worlds",
+    "Springheart Nantuko",
+    "Isochron Scepter",
+    "Bloodchief Ascension",
+    "Myr Battlesphere",
+    "Well of Lost Dreams",
+    "Sephiroth, Fabled SOLDIER // Sephiroth, One-Winged Angel",
+    "Call of the Ring"
+   ],
+   "key": "generic-you-do-1"
+  },
+  {
+   "id": 2,
+   "family": "generic-beginning-player-upkeep",
+   "file": "src/cards/parse.ts",
+   "why": "Blocker 603.2 (Dreamborn Muse), confirmed. parseAmountPhrase answers \"the number of cards in their hand\" / \"in that player's hand\" / \"in target player's hand\" with `{count:'cards-in-hand', filter:{other:true}}`, but evalAmount's `case 'cards-in-hand'` is `s.players[ctrl].hand.length` with `ctrl = item.actor ?? item.controller` (src/engine/characteristics.ts:160, src/engine/game.ts:1062) and never reads `filter.other`. With no `scoped` wrapper the amount is the ABILITY CONTROLLER's hand. Verified: seat 0 = Dreamborn Muse + 3 cards in hand, seat 1 = empty hand; on seat 1's upkeep seat 1 milled 3 (library 20 -> 17, graveyard 0 -> 3). Correct result is 0. The amount FORM `{prop:'cards-in-hand', of:'that-player'}` is resolved correctly by evalAmountForm through the binding frame (characteristics.ts:124-127, resolveOnePlayer) and is already what src/cards/rules/composition.ts:260 emits for the same phrase \u2014 so this is a one-line built-in correction, not an engine gap. It is still a built-in edit, and it moves five cards already in the pool that carry the same amount and are wrong today (Search Warrant, Sudden Impact, Stormbreath Dragon, Gaze of Adamaro, Storm Seeker), so it belongs in its own wave with its own parse:diff read.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -713,7 +713,11 @@ function parseAmountPhrase(p: string): Amount | null {\n   if (t === \"~'s power\") return { count: 'power-of-source' };\n   if (t === 'its power' || t === \"that creature's power\" || t === \"that card's power\") return { count: 'power-of-that' };\n   if (t === 'its mana value' || t === \"that card's mana value\" || t === \"that spell's mana value\") return { count: 'mv-of-that' };\n-  if (t === \"the number of cards in that player's hand\" || t === \"the number of cards in target player's hand\" || t === \"the number of cards in their hand\") return { count: 'cards-in-hand', filter: { other: true } };\n+  // The amount FORM, not a `count`: evalAmount answers `count: 'cards-in-hand'` with `s.players[item.actor ??\n+  // item.controller].hand.length` and never reads `filter.other`, so the marker was silently the wrong hand on every\n+  // effect with no `scoped` wrapper (Dreamborn Muse, CR 603.2). evalAmountForm resolves `{ prop, of }` through the\n+  // binding frame (src/engine/characteristics.ts), which is the shape src/cards/rules/composition.ts already emits.\n+  if (t === \"the number of cards in that player's hand\" || t === \"the number of cards in their hand\") return { prop: 'cards-in-hand', of: 'that-player' };\n+  if (t === \"the number of cards in target player's hand\") return { prop: 'cards-in-hand', of: 'target-player' };\n   if (t === 'the number of cards in all hands') return { count: 'cards-in-all-hands' };\n   if (t === 'the number of creatures on the battlefield') return { count: 'permanents-on-battlefield', filter: { types: ['Creature'] } };\n",
+   "cards": [
+    "Unnatural Growth",
+    "Zopandrel, Hunger Dominus",
+    "Alexios, Deimos of Kosmos",
+    "Odric, Lunarch Marshal",
+    "Sting, the Glinting Dagger",
+    "Dance of the Dead",
+    "Halvar, God of Battle // Sword of the Realms",
+    "Kona, Rescue Beastie",
+    "Roiling Vortex",
+    "Ghirapur Orrery",
+    "Sulfuric Vortex",
+    "Necrogoyf"
+   ],
+   "key": "generic-beginning-player-upkeep-1"
+  },
+  {
+   "id": 3,
+   "family": "generic-beginning-player-upkeep",
+   "file": "src/cards/rules/composition.ts",
+   "why": "Major 603.3d (Ley Line), confirmed. The scoped rule reduces \"that player may put a +1/+1 counter on target creature of their choice\" to `scoped(that-player, may(counters target {kind:'creature'}))` \u2014 identical to the same sentence without the rider, which is the defect. `scoped` moves `item.actor` at RESOLUTION, but a triggered ability's targets are chosen when it goes on the stack, by `targetOptionsFor(this, t.controller, ...)` / `targetOptionsFor(this, item.controller, ...)` (src/engine/game.ts:2320, 2340). Verified: seat 0 = Ley Line + Grizzly Bears, seat 1 = Runeclaw Bear; on seat 1's upkeep the +1/+1 counter landed on seat 0's Grizzly Bears. Letting the triggering player choose a printed `target` is an engine capability that does not exist (and this wave adds no op), so the minimal safe core change is the guard below: decline the scoped block rather than drop the chooser. Measured cost today: 0 fully-parsed paper cards move (the only triggered `scoped(non-you)` block containing a nested `target` key is Descent into Avernus, whose text contains no printed \"target\"). The guard is what makes it safe for a later wave to re-claim the \"each player's upkeep\" head; the real fix \u2014 a per-target chooser on a trigger \u2014 is an engine feature and a separate plan item.",
+   "patch": "--- a/src/cards/rules/composition.ts\n+++ b/src/cards/rules/composition.ts\n@@ -615,6 +615,10 @@\n   { re: /^(each opponent|each other player|each player|target player|target opponent|that player|its controller|~'s controller|that (?:creature|permanent|card|spell|token|land)'s controller|its owner|that (?:creature|permanent|card|token)'s owner|the exiled card's owner) (.+)$/i, make: (m, ctx) => {\n     const who = whoWord(m[1]); if (!who) return null;\n     if (/\\bunless\\b/i.test(m[2])) return null;\n+    // A printed `target` inside a TRIGGER body scoped to somebody else is chosen when the ability goes on the stack,\n+    // by `item.controller` (src/engine/game.ts putTriggersOnStack / resolveTriggerTargetsSync); `scoped` only moves\n+    // `item.actor` at resolution. Dropping \"of their choice\" here hands the choice to the wrong player (CR 603.3d,\n+    // Ley Line) rather than merely losing a rider, so the block declines and the line stays honestly unknown.\n+    if (ctx.host.triggering && who !== 'you' && /\\btarget\\b/i.test(m[2])) return null;\n     return playerBlock(who, m[2], ctx);\n   } },\n",
+   "cards": [
+    "Unnatural Growth",
+    "Zopandrel, Hunger Dominus",
+    "Alexios, Deimos of Kosmos",
+    "Odric, Lunarch Marshal",
+    "Sting, the Glinting Dagger",
+    "Dance of the Dead",
+    "Halvar, God of Battle // Sword of the Realms",
+    "Kona, Rescue Beastie",
+    "Roiling Vortex",
+    "Ghirapur Orrery",
+    "Sulfuric Vortex",
+    "Necrogoyf"
+   ],
+   "key": "generic-beginning-player-upkeep-2"
+  },
+  {
+   "id": 4,
+   "family": "generic-able",
+   "file": "src/cards/parse.ts",
+   "why": "The leading-pronoun rewrite in parseEffectSentence turns \"It\" / \"That creature\" into `~` (the source) for every verb outside its short list, so the registry is offered \"~ blocks this turn if able\" for Provoke and \"~ must be blocked this turn if able\" for Enlarge / Vengeant Earth / Disturbed Slumber / King Harald's Revenge / Timely Interference \u2014 a rule can never see the antecedent, and claiming the `~` form would put the requirement on the sorcery instead of on the creature it untapped. Adding the combat verbs to the `thatobj` marker list makes the antecedent visible; a registry rule could then emit the exact `{ op: 'blocks-if-able', target: 'that', duration: 'eot' }` for Provoke and Timely Interference (the \"must be blocked\" cards still need openIssue 3's op as well). The wording is declined here and pinned as a decline in test/parser-generic-able.test.ts.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -838,7 +838,7 @@\n   // Such a pronoun becomes the registry's `thatobj` marker (src/cards/rules/composition.ts\n   // reads it as the `that` binding) for the sentence shapes the composition rules take; the built-ins never match\n   // the marker, so a shape nobody claims is honestly unknown rather than silently the source.\n-  if (antecedent && /^(?:it|that creature|that permanent) (?:gains?|gets?|has base power|loses?|becomes?|deals?) /i.test(s)) s = s.replace(/^(?:it|that creature|that permanent)\\b/i, 'thatobj');   // 9.1: becomes / deals too (layers, Wolf Strike)\n+  if (antecedent && /^(?:it|that creature|that permanent) (?:gains?|gets?|has base power|loses?|becomes?|deals?|blocks?|attacks?|must) /i.test(s)) s = s.replace(/^(?:it|that creature|that permanent)\\b/i, 'thatobj');   // 9.1p: blocks / attacks / must too (combat requirements: Provoke, Timely Interference, Enlarge)\n",
+   "cards": [
+    "Bident of Thassa",
+    "Legion Warboss",
+    "Fighter Class",
+    "Anzrag, the Quake-Mole",
+    "Howlsquad Heavy",
+    "Illusionist's Gambit",
+    "Neyith of the Dire Hunt",
+    "Territorial Hellkite",
+    "Berserker's Frenzy",
+    "The Akroan War",
+    "Domineering Will",
+    "Ursine Monstrosity"
+   ],
+   "key": "generic-able-1"
+  },
+  {
+   "id": 5,
+   "family": "generic-you-may-pay",
+   "file": "src/cards/parse.ts",
+   "why": "The construct's meaning is in the sentence AFTER the payment, and only parse.ts ever sees two sentences at once (a registry `EffectRule` is handed one normalised sentence and `EffectCtx` carries no lookahead; a `LineRule` never sees these lines at all, because the line loop's triggered branch at parse.ts:2010 claims them and `continue`s before tryLineRules at parse.ts:2077). Two paragraph templates beside the existing one at parse.ts:624 are what the construct actually needs: \"When you do\" -> `optional-pay` whose `then` is the `reflexive` (CR 603.12, one prompt, one gate, a shape render.ts already prints), and \"If you don't\" -> `unless-pays` (CR 118.12), which carries the cost AND the mandatory consequence in one effect. Both decline when their consequence declines, exactly as the existing template does, so no card is promoted on an unreadable half.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -624,6 +624,18 @@\n   { re: /^you may pay (\\{[^ ]+\\})\\. if you do, (.+?)\\.?$/i, make: (m, useRegistry) => { const then = parseEffects(m[2], useRegistry); if (then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-pay', mana: parseManaCost(m[1])!, then }]; } },\n+  // CR 603.12 \u2014 \"you may pay {m}. When you do, <X>\": the payment is an action and <X> is a REFLEXIVE trigger, put on\n+  // the stack (and targeted) only if the payment was actually made. Same gate as the template above, different\n+  // timing, so the reflexive goes INSIDE `then` rather than beside it: one prompt, and a shape render.ts prints.\n+  // Declines with its consequence, like every paragraph template here (Sparktongue Dragon, Ty Lee, Snaremaster\n+  // Sprite, Halana, Kessig Ranger \u2014 62 printings).\n+  { re: /^you may pay (\\{[^ ]+\\})\\. when you do, (.+?)\\.?$/i, make: (m, useRegistry) => { const eff = parseEffects(m[2], useRegistry); if (eff.some(e => e.op === 'unknown')) return null; const mana = parseManaCost(m[1]); if (!mana || mana.x > 0) return null; return [{ op: 'optional-pay', mana, then: [{ op: 'reflexive', when: 'you-do', effects: eff }] }]; } },\n+  // CR 118.12 \u2014 \"you may pay {m}. If you don't, <X>\": <X> is MANDATORY unless the payment is made. Claiming the\n+  // payment half alone inverts the card (paying becomes purely punitive and <X> is dropped), so the pair has to be\n+  // one `unless-pays` (Knight of the Mists, Rohgahh of Kher Keep, Chaos Spewer, Koya, Death from Above).\n+  { re: /^you may pay (\\{[^ ]+\\})\\. if you don't, (.+?)\\.?$/i, make: (m, useRegistry) => { const otherwise = parseEffects(m[2], useRegistry); if (otherwise.some(e => e.op === 'unknown')) return null; const mana = parseManaCost(m[1]); if (!mana || mana.x > 0) return null; return [{ op: 'unless-pays', who: 'you', cost: { mana }, otherwise }]; } },",
+   "cards": [
+    "Electro, Assaulting Battery",
+    "Rings of Brighthearth",
+    "Emiel the Blessed",
+    "Flameshadow Conjuring",
+    "Ezuri, Stalker of Spheres",
+    "Nim Deathmantle",
+    "Digsite Engineer",
+    "Cadric, Soul Kindler",
+    "Ultron, Artificial Malevolence",
+    "Terra, Herald of Hope",
+    "Go-Shintai of Hidden Cruelty",
+    "Battlemage's Bracers"
+   ],
+   "key": "generic-you-may-pay-2"
+  },
+  {
+   "id": 6,
+   "family": "generic-you-may-pay",
+   "file": "src/cards/render.ts",
+   "why": "`case 'optional-pay'` unconditionally prints \"\u2026. if you do, \" + renderEffects(then). With `then: []` that is a dangling \"if you do, .\" \u2014 verified by calling renderEffect on the shape the reviewed draft emitted (\"you may pay {2}{R}. if you do, \"). render.ts is what scoreCard / scoreClaimedLine read, so any card carrying that shape is scored against a sentence it does not print. The decline keeps the shape out of the pool (pinned pool-wide in test/parser-generic-you-may-pay.test.ts); this patch is what would have to land first if an empty `then` were ever to be emitted deliberately.",
+   "patch": "--- a/src/cards/render.ts\n+++ b/src/cards/render.ts\n@@\n-    case 'optional-pay': return `${ctx.you} may pay ${renderMana(x.mana as ManaCost)}. if you do, ${renderEffects(x.then as Effect[], ctx)}`;\n+    // An empty `then` is \"pay this, and paying it does nothing by itself\" \u2014 the sentence has no \"if you do\" half, so\n+    // printing one leaves a dangling \"if you do, .\" that scoreClaimedLine then scores the card against.\n+    case 'optional-pay': return (x.then as Effect[]).length\n+      ? `${ctx.you} may pay ${renderMana(x.mana as ManaCost)}. if you do, ${renderEffects(x.then as Effect[], ctx)}`\n+      : `${ctx.you} may pay ${renderMana(x.mana as ManaCost)}`;",
+   "cards": [
+    "Electro, Assaulting Battery",
+    "Rings of Brighthearth",
+    "Emiel the Blessed",
+    "Flameshadow Conjuring",
+    "Ezuri, Stalker of Spheres",
+    "Nim Deathmantle",
+    "Digsite Engineer",
+    "Cadric, Soul Kindler",
+    "Ultron, Artificial Malevolence",
+    "Terra, Herald of Hope",
+    "Go-Shintai of Hidden Cruelty",
+    "Battlemage's Bracers"
+   ],
+   "key": "generic-you-may-pay-4"
+  },
+  {
+   "id": 7,
+   "family": "generic-still-land",
+   "file": "src/cards/parse.ts",
+   "why": "The ONLY reason the 69 \"(same unparsed lines)\" cards keep their line in def.unparsed, and the only way this construct could ever be claimed as a UNIT. CR 205.1b's retention clause is its own SENTENCE, and parse.ts splits a paragraph into sentences before any rule runs, so `becomeRule` (src/cards/rules/layers.ts) never sees the retention and must decline the animation it qualifies: read alone, \"becomes a 4/4 blue and black Shark creature\" SETS a creature subtype, which CR 205.1a makes a replacement while this engine's layers only union. The registry cannot bridge the two sentences either \u2014 LINE_RULES is the only hook that sees a whole line, and it is unreachable for these cards (the triggered, planeswalker-loyalty, spell and cost-parsing-activated branches of the parseCard line loop all `continue` above it). Folding the clause back into the sentence it qualifies, in CR 205.1b's own words, makes becomeRule's `stripAddition` see the retention and lets the man-land cycle (Restless *, Creeping Tar Pit, Celestial Colonnade, Lumbering Falls, Hissing Quagmire, Needle Spires, Stirring Wildwood, Shambling Vent, Mishra's Factory/Foundry, Skarrg/Clan Guildmage, Avalanche Caller, Woodwraith Corrupter, \u2026) parse for real. The phrase must go BEFORE the duration tail, because becomeRule strips \" until end of turn\" first and ADDITION_RE is anchored at end-of-string; \"until your next turn\" is deliberately NOT folded, because `become` has no duration for it and that wording must stay declined. Not made here: parse.ts is off-limits to a parser rule family.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ function parseParagraph(text: string, useRegistry: boolean): Effect[] {\n   if (/\\btarget (player|opponent)\\b/i.test(rest)) rest = rest.replace(/\\bthat player\\b/gi, 'target player');\n+  // CR 205.1b's retention clause (\"\u2026 becomes a 4/4 Shark creature. It's still a land.\") is its own SENTENCE, and\n+  // every effect rule is handed one sentence at a time \u2014 so becomeRule (src/cards/rules/layers.ts) never sees the\n+  // retention and has to decline the animation: read alone the sentence SETS a subtype, and CR 205.1a makes that a\n+  // replacement while this engine's layers only union. Fold the clause back into the sentence it qualifies, in CR\n+  // 205.1b's own words, so becomeRule's `stripAddition` sees it. The phrase goes BEFORE the duration tail, because\n+  // becomeRule strips \" until end of turn\" first and ADDITION_RE is anchored; \"until your next turn\" is deliberately\n+  // not folded (a `become` has no duration for it, so that wording stays declined).\n+  rest = rest.replace(/(\\S)( until end of turn)?\\.\\s+(?:It|He|She)'s still an? (?:land|artifact|creature|enchantment|planeswalker)\\.(?=\\s|$)/g,\n+                      '$1 in addition to its other types$2.');\n+  rest = rest.replace(/(\\S)( until end of turn)?\\.\\s+They're still (?:lands|artifacts|creatures|enchantments|planeswalkers)\\.(?=\\s|$)/g,\n+                      '$1 in addition to their other types$2.');\n   const sentences = rest.split(/(?<=\\.)\\s+(?=[A-Z~])/).map(s => s.trim()).filter(Boolean);\n",
+   "cards": [
+    "Destiny Spinner",
+    "Mutavault",
+    "Lair of the Hydra",
+    "Wrenn and Realmbreaker",
+    "Creeping Tar Pit",
+    "Mishra's Factory",
+    "Cactus Preserve",
+    "Llanowar Loamspeaker",
+    "Restless Anchorage",
+    "Restless Reef",
+    "Lumbering Falls",
+    "Nissa, Vital Force"
+   ],
+   "key": "generic-still-land-1"
+  },
+  {
+   "id": 8,
+   "family": "generic-whenever-equipped-attacks",
+   "file": "src/cards/parse.ts",
+   "why": "Blockers 1, 2 and 3 (Reaper's Talisman, Spiked Ripsaw, The Spear of Leonidas; also Strength-Testing Hammer, which the review did not list). parseEffectSentence (parse.ts:841-842) rewrites a sentence-leading \"it\" / \"that creature\" / \"that permanent\" to `~` \u2014 the SOURCE \u2014 unless an earlier sentence of the same paragraph set `antecedent`; a trigger body's FIRST sentence never has one. Printed \"it\" under \"Whenever equipped creature attacks\" is the trigger's object (CR 608.2f, 702.6a). game.ts:1911-1913 pumpTargets resolves target 'self' to the source permanent, so the EQUIPMENT gains the keyword. The parser already owns the correct machinery: composition.ts's `thatobj` marker -> { target: 'that' } (composition.ts:475 for \"gains <kw> until end of turn\", :476 for \"gets +X/+Y\"), and triggerBody prepends { op:'bind', as:'that', from:'triggering' } as soon as an effect mentions `that`. Only the gate is wrong. Two hunks: (a) the trigger branch, beside the identical repair it already does for \"on it\"; (b) the modal-bullet branch, which parses a `\u2022 ` line with no frame at all, so The Spear of Leonidas's \"\u2022 Bull Rush \u2014 It gains double strike until end of turn.\" is not reached by (a). Measured separately because (a)'s guard also covers every other non-self filtered trigger head and (b) changes how every split-mode bullet is parsed.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -2035,6 +2035,11 @@\n       // \"Whenever a creature you control deals combat damage to a player, put that many +1/+1 counters on it\": \"it\" in a\n       // trigger about another permanent is that permanent \u2014 the frame word, which triggerBody binds (parseEffectSentence\n       // would otherwise read a bare \"on it\" as the source)\n       if (!selfEv && 'filter' in ev && ev.on !== 'cast') body = body.replace(/\\bon it\\b/gi, 'on that permanent');\n+      // ... and a body SENTENCE that opens with the pronoun is that permanent too (CR 608.2f): parseEffectSentence only\n+      // reaches for composition.ts's `thatobj` marker behind its `antecedent` gate, and a trigger's first sentence has no\n+      // antecedent, so without this the pronoun silently becomes `~` \u2014 the source. Same guard, same place, same reason as\n+      // the line above. (Reaper's Talisman, Spiked Ripsaw, Strength-Testing Hammer.)\n+      if (!selfEv && 'filter' in ev && ev.on !== 'cast') body = body.replace(/(^|(?<=[.!?] ))(?:it|that creature|that permanent)\\b(?= (?:gains?|gets?|has base power|loses?|becomes?|deals?)\\b)/gi, 'thatobj');\n       const once = /\\. this ability triggers only once each turn\\.?$/i.test(body); if (once) body = body.replace(/\\.? this ability triggers only once each turn\\.?$/i, '');\n@@ -1894,7 +1894,14 @@\n     if (line.startsWith('\u2022 ')) { // modes split across lines by Scryfall\n       const last = isSpell ? spellEffects[spellEffects.length - 1] : undefined;\n-      const mode = foldMarkers(parseEffects(stripModeName(line.slice(2))), true);\n+      // A bullet belongs to the ability whose `choose-mode` it joins. Under a trigger about ANOTHER object the bullet's\n+      // leading pronoun is that object (CR 608.2f) and the bullet is parsed under that trigger's frame \u2014 today it is\n+      // parsed with no frame at all, so The Spear of Leonidas's \"\u2022 Bull Rush \u2014 It gains double strike \u2026\" lands on the\n+      // Equipment.\n+      const owner = isSpell ? undefined : def.abilities[def.abilities.length - 1];\n+      const nonSelfTrig = !!owner && owner.kind === 'triggered' && !('self' in owner.event && owner.event.self === true);\n+      const bullet = stripModeName(line.slice(2));\n+      const text = nonSelfTrig ? bullet.replace(/^(?:it|that creature|that permanent)\\b(?= (?:gains?|gets?|has base power|loses?|becomes?|deals?)\\b)/i, 'thatobj') : bullet;\n+      const mode = foldMarkers(withFrame(nonSelfTrig, [], () => (nonSelfTrig ? asTriggerBody(() => parseEffects(text)) : parseEffects(text))), true);\n       if (last && last.op === 'choose-mode') { last.modes.push(mode); noteUnknownMode(def, mode); continue; }\n",
+   "cards": [
+    "Sword of the Animist",
+    "Genji Glove",
+    "Bitterthorn, Nissa's Animus",
+    "Adaptive Omnitool",
+    "Argentum Armor",
+    "Explorer's Scope",
+    "Two-Handed Axe // Sweeping Cleave",
+    "And\u00faril, Narsil Reforged",
+    "Pip-Boy 3000",
+    "Mj\u00f6lnir, Storm Hammer",
+    "And\u00faril, Flame of the West",
+    "The Spear of Leonidas"
+   ],
+   "key": "generic-whenever-equipped-attacks-1"
+  },
+  {
+   "id": 9,
+   "family": "generic-whenever-equipped-attacks",
+   "file": "src/cards/parse.ts",
+   "why": "Blocker 4 (Staff of Titania). tokenEffect (parse.ts:733-747) special-cases only 'artifact' and 'enchantment' as type words and pushes every other descriptor into `subtypes`, so \"create a 1/1 green Forest Dryad land creature token\" comes out { types: ['Creature'], subtypes: ['Forest','Dryad','Land'] }: not a land (CR 305.6 \u2014 no intrinsic {G} from the Forest subtype) and carrying a bogus subtype \"Land\" that is not a key of SUBTYPE_KIND (src/cards/subtype-vocab.ts, CR 111.4). 'Land' is already a member of CardType (src/cards/types.ts:7). Independently confirmed by `forge:diff --changed`, token-shape: \"Staff of Titania \u2014 ours: 1/1 G Creature Dryad Forest Land / forge: 1/1 G Creature Land Dryad Forest\". A one-line change, but it moves every \"land creature token\" line in the pool, so it belongs to a measured core slice.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -736,6 +736,7 @@ function tokenEffect(m: RegExpMatchArray, nameIdx?: number): Effect | null {\n     else if (w === 'and' || w === 'colorless' || w === 'legendary' || w === 'tapped') continue;\n     else if (w === 'artifact') types.unshift('Artifact');\n     else if (w === 'enchantment') types.unshift('Enchantment');\n+    else if (w === 'land') types.unshift('Land');            // CR 305.6: a \"land creature token\" IS a land (a Forest token taps for {G}); \"Land\" is a card type, never a subtype (CR 111.4, src/cards/subtype-vocab.ts)\n     else subtypes.push(w[0].toUpperCase() + w.slice(1));\n   }\n",
+   "cards": [
+    "Sword of the Animist",
+    "Genji Glove",
+    "Bitterthorn, Nissa's Animus",
+    "Adaptive Omnitool",
+    "Argentum Armor",
+    "Explorer's Scope",
+    "Two-Handed Axe // Sweeping Cleave",
+    "And\u00faril, Narsil Reforged",
+    "Pip-Boy 3000",
+    "Mj\u00f6lnir, Storm Hammer",
+    "And\u00faril, Flame of the West",
+    "The Spear of Leonidas"
+   ],
+   "key": "generic-whenever-equipped-attacks-2"
+  },
+  {
+   "id": 10,
+   "family": "generic-start-engines",
+   "file": "src/cards/oracle-lines.ts",
+   "why": "`Max speed` is listed in ABILITY_WORD_RE, whose contract is CR 207.2c (an ability word has no rules meaning, so the parser strips it). \"Max speed \u2014 <ability>\" is not an ability word: it gates the ability on its controller having speed 4. Stripping it leaves the ability ALWAYS ON \u2014 Muraganda Raceway parses an unconditional second mana ability ({T}: Add {C}{C}), Vnwxt, Verbose Host an unconditional draw replacement, Racers' Scoreboard an unconditional {1} cost reduction. Measured over the whole pool: ALL 23 cards whose only unparsed line is \"Start your engines!\" carry a `Max speed \u2014` line, so claiming the construct in the registry would flip exactly those cards to fullyParsed while every one simulates a strictly stronger card than the one printed. Removing the ABILITY_WORD_RE entry alone is not enough: FLAVOUR_PREFIX_RE then matches \"Max speed \u2014 {T}: \u2026\" and strips it anyway, so both regexes need the guard. With both hunks the line falls through to the static ladder and stays unparsed (honest, and ~40 cards lose a line of coverage) until the engine has a max-speed condition to gate on. This is a parse.ts-side normalisation change, so PARSER_VERSION (src/cards/parse.ts:46, currently 5) must be bumped and parse:accept run by whoever makes it. NOT made here.",
+   "patch": "--- a/src/cards/oracle-lines.ts\n+++ b/src/cards/oracle-lines.ts\n@@ -6,10 +6,15 @@\n // accounting (`secondFaceUnclaimed`) expects. Nothing here imports parse.ts or scripts.ts.\n \n-/** Ability words carry no rules meaning (CR 207.2c); the parser strips them. */\n-export const ABILITY_WORD_RE = /^(Revolt|Converge|Delirium|Metalcraft|Threshold|Landfall|Domain|Morbid|Raid|Ferocious|Formidable|Hellbent|Spell mastery|Flurry|Imprint|Constellation|Coven|Magecraft|Pack tactics|Alliance|Celebration|Valiant|Eerie|Survival|Paradox|Corrupted|Fateful hour|Lieutenant|Undergrowth|Enrage|Adamant|Addendum|Kinship|Chroma|Grandeur|Radiance|Parley|Descend \\d+|Fathomless descent|Max speed|Heist|Mayhem|Job select|Renew|Endure|Exhaust|Mobilize|Harmonize|Behold|Channel|Battalion|Heroic|Inspired|Bloodrush|Strive|Tempting offer|Will of the council|Council's dilemma|Secret council|Cohort|Rally|Sweep|Join forces|Hero's reward|Undaunted|Legacy|Eminence|Start your engines!) \u2014 /i;\n+/**\n+ * Ability words carry no rules meaning (CR 207.2c); the parser strips them.\n+ * `Max speed` is NOT one: \"Max speed \u2014 <ability>\" gates the ability on its controller having max speed, so stripping\n+ * it leaves the ability always on (Muraganda Raceway's second mana ability, Vnwxt's draw replacement). Until the\n+ * engine has speed, the line must stay unparsed rather than parse into a card stronger than the one printed.\n+ */\n+export const ABILITY_WORD_RE = /^(Revolt|Converge|Delirium|Metalcraft|Threshold|Landfall|Domain|Morbid|Raid|Ferocious|Formidable|Hellbent|Spell mastery|Flurry|Imprint|Constellation|Coven|Magecraft|Pack tactics|Alliance|Celebration|Valiant|Eerie|Survival|Paradox|Corrupted|Fateful hour|Lieutenant|Undergrowth|Enrage|Adamant|Addendum|Kinship|Chroma|Grandeur|Radiance|Parley|Descend \\d+|Fathomless descent|Heist|Mayhem|Job select|Renew|Endure|Exhaust|Mobilize|Harmonize|Behold|Channel|Battalion|Heroic|Inspired|Bloodrush|Strive|Tempting offer|Will of the council|Council's dilemma|Secret council|Cohort|Rally|Sweep|Join forces|Hero's reward|Undaunted|Legacy|Eminence|Start your engines!) \u2014 /i;\n \n-/** A flavour head (\"Cure Wounds \u2014 You gain 2 life.\"): the name before the em dash is not rules text. */\n-export const FLAVOUR_PREFIX_RE = /^(?![IVX]+ \u2014 )[A-Z0-9][^\u2014.]{0,30} \u2014 (?=When\\b|Whenever\\b|At |\\{|[A-Z])/;\n+/**\n+ * A flavour head (\"Cure Wounds \u2014 You gain 2 life.\"): the name before the em dash is not rules text.\n+ * \"Max speed \u2014 \" is excluded for the same reason it left ABILITY_WORD_RE: it is a gate, not a name.\n+ */\n+export const FLAVOUR_PREFIX_RE = /^(?![IVX]+ \u2014 )(?!Max speed \u2014 )[A-Z0-9][^\u2014.]{0,30} \u2014 (?=When\\b|Whenever\\b|At |\\{|[A-Z])/;\n",
+   "cards": [
+    "Muraganda Raceway",
+    "Amonkhet Raceway",
+    "Howlsquad Heavy",
+    "Mendicant Core, Guidelight",
+    "Vnwxt, Verbose Host",
+    "Avishkar Raceway",
+    "The Speed Demon",
+    "Racers' Scoreboard",
+    "Starting Column",
+    "Aether Syphon",
+    "Hazoret, Godseeker",
+    "Perilous Snare"
+   ],
+   "key": "generic-start-engines-1"
+  },
+  {
+   "id": 11,
+   "family": "generic-whenever-more",
+   "file": "src/cards/parse.ts",
+   "why": "A built-in trigger head shadows the CR-correct one and must be removed/re-ordered. parse.ts has TWO rules for \"Whenever you attack\": line 1344 `{ on: 'attacks', self: false }` (queued once per DECLARED ATTACKER by game.ts:queueTriggers) and line 1361 `{ on: 'you-attack' }` (queued once per combat, `if (s.attackers.length)`), and the first one wins, so line 1361 is dead code for the bare spelling. CR 508.1: attackers are declared by a single turn-based action, so \"Whenever you attack\" triggers exactly once. Measured on the pool: all 99 printed \"Whenever you attack,\" abilities parse to the per-attacker event, 15 of them on cards the parser reports fullyParsed (Leader's Talent, Boggart Prankster, Fire Navy Trebuchet, Kithkin Brinefarer, ...). This is why the generic-whenever-more family declines \"Whenever one or more creatures you control attack\" even though `you-attack` states it exactly: emitting the correct event from a rule would make the same printed ability mean two different things depending on which spelling a card carries. Expect parse:diff to move the cards whose abilities change event kind; accept deliberately.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -1341,7 +1341,10 @@ function parseTrigger(head: string, useRegistry = true): TriggerEvent {\n   if (/^whenever ~ blocks$/.test(t)) return { on: 'blocks', self: true };\n   if (/^whenever ~ becomes blocked$/.test(t)) return { on: 'becomes-blocked', self: true };\n   if ((m = t.match(/^whenever (?:a|an|another) (.+?) you control attacks$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'attacks', self: false, filter: f }; }\n-  if (/^whenever you attack$/.test(t)) return { on: 'attacks', self: false };\n+  // CR 508.1: attackers are declared by a single turn-based action, so \"Whenever you attack\" triggers ONCE per\n+  // combat, not once per attacker. `{ on: 'attacks', self: false }` is queued per declared attacker\n+  // (game.ts:queueTriggers), which made all 99 printed \"Whenever you attack,\" abilities fire once each per\n+  // attacker. The `you-attack` rule below is the intended reading; this line shadowed it, so it is removed.\n   if (/^whenever ~ deals combat damage to a player$/.test(t)) return { on: 'combat-damage-player', self: true };\n   if (/^whenever ~ deals combat damage to a player or planeswalker$/.test(t)) return { on: 'combat-damage-player', self: true };\n   if (/^whenever ~ deals damage to an opponent$/.test(t)) return { on: 'combat-damage-player', self: true };\n",
+   "cards": [
+    "Professional Face-Breaker",
+    "Grim Hireling",
+    "Evolution Witness",
+    "Knuckles the Echidna",
+    "Grazilaxx, Illithid Scholar",
+    "Basking Broodscale",
+    "Scurry Oak",
+    "Rev, Tithe Extractor",
+    "Nature's Will",
+    "Dusk Legion Duelist",
+    "Rapacious Guest",
+    "Storm the Vault // Vault of Catlacan"
+   ],
+   "key": "generic-whenever-more-1"
+  },
+  {
+   "id": 12,
+   "family": "generic-whenever-more",
+   "file": "src/cards/parse.ts",
+   "why": "`triggerBody` gives EVERY non-self trigger body the frame \u2014 `withFrame(!selfEv, ...)` plus a `{ op: 'bind', as: 'that', from: 'triggering' }` prefix \u2014 but game.ts sets `item.triggeringId` only from `triggerCtx.obj`, and the objectless events (you-attack, upkeep, end-step, draw-step, combat-begin, life-gain, life-loss-opponent, end-of-turn) carry no object. The bind then binds nothing and every `that` / `those` in the body resolves to the empty set: the ability resolves, touches nothing, and the card still reports fullyParsed. Verified in a real game: parsing Angelic Guardian's head as `you-attack` gives `[bind that from triggering, grant-keyword those indestructible eot]`; the log shows the trigger firing and resolving and the attacker still dies to a Lightning Bolt. 33 abilities in the pool already sit on an objectless event with that prefix (most are harmless because a later effect rebinds the frame from its own targets). This is the second reason the family declines the one CR-exact wording it found. CAVEAT for the core slice: a body may legitimately bind the frame from its OWN earlier effect (\"...put a +1/+1 counter on target creature you control. It gains lifelink\"), so the patch must be validated with parse:diff before acceptance \u2014 it removes only the INCOMING binding.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -1764,14 +1764,22 @@\n  * The effects of a triggered ability's body. Built-ins first, as everywhere ...\n  */\n-function triggerBody(body: string, selfEv: boolean): Effect[] {\n+/** The trigger events whose TriggerCtx carries an object, i.e. the ones whose body may name `that` / `those`. */\n+const OBJECT_EVENTS = new Set<string>(['etb', 'dies', 'ltb', 'attacks', 'blocks', 'becomes-blocked', 'combat-damage-player', 'deals-damage', 'cast', 'landfall', 'draw', 'chapter', 'leaves-graveyard', 'sacrifice', 'tapped', 'targeted', 'discard', 'turned-face-up']);\n+function triggerBody(body: string, selfEv: boolean, ev: TriggerEvent): Effect[] {\n   const before = registryClaims;\n-  const effs = foldMarkers(withFrame(!selfEv, [], () => asTriggerBody(() => parseEffects(body)), selfEv ? null : { op: 'bind', as: 'that', from: 'triggering' }), true);\n+  // CR 603.2: a trigger with no triggering OBJECT (you-attack, upkeep, end-step, combat-begin, life-gain, ...) has\n+  // nothing for `that` / `those` to name \u2014 game.ts sets `item.triggeringId` only from `triggerCtx.obj`. Binding the\n+  // frame anyway leaves a fullyParsed ability that resolves and touches nothing (Angelic Guardian's \"they gain\n+  // indestructible until end of turn\" under `you-attack`), so such a body must stay `unknown` instead.\n+  const framed = !selfEv && OBJECT_EVENTS.has((ev as { on: string }).on);\n+  const effs = foldMarkers(withFrame(framed, [], () => asTriggerBody(() => parseEffects(body)), framed ? { op: 'bind', as: 'that', from: 'triggering' } : null), true);\n   void before;\n-  if (!selfEv && effs.every(e => e.op !== 'unknown') && mentionsThat(effs)) return [{ op: 'bind', as: 'that', from: 'triggering' }, ...effs];\n+  if (framed && effs.every(e => e.op !== 'unknown') && mentionsThat(effs)) return [{ op: 'bind', as: 'that', from: 'triggering' }, ...effs];\n   return effs;\n }\n@@ -2039,7 +2047,7 @@ (the triggered-line branch of the parseCard loop)\n-      const effs = /^choose (one|two)( \u2014|\\.)?$/i.test(body.trim()) ? [{ op: 'choose-mode', modes: [], count: /two/i.test(body) ? 2 : 1 } as Effect] : triggerBody(body, selfEv);\n+      const effs = /^choose (one|two)( \u2014|\\.)?$/i.test(body.trim()) ? [{ op: 'choose-mode', modes: [], count: /two/i.test(body) ? 2 : 1 } as Effect] : triggerBody(body, selfEv, ev);\n",
+   "cards": [
+    "Professional Face-Breaker",
+    "Grim Hireling",
+    "Evolution Witness",
+    "Knuckles the Echidna",
+    "Grazilaxx, Illithid Scholar",
+    "Basking Broodscale",
+    "Scurry Oak",
+    "Rev, Tithe Extractor",
+    "Nature's Will",
+    "Dusk Legion Duelist",
+    "Rapacious Guest",
+    "Storm the Vault // Vault of Catlacan"
+   ],
+   "key": "generic-whenever-more-2"
+  },
+  {
+   "id": 13,
+   "family": "generic-you-may-pay-2",
+   "file": "src/cards/parse.ts",
+   "why": "BLOCKER 2. `/^whenever you attack$/` at parse.ts:1344 answers {on:'attacks', self:false} and shadows the correct `/^whenever you attack(?: a player)?$/` -> {on:'you-attack'} at parse.ts:1361. The engine queues 'attacks' once per attacker (game.ts:220, :2270, :2408) and 'you-attack' once as attackers are declared (:2275), so the shadowed head fires N times in an N-attacker combat. CR 508.1 / 603.2; Forge encodes it `T:Mode$ AttackersDeclared | AttackingPlayer$ You` and forge:diff already flags it (trigger-kind calibration 4/4 parser-wrong). Pre-existing: 16 already-fully-parsed cards carry it (Battlesong Berserker, Temmet, Razorkin Hordecaller, \u2026), so the delete needs its own parse:diff group read; the family declines the wording meanwhile so Labyrinth Adversary is not the first card made simulable with it.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -1341,7 +1341,6 @@\n   if ((m = t.match(/^whenever (?:a|an|another) (.+?) you control attacks$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'attacks', self: false, filter: f }; }\n-  if (/^whenever you attack$/.test(t)) return { on: 'attacks', self: false };\n   if (/^whenever ~ deals combat damage to a player$/.test(t)) return { on: 'combat-damage-player', self: true };\n@@ -1358,6 +1357,8 @@\n   if (/^when(?:ever)? ~ is turned face up$/.test(t)) return { on: 'turned-face-up', self: true };\n+  // \"Whenever you attack\" triggers ONCE as attackers are declared (CR 508.1 / 603.2), not once per attacking\n+  // creature \u2014 the 'attacks' line above used to shadow this one.\n   if (/^whenever you attack(?: a player)?$/.test(t)) return { on: 'you-attack' };",
+   "cards": [
+    "Neyith of the Dire Hunt",
+    "Ulalek, Fused Atrocity",
+    "Persistent Marshstalker",
+    "Roar of Resistance",
+    "Rodolf Duskbringer",
+    "Phoenix Chick",
+    "Alesha, Who Smiles at Death",
+    "Aurora Shifter",
+    "Evereth, Viceroy of Plunder",
+    "Aetherstorm Roc",
+    "Casal, Lurkwood Pathfinder // Casal, Pathbreaker Owlbear",
+    "Tilonalli's Summoner"
+   ],
+   "key": "generic-you-may-pay-2-2"
+  },
+  {
+   "id": 14,
+   "family": "generic-you-dont",
+   "file": "src/cards/parse.ts",
+   "why": "CORRECTED RECORD (this is the fix for the review's major finding; the first pass's member list was wrong). \"<an optional action>. If you don't, <Y>\" is a two-sentence composition, and the only place parse.ts joins two sentences is its own PARAGRAPH_RULES table \u2014 a built-in a rule family may fill the slots of but not extend. The template below is what such an entry would look like. MEASURED, not asserted: applied to the normalised paragraph body of all 79 printed lines of the construct in the pool (trigger line past its head and intervening \"if\"; loyalty ability past \"N:\"; spell paragraph whole), with the cost slot run through the real parseCostPhrase and the else slot through parseEffects, it MATCHES 17 lines and CLAIMS exactly ONE \u2014 Lim-D\u00fbl's Paladin, \"At the beginning of your upkeep, you may discard a card. If you don't, sacrifice ~ and draw a card.\" (the first pass also misspelled the name as \"Lim-Dul's\"). Of the eight further cards the first pass named as covered: Imprison (both lines) and Koya, Death from Above NEVER MATCH \u2014 \"If you do,\" is the sentence after Imprison's optional pay, and Koya's optional pay sits inside a delayed trigger (\"At the beginning of the next end step, \u2026\"), so the `^` anchor cannot start there; Songbirds' Blessing never matches either, and NOT for the reason the first pass gave \u2014 its body begins \"reveal cards from the top of your library \u2026\", so `^you may` fails one stage EARLIER than parseCostPhrase, and it is not the case the trailing `(?=$| [A-Z~])` sentence stop protects. Chaos Spewer, Knight of the Mists, Yawgmoth Demon and Rohgahh of Kher Keep do match and then decline in the `otherwise` slot (\"blight 2\" has no op; \"destroy target Knight\" is a bare creature-subtype target word; \"tap ~ and it deals 2 damage to you\" is an \"and\"-joined two-clause sentence; Rohgahh's else fails on both counts). Devouring Sugarmaw // Have for Dinner matches and declines in the COST slot (\"sacrifice an artifact, enchantment, or token\" \u2014 parseFilterWords has no comma list). Structural consequence: PARAGRAPH_RULES only ever match at the front of what is left of a paragraph (parseParagraph consumes a template's m[0] and retries at `^`), so any member whose optional action is not the paragraph's FIRST sentence is out of reach of a paragraph template altogether \u2014 62 of the 79 lines. RECOMMENDATION: do not make this core change yet. At one claimed card it is not earned; the else-branch and cost-slot vocabulary named in openIssues has to land first, and even then it reaches only the 17 head-of-paragraph members. The wording stays declined either way, because no rule family can add the entry.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -625,6 +625,17 @@ const PARAGRAPH_RULES: { re: RegExp; make: (m: RegExpMatchArray, useRegistry: boo\n   { re: /^discard a card\\. if you do, draw a card\\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1, discardFirst: true }] },\n+  // \"You may <pay a cost>. If you don't, Y\" \u2014 the two-sentence spelling of \"\u2026 unless you pay <cost>\" (CR 118.12),\n+  // and so exactly `unless-pays`. It must sit BELOW `optional-pay` / `optional-then`: \"If you do,\" is a prefix of\n+  // neither, but Imprison (\"you may pay {1}. If you do, counter that ability. If you don't, destroy ~.\") is offered\n+  // to `optional-pay` first and only reaches here after that declines \u2014 and then this template declines too, because\n+  // it requires \"If you don't,\" to follow the optional action directly. The `[^.{]` first character keeps the\n+  // non-mana branch off \"pay {2}\" (the mana branch above it owns that), and the `(?=$| [A-Z~])` stop ends Y at its\n+  // own sentence. MEASURED yield over the pool: 17 lines match, 1 is claimed (Lim-D\u00fbl's Paladin) \u2014 the other 16\n+  // decline in a slot, and 62 further lines of the construct never match because their optional action is not the\n+  // paragraph's first sentence. Not worth landing until the openIssues vocabulary does.\n+  { re: /^you may (?:pay (\\{[^ ]+\\})|([^.{][^.]*?))\\. if you don't, ([^.]+)\\.?(?=$| [A-Z~])/i, make: (m, useRegistry) => {\n+    const cost = m[1] ? { mana: parseManaCost(m[1])! } : parseCostPhrase(m[2], useRegistry); if (!cost) return null;\n+    const otherwise = parseEffects(m[3], useRegistry); if (otherwise.some(e => e.op === 'unknown')) return null;\n+    return [{ op: 'unless-pays', who: 'you', cost, otherwise }]; } },\n   // Y is captured greedily up to the next period: under /i the old lazy `([^.]+?)\\.?(?=$| [A-Z~])` stopped at the\n   // first space (\"draw\" of \"draw two cards\"), so the template declined on nearly every real card (PARSER_VERSION 2).\n   { re: /^you may ([^.]+?)\\. if you do, ([^.]+)\\.?(?=$| [A-Z~])/i, make: (m, useRegistry) => { const first = parseEffects(m[1], useRegistry); const then = parseEffects(m[2], useRegistry); if (first.some(e => e.op === 'unknown') || then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-then', first, then }]; } },\n",
+   "cards": [
+    "Pact of Negation",
+    "Planar Genesis",
+    "Chandra, Torch of Defiance",
+    "Summoner's Pact",
+    "Songbirds' Blessing",
+    "Slicer, Hired Muscle // Slicer, High-Speed Antagonist",
+    "Transmute Artifact",
+    "Hakbal of the Surging Soul",
+    "Breaching Dragonstorm",
+    "Gilraen, D\u00fanedain Protector",
+    "Cosima, God of the Voyage // The Omenkeel",
+    "Kellan, the Kid"
+   ],
+   "key": "generic-you-dont-1"
+  },
+  {
+   "family": "generic-you-may-pay-2",
+   "file": "src/cards/parse.ts",
+   "why": "ROUND 2 (supersedes the round-1 you-may-pay-2 records): The construct's whole difficulty is the sentence AFTER the payment, and only a PARAGRAPH template sees it. parse.ts already owns \"you may pay {m}. If you do, <body>\" as one paragraph (line 624); the \"When you do\" sibling has no template, so the payment sentence falls through to the sentence ladder alone, where no rule can tell the three printed continuations apart. Anchoring the new template at $ makes a rider printed after the reflexive (Terror of Towashi's \"It's a Phyrexian...\", Spined Tyrranax's \"That creature gains trample...\") part of the body, so a body that does not fully parse declines the whole pair \u2014 which is exactly the gate review major 4 asked for, keyed on the right property. With this in place the four correct cards (Sparktongue Dragon, Thousand Moons Crackshot, Icewrought Sentry, Evereth) parse with no over-claim, the 16 \"If you do\" cards keep their honest unknowns, and no `may` is wrapped around the payment (a paragraph template's effects are not re-wrapped).",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -622,6 +622,13 @@ const PARAGRAPH_RULES: { re: RegExp; make: (m: RegExpMatchArray, useRegistry: boo\n   { re: /^you may discard a card\\. if you do, draw a card\\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1, discardFirst: true, optional: true }] },\n   { re: /^you may pay (\\{[^ ]+\\})\\. if you do, (.+?)\\.?$/i, make: (m, useRegistry) => { const then = parseEffects(m[2], useRegistry); if (then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-pay', mana: parseManaCost(m[1])!, then }]; } },\n+  // \"You may pay {2}{R}. When you do, <body>.\" (Sparktongue Dragon) \u2014 the sibling of the template above, and the one\n+  // shape a sentence rule cannot answer: an EffectRule sees ONE sentence, and \"When you do\" / \"If you do\" / \"If you\n+  // don't\" are three different meanings behind an identical payment sentence. CR 603.12 makes the second sentence a\n+  // REFLEXIVE trigger that is put on the stack from the resolving ability and chooses its targets there, so the body\n+  // does NOT go in `then`. `$` is load-bearing: a rider printed after the reflexive is part of m[2], so a body that\n+  // does not fully parse declines the pair instead of hoisting the rider out of the ability it belongs to.\n+  { re: /^you may pay ((?:\\{[^{}]+\\})+)\\. when you do, (.+?)\\.?$/i, make: (m, useRegistry) => { const mana = parseManaCost(m[1]); const then = parseEffects(m[2], useRegistry); if (!mana || !then.length || then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-pay', mana, then: [] }, { op: 'reflexive', when: 'you-do', effects: then }]; } },\n   { re: /^discard a card\\. if you do, draw a card\\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1, discardFirst: true }] },\n",
+   "cards": [
+    "Neyith of the Dire Hunt",
+    "Ulalek, Fused Atrocity",
+    "Persistent Marshstalker",
+    "Roar of Resistance",
+    "Rodolf Duskbringer",
+    "Phoenix Chick",
+    "Alesha, Who Smiles at Death",
+    "Aurora Shifter",
+    "Evereth, Viceroy of Plunder",
+    "Aetherstorm Roc",
+    "Casal, Lurkwood Pathfinder // Casal, Pathbreaker Owlbear",
+    "Tilonalli's Summoner"
+   ],
+   "id": 15,
+   "key": "generic-you-may-pay-2-r2-14"
+  },
+  {
+   "family": "generic-you-may-pay-2",
+   "file": "src/cards/parse.ts",
+   "why": "ROUND 2 (supersedes the round-1 you-may-pay-2 records): Review major 3, unchanged from round 1 and still core-only: the registry hook in parseEffectSentence wraps EVERY claim of a \"You may ...\" sentence in a `may`, without the guard its own built-in branch applies twelve lines above, so an op that already carries its own yes/no ask is asked twice \u2014 and the outer ask is offered even when the inner one could not succeed. A rule cannot opt out: it never sees the \"you may \". `optional-pay` is such an op (game.ts's `case 'optional-pay'` asks `<name>: pay <mana>?`), so it belongs in the PERMISSION_OPS set, which already means \"the op's own template reads the 'you may'\". No built-in EFFECT_RULE emits `optional-pay` (only the paragraph template at 624 and the extort line at 1960, neither of which goes through this hook), so the set change moves no existing parse.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ -775,7 +775,9 @@\n /** Ops whose template already reads \"you may \u2026\" as a permission rather than an action (never wrapped in a `may`). */\n-const PERMISSION_OPS = new Set<string>(['play-exiled', 'extra-land', 'fold-new-targets', 'impulse']);\n+// `optional-pay` is here for the other reason the wrapper is wrong: it carries its OWN yes/no ask (game.ts's\n+// `case 'optional-pay'`), so a `may` around it asks one printed choice twice.\n+const PERMISSION_OPS = new Set<string>(['play-exiled', 'extra-land', 'fold-new-targets', 'impulse', 'optional-pay']);\n@@ -866,7 +868,7 @@\n   if (useRegistry) for (const r of REGISTRY_EFFECT_RULES) {\n     const m = s.match(r.re);\n-    if (m) { const e = r.make(m, optional ? EFFECT_CTX_OPTIONAL : EFFECT_CTX); if (e) { registryClaims++; return optional ? { op: 'may', effects: [e] } : e; } }\n+    if (m) { const e = r.make(m, optional ? EFFECT_CTX_OPTIONAL : EFFECT_CTX); if (e) { registryClaims++; return optional && !(e as { optional?: boolean }).optional && !PERMISSION_OPS.has(e.op) ? { op: 'may', effects: [e] } : e; } }\n   }\n",
+   "cards": [
+    "Neyith of the Dire Hunt",
+    "Ulalek, Fused Atrocity",
+    "Persistent Marshstalker",
+    "Roar of Resistance",
+    "Rodolf Duskbringer",
+    "Phoenix Chick",
+    "Alesha, Who Smiles at Death",
+    "Aurora Shifter",
+    "Evereth, Viceroy of Plunder",
+    "Aetherstorm Roc",
+    "Casal, Lurkwood Pathfinder // Casal, Pathbreaker Owlbear",
+    "Tilonalli's Summoner"
+   ],
+   "id": 16,
+   "key": "generic-you-may-pay-2-r2-15"
+  },
+  {
+   "family": "generic-you-may-pay-2",
+   "file": "src/cards/render.ts",
+   "why": "ROUND 2 (supersedes the round-1 you-may-pay-2 records): render.ts:833 appends \". if you do, <then>\" unconditionally, so an `optional-pay` with an empty `then` \u2014 which is what the paragraph template in the first patch emits, the payment and a separate reflexive \u2014 renders as \"you may pay {2}{R}. if you do, .\" Reported in round 1, still open, and it becomes visible the moment the first patch lands.",
+   "patch": "--- a/src/cards/render.ts\n+++ b/src/cards/render.ts\n@@ -831,7 +831,8 @@\n-    case 'optional-pay': return `${ctx.you} may pay ${renderMana(x.mana as ManaCost)}. if you do, ${renderEffects(x.then as Effect[], ctx)}`;\n+    // an empty `then` is the printed \"You may pay {2}{R}.\" whose consequence is a separate reflexive trigger (CR\n+    // 603.12), not a missing half: rendering \". if you do, \" after it prints a dangling clause.\n+    case 'optional-pay': { const pay = `${ctx.you} may pay ${renderMana(x.mana as ManaCost)}`; const then = x.then as Effect[]; return then.length ? `${pay}. if you do, ${renderEffects(then, ctx)}` : pay; }\n",
+   "cards": [
+    "Neyith of the Dire Hunt",
+    "Ulalek, Fused Atrocity",
+    "Persistent Marshstalker",
+    "Roar of Resistance",
+    "Rodolf Duskbringer",
+    "Phoenix Chick",
+    "Alesha, Who Smiles at Death",
+    "Aurora Shifter",
+    "Evereth, Viceroy of Plunder",
+    "Aetherstorm Roc",
+    "Casal, Lurkwood Pathfinder // Casal, Pathbreaker Owlbear",
+    "Tilonalli's Summoner"
+   ],
+   "id": 17,
+   "key": "generic-you-may-pay-2-r2-16"
+  },
+  {
+   "family": "generic-when-enchanted-dies",
+   "file": "src/cards/rules/composition.ts",
+   "why": "ROUND 2: ONE hunk in amountFor fixes BOTH blockers. \"its power\" / \"its toughness\" / \"its mana value\" are an OBJECT's characteristics (CR 208.1), read as last known information when the object has died (CR 608.2h), so a sentence whose SUBJECT is a player can never be the antecedent of \"its\". amountFor has two subject heuristics and neither excludes a player subject: (1) `aboutTarget` fires on any base that starts \"target \", so Dying Wish's \"target player loses X life and you gain X life\" binds X to {prop:'power',of:'target:0'} \u2014 the target player, which src/engine/refs.ts resolves to no object, so characteristics.ts reads 0 and the drain is always 0; (2) `aboutSelf` fires on any base containing a bare `~`, and parse.ts has already rewritten Banewasp Affliction's leading possessive \"that creature's controller\" to \"~'s controller\", so X binds to {prop:'toughness',of:'self'} \u2014 the Aura, an Enchantment - Aura with null P/T, so the loss is always 0. With the guard in, both fall through to the generic amount path: Dying Wish gets the built-in phrase {count:'power-of-that'} and Banewasp gets propOf's {prop:'toughness',of:'that'} \u2014 in both cases the triggering object that triggerBody() binds, i.e. the creature that died. Death Watch (\"its controller loses life equal to its power and you gain life equal to its toughness\") already emits exactly those two shapes, so this is the binding the vocabulary already has. The third `else if (/\\btarget\\b/i.test(base)) return null;` must also skip a player subject, otherwise Dying Wish goes from wrong to declined instead of right. Verify with `npm run parse:diff` (the \"X is its \u2026\" groups) and re-run test/parser-composition.test.ts.",
+   "patch": "--- a/src/cards/rules/composition.ts\n+++ b/src/cards/rules/composition.ts\n@@ function amountFor(amountText: string, base: string, ctx: EffectCtx): Amount | null\n   if (/^its (power|toughness|mana value)$/i.test(text)) {\n     // \"Put X +1/+1 counters on ~, where X is its power\" is about the source as much as \"~ gets +X/+0 \u2026 its power\"\n-    const aboutSelf = /(^|\\s)~(?=[\\s.,']|$)/.test(base) && !/\\btarget\\b|\\bthat\\b|\\bthose\\b|\\beach\\b|\\ball\\b/i.test(base);\n-    const aboutTarget = /^(?:up to \\w+ |another |other )?target /i.test(base) && !/ target /i.test(base.replace(/^(?:up to \\w+ |another |other )?target /i, ''));\n+    // CR 208.1 / 608.2h: power, toughness and mana value are an OBJECT's characteristics, so a sentence whose\n+    // subject is a PLAYER (\"~'s controller \u2026\", \"that creature's controller \u2026\", \"target player \u2026\") is never the\n+    // antecedent of \"its\" \u2014 the antecedent is the object the ability is about, which the generic path below reads\n+    // as the frame's `that` (Dying Wish, Banewasp Affliction; Death Watch already gets it right).\n+    const playerSubject = /^(?:~'s|its|that (?:creature|permanent|card)'s) (?:controller|owner)\\b/i.test(base)\n+      || /^(?:up to \\w+ )?target (?:player|opponent)\\b/i.test(base);\n+    const aboutSelf = !playerSubject && /(^|\\s)~(?=[\\s.,']|$)/.test(base) && !/\\btarget\\b|\\bthat\\b|\\bthose\\b|\\beach\\b|\\ball\\b/i.test(base);\n+    const aboutTarget = !playerSubject && /^(?:up to \\w+ |another |other )?target /i.test(base) && !/ target /i.test(base.replace(/^(?:up to \\w+ |another |other )?target /i, ''));\n     if (aboutSelf) text = text.replace(/^its/i, \"~'s\");\n     else if (aboutTarget) { const p = propOf(text.toLowerCase()); return p && typeof p === 'object' ? { ...p, of: 'target:0' } : null; }\n-    else if (/\\btarget\\b/i.test(base)) return null;\n+    else if (!playerSubject && /\\btarget\\b/i.test(base)) return null;\n   }",
+   "cards": [
+    "Dying Wish",
+    "Banewasp Affliction",
+    "Death Watch"
+   ],
+   "id": 18
+  },
+  {
+   "family": "generic-when-enchanted-dies",
+   "file": "src/cards/parse.ts",
+   "why": "ROUND 2: Secondary / contributing cause of blocker 2, recorded because it is the case the brief names verbatim (\"a pronoun parse.ts rewrites before any rule runs\"). parseEffectSentence's leading-pronoun rewrite uses `\\b` after \"that creature\", and `\\b` matches in front of the apostrophe, so the POSSESSIVE \"that creature's controller loses life equal to its toughness\" becomes \"~'s controller loses \u2026\" before any registry rule can see it. That injected `~` is what trips composition's `aboutSelf` test. The narrow fix is below, but it is riskier than the composition.ts hunk: several built-in templates accept \"~'s controller\" precisely because of this rewrite (parse.ts's \"(?:its|~'s|that creature's|that permanent's) controller \u2026\" family, which is how Pattern of Rebirth gets its correct controller-of-that scope), so re-routing the possessive to the `thatobj` marker moves those parses too and needs its own parse:diff pass. The composition.ts hunk alone fixes both printed cards without touching any of that, so PREFER IT; this entry is the alternative, not an additional requirement.",
+   "patch": "--- a/src/cards/parse.ts\n+++ b/src/cards/parse.ts\n@@ export function parseEffectSentence(sentence: string, useRegistry = true): Effect\n-  if (antecedent && /^(?:it|that creature|that permanent) (?:gains?|gets?|has base power|loses?|becomes?|deals?) /i.test(s)) s = s.replace(/^(?:it|that creature|that permanent)\\b/i, 'thatobj');   // 9.1: becomes / deals too (layers, Wolf Strike)\n-  else s = s.replace(/^(?:it|that creature|that permanent|this creature|this permanent)\\b/i, '~');\n+  if (antecedent && /^(?:it|that creature|that permanent) (?:gains?|gets?|has base power|loses?|becomes?|deals?) /i.test(s)) s = s.replace(/^(?:it|that creature|that permanent)\\b/i, 'thatobj');   // 9.1: becomes / deals too (layers, Wolf Strike)\n+  // `\\b` matches in front of an apostrophe, so a leading POSSESSIVE (\"that creature's controller \u2026\") used to become\n+  // \"~'s controller \u2026\" \u2014 the source \u2014 and any \"its power/toughness\" in the same sentence then read the source's\n+  // (Banewasp Affliction, always 0). A possessive subject is the frame's object, never `~`.\n+  else if (antecedent && /^(?:it|that creature|that permanent)'s /i.test(s)) s = s.replace(/^(?:it|that creature|that permanent)(?='s )/i, 'thatobj');\n+  else s = s.replace(/^(?:it|that creature|that permanent|this creature|this permanent)\\b/i, '~');",
+   "cards": [
+    "Dying Wish",
+    "Banewasp Affliction",
+    "Death Watch"
+   ],
+   "id": 19
+  },
+  {
+   "family": "generic-when-enchanted-dies",
+   "file": "src/cards/rules/generic-when-enchanted-dies.ts",
+   "why": "RE-LAND THE FAMILY once the composition.ts amountFor hunk is in: branch worktree-wf_b1cfe93c-0b1-7 at its round-1 commit a831336 holds the rule (/^when enchanted creature dies$/ -> { on: 'dies', self: false, filter: { attachedToSource: true }, controller: 'any' }), its AST pins and its scenario suite (27 paper cards finish; the round-2 commit e4b76f0 withdrew the claim only because a TriggerRule cannot decline two cards of a head). Acceptance pins: Dying Wish X = the dead creature's power ({count:'power-of-that'}), Banewasp Affliction 'its toughness' = {prop:'toughness',of:'that'}; parse:diff must show no '(same unparsed lines)' group for this head.",
+   "patch": null,
+   "cards": [
+    "Dying Wish",
+    "Banewasp Affliction",
+    "Death Watch"
+   ],
+   "id": 20
+  }
+ ]
+}
