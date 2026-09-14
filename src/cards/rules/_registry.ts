@@ -26,6 +26,7 @@ import family_dice_coin from './dice-coin.js';
 import family_generic_able from './generic-able.js';
 import family_generic_deals_damage from './generic-deals-damage.js';
 import family_generic_still_land from './generic-still-land.js';
+import family_generic_when_enchanted_dies from './generic-when-enchanted-dies.js';
 import family_generic_you_do from './generic-you-do.js';
 import family_keyword_action from './keyword-action.js';
 import family_layers from './layers.js';
@@ -45,6 +46,7 @@ const GENERATED: RuleFamily[] = [
   family_generic_able,
   family_generic_deals_damage,
   family_generic_still_land,
+  family_generic_when_enchanted_dies,
   family_generic_you_do,
   family_keyword_action,
   family_layers,
