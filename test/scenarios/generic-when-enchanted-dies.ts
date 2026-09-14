@@ -3,7 +3,10 @@
 // The family registers exactly one rule kind — a `TriggerRule` for the head "When enchanted creature dies" — so what
 // there is to prove is that the head really fires, on printed Auras, and that it fires for the creature THIS Aura
 // enchants and no other. Every one of these fails with src/cards/rules/generic-when-enchanted-dies.ts reverted: the
-// head is then `{ on: 'unknown' }`, the ability never triggers, and nothing on the board moves.
+// head is then `{ on: 'unknown' }`, the ability never triggers, and nothing on the board moves — checked by moving the
+// rule file aside, regenerating the registry and re-running this suite (all four fail; 13 families instead of 14). A
+// scenario in which nothing was meant to happen anyway cannot carry that, which is why the last one below kills BOTH
+// creatures and counts the cards: the count fails on a reverted rule and on a widened filter alike.
 //
 // Written from the printed cards and the rules (test/scenarios/README.md): the Aura is cast on a creature, the
 // creature is killed with a Lightning Bolt, and the expectations are the ones the card text promises.
@@ -73,24 +76,31 @@ export const genericWhenEnchantedDies: Scenario[] = [
     ],
   },
   {
-    // The other half of the claim: `attachedToSource` means THIS Aura's host, not "a creature". A creature dying
-    // beside the enchanted one must not trigger Bequeathal at all.
-    name: 'Bequeathal does not trigger when a creature it does not enchant dies', cr: '303.4a',
-    ruling: '"Enchanted creature" refers only to the permanent this Aura is attached to.',
+    // The other half of the claim: `attachedToSource` means THIS Aura's host, not "a creature". Two creatures die in
+    // one script — first the one Bequeathal does NOT enchant, then the one it does — and the seat ends with exactly
+    // two cards drawn. That single number pins the filter in both directions, which a script that only kills the
+    // bystander cannot do (with the rule reverted the head is { on: 'unknown' } and *nothing* is drawn either way, so
+    // a bystander-only script is a pure negative control that passes without the rule):
+    //   - rule reverted, no trigger at all  -> 0 cards, fails;
+    //   - filter widened to any creature    -> Hill Giant's death draws too, 4 cards, fails;
+    //   - filter as claimed                 -> only the Grizzly Bears death draws, 2 cards.
+    name: 'Bequeathal draws only for the creature it enchants, not for one dying beside it', cr: '303.4a',
+    ruling: '"Enchanted creature" refers only to the permanent this Aura is attached to, so a second creature dying under the same controller triggers nothing.',
     seats: [
       { bf: ['Forest', 'Grizzly Bears', 'Hill Giant'], hand: ['Bequeathal'] },
-      { bf: ['Mountain'], hand: ['Lightning Bolt'] },
+      { bf: ['Mountain', 'Mountain'], hand: ['Lightning Bolt', 'Lightning Bolt'] },
     ],
     script: [
       { cast: 'Bequeathal', targets: [['Grizzly Bears']] }, { resolve: true },
-      { cast: 'Lightning Bolt', by: 1, targets: [['Hill Giant']] }, { resolve: true },
+      { cast: 'Lightning Bolt', by: 1, targets: [['Hill Giant']] }, { resolve: true },       // not enchanted: no trigger
+      { cast: 'Lightning Bolt', by: 1, targets: [['Grizzly Bears']] }, { resolve: true },    // enchanted: draws two
     ],
     expect: [
       { zone: ['Hill Giant', 'graveyard'] },
-      { zone: ['Grizzly Bears', 'battlefield'] },
-      { zone: ['Bequeathal', 'battlefield'] },
-      { handCount: [0, 0] },
-      { libraryCount: [0, 20] },
+      { zone: ['Grizzly Bears', 'graveyard'] },
+      { zone: ['Bequeathal', 'graveyard'] },            // CR 704.5m, once its host has gone
+      { handCount: [0, 2] },                            // two, not four: Hill Giant's death drew nothing
+      { libraryCount: [0, 18] },
       { unsimulated: 0 },
     ],
   },
