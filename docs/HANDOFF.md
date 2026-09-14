@@ -571,6 +571,29 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     extraction on the same tree (192 batch files identical; manifest differs only in the `--out` path). (f)
     `docs/workflows/parse-wave.js` and `parse-core-slice.js` are proved by the syntax check and the helper tests
     only — neither has run (owner checkpoint: pause before the parser wave).
+38. **Parser defects the Forge cross-check found (forge-slice, 2026-09-14; see §13)** — for the parser core slice,
+    each on a card the parser alone marks fully parsed, confirmed against the printed text and the parser-alone AST:
+    (a) "Whenever ~ deals damage to an opponent" parses to `combat-damage-player` (any damage, CR 120.1, and an
+    opponent, not a player): Vedalken Heretic, Saltwater Stalwart, Hunting Cheetah, Reef Pirates (30 `trigger-kind`
+    cards in all, most of this shape). (b) "Put target creature card from a graveyard onto the battlefield" parses to
+    `return-from-graveyard` with no `target: true` — the printed target is dropped: Vat Emergence, Endless
+    Obedience, Reanimate. (c) "target opponent loses life" parses to `who: 'each-opponent'`: Shaman of the Pack.
+    (d) Targets: "any number of targets" capped at `count: 3` (Conflagrate); "among one, two, or three targets" as
+    `optional: true` (Inferno Titan); "Target creature fights another target creature" with one `TargetSpec`
+    (Clash of Titans). (e) "and 3 damage to you" dropped from Goblin Artillery's activated ability. (f) "gains your
+    choice of flying, trample, or haste" as two modes (Golem Artisan). (g) "can't be blocked except by creatures
+    with flying or reach" parsed to the flying keyword (Signal Pest, Spire Tracer, Orchard Spirit — a
+    characteristics-changing approximation). (h) "Forest Dryad land creature token" with Land among the subtypes
+    (Awaken the Woods). NOT a defect (the slice's first calibration said it was; the review refuted it): "Target
+    opponent may draw a card" (Phelddagrif, Soldevi Heretic; Vex, Fecundity likewise) parses to `scoped >
+    may > draw` — the choice is kept (CR 117.11); the `may-missing` finding was the shape reader not looking inside
+    `scoped`, fixed in src/cards/forge/shape.ts. (i) Found by the review, for the same slice: "Whenever you attack"
+    parses to `{ on: 'attacks', self: false }` (once per attacking creature, any controller) instead of the
+    registered `you-attack` (once per combat, your attack): Battlesong Berserker, Temmet, Naktamun's Will. Fixed
+    by the orchestrator at the slice's commit, not a parser matter: `test/meta-store.test.ts` "MetaService.refresh:
+    TopDeck + Goldfish fixtures" failed (`murk.deckCount` 4 !== 8) because `MetaStore.decklists` measured its
+    `sinceDays` window from the wall clock while the service has an injectable clock — the store now takes the
+    service's clock (src/meta/store.ts, src/meta/service.ts).
 
 ## 4. Remaining Phase 8 slices
 
@@ -945,3 +968,59 @@ Plan D6, brief docs/workflows/briefs/process-slice.md, run through `tooling-slic
   docs/workflows/parse-core-slice.js (phase-9-1x shape; PARSER_VERSION 5 → 6 once; `MTG_SCRIPTS=0 fuzz 100`); README
   rows and a `parse:why` section in docs/vocabulary/README.md. Not run: owner checkpoint before the parser wave.
 - Open: §3 item 37.
+
+## 13. forge-slice — Forge's card scripts as a cross-check oracle (2026-09-14)
+
+- Plan docs/plans/forge-oracle.md, brief docs/workflows/briefs/forge-slice.md; one Fable 5.1 implementer on main
+  (base 4b9f330). `FORGE_RES()` in src/config/paths.ts (`MTG_FORGE_RES`, else `<main checkout>/../forge/forge-gui/res`,
+  a clear error with the two-line sparse-clone recipe when absent); `src/cards/forge/loader.ts` (every face by exact
+  `Name:` and the joined `Front // Back`; `A:` / `T:` / `S:` / `R:` lines as parameter maps, chains through `Execute$`,
+  `SubAbility$`, `RepeatSubAbility$` and an `ImmediateTrigger`'s `Execute$`, `Charm` choices as modes, `TokenScript$`
+  resolved, `Cleanup` dropped, cycles guarded, deck-building and AI keys never read; JSON cache
+  data/master/forge-index.json keyed by HEAD + file count + `FORGE_LOADER_VERSION`, 44 MB, ~11 s cold / ~2 s warm);
+  `shape.ts` (one `AbilityShape` from both sides; `FORGE_TRIGGER_MAP` as `forgeTriggerKinds`, `FORGE_KEYWORD_ALIASES`;
+  every table incomplete only in the direction that hides a disagreement); `compare.ts` (alignment by text Jaccard ≥
+  0.5 then class + printed order, the 13 categories, count-based ones only on a fully parsed card);
+  `scripts/forge-diff.ts` (`--tier / --select / --ids / --claimed / --scripted / --changed [--snapshot] / --category /
+  --top / --out / --md`; the `--changed` set computed in-process with a copy of parse-snapshot.ts's hash, pinned
+  against the committed snapshot by test/forge-loader.test.ts); `npm run forge:diff`.
+- Normalisations that took the claimed pool from 4,419 to 644 disagreeing cards, all encodings rather than verdicts:
+  0 / 1 are not magnitudes (Forge leaves the defaults out); a Forge `R:Event$ Moved` onto the battlefield of the card
+  itself, `K:etbCounter`, Bloodthirst / Vanishing / Fading / Modular / Daybound and this side's `asEnters` are all
+  the one id `as-enters`; `S:Mode$ CantBlock` / `CantAttack` / `CantBlockBy` on self with no other qualifier and this
+  side's unconditional `self-keywords` static are keyword lines; a `Secondary$ True` trigger merges into its twin;
+  `UnlessSwitched$ True` and a costed `AB$` sub-ability are "you may … if you do"; an effect's own `optional` flag
+  ("up to", Forge's `Optional$ True`) is not "you may" on either side; a static never targets (the aura's `enchant`
+  spec is the Enchant keyword); `who: 'target-player'` is a target; a basic land's intrinsic mana ability is not an
+  ability; a spell's whole-face text loses the lines its statics, alt costs and cost modifiers claim; a modal line
+  gains its bullets; token lists compare as multisets, a noncreature token has no P/T; a `may` directly inside a
+  `scoped` ("target opponent may draw a card", "that creature's controller may …") or a `reflexive` is "you may"
+  (the review found the shape reader skipping `scoped`: four false `may-missing` findings — Phelddagrif, Soldevi
+  Heretic, Vex, Fecundity — are gone, and nine "each player may …" cards whose choice Forge writes as an
+  effect-internal `Optional$ True` moved into the advisory `may-extra`, 70 → 79).
+- Calibration (Forge ff6b6c3d): paper claimed 12,837 cards / 12,829 with a Forge file / 12,185 agree / 644 disagree
+  in 21–29 s (whole paper pool, no filter: 32,081 cards in 22 s); scripted 140 / 84 agree / 56 disagree. Both
+  reports byte-identical on a second run; no timestamp or absolute path in the JSON. data/master/forge-calibration.json:
+  43 labelled rows (the first four disagreeing cards per category by oracle id) — 19 parser-wrong / 3 Forge-wrong /
+  21 encoding differences; precision per category in docs/vocabulary/README.md ("forge:diff"): trigger-kind 4/4,
+  target-missing 4/4, target-optionality 3/4, unmatched-forge-ability 3/4, keyword-set 2/4, may-missing 0/3,
+  magnitude 1/4, mode-count 1/2, token-shape 1/2, ability-count / target-extra / may-extra 0/4. The parser defects
+  found are §3 item 38 (the parser core slice's list).
+- Recall on the 10.1 group-1 rejections (`--scripted`): the dropped-target class is caught (Breeches — the §11
+  audit's finding, exactly one `target-missing` on the "target creature can't block" mode — Eldrazi Confluence,
+  Fiery Confluence); a flattened "when you do" (Ancient Bronze Dragon) and a token's name (Rammas Echor, Legion's
+  Landing) are not — no category compares a reflexive's nesting or a token name (the brief's `token-shape` is P/T,
+  colours, types, subtypes, keywords); "different names" restrictions (Realms Uncharted, Gifts Ungiven) neither.
+- Consumers: parse-wave.js reviewer LENS step (2b) (`forge:diff --changed` in the worktree; a parser-wrong finding on
+  a newly claimed line is a blocker, a Forge-wrong one goes in `checksRun`), script-wave.js judge prompt (`forge:diff
+  --ids … --scripted`; each finding a line to check, evidence not verdict), the merge procedure in
+  docs/workflows/README.md (`forge:diff --changed` after `parse:diff`, before `parse:accept`, "read, then decide"),
+  the `forge:diff` row and section in docs/vocabulary/README.md (categories, calibration, the licence rule, the clone).
+- Proofs: typecheck:all; the three forge test files 23/23; `npm test` 1,560 tests / 1,473 pass / 1 fail — the failure
+  was test/meta-store.test.ts's TopDeck window measured from the wall clock, fixed at commit time (§3 item 38 (i)); verify:quick; `parse:diff — 0
+  changed, 0 added, 0 removed of 34513 cards`; `MTG_SCRIPTS=0 coverage:pool` paper 12,837 / 32,081 (the brief's
+  12,877 is not what this tree prints; the parser is untouched and `parse:diff` is the identity proof);
+  `forge:diff --changed` on the clean tree prints `forge:diff — 0 changed cards` (exit 0), and against a scratch
+  snapshot with two altered hashes compares exactly those two cards.
+- Open: §3 item 38; the misses above; `additionalCosts` ("As an additional cost …") has no shape yet, so Forge's
+  static for it is an `ability-count` / `unmatched` entry on such cards.

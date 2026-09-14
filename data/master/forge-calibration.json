@@ -1,0 +1,360 @@
+{
+  "forgeHead": "ff6b6c3d1a065265ff532bba5a80d594ea2843d3",
+  "sample": [
+    {
+      "oracleId": "002100cd-1ab1-44da-93a0-1269d47a712a",
+      "name": "Waterknot",
+      "category": "ability-count",
+      "label": "encoding-difference",
+      "reason": "the aura's \"doesn't untap\" is a static on this side and an R:Event$ Untap replacement in Forge"
+    },
+    {
+      "oracleId": "009240f3-b7f8-4cbe-a3e9-974da66fb62c",
+      "name": "Soul-Scar Mage",
+      "category": "ability-count",
+      "label": "encoding-difference",
+      "reason": "the damage-to-counters replacement is a static here and an R:Event$ DamageDone line in Forge"
+    },
+    {
+      "oracleId": "00d8efa6-a2d9-4249-8da7-b45173675329",
+      "name": "Utopia Sprawl",
+      "category": "ability-count",
+      "label": "encoding-difference",
+      "reason": "\"whenever enchanted Forest is tapped for mana\" is an extra-mana-on-tap static here and a T:Mode$ TapsForMana trigger in Forge"
+    },
+    {
+      "oracleId": "01546b7d-a233-4176-8843-d732074dc5b6",
+      "name": "Doubling Season",
+      "category": "ability-count",
+      "label": "encoding-difference",
+      "reason": "both doubling replacements are statics here and R: lines in Forge"
+    },
+    {
+      "oracleId": "001c6369-df13-427d-89df-718d5c09f382",
+      "name": "Vedalken Heretic",
+      "category": "trigger-kind",
+      "label": "parser-wrong",
+      "reason": "\"deals damage to an opponent\" is any damage (CR 120.1); the parser narrows it to combat-damage-player"
+    },
+    {
+      "oracleId": "04472c4f-0df3-4de8-9cc2-882d95b822be",
+      "name": "Saltwater Stalwart",
+      "category": "trigger-kind",
+      "label": "parser-wrong",
+      "reason": "\"deals damage to an opponent\" is any damage, not combat damage only, and to an opponent, not any player"
+    },
+    {
+      "oracleId": "057e1cfc-d528-49e1-a386-9fb1edc1d135",
+      "name": "Hunting Cheetah",
+      "category": "trigger-kind",
+      "label": "parser-wrong",
+      "reason": "same narrowing: any damage to an opponent read as combat damage to a player"
+    },
+    {
+      "oracleId": "13fb5413-0057-4022-84da-2c90ce065ed1",
+      "name": "Reef Pirates",
+      "category": "trigger-kind",
+      "label": "parser-wrong",
+      "reason": "same narrowing: any damage to an opponent read as combat damage to a player"
+    },
+    {
+      "oracleId": "03e59169-d8f8-40da-b5f7-645d16365e7b",
+      "name": "Vat Emergence",
+      "category": "target-missing",
+      "label": "parser-wrong",
+      "reason": "\"put target creature card from a graveyard\" parses to return-from-graveyard without target: true — the printed target (chosen on cast, CR 601.2c) is dropped"
+    },
+    {
+      "oracleId": "312a831a-5da9-4a22-9974-f2d90ae3eb75",
+      "name": "Endless Obedience",
+      "category": "target-missing",
+      "label": "parser-wrong",
+      "reason": "same rule: the printed \"target creature card\" becomes an untargeted graveyard choice"
+    },
+    {
+      "oracleId": "39c7d2cc-4fd1-4f1a-be1a-a6ae56d2356d",
+      "name": "Shaman of the Pack",
+      "category": "target-missing",
+      "label": "parser-wrong",
+      "reason": "\"target opponent loses life\" parses to who: each-opponent — every opponent loses life in a multiplayer game"
+    },
+    {
+      "oracleId": "a044474a-cd72-4e9d-bd8d-a08f2de9cdc0",
+      "name": "Reanimate",
+      "category": "target-missing",
+      "label": "parser-wrong",
+      "reason": "same rule as Vat Emergence: Reanimate's printed target is dropped"
+    },
+    {
+      "oracleId": "0380e99c-18f9-4472-8223-bb208e5f0963",
+      "name": "Earth Village Ruffians",
+      "category": "target-extra",
+      "label": "encoding-difference",
+      "reason": "earthbend targets a land you control (its reminder text); Forge's Earthbend api keeps the target internal"
+    },
+    {
+      "oracleId": "0a44da1d-7914-4592-a00f-7e40e0d07f91",
+      "name": "Expedition Raptor",
+      "category": "target-extra",
+      "label": "encoding-difference",
+      "reason": "support 2 targets up to two other creatures; Forge's PutCounter | Support$ 2 keeps the targets internal"
+    },
+    {
+      "oracleId": "0c97aea7-c997-45b4-a044-84fb5c07a021",
+      "name": "Aerie Auxiliary",
+      "category": "target-extra",
+      "label": "encoding-difference",
+      "reason": "support 2 again: the targets live inside Forge's Support$ parameter"
+    },
+    {
+      "oracleId": "171150fb-dbe1-4a07-a7ac-5f45762a26b0",
+      "name": "Stockpiling Celebrant",
+      "category": "target-extra",
+      "label": "encoding-difference",
+      "reason": "\"you may return another target nonland permanent … If you do\" is an AB$ cost in Forge, which has no target; the printed target is this side's"
+    },
+    {
+      "oracleId": "0634091a-a74c-4cea-b6d1-7324a725554a",
+      "name": "Eerie Interlude",
+      "category": "target-optionality",
+      "label": "encoding-difference",
+      "reason": "\"any number of target creatures\": Forge's TargetMax$ X is not a literal, this side's count: 99 is"
+    },
+    {
+      "oracleId": "0ce47c8b-1e1f-463f-94f0-35ca00be89e6",
+      "name": "Inferno Titan",
+      "category": "target-optionality",
+      "label": "parser-wrong",
+      "reason": "\"among one, two, or three targets\" needs at least one target; the parser's optional: true allows none"
+    },
+    {
+      "oracleId": "0de0bc10-9699-47f9-bb98-b5bac2063756",
+      "name": "Conflagrate",
+      "category": "target-optionality",
+      "label": "parser-wrong",
+      "reason": "\"any number of targets\" parses to count: 3 — capped at three"
+    },
+    {
+      "oracleId": "198c05ca-fb2d-4f15-a28f-1dad36466a4f",
+      "name": "Clash of Titans",
+      "category": "target-optionality",
+      "label": "parser-wrong",
+      "reason": "\"target creature fights another target creature\" has two targets; the AST carries one TargetSpec"
+    },
+    {
+      "oracleId": "2659c0ea-9ae0-4be3-b9f7-5a38230815ad",
+      "name": "Blood Speaker",
+      "category": "may-missing",
+      "label": "forge-wrong",
+      "reason": "Forge's TriggerDescription says \"you may return\"; the current Oracle text is \"return this card\" (mandatory) and the parser follows it"
+    },
+    {
+      "oracleId": "49f0da4a-e046-4220-b90e-e105a5f2ef00",
+      "name": "Incinerating Blast",
+      "category": "may-missing",
+      "label": "encoding-difference",
+      "reason": "\"you may discard a card. If you do, draw\" is loot { optional: true } here — an effect-level flag the shape does not read as \"you may\""
+    },
+    {
+      "oracleId": "ee302659-59ed-4eef-babe-451b9ccf7f14",
+      "name": "Uro, Titan of Nature's Wrath",
+      "category": "may-missing",
+      "label": "encoding-difference",
+      "reason": "\"then you may put a land card\" is put-from-hand { optional: true } here — effect-level, not read as \"you may\""
+    },
+    {
+      "oracleId": "012c665c-24b1-49d6-b575-2b4ee1c3a833",
+      "name": "Puresight Merrow",
+      "category": "may-extra",
+      "label": "encoding-difference",
+      "reason": "\"you may exile that card\" is a top-level may here and Dig | Optional$ True (effect-internal) in Forge"
+    },
+    {
+      "oracleId": "04dc245b-011f-4207-ab5c-1528037200f5",
+      "name": "Nef-Crop Entangler",
+      "category": "may-extra",
+      "label": "encoding-difference",
+      "reason": "exert is an optional attack trigger here and an S:Mode$ OptionalAttackCost static in Forge"
+    },
+    {
+      "oracleId": "0a73289f-0f0b-4316-be21-8edcbb08bd7c",
+      "name": "Anep, Vizier of Hazoret",
+      "category": "may-extra",
+      "label": "encoding-difference",
+      "reason": "exert again: OptionalAttackCost static in Forge"
+    },
+    {
+      "oracleId": "0bf299da-1854-4153-baea-3cee2eb01ee8",
+      "name": "Lithoform Engine",
+      "category": "may-extra",
+      "label": "encoding-difference",
+      "reason": "\"you may choose new targets for the copy\" is a may here and a MayChooseTarget$ True parameter in Forge"
+    },
+    {
+      "oracleId": "3cc79d36-1a24-4395-8ad1-915a65db8a60",
+      "name": "Awaken the Woods",
+      "category": "token-shape",
+      "label": "parser-wrong",
+      "reason": "\"Forest Dryad land creature token\": the parser puts Land among the subtypes instead of the card types"
+    },
+    {
+      "oracleId": "7bef91cd-df65-4135-86a6-d17b71470452",
+      "name": "Thranduil the Strategist",
+      "category": "token-shape",
+      "label": "forge-wrong",
+      "reason": "the printed token is a 1/1 green Elf; Forge's g_1_1_elf script is an Elf Warrior"
+    },
+    {
+      "oracleId": "043d8dee-379f-4706-ad47-0bb562717007",
+      "name": "Earth-Cult Elemental",
+      "category": "magnitude",
+      "label": "encoding-difference",
+      "reason": "the d20 table's \"two permanents\" is inside Forge's ResultSubAbilities$, which the chain reader does not follow"
+    },
+    {
+      "oracleId": "04dc245b-011f-4207-ab5c-1528037200f5",
+      "name": "Nef-Crop Entangler",
+      "category": "magnitude",
+      "label": "encoding-difference",
+      "reason": "exert's +1/+2 is behind the OptionalAttackCost static's Trigger$, which the chain reader does not follow"
+    },
+    {
+      "oracleId": "06db7444-0225-48c8-ab04-d69ff06e97b6",
+      "name": "Goblin Artillery",
+      "category": "magnitude",
+      "label": "parser-wrong",
+      "reason": "\"and 3 damage to you\" is dropped: the AST has only the 2 damage to any target, on a card marked fully parsed"
+    },
+    {
+      "oracleId": "07f62413-92cc-4f44-a827-a7c3a7318602",
+      "name": "Ill-Tempered Cyclops",
+      "category": "magnitude",
+      "label": "encoding-difference",
+      "reason": "Monstrosity 3 is a Monstrosity$ parameter in Forge, not one of the magnitude keys"
+    },
+    {
+      "oracleId": "8537fc2c-c027-4440-bff4-d046fc198428",
+      "name": "Golem Artisan",
+      "category": "mode-count",
+      "label": "parser-wrong",
+      "reason": "\"your choice of flying, trample, or haste\" parses to two modes ({flying, trample} and {haste}) instead of three"
+    },
+    {
+      "oracleId": "99678cc9-59c8-4358-b847-8c38ffb4a050",
+      "name": "Practiced Offense",
+      "category": "mode-count",
+      "label": "encoding-difference",
+      "reason": "\"your choice of double strike or lifelink\" is a two-mode choose-mode here and a KWChoice$ parameter in Forge"
+    },
+    {
+      "oracleId": "2b5c62af-af5f-4beb-9688-19604ca46918",
+      "name": "The Cruelty of Gix",
+      "category": "keyword-set",
+      "label": "encoding-difference",
+      "reason": "read ahead is an as-enters chapter choice here and an unmapped K:Read ahead line in Forge"
+    },
+    {
+      "oracleId": "6d8e464c-9df1-46b1-88e6-dcc7fe7b7caa",
+      "name": "Bog Badger",
+      "category": "keyword-set",
+      "label": "forge-wrong",
+      "reason": "Forge lists K:Flash; neither the Oracle text nor Forge's own Oracle: line gives Bog Badger flash"
+    },
+    {
+      "oracleId": "724f3d2f-0513-4efd-961f-56a7ea7b5731",
+      "name": "Signal Pest",
+      "category": "keyword-set",
+      "label": "parser-wrong",
+      "reason": "\"can't be blocked except by creatures with flying or reach\" parses to the flying keyword — an approximation that changes the creature's characteristics (CR 702.9)"
+    },
+    {
+      "oracleId": "9b38ab81-7ee7-4d89-878b-3507e44836ca",
+      "name": "Spire Tracer",
+      "category": "keyword-set",
+      "label": "parser-wrong",
+      "reason": "same approximation: the evasion static becomes flying"
+    },
+    {
+      "oracleId": "724f3d2f-0513-4efd-961f-56a7ea7b5731",
+      "name": "Signal Pest",
+      "category": "unmatched-forge-ability",
+      "label": "parser-wrong",
+      "reason": "the evasion line has no ability on this side because the parser turned it into flying"
+    },
+    {
+      "oracleId": "9b38ab81-7ee7-4d89-878b-3507e44836ca",
+      "name": "Spire Tracer",
+      "category": "unmatched-forge-ability",
+      "label": "parser-wrong",
+      "reason": "same: the evasion line became flying"
+    },
+    {
+      "oracleId": "b6eb56a7-4dfe-4d51-a1df-55f892c1b014",
+      "name": "Orchard Spirit",
+      "category": "unmatched-forge-ability",
+      "label": "parser-wrong",
+      "reason": "same: the evasion line became flying"
+    },
+    {
+      "oracleId": "e4fb97b5-0d4a-4c9a-bd51-42ff723b5854",
+      "name": "Grafted Identity",
+      "category": "unmatched-forge-ability",
+      "label": "encoding-difference",
+      "reason": "\"As an additional cost to cast this spell, sacrifice a creature\" is additionalCosts here (no shape) and a static in Forge"
+    }
+  ],
+  "precision": {
+    "ability-count": {
+      "n": 4,
+      "parserWrong": 0
+    },
+    "trigger-kind": {
+      "n": 4,
+      "parserWrong": 4
+    },
+    "target-missing": {
+      "n": 4,
+      "parserWrong": 4
+    },
+    "target-extra": {
+      "n": 4,
+      "parserWrong": 0
+    },
+    "target-optionality": {
+      "n": 4,
+      "parserWrong": 3
+    },
+    "may-missing": {
+      "n": 3,
+      "parserWrong": 0
+    },
+    "may-extra": {
+      "n": 4,
+      "parserWrong": 0
+    },
+    "token-shape": {
+      "n": 2,
+      "parserWrong": 1
+    },
+    "magnitude": {
+      "n": 4,
+      "parserWrong": 1
+    },
+    "mode-count": {
+      "n": 2,
+      "parserWrong": 1
+    },
+    "keyword-set": {
+      "n": 4,
+      "parserWrong": 2
+    },
+    "unless-cost": {
+      "n": 0,
+      "parserWrong": 0
+    },
+    "unmatched-forge-ability": {
+      "n": 4,
+      "parserWrong": 3
+    }
+  }
+}

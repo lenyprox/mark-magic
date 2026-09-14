@@ -56,3 +56,23 @@ export const USER_DB = () => path.join(DATA_DIR(), 'user.db');
 export const IMAGE_DIR = () => path.join(DATA_DIR(), 'images');
 /** 2.5D scene packs written by tools/scene/analyze.py: <SCENE_DIR>/<id[0:2]>/<id>-<face>/{scene.json,...}. */
 export const SCENE_DIR = () => path.join(DATA_DIR(), 'scene');
+
+/** The two-line sparse clone of Forge's card scripts (docs/plans/forge-oracle.md); `dir` is the clone target. */
+export const FORGE_CLONE_RECIPE = (dir: string): string =>
+  `git clone --depth 1 --filter=blob:none --sparse https://github.com/Card-Forge/forge.git ${dir}\n`
+  + `cd ${dir} && git sparse-checkout set forge-gui/res/cardsfolder forge-gui/res/tokenscripts`;
+
+/**
+ * Forge's resource directory (`cardsfolder/`, `tokenscripts/`), read by `npm run forge:diff` as a comparison source
+ * and never copied into the repo: `MTG_FORGE_RES` when set and existing, else `<main checkout>/../forge/forge-gui/res`
+ * (a linked worktree resolves through `mainCheckoutOf`, like `DATA_DIR`). Throws with the clone recipe when absent.
+ */
+export const FORGE_RES = (): string => {
+  const env = process.env.MTG_FORGE_RES;
+  if (env && fs.existsSync(path.join(env, 'cardsfolder'))) return path.resolve(env);
+  const base = mainCheckoutOf(projectRoot()) ?? projectRoot();
+  const clone = path.resolve(base, '..', 'forge');
+  const dir = path.join(clone, 'forge-gui', 'res');
+  if (fs.existsSync(path.join(dir, 'cardsfolder'))) return dir;
+  throw new Error(`Forge checkout not found at ${dir}${env ? ` (MTG_FORGE_RES=${env} has no cardsfolder/ either)` : ''}. Clone it (two lines) or set MTG_FORGE_RES:\n${FORGE_CLONE_RECIPE(clone)}`);
+};

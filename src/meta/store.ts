@@ -13,7 +13,8 @@ export const decklistRowId = (source: MetaSource, sourceId: string) => `${source
 export interface SyncLogEntry { source: MetaSource | 'cluster'; format: string; startedAt: string; finishedAt: string; ok: boolean; message: string }
 
 export class MetaStore {
-  constructor(readonly db: Database.Database) {}
+  /** `clock` is the service's injectable clock: the `sinceDays` window must be measured from it, not from the wall clock (the fixtures-driven test pins that). */
+  constructor(readonly db: Database.Database, private readonly clock: () => number = () => Date.now()) {}
 
   // --- events & decklists ---------------------------------------------------------------------------------------------
 
@@ -87,7 +88,7 @@ export class MetaStore {
   decklists(format: string, opts: { sinceDays?: number; limit?: number; withCards?: boolean } = {}): DecklistRecord[] {
     const params: unknown[] = [format];
     let where = 'd.format = ?';
-    if (opts.sinceDays != null) { const since = new Date(Date.now() - opts.sinceDays * 86400000).toISOString().slice(0, 10); where += ' AND (d.date IS NULL OR d.date >= ?)'; params.push(since); }
+    if (opts.sinceDays != null) { const since = new Date(this.clock() - opts.sinceDays * 86400000).toISOString().slice(0, 10); where += ' AND (d.date IS NULL OR d.date >= ?)'; params.push(since); }
     return this.selectDecklists(where, params, 'd.date DESC, d.placement ASC', opts.limit ?? 5000, opts.withCards ?? true);
   }
 

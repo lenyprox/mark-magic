@@ -517,6 +517,76 @@ are a wave of `docs/workflows/parse-wave.js` (one worktree each; new files only;
 `docs/workflows/parse-core-slice.js` afterwards. After a merge, `parse:why` to a scratch path must show the item's
 keys gone — that, not the line count, is the proof the rule did what the brief asked.
 
+### `forge:diff` — Forge's card scripts as a cross-check oracle
+
+Forge (github.com/Card-Forge/forge, GPL-3.0) carries one hand-written script per card, and its lines state exactly
+the facts the judges reject scripts for: the trigger event, whether an effect targets and how many, "up to", "you
+may", "unless … pays", which token, the literal magnitudes, how many modes. `npm run forge:diff`
+(docs/plans/forge-oracle.md; `src/cards/forge/{loader,shape,compare}.ts`, `scripts/forge-diff.ts`) reads the
+checkout as a comparison source — never as a translator — builds one `AbilityShape` per ability on both sides,
+aligns them by description (token Jaccard ≥ 0.5, then class + printed order) and emits one **finding** per
+disagreement. **A finding is a claim to verify against the printed text, never a verdict**: Forge is sometimes
+wrong (a stale description, a stray keyword, a reused token script) and its encoding is often just different (two
+`T:` lines for "attacks or blocks", `Charm` for modes, an `R:` replacement for a static, a cost for "you may … if
+you do"). Every table on the Forge side is deliberately incomplete in one direction — an unmapped trigger mode or
+keyword spelling yields nothing and can never invent a finding.
+
+```
+npm run forge:diff -- --tier paper --claimed --out data/master/forge-diff.json --md data/master/forge-diff.md   # the calibration set: cards the parser alone claims
+npm run forge:diff -- --scripted --md data/master/forge-scripted.md                                          # every card with a fresh script, on the scripted def
+npm run forge:diff -- --changed                                                                              # the per-merge gate: cards whose parser-alone hash moved against parse-snapshot.json
+npm run forge:diff -- --ids <a,b | @file> --scripted --md <scratch>                                          # a judge's batch
+```
+
+Categories: `ability-count` (per class), `trigger-kind` (both mapped, no overlap), `target-missing` (Forge targets,
+ours has no `TargetSpec` anywhere — the Breeches class: a `choose-objects` standing in for a printed "target"),
+`target-extra`, `target-optionality` ("up to" / the printed maximum), `may-missing`, `may-extra`, `token-shape`
+(P/T, colours, types, subtypes, keywords — the token's *name* is recorded, not compared), `magnitude` (the literal
+integers, 0 and 1 excluded as the implicit defaults), `mode-count`, `keyword-set` (over the ids both sides can
+express), `unless-cost`, `unmatched-forge-ability` (a Forge line with a description and no partner; only on a fully
+parsed card). A card with no Forge file is a status (`no-forge-file`), not a finding. Second faces of split /
+adventure / flip cards are compared only in `--scripted` mode (the parser never parses them); a DFC's back face
+always.
+
+**Calibration** (Forge ff6b6c3d, 2026-09-14; `data/master/forge-diff.md` and `forge-scripted.md` are committed, the
+JSON is regenerated): 12,837 paper cards the parser alone claims, 12,829 with a Forge file (99.9%), **12,185 agree /
+644 disagree (5.0%)**; the 140 scripted cards: 84 agree / 56 disagree. Per category — cards with a finding over the
+12,829, and the labelled precision of `data/master/forge-calibration.json` (the first four disagreeing cards per
+category by oracle id, each read against the printed text and the parser-alone AST):
+
+| category | cards | rate | labelled parser-wrong | reading |
+|---|---:|---:|---:|---|
+| `trigger-kind` | 30 | 0.2% | 4/4 | a **gate class**: "deals damage to an opponent" read as combat damage to a player |
+| `target-missing` | 8 | 0.1% | 4/4 | a **gate class**: "put target creature card from a graveyard" untargeted; "target opponent" → each opponent |
+| `may-missing` | 3 | 0.0% | 0/3 | a **gate class** by the brief, but its three findings are one stale Forge "you may" and two of this side's effect-level `optional` flags — read, then decide |
+| `target-optionality` | 26 | 0.2% | 3/4 | "any number" capped at three, "one, two, or three" allowing none, one spec for two targets |
+| `unmatched-forge-ability` | 4 | 0.0% | 3/4 | "can't be blocked except by creatures with flying or reach" turned into flying |
+| `keyword-set` | 6 | 0.1% | 2/4 | the same evasion approximation; one Forge stray keyword |
+| `mode-count` | 2 | 0.0% | 1/2 | "your choice of flying, trample, or haste" as two modes |
+| `token-shape` | 2 | 0.0% | 1/2 | Land as a subtype; one Forge token script with an extra subtype |
+| `magnitude` | 108 | 0.8% | 1/4 | mostly Forge parameters the reader does not follow (`ResultSubAbilities$`, a static's `Trigger$`); one dropped "and 3 damage to you" |
+| `ability-count` | 403 | 3.1% | 0/4 | encoding: statics vs `R:` replacements, `TapsForMana` triggers — advisory only |
+| `target-extra` | 27 | 0.2% | 0/4 | encoding: support / earthbend keep their targets inside a Forge parameter |
+| `may-extra` | 79 | 0.6% | 0/4 | encoding: exert as an `OptionalAttackCost` static, `Dig | Optional$`, `MayChooseTarget$`, "each player may …" as an effect-internal `Optional$ True` |
+| `unless-cost` | 0 | 0.0% | — | |
+
+Over the 43 labelled rows: 19 parser-wrong, 3 Forge-wrong, 21 encoding differences. The gate rule in
+docs/workflows/README.md feeds `target-missing`, `may-missing` and `trigger-kind` to the parser-wave merge as
+"read, then decide": the first two categories' labelled findings were all the parser's fault, `may-missing`'s none
+(a fourth finding, "target opponent may draw a card", was the shape reader not looking inside `scoped` for the
+`may` — fixed, and the reader now counts a `may` directly inside a `scoped` or a `reflexive`). What it cannot see: a reflexive "when you do" flattened into its trigger (no category compares the
+nesting), a token's name, a "different names" restriction on a search, and any card without a Forge file.
+
+**The licence rule.** No Forge text is committed to this repository: the checkout lives outside it (`FORGE_RES()`:
+`MTG_FORGE_RES`, else `<main checkout>/../forge/forge-gui/res`), the test fixtures under `test/forge-*.test.ts` are
+synthetic, the JSON cache `data/master/forge-index.json` is gitignored, and the two committed reports quote oracle
+text (Scryfall's) and Forge parameter names and values only — never a script file. The clone (two lines, sparse):
+
+```
+git clone --depth 1 --filter=blob:none --sparse https://github.com/Card-Forge/forge.git C:/Users/vprog/dev/forge
+cd C:/Users/vprog/dev/forge && git sparse-checkout set forge-gui/res/cardsfolder forge-gui/res/tokenscripts
+```
+
 ### Proving a family's rules
 
 `npm run coverage:pool` writes `data/master/parser-coverage.json`: `fully_parsed` out of `playable_oracle_cards`, the
@@ -538,6 +608,7 @@ built-in.
 | `npm run parse:accept` | re-baseline that snapshot |
 | `npm run coverage:pool` | parser coverage: `fully_parsed` and the most common unparsed clauses |
 | `npm run parse:why` | the failure-cause histogram: the innermost unclaimed fragment per unparsed line, ranked by the cards a rule for it would finish (`--select`, `--top`, `--out`, `--md`, `--ids`, `--nested`, `--exclude-stage`, `--min-cards`) |
+| `npm run forge:diff` | the Forge cross-check: every card's structure (trigger kind, targets and "up to", "you may", "unless … pays", tokens, magnitudes, modes, keywords) against Forge's script for it, one finding per disagreement (`--tier`, `--select`, `--ids`, `--claimed`, `--scripted`, `--changed [--snapshot]`, `--category`, `--top`, `--out`, `--md`); a finding is evidence, not a verdict — see "forge:diff" above |
 | `npm run typecheck:example` | typecheck `_example.ts` on its own (it is excluded from the main program) |
 | `npm run typecheck:schema` | typecheck `test/schema-types.test.ts`: the core zod schema pinned to the `Core*` types, every `<family>.schema.ts` included |
 | `npm run verify:quick` | typecheck + `lint-*` + `registry` + `parser-registry` + `scripts` tests + `scripts:check` (the `parser-registry` test is what catches a stale rules barrel) |

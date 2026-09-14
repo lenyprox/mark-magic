@@ -56,6 +56,12 @@ The Phase 9/10 scripts (`vocab-wave`, `script-wave`) are in Part 5 of the plan; 
    `npm run sim:batch -- --verify data/bench/smoke.json` (and `smoke2.json`, `smoke-commander.json`) must print
    `identical`; `npm run coverage:pool` → `fully_parsed 11541` (then `git checkout -- data/master/parser-coverage.json`);
    `npm run verify:pool` → `sandbox-ok 11064 / unreachable 477`.
+   **Parser waves** (`parse-wave.js` rows): after `npm run parse:diff` on the merged tree and BEFORE `parse:accept`,
+   run `npm run forge:diff -- --changed --md <scratch>` (docs/plans/forge-oracle.md: the changed cards' structure
+   against Forge's scripts) and read every `target-missing`, `may-missing` and `trigger-kind` finding on the newly
+   claimed cards against the printed text before accepting — read, then decide: a finding is evidence, not a verdict
+   (the measured rates and the labelled precision per category are in docs/vocabulary/README.md, "forge:diff"). A
+   parser-wrong finding is an over-claim: do not accept the snapshot, send the family back for a fix round.
 3. Commit with the `Phase 8x:` message, then remove the worktree: `git worktree remove <path>`; on Windows it may
    fail with "Directory not empty" after unregistering — delete the npm workspace junction first
    (`[System.IO.Directory]::Delete('<path>\node_modules\@mtg\web')` in PowerShell, which does not follow it), then

@@ -40,11 +40,11 @@ export class MetaService {
   private resolver: NameResolver | null;
 
   constructor(opts: MetaServiceOptions) {
-    this.store = new MetaStore(opts.user);
+    this.now = opts.now ?? (() => Date.now());
+    this.store = new MetaStore(opts.user, this.now);
     this.cards = opts.cards;
     this.resolver = opts.cards ? new NameResolver(opts.cards) : null;
     this.env = opts.env ?? process.env;
-    this.now = opts.now ?? (() => Date.now());
     this.http = opts.http ?? new HttpClient({ db: opts.user, fetchImpl: opts.fetchImpl, sleep: opts.sleep, now: this.now });
   }
 

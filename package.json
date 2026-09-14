@@ -28,6 +28,7 @@
     "parse:diff": "tsx scripts/parse-snapshot.ts",
     "parse:accept": "tsx scripts/parse-snapshot.ts --accept",
     "parse:why": "tsx scripts/parse-why.ts",
+    "forge:diff": "tsx scripts/forge-diff.ts",
     "coverage:meta": "tsx scripts/meta-coverage.ts",
     "coverage:ops": "tsx scripts/coverage-ops.ts",
     "analysis:selftest": "tsx scripts/analysis-selftest.ts",

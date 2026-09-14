@@ -12,6 +12,7 @@ data/master/*.db
 !data/master/parse-snapshot.json
 !data/master/parse-why.json
 !data/master/parse-why-pool.json
+!data/master/forge-calibration.json
 data/rules/
 data/user.db*
 data/images/
