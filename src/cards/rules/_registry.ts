@@ -23,6 +23,7 @@ import family_control from './control.js';
 import family_copy_clone from './copy-clone.js';
 import family_cost_alter from './cost-alter.js';
 import family_dice_coin from './dice-coin.js';
+import family_generic_deals_damage from './generic-deals-damage.js';
 import family_generic_you_do from './generic-you-do.js';
 import family_keyword_action from './keyword-action.js';
 import family_layers from './layers.js';
@@ -39,6 +40,7 @@ const GENERATED: RuleFamily[] = [
   family_copy_clone,
   family_cost_alter,
   family_dice_coin,
+  family_generic_deals_damage,
   family_generic_you_do,
   family_keyword_action,
   family_layers,
