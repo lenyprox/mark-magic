@@ -134,22 +134,21 @@ test('"exile a <filter> card from your graveyard" is declined: filling the optio
   assert.ok(y.every(e => e.op === 'unknown'), `the 4/4 black override must not be approximated away: ${JSON.stringify(y)}`);
 });
 
-test('a sentence trailing an `optional-then` loses its antecedent — the defect is parse.ts\'s, not the wording\'s', () => {
+test('a sentence trailing an `optional-then` keeps its antecedent (9.1px item 1 — the defect was parse.ts\'s, not the wording\'s)', () => {
   // Evidence for the decline above, written with BUILT-INS ONLY so it holds whatever this family does. The same
   // trailing pronoun sentence, the same preceding token:
   //   * in the plain sentence loop the paragraph's antecedent is set and "It" becomes the token (`that`) —
   const flat = parsed("Create a token that's a copy of target creature. It gains haste until end of turn.");
   assert.deepEqual(flat.find(e => e.op === 'grant-keyword'), { op: 'grant-keyword', target: 'that', keywords: ['haste'], duration: 'eot' });
-  //   * behind an `optional-then` it becomes the SOURCE. parseParagraph slices the template's match out of `rest`
-  //     before the sentence loop, and `antecedent` is only ever set inside that loop, so the pronoun is parsed as if
-  //     the paragraph had started with it. This is what would have given God-Pharaoh's Gift — a noncreature Artifact —
-  //     the haste its 4/4 Zombie token is printed to get.
+  //   * behind an `optional-then` it used to become the SOURCE: parseParagraph slices the template's match out of
+  //     `rest` before the sentence loop, and `antecedent` was only ever set inside that loop, so the pronoun was parsed
+  //     as if the paragraph had started with it. This is what would have given God-Pharaoh's Gift — a noncreature
+  //     Artifact — the haste its 4/4 Zombie token is printed to get. Since 9.1px item 1 parseParagraph seeds the
+  //     antecedent from the template's own match text (CR 608.2h / 110.5), so the pronoun is the token here too
+  //     (test/parser-core-9-1px.test.ts pins the full shape); "exile a/an <filter> card from your graveyard" still
+  //     waits on (b), the token-copy power / toughness / colour fields, before it may be claimed.
   const behind = parsed("You may sacrifice a creature. If you do, create a token that's a copy of target creature. It gains haste until end of turn.");
-  assert.deepEqual(behind.find(e => e.op === 'grant-keyword'), { op: 'grant-keyword', target: 'self', keywords: ['haste'], duration: 'eot' });
-  // This second assertion is the acceptance test for the core change the withdrawn wording is waiting on: it flips to
-  // `that` the day parseParagraph seeds the antecedent from the template's own match text, and that is when
-  // "exile a/an <filter> card from your graveyard" can come back (God-Pharaoh's Gift also needs (b), the token-copy
-  // power / toughness / colour fields, before it may be claimed).
+  assert.deepEqual(behind.find(e => e.op === 'grant-keyword'), { op: 'grant-keyword', target: 'that', keywords: ['haste'], duration: 'eot' });
 });
 
 test('a bare pronoun ("sacrifice it" / "exile it") is declined: the referent is not the family\'s to guess', () => {

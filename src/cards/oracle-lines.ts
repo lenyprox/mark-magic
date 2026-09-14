@@ -5,11 +5,21 @@
 // the parser saw, and the parser records the second face's lines in `unparsed` in exactly the form the script
 // accounting (`secondFaceUnclaimed`) expects. Nothing here imports parse.ts or scripts.ts.
 
-/** Ability words carry no rules meaning (CR 207.2c); the parser strips them. */
-export const ABILITY_WORD_RE = /^(Revolt|Converge|Delirium|Metalcraft|Threshold|Landfall|Domain|Morbid|Raid|Ferocious|Formidable|Hellbent|Spell mastery|Flurry|Imprint|Constellation|Coven|Magecraft|Pack tactics|Alliance|Celebration|Valiant|Eerie|Survival|Paradox|Corrupted|Fateful hour|Lieutenant|Undergrowth|Enrage|Adamant|Addendum|Kinship|Chroma|Grandeur|Radiance|Parley|Descend \d+|Fathomless descent|Max speed|Heist|Mayhem|Job select|Renew|Endure|Exhaust|Mobilize|Harmonize|Behold|Channel|Battalion|Heroic|Inspired|Bloodrush|Strive|Tempting offer|Will of the council|Council's dilemma|Secret council|Cohort|Rally|Sweep|Join forces|Hero's reward|Undaunted|Legacy|Eminence|Start your engines!) — /i;
+/**
+ * Ability words carry no rules meaning (CR 207.2c); the parser strips them.
+ * "Max speed —" is NOT stripped: CR 702.179 gives it a meaning — the ability functions only while its controller has
+ * max speed — so stripping it left the ability ALWAYS ON (Muraganda Raceway's second mana ability, Vnwxt's draw
+ * replacement, Racers' Scoreboard's cost reduction). Until the engine has speed the line stays unparsed (the keyword
+ * bail-out in parse.ts lists "max speed"), honestly, rather than parsing into a card stronger than the one printed.
+ * 9.1px item 10.
+ */
+export const ABILITY_WORD_RE = /^(Revolt|Converge|Delirium|Metalcraft|Threshold|Landfall|Domain|Morbid|Raid|Ferocious|Formidable|Hellbent|Spell mastery|Flurry|Imprint|Constellation|Coven|Magecraft|Pack tactics|Alliance|Celebration|Valiant|Eerie|Survival|Paradox|Corrupted|Fateful hour|Lieutenant|Undergrowth|Enrage|Adamant|Addendum|Kinship|Chroma|Grandeur|Radiance|Parley|Descend \d+|Fathomless descent|Heist|Mayhem|Job select|Renew|Endure|Exhaust|Mobilize|Harmonize|Behold|Channel|Battalion|Heroic|Inspired|Bloodrush|Strive|Tempting offer|Will of the council|Council's dilemma|Secret council|Cohort|Rally|Sweep|Join forces|Hero's reward|Undaunted|Legacy|Eminence|Start your engines!) — /i;
 
-/** A flavour head ("Cure Wounds — You gain 2 life."): the name before the em dash is not rules text. */
-export const FLAVOUR_PREFIX_RE = /^(?![IVX]+ — )[A-Z0-9][^—.]{0,30} — (?=When\b|Whenever\b|At |\{|[A-Z])/;
+/**
+ * A flavour head ("Cure Wounds — You gain 2 life."): the name before the em dash is not rules text.
+ * "Max speed — " is excluded for the same reason it left ABILITY_WORD_RE: it is a gate, not a name.
+ */
+export const FLAVOUR_PREFIX_RE = /^(?![IVX]+ — )(?!Max speed — )[A-Z0-9][^—.]{0,30} — (?=When\b|Whenever\b|At |\{|[A-Z])/;
 
 /** Normalise a whole oracle text the way `parseCard` does: card name -> `~`, reminder text dropped, `−` -> `-`. */
 export function normalizeOracleText(text: string, cardName: string): string {

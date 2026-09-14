@@ -615,6 +615,12 @@ const effects: EffectRule[] = [
   { re: /^(each opponent|each other player|each player|target player|target opponent|that player|its controller|~'s controller|that (?:creature|permanent|card|spell|token|land)'s controller|its owner|that (?:creature|permanent|card|token)'s owner|the exiled card's owner) (.+)$/i, make: (m, ctx) => {
     const who = whoWord(m[1]); if (!who) return null;
     if (/\bunless\b/i.test(m[2])) return null;
+    // A printed `target` inside a TRIGGER body scoped to somebody else is chosen when the ability goes on the stack,
+    // by `item.controller` (src/engine/game.ts putTriggersOnStack / resolveTriggerTargetsSync); `scoped` only moves
+    // `item.actor` at resolution. Dropping "of their choice" here would hand the choice to the wrong player (CR 603.3d
+    // / 601.2c, Ley Line's "that player may put a +1/+1 counter on target creature of their choice"), so the block
+    // declines and the line stays honestly unknown until a trigger can carry a per-target chooser (9.1px item 3).
+    if (ctx.host.triggering && who !== 'you' && /\btarget\b/i.test(m[2])) return null;
     return playerBlock(who, m[2], ctx);
   } },
   { re: /^they (draw|discard|lose|gain|sacrifice|mill|create|exile|put|return|search|shuffle|scry|surveil|reveal|may|get) (.+)$/i, make: (m, ctx) => {
@@ -715,12 +721,18 @@ function amountFor(amountText: string, base: string, ctx: EffectCtx): Amount | n
   // "its power" is the sentence's subject: the source when the sentence is about `~`, the first target when it is
   // about a target ("Target creature gets +X/+0 …, where X is its power"); with both in play the English is ambiguous
   if (/^its (power|toughness|mana value)$/i.test(text)) {
-    // "Put X +1/+1 counters on ~, where X is its power" is about the source as much as "~ gets +X/+0 … its power"
-    const aboutSelf = /(^|\s)~(?=[\s.,']|$)/.test(base) && !/\btarget\b|\bthat\b|\bthose\b|\beach\b|\ball\b/i.test(base);
-    const aboutTarget = /^(?:up to \w+ |another |other )?target /i.test(base) && !/ target /i.test(base.replace(/^(?:up to \w+ |another |other )?target /i, ''));
+    // "Put X +1/+1 counters on ~, where X is its power" is about the source as much as "~ gets +X/+0 … its power".
+    // CR 208.1 / 608.2h: power, toughness and mana value are an OBJECT's characteristics, so a sentence whose subject
+    // is a PLAYER ("~'s controller …" — parse.ts's rewrite of "that creature's controller", "target player …") is
+    // never the antecedent of "its": the antecedent is the object the ability is about, which the generic path below
+    // reads as the frame's `that` (Dying Wish's X was the target PLAYER's power, always 0; Banewasp Affliction's "its
+    // toughness" was the Aura's; Death Watch already got both right). 9.1px item 18.
+    const playerSubject = /^(?:~'s|its|that (?:creature|permanent|card)'s) (?:controller|owner)\b/i.test(base) || /^(?:up to \w+ )?target (?:player|opponent)\b/i.test(base);
+    const aboutSelf = !playerSubject && /(^|\s)~(?=[\s.,']|$)/.test(base) && !/\btarget\b|\bthat\b|\bthose\b|\beach\b|\ball\b/i.test(base);
+    const aboutTarget = !playerSubject && /^(?:up to \w+ |another |other )?target /i.test(base) && !/ target /i.test(base.replace(/^(?:up to \w+ |another |other )?target /i, ''));
     if (aboutSelf) text = text.replace(/^its/i, "~'s");
     else if (aboutTarget) { const p = propOf(text.toLowerCase()); return p && typeof p === 'object' ? { ...p, of: 'target:0' } : null; }
-    else if (/\btarget\b/i.test(base)) return null;
+    else if (!playerSubject && /\btarget\b/i.test(base)) return null;
   }
   let a = amountOf(text, ctx); if (a === null) return null;
   if (garbageSubtypes(a, subtypeWords(amountText))) return null;

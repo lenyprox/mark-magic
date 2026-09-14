@@ -32,7 +32,7 @@ import type { Ability, ActivatedAbility, AbilityCost, Amount, CardDef, CardType,
 // produces is its own, so always read `npm run parse:diff` (see docs/vocabulary/README.md).
 import { ANY, CONDITION_RULES, COST_RULES, EFFECT_RULES as REGISTRY_EFFECT_RULES, LINE_RULES, STATIC_RULES, TRIGGER_RULES } from './rules/_registry.js';
 import type { EffectCtx, LineCtx } from './rules/types.js';
-import { ABILITY_WORD_RE, SECOND_FACE_LAYOUTS, secondFaceLinesOf } from './oracle-lines.js';
+import { ABILITY_WORD_RE, FLAVOUR_PREFIX_RE, SECOND_FACE_LAYOUTS, secondFaceLinesOf } from './oracle-lines.js';
 import { subtypeWord } from './subtypes.js';
 import { SUBTYPE_KIND } from './subtype-vocab.js';
 
@@ -43,7 +43,7 @@ import { SUBTYPE_KIND } from './subtype-vocab.js';
  * expected re-baseline rather than an accident. Adding a family under src/cards/rules/ does **not** bump it: that
  * shows up as a different `rulesHash` instead.
  */
-export const PARSER_VERSION = 5;
+export const PARSER_VERSION = 6;   // 6: 9.1px — the core changes the 9.1p families declared (antecedent seeding, "Whenever you attack", objectless trigger frames, the "When you do" pair, the retention-clause fold, "Max speed —")
 
 // ---------------------------------------------------------------------------
 // Mana
@@ -245,6 +245,8 @@ function parseTarget(phrase: string): TargetSpec | null {
 // Effects (one sentence -> Effect)
 // ---------------------------------------------------------------------------
 const TGT = '((?:up to (?:one|two|three|four|X) )?(?:two |three )?(?:(?:another |other )?target [^.,]+?|any target))';
+/** An amount phrase that is PER PLAYER under an each-* subject ("… equal to the number of cards in that player's hand"): declined there (9.1px item 2). */
+const PER_PLAYER_AMOUNT_RE = /\bthat player\b|\btheir\b/i;
 
 interface Rule { re: RegExp; make: (m: RegExpMatchArray) => Effect | null }
 /** A lore counter on a Saga raises a `chapter` event the plain `counters` op cannot: the saga family's `saga-lore`
@@ -533,7 +535,10 @@ const EFFECT_RULES: Rule[] = [
   { re: /^(?:you may )?play an additional land this turn$/i, make: () => ({ op: 'extra-land', count: 1 }) },
   { re: /^(?:you may )?play (\w+) additional lands this turn$/i, make: m => { const n = num(m[1]); return typeof n === 'number' ? { op: 'extra-land', count: n } : null; } },
   { re: new RegExp(`^~ deals damage to ${TGT} equal to (.+)$`, 'i'), make: m => { const t = parseTarget(m[1]); const a = parseAmountPhrase(m[2]); return t && a !== null ? { op: 'damage', target: t, amount: a } : null; } },
-  { re: /^~ deals damage to each opponent equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'damage', target: 'each-opponent', amount: a } : null; } },
+  // "… equal to the number of cards in that player's hand" under an each-* subject is PER PLAYER (CR 608.2f), which
+  // neither a `count` nor a `{ prop, of: 'that-player' }` amount can say: declined, as composition.ts's amountFor
+  // declines the same pair (Stormbreath Dragon used to deal the CONTROLLER's hand size to each opponent; 9.1px item 2)
+  { re: /^~ deals damage to each opponent equal to (.+)$/i, make: m => { if (PER_PLAYER_AMOUNT_RE.test(m[1])) return null; const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'damage', target: 'each-opponent', amount: a } : null; } },
   { re: /^~ deals damage to each creature equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'damage', target: 'each-creature', amount: a } : null; } },
   { re: /^draw cards equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'draw', amount: a, who: 'you' } : null; } },
   { re: /^you gain life equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'gain-life', amount: a, who: 'you' } : null; } },
@@ -545,7 +550,7 @@ const EFFECT_RULES: Rule[] = [
   { re: /^that player discards (\w+) cards?$/i, make: m => ({ op: 'discard', amount: num(m[1]), who: 'that-player' }) },
   { re: /^that player mills (\w+) cards?$/i, make: m => ({ op: 'mill', amount: num(m[1]), who: 'that-player' }) },
   { re: /^that player loses (\w+) life$/i, make: m => ({ op: 'lose-life', amount: num(m[1]), who: 'that-player' }) },
-  { re: /^each opponent loses life equal to (.+)$/i, make: m => { const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'lose-life', amount: a, who: 'each-opponent' } : null; } },
+  { re: /^each opponent loses life equal to (.+)$/i, make: m => { if (PER_PLAYER_AMOUNT_RE.test(m[1])) return null; const a = parseAmountPhrase(m[1]); return a !== null ? { op: 'lose-life', amount: a, who: 'each-opponent' } : null; } },
   { re: new RegExp(`^${TGT} deals damage to itself equal to its power$`, 'i'), make: m => { const t = parseTarget(m[1]); return t && { op: 'bite', target: t }; } },
   { re: /^if (?:that|the) (?:creature|permanent)(?: or planeswalker)? would die this turn, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'that' }) },
   { re: /^if a creature dealt damage (?:this way|by ~ this turn) would die(?: this turn)?, exile it instead$/i, make: () => ({ op: 'exile-if-dies', who: 'affected' }) },
@@ -622,6 +627,22 @@ const PARAGRAPH_RULES: { re: RegExp; make: (m: RegExpMatchArray, useRegistry: bo
   { re: /^you may draw a card\. if you do, discard a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1 }] },
   { re: /^you may discard a card\. if you do, draw a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1, discardFirst: true, optional: true }] },
   { re: /^you may pay (\{[^ ]+\})\. if you do, (.+?)\.?$/i, make: (m, useRegistry) => { const then = parseEffects(m[2], useRegistry); if (then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-pay', mana: parseManaCost(m[1])!, then }]; } },
+  // "You may pay {2}{R}. When you do, <body>." (Sparktongue Dragon, Thousand Moons Crackshot, Icewrought Sentry — 60
+  // printings): the sibling of the template above, and a shape only a paragraph template can answer — a sentence rule
+  // sees ONE sentence, and "When you do" / "If you do" / "If you don't" are three meanings behind an identical payment
+  // sentence. CR 603.12: the second sentence is a REFLEXIVE trigger, put on the stack from the resolving ability (it
+  // chooses its targets there), so the body is NOT the payment's `then`: the pair is the payment with an empty `then`
+  // and a `reflexive` beside it — the engine's `reflexive` reads whether the effect before it happened, and paying
+  // is what happens (render.ts prints the empty `then` as the bare payment). `$` is load-bearing: a rider printed
+  // after the reflexive belongs to that trigger (Saheeli's "Sacrifice it at the beginning of the next end step"), so
+  // a body that does not fully parse declines the whole pair rather than hoisting the rider out of it. An {X} or
+  // energy payment declines: `optional-pay` has no way to choose X, and {E} is not mana (CR 118.12). 9.1px item 15.
+  { re: /^you may pay ((?:\{[^{}]+\})+)\. when you do, (.+?)\.?$/i, make: (m, useRegistry) => { const mana = parseManaCost(m[1]); if (!mana || mana.x > 0 || energyOf(m[1])) return null; const then = parseEffects(m[2], useRegistry); if (!then.length || then.some(e => e.op === 'unknown')) return null; return [{ op: 'optional-pay', mana, then: [] }, { op: 'reflexive', when: 'you-do', effects: then }]; } },
+  // "You may pay {U}. If you don't, <Y>." (Knight of the Mists, Rohgahh of Kher Keep, Chaos Spewer): Y is MANDATORY
+  // unless the payment is made — the two-sentence spelling of "Y unless you pay {U}" (CR 118.12), so the pair is one
+  // `unless-pays`. Claiming the payment sentence alone would invert the card (paying becomes purely punitive and Y is
+  // dropped), which is why it declines with its consequence like every template here. 9.1px item 5.
+  { re: /^you may pay ((?:\{[^{}]+\})+)\. if you don't, (.+?)\.?$/i, make: (m, useRegistry) => { const mana = parseManaCost(m[1]); if (!mana || mana.x > 0 || energyOf(m[1])) return null; const otherwise = parseEffects(m[2], useRegistry); if (!otherwise.length || otherwise.some(e => e.op === 'unknown')) return null; return [{ op: 'unless-pays', who: 'you', cost: { mana }, otherwise }]; } },
   { re: /^discard a card\. if you do, draw a card\.?/i, make: () => [{ op: 'loot', draw: 1, discard: 1, discardFirst: true }] },
   // Y is captured greedily up to the next period: under /i the old lazy `([^.]+?)\.?(?=$| [A-Z~])` stopped at the
   // first space ("draw" of "draw two cards"), so the template declined on nearly every real card (PARSER_VERSION 2).
@@ -713,7 +734,14 @@ function parseAmountPhrase(p: string): Amount | null {
   if (t === "~'s power") return { count: 'power-of-source' };
   if (t === 'its power' || t === "that creature's power" || t === "that card's power") return { count: 'power-of-that' };
   if (t === 'its mana value' || t === "that card's mana value" || t === "that spell's mana value") return { count: 'mv-of-that' };
-  if (t === "the number of cards in that player's hand" || t === "the number of cards in target player's hand" || t === "the number of cards in their hand") return { count: 'cards-in-hand', filter: { other: true } };
+  // The amount FORM, not a `count`: evalAmount answers `count: 'cards-in-hand'` with the hand of `item.actor ??
+  // item.controller` and never reads `filter.other`, so the marker silently read the ABILITY CONTROLLER's hand on every
+  // effect outside a `scoped` block (Dreamborn Muse milled the Muse's controller's hand size on each opponent's upkeep,
+  // CR 603.2 / 608.2h; Search Warrant, Sudden Impact, Gaze of Adamaro, Storm Seeker read the caster's hand).
+  // evalAmountForm resolves `{ prop, of }` through the binding frame (src/engine/refs.ts thatPlayer /
+  // firstTargetPlayer) — the shape src/cards/rules/composition.ts already emits for the same phrase. 9.1px item 2.
+  if (t === "the number of cards in that player's hand" || t === "the number of cards in their hand") return { prop: 'cards-in-hand', of: 'that-player' };
+  if (t === "the number of cards in target player's hand") return { prop: 'cards-in-hand', of: 'target-player' };
   if (t === 'the number of cards in all hands') return { count: 'cards-in-all-hands' };
   if (t === 'the number of creatures on the battlefield') return { count: 'permanents-on-battlefield', filter: { types: ['Creature'] } };
   if (t === 'the number of permanents you control') return { count: 'permanents-you-control' };
@@ -739,6 +767,7 @@ function tokenEffect(m: RegExpMatchArray, nameIdx?: number): Effect | null {
     else if (w === 'and' || w === 'colorless' || w === 'legendary' || w === 'tapped') continue;
     else if (w === 'artifact') types.unshift('Artifact');
     else if (w === 'enchantment') types.unshift('Enchantment');
+    else if (w === 'land') types.unshift('Land');   // CR 305.6: a "Forest Dryad land creature token" IS a land (its Forest subtype taps for {G}); "Land" is a card type, never a subtype (CR 111.4; Staff of Titania, Awaken the Woods — 9.1px item 9)
     else subtypes.push(w[0].toUpperCase() + w.slice(1));
   }
   const kwText = nameIdx ? m[nameIdx + 1] : m[5];
@@ -773,7 +802,9 @@ const EFFECT_CTX_OPTIONAL: EffectCtx = { ...EFFECT_CTX, optional: true };
  */
 const BUILTIN_MISSES = new Set<string>();
 /** Ops whose template already reads "you may …" as a permission rather than an action (never wrapped in a `may`). */
-const PERMISSION_OPS = new Set<string>(['play-exiled', 'extra-land', 'fold-new-targets', 'impulse']);
+// `optional-pay` is here for the other reason the wrapper is wrong: it carries its OWN yes/no ask (game.ts's
+// `case 'optional-pay'`), so a `may` around it would ask one printed choice twice (9.1px item 16).
+const PERMISSION_OPS = new Set<string>(['play-exiled', 'extra-land', 'fold-new-targets', 'impulse', 'optional-pay']);
 /** True while an earlier sentence of the paragraph being parsed named an object a later "it" can refer to (parseEffects sets it). */
 let antecedent = false;
 /** How many times a registry effect template (or a paragraph template's registry retry) claimed something — a cheap "did the registry contribute?" probe for triggerBody. */
@@ -838,7 +869,7 @@ export function parseEffectSentence(sentence: string, useRegistry = true): Effec
   // haste to the sorcery. Such a pronoun becomes the registry's `thatobj` marker (src/cards/rules/composition.ts
   // reads it as the `that` binding) for the sentence shapes the composition rules take; the built-ins never match
   // the marker, so a shape nobody claims is honestly unknown rather than silently the source.
-  if (antecedent && /^(?:it|that creature|that permanent) (?:gains?|gets?|has base power|loses?|becomes?|deals?) /i.test(s)) s = s.replace(/^(?:it|that creature|that permanent)\b/i, 'thatobj');   // 9.1: becomes / deals too (layers, Wolf Strike)
+  if (antecedent && /^(?:it|that creature|that permanent) (?:gains?|gets?|has base power|loses?|becomes?|deals?|blocks?|attacks?|must) /i.test(s)) s = s.replace(/^(?:it|that creature|that permanent)\b/i, 'thatobj');   // 9.1: becomes / deals too (layers, Wolf Strike); 9.1px item 4: blocks / attacks / must too — a combat requirement is the antecedent's, never the source's (CR 509.1c; "It blocks this turn if able", "that creature blocks this turn if able")
   else s = s.replace(/^(?:it|that creature|that permanent|this creature|this permanent)\b/i, '~');
   // "put a counter on it" → the source — except under a "for each …" head, where "it" is the iterated object and no
   // built-in template ever starts with "for each" (the registry's for-each rule reads the pronoun itself, 9.0b)
@@ -866,7 +897,9 @@ export function parseEffectSentence(sentence: string, useRegistry = true): Effec
   // as a `may` wrapper here — the registry never sees those two words, so it cannot express them itself (9.0b).
   if (useRegistry) for (const r of REGISTRY_EFFECT_RULES) {
     const m = s.match(r.re);
-    if (m) { const e = r.make(m, optional ? EFFECT_CTX_OPTIONAL : EFFECT_CTX); if (e) { registryClaims++; return optional ? { op: 'may', effects: [e] } : e; } }
+    // the same guard as the built-in branch above: an op with an `optional` form of its own or in PERMISSION_OPS is
+    // never wrapped a second time (9.1px item 16)
+    if (m) { const e = r.make(m, optional ? EFFECT_CTX_OPTIONAL : EFFECT_CTX); if (e) { registryClaims++; return optional && !(e as { optional?: boolean }).optional && !PERMISSION_OPS.has(e.op) ? { op: 'may', effects: [e] } : e; } }
   }
   // "Choose one —" modal spells handled at line level.
   return { op: 'unknown', text: sentence.trim() };
@@ -1086,6 +1119,10 @@ function bindAntecedent(prior: Effect[], out: Effect[], effs: Effect[], bound: b
   return effs;
 }
 
+/** A sentence (or a paragraph template's match) that names an object a later "it" / "that creature" can refer to. */
+const ANTECEDENT_RE = /\btarget\b|\btokens?\b|\bthat (?:creature|permanent|card|token)\b|\bthatobj\b/i;
+/** Cheap gate for the CR 205.1b retention-clause fold below (the two replaces run per paragraph of every card otherwise). */
+const STILL_A_RE = /\. (?:It|He|She)'s still an? |\. They're still /;
 /** The body of parseEffects; `effectsDepth` is 1 on the outermost call of an item's text, where the frame is judged. */
 function parseParagraph(text: string, useRegistry: boolean): Effect[] {
   const out: Effect[] = [];
@@ -1101,6 +1138,10 @@ function parseParagraph(text: string, useRegistry: boolean): Effect[] {
     return kept;
   };
   let rest = text.trim();
+  // the paragraph's antecedent for a later "it" / "that creature" (see parseEffectSentence): a nested parse inherits the
+  // paragraph it is part of, and a paragraph never leaks into the next one — saved BEFORE the template loop, which may
+  // set it (a template's own text is part of the paragraph), and restored at the end
+  const savedAntecedent = antecedent;
   // multi-sentence templates first
   let matched = true;
   while (matched && rest) {
@@ -1112,18 +1153,34 @@ function parseParagraph(text: string, useRegistry: boolean): Effect[] {
       let effs = r.make(m, false);
       if (!effs && useRegistry && ANY.sentence) { effs = r.make(m, true); if (effs) registryClaims++; }
       if (!effs) continue;
-      out.push(...admit(effs, m[0])); rest = rest.slice(m[0].length).trim(); matched = true; break;
+      out.push(...admit(effs, m[0]));
+      // the template's own text is part of this paragraph: a later "it" / "that creature" may refer to what it named
+      // ("You may sacrifice a creature. If you do, create a token that's a copy of target creature. It gains haste
+      // until end of turn." is about the token, CR 608.2h / 110.5 — without this the trailing sentence was parsed as if
+      // the paragraph had started with it and the pronoun fell back to the source; 9.1px item 1)
+      if (ANTECEDENT_RE.test(m[0])) antecedent = true;
+      rest = rest.slice(m[0].length).trim(); matched = true; break;
     }
   }
   if (/\btarget (player|opponent)\b/i.test(rest)) rest = rest.replace(/\bthat player\b/gi, 'target player');
+  // CR 205.1b's retention clause ("… becomes a 4/4 Shark creature. It's still a land.") is its own SENTENCE, and every
+  // effect rule is handed one sentence at a time — so src/cards/rules/layers.ts's becomeRule never saw the retention
+  // and had to decline the animation (read alone the sentence SETS a subtype, which CR 205.1a makes a replacement; the
+  // retention says the object keeps its types, which this engine's union layers are). Fold the clause back into the
+  // sentence it qualifies, in CR 205.1b's own words, so becomeRule's `stripAddition` sees it. The phrase goes BEFORE
+  // the duration tail, because becomeRule strips " until end of turn" first and its ADDITION_RE is anchored; "until
+  // your next turn" is deliberately not folded (a `become` has no duration for it, so that wording stays declined).
+  // A clause with no such sentence before it (a paragraph opening with it) is left to the generic-still-land family.
+  // Restless Reef, Creeping Tar Pit, Mishra's Factory, Mutavault, Celestial Colonnade … — 9.1px item 7.
+  if (STILL_A_RE.test(rest)) {
+    rest = rest.replace(/(\S)( until end of turn)?\.\s+(?:It|He|She)'s still an? (?:land|artifact|creature|enchantment|planeswalker)\.(?=\s|$)/g, '$1 in addition to its other types$2.');
+    rest = rest.replace(/(\S)( until end of turn)?\.\s+They're still (?:lands|artifacts|creatures|enchantments|planeswalkers)\.(?=\s|$)/g, '$1 in addition to their other types$2.');
+  }
   const sentences = rest.split(/(?<=\.)\s+(?=[A-Z~])/).map(s => s.trim()).filter(Boolean);
-  // the paragraph's antecedent for a later "it" / "that creature" (see parseEffectSentence); a nested parse inherits
-  // the paragraph it is part of, and a paragraph never leaks into the next one
-  const savedAntecedent = antecedent;
   for (const sent of sentences) {
     if (parseTrace && outer) traceCtx.sentence = sent;
     out.push(...admit(parseSentenceRecursive(sent, 0, useRegistry), sent));
-    if (/\btarget\b|\btokens?\b|\bthat (?:creature|permanent|card|token)\b|\bthatobj\b/i.test(sent)) antecedent = true;
+    if (ANTECEDENT_RE.test(sent)) antecedent = true;
   }
   antecedent = savedAntecedent;
   return foldMarkers(out, false);
@@ -1341,7 +1398,10 @@ function parseTrigger(head: string, useRegistry = true): TriggerEvent {
   if (/^whenever ~ blocks$/.test(t)) return { on: 'blocks', self: true };
   if (/^whenever ~ becomes blocked$/.test(t)) return { on: 'becomes-blocked', self: true };
   if ((m = t.match(/^whenever (?:a|an|another) (.+?) you control attacks$/))) { const f = parseFilterWords(m[1]); if (f) return { on: 'attacks', self: false, filter: f }; }
-  if (/^whenever you attack$/.test(t)) return { on: 'attacks', self: false };
+  // "Whenever you attack" is the `you-attack` line below (once per combat, CR 508.1: attackers are declared by one
+  // turn-based action). A `{ on: 'attacks', self: false }` line here used to shadow it, and that event is queued once
+  // per DECLARED ATTACKER (game.ts queueTriggers), so all 99 printed "Whenever you attack," abilities fired N times in
+  // an N-attacker combat (Battlesong Berserker, Temmet, Razorkin Hordecaller …). 9.1px items 11 / 13.
   if (/^whenever ~ deals combat damage to a player$/.test(t)) return { on: 'combat-damage-player', self: true };
   if (/^whenever ~ deals combat damage to a player or planeswalker$/.test(t)) return { on: 'combat-damage-player', self: true };
   if (/^whenever ~ deals damage to an opponent$/.test(t)) return { on: 'combat-damage-player', self: true };
@@ -1768,15 +1828,78 @@ function addStatic(def: CardDef, line: string, st: StaticEffect | StaticEffect[]
  * a `bind` from `triggering` is put at the head of the list — the registry cannot do that itself: a sentence rule
  * never sees the trigger head. A self trigger's "it" was already rewritten to `~` above.
  */
-function triggerBody(body: string, selfEv: boolean): Effect[] {
+/**
+ * The trigger events whose context carries an OBJECT (game.ts queueTriggers is called with `{ obj }` for them, and
+ * putTriggersOnStack copies it to `item.triggeringId`), i.e. the events whose body may name `that` / `those`. The
+ * step and player events (upkeep, end-step, draw-step, combat-begin, you-attack, life-gain, life-loss-opponent,
+ * end-of-turn, and the families' day-night, discovers, forages, first-main-phase) carry none — CR 603.2: nothing for a
+ * pronoun to be about. The families' object events (src/engine/ops/<family>.ts's own queueTriggers calls) are listed
+ * here by name; a new family event that carries an object is added when it lands. 9.1px item 12.
+ */
+const OBJECT_EVENTS = new Set<string>(['etb', 'dies', 'ltb', 'attacks', 'blocks', 'becomes-blocked', 'combat-damage-player', 'deals-damage', 'cast', 'landfall', 'draw', 'chapter', 'leaves-graveyard', 'sacrifice', 'tapped', 'targeted', 'discard', 'turned-face-up',
+  'transforms', 'monstrous', 'control-gained', 'exerts', 'exploits', 'connives', 'clash', 'coin-flipped', 'dice-rolled', 'die-rolled', 'became-level', 'lore-counter-put', 'saga-final-chapter']);
+/**
+ * Does the event's context carry an object for the body's `that` to name? An UNKNOWN head counts: the line is
+ * unparsed whatever the body says, and the body is judged as if the head named an object so that the histogram
+ * (parse:why) and the family that later lands the head see the body's real parse. An `or` head carries one when any
+ * of its events does ("Whenever ~ or another creature you control enters": the entering creature, the source included).
+ */
+function carriesObject(ev: TriggerEvent): boolean {
+  if (ev.on === 'or') return ev.events.some(carriesObject);
+  return ev.on === 'unknown' || OBJECT_EVENTS.has(ev.on);
+}
+/** Is every event of the head about the source itself ("Whenever ~ enters or attacks")? Then a body's "it" is `~`, as for a plain self trigger. */
+function allSelf(ev: TriggerEvent): boolean {
+  if (ev.on === 'or') return ev.events.every(allSelf);
+  return 'self' in ev && ev.self === true;
+}
+/**
+ * Is a body sentence that OPENS with "it" / "that creature" / "that permanent" about the object the head is about
+ * (the antecedent triggerBody seeds), rather than the source? A KNOWN head answers from its event: a `cast` head's
+ * object is a spell, which the marker's shapes are not about, and a head wholly about the source ("Whenever ~ enters
+ * or attacks, it deals 3 damage") is the source. An UNKNOWN head answers from its TEXT, the way it will answer the
+ * day a family lands it — so the body's parse does not move that day, and parse:why and that family see the body's
+ * real parse now (the reason carriesObject counts an unknown head too): a head naming the source ("Whenever ~ attacks
+ * alone", "When you cycle ~", "… counters are put on ~") is the source's, unless it is a mixed "~ or another …" head
+ * (Chainflail Centipede: whichever attacked — the triggering object either way); a cast head's is a spell; an "At …"
+ * head is a step with no object (CR 603.2); every other head is about some other object and the pronoun is that
+ * object (CR 608.2f / 702.6a — "Whenever equipped creature attacks, it gains deathtouch": Reaper's Talisman, Spiked
+ * Ripsaw, Strength-Testing Hammer, The Spear of Leonidas' bullets; Rafiq of the Many, Bestial Fury, Extra Arms).
+ * 9.1px item 8.
+ */
+function pronounIsObject(ev: TriggerEvent): boolean {
+  if (ev.on === 'unknown') return /^(?:when|whenever) /i.test(ev.text) && !/\bcasts?\b/i.test(ev.text) && (!/~/.test(ev.text) || /~ or /.test(ev.text));
+  return ev.on !== 'cast' && !allSelf(ev);
+}
+function triggerBody(body: string, selfEv: boolean, ev: TriggerEvent): Effect[] {
   const before = registryClaims;
-  // a trigger about another object holds it as the frame from the start (the `bind` below, or the engine's trigger context)
-  const effs = foldMarkers(withFrame(!selfEv, [], () => asTriggerBody(() => parseEffects(body)), selfEv ? null : { op: 'bind', as: 'that', from: 'triggering' }), true);
+  // A trigger about another object holds it as the frame from the start (the `bind` below, or the engine's trigger
+  // context). A trigger with no triggering OBJECT (you-attack, upkeep, combat-begin, life-gain …) holds nothing:
+  // game.ts sets `item.triggeringId` only from `triggerCtx.obj`, so binding the frame anyway left a fullyParsed
+  // ability that resolved and touched nothing ("Whenever you attack, … They gain indestructible until end of turn"
+  // bound `those` to the empty set). Such a body is parsed with no frame, and a sentence that reads one nothing
+  // in the body binds is unknown — the same judgement every spell paragraph gets (`carriesObject` above).
+  const framed = !selfEv && carriesObject(ev);
+  // A body sentence that OPENS with "it" / "that creature" / "that permanent" is about the triggering object too
+  // ("Whenever another creature you control enters, that creature gets +3/+3 until end of turn", CR 603.2 / 608.2h):
+  // parseEffectSentence reaches for composition.ts's `thatobj` marker only behind its `antecedent` gate, and a
+  // trigger's FIRST sentence has no earlier sentence to set it, so the pronoun silently became `~` — the SOURCE —
+  // and Primal Forcemage pumped itself, Stonehoof Chieftain gave itself the trample. The object the trigger is about
+  // IS the paragraph's antecedent, so it is seeded here (the "on it" repair in the line loop is the same idea for a
+  // trailing pronoun) for every head whose pronoun is that object (`pronounIsObject` above — an unknown head included,
+  // read from its text: the line is unparsed whatever the body says, but the body's parse is what parse:why and the
+  // family that lands the head see, and the source reading was the exact defect for "Whenever equipped creature
+  // attacks, it gains deathtouch"; 9.1px item 8).
+  const savedAntecedent = antecedent;
+  if (framed && pronounIsObject(ev)) antecedent = true;
+  let effs: Effect[];
+  try { effs = foldMarkers(withFrame(framed, [], () => asTriggerBody(() => parseEffects(body)), framed ? { op: 'bind', as: 'that', from: 'triggering' } : null), true); }
+  finally { antecedent = savedAntecedent; }
   // the engine records only `triggeringId` for a plain trigger (game.ts, the trigger → stack site), never
   // `item.affected`, so EVERY complete non-self body that reads the frame — a built-in parse's `that` as much as a
   // registry claim's — gets the bind that makes `that` the triggering object (9.0b re-review 2)
   void before;
-  if (!selfEv && effs.every(e => e.op !== 'unknown') && mentionsThat(effs)) return [{ op: 'bind', as: 'that', from: 'triggering' }, ...effs];
+  if (framed && effs.every(e => e.op !== 'unknown') && mentionsThat(effs)) return [{ op: 'bind', as: 'that', from: 'triggering' }, ...effs];
   return effs;
 }
 /** Does any effect (nested lists included) read the `that` binding — a Ref, a `prop ... of: 'that'`, a `controller-of-that`, the older `power-of-that` / `mv-of-that` counts and `that-controller`? */
@@ -1870,7 +1993,7 @@ export function parseCard(row: OracleRow): CardDef {
   const isSaga = row.subtypes.includes('Saga');
 
   for (const rawLine of lines) {
-    const line = rawLine.replace(ABILITY_WORD_RE, '').replace(/^(?![IVX]+ — )[A-Z0-9][^—.]{0,30} — (?=When\b|Whenever\b|At |\{|[A-Z])/, '');
+    const line = rawLine.replace(ABILITY_WORD_RE, '').replace(FLAVOUR_PREFIX_RE, '');   // the shared regexes (src/cards/oracle-lines.ts): "Max speed —" is neither an ability word nor a flavour head (9.1px item 10)
     if (parseTrace) { traceCtx.oracleId = def.oracleId; traceCtx.line = line; traceCtx.sentence = null; }
     let m: RegExpMatchArray | null;
     // --- Saga chapters: "I — ...", "II, III — ..."
@@ -1893,7 +2016,15 @@ export function parseCard(row: OracleRow): CardDef {
     }
     if (line.startsWith('• ')) { // modes split across lines by Scryfall
       const last = isSpell ? spellEffects[spellEffects.length - 1] : undefined;
-      const mode = foldMarkers(parseEffects(stripModeName(line.slice(2))), true);
+      // A bullet belongs to the ability whose `choose-mode` it joins. Under a trigger about ANOTHER object the bullet's
+      // leading pronoun is that object and the bullet is parsed under that trigger's frame — it used to be parsed with
+      // no frame at all, so The Spear of Leonidas's "• Bull Rush — It gains double strike until end of turn." landed on
+      // the Equipment (9.1px item 8, hunk b; the same rewrite and frame as the triggered branch below).
+      const owner = isSpell ? undefined : def.abilities[def.abilities.length - 1];
+      const ownerEv = owner && owner.kind === 'triggered' ? owner.event : undefined;
+      const nonSelfTrig = !!ownerEv && !('self' in ownerEv && ownerEv.self === true);
+      const bullet = stripModeName(line.slice(2));
+      const mode = nonSelfTrig ? triggerBody(bullet, false, ownerEv!) : foldMarkers(parseEffects(bullet), true);
       if (last && last.op === 'choose-mode') { last.modes.push(mode); noteUnknownMode(def, mode); continue; }
       const lastAb = def.abilities[def.abilities.length - 1];
       const lastEff = lastAb && lastAb.kind !== 'static' ? lastAb.effects[lastAb.effects.length - 1] : undefined;
@@ -2035,8 +2166,10 @@ export function parseCard(row: OracleRow): CardDef {
       // trigger about another permanent is that permanent — the frame word, which triggerBody binds (parseEffectSentence
       // would otherwise read a bare "on it" as the source)
       if (!selfEv && 'filter' in ev && ev.on !== 'cast') body = body.replace(/\bon it\b/gi, 'on that permanent');
+      // (… and a body SENTENCE that opens with the pronoun is that permanent too — triggerBody seeds the paragraph's
+      // antecedent for a trigger about another object, 9.1px item 8)
       const once = /\. this ability triggers only once each turn\.?$/i.test(body); if (once) body = body.replace(/\.? this ability triggers only once each turn\.?$/i, '');
-      const effs = /^choose (one|two)( —|\.)?$/i.test(body.trim()) ? [{ op: 'choose-mode', modes: [], count: /two/i.test(body) ? 2 : 1 } as Effect] : triggerBody(body, selfEv);
+      const effs = /^choose (one|two)( —|\.)?$/i.test(body.trim()) ? [{ op: 'choose-mode', modes: [], count: /two/i.test(body) ? 2 : 1 } as Effect] : triggerBody(body, selfEv, ev);
       const ab: TriggeredAbility = { kind: 'triggered', event: ev, effects: effs, text: line, optional, intervening, ...(once ? { oncePerTurn: true } : {}) };
       if (parseTrace) {
         // the head and the intervening clause are the two fragments this branch alone knows; the body's are on record

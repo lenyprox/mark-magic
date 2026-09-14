@@ -325,7 +325,10 @@ function becomeRule(subject: string, body0: string, eotPrefix: boolean, ctx: Eff
     const withTail = rest.match(/ with ([a-z][a-z, ]*)$/i);
     if (withTail !== null) { keywords = kwListOf(withTail[1]); if (keywords === null) return null; rest = rest.slice(0, rest.length - withTail[0].length).trim(); }
   }
-  const leadPT = rest.match(/^(\d+)\/(\d+) (.+)$/);
+  // "becomes A 4/4 Shark creature": the article in front of a P/T is not a layer word (layerWords skips it everywhere
+  // else), so it is dropped before the P/T is read — without this every P/T-bearing become declined (9.1px item 7,
+  // the family-side line that consumes parse.ts's CR 205.1b retention-clause fold)
+  const leadPT = rest.replace(/^an? (?=\d+\/\d+ )/i, '').match(/^(\d+)\/(\d+) (.+)$/);
   if (leadPT !== null) { power = Number(leadPT[1]); toughness = Number(leadPT[2]); rest = leadPT[3].trim(); }
   const every = /^every creature type$/i.test(rest);
   const w = every ? { types: [], subtypes: [], colors: [] } : layerWords(rest);

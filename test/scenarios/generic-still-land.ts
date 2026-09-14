@@ -18,17 +18,17 @@
 //   * `noLog` on the clause's own `unsimulated` line, and an exact `unsimulated` count. Both of those FAIL with
 //     src/cards/rules/generic-still-land.ts reverted, which is what makes these real tests of the rule.
 //
-// The counts are 1, not 0, and that is the honest state of the pool: the "… becomes a 3/3 creature …" half of these
-// same lines is a wording src/cards/rules/layers.ts DELIBERATELY declines (setting a creature subtype would replace
-// the printed subtypes under an additive layer model — docs/vocabulary/layers.md, "What this model does not do").
-// Nothing in this family may claim it, and weakening these to `unsimulated: 0` by pretending otherwise is exactly
-// what test/scenarios/README.md convention 4 forbids.
+// Vivify's count is 0 since 9.1px item 7: parse.ts folds the retention clause back into the "Target land becomes a
+// 3/3 creature …" sentence it qualifies (CR 205.1b's own words, "in addition to its other types"), so layers.ts sees
+// the retention and the animation runs — the Mountain is a 3/3 creature AND still a land that taps for mana.
+// Weakening a count by pretending is what test/scenarios/README.md convention 4 forbids; the count is what the
+// parser really claims.
 import type { Scenario } from './dsl.js';
 
 export const genericStillLand: Scenario[] = [
   {
-    name: "Vivify's \"It's still a land.\" is a reminder: the animated land is untouched and the card is still drawn", cr: '205.1b',
-    ruling: 'An effect that changes an object\'s card type adds it; the permanent keeps its other types. "It\'s still a land" says so and does nothing else.',
+    name: "Vivify's \"It's still a land.\" is a reminder: the animated land is a 3/3 creature that is still a land, and the card is still drawn", cr: '205.1b',
+    ruling: 'An effect that changes an object\'s card type adds it; the permanent keeps its other types. "It\'s still a land" says so and does nothing else — the animation is what the sentence before it does.',
     seats: [{ bf: ['Forest', 'Forest', 'Forest', 'Mountain'], hand: ['Vivify'] }, {}],
     script: [{ cast: 'Vivify', targets: [['Mountain']] }, { resolve: true }],
     expect: [
@@ -36,22 +36,14 @@ export const genericStillLand: Scenario[] = [
       { handCount: [0, 1] },                       // the "Draw a card." line of the same spell still resolved
       { zone: ['Mountain', 'battlefield'] },       // the clause moved nothing …
       { tapped: ['Mountain', false] },             // … and cost nothing
+      { pt: ['Mountain', 3, 3] },                  // … and the sentence it qualifies animated the land (9.1px item 7)
       { noLog: 'unsimulated text: "It\'s still a land' },
-      { unsimulated: 1 },                          // only the "Target land becomes a 3/3 creature …" half
+      { unsimulated: 0 },                          // the whole line parses: the fold lets layers.ts see the retention
     ],
   },
-  {
-    name: "Jolrael, Empress of Beasts: \"They're still lands.\" is the plural of the same reminder", cr: '205.1b',
-    ruling: 'The lands keep the land type the animation did not replace; the clause itself has no effect on the game.',
-    seats: [{ bf: ['Jolrael, Empress of Beasts', 'Forest', 'Forest', 'Forest'], hand: ['Grizzly Bears', 'Hill Giant'] }, {}],
-    script: [{ activate: 'Jolrael, Empress of Beasts' }, { resolve: true }],
-    expect: [
-      { handCount: [0, 0] },                       // the "Discard two cards" half of the cost was really paid …
-      { graveyardCount: [0, 2] },
-      { tapped: ['Jolrael, Empress of Beasts', true] },
-      { zone: ['Forest', 'battlefield'] },         // … and the lands the clause is about are untouched
-      { noLog: 'unsimulated text: "They\'re still lands' },
-      { unsimulated: 1 },                          // only the "All lands target player controls become 3/3 …" half
-    ],
-  },
+  // Jolrael, Empress of Beasts ("They're still lands.") used to sit here as the plural of the same reminder. Since
+  // 9.1px item 7 the clause is folded into "All lands target player controls become 3/3 creatures …", which
+  // src/cards/rules/layers.ts declines for its SUBJECT, so the whole ability is one unknown effect and the engine no
+  // longer offers it at all (src/engine/legal.ts: an ability whose every effect is unknown is not an action) — the
+  // honest state, pinned in test/parser-core-9-1px.test.ts rather than as a board that cannot activate it.
 ];

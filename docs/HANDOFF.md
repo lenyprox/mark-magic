@@ -594,6 +594,69 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     TopDeck + Goldfish fixtures" failed (`murk.deckCount` 4 !== 8) because `MetaStore.decklists` measured its
     `sinceDays` window from the wall clock while the service has an injectable clock — the store now takes the
     service's clock (src/meta/store.ts, src/meta/service.ts).
+39. **Left open by the 9.1px core slice (2026-09-14; the 20 items of data/scripts/batches/parse-wave-1-core.json,
+    PARSER_VERSION 6; pins in test/parser-core-9-1px.test.ts, boards in test/scenarios/core-9-1px.ts):**
+    (a) Item 14 (the general "You may <non-mana cost>. If you don't, Y" paragraph template) is deferred on its own
+    measurement — 17 matches, 1 claimed card (Lim-Dûl's Paladin) until the else-slot vocabulary grows; the mana form
+    (item 5, `unless-pays`) is in and claims 0 printed cards today because every printed Y half declines (Knight of
+    the Mists' bare-subtype "target Knight", Chaos Spewer's blight, Rohgahh's "and"-joined else, Koya's delayed
+    head). (b) Item 19 (rerouting a leading possessive "that creature's controller" to the `thatobj` marker) is
+    deferred: item 18's `amountFor` guard in composition.ts fixes Dying Wish and Banewasp Affliction without it,
+    and the rewrite would move every built-in "~'s controller …" parse (Pattern of Rebirth). (c) Item 20 is the
+    orchestrator's: re-land generic-when-enchanted-dies from branch worktree-wf_b1cfe93c-0b1-7 (a831336) — the
+    guard it needed is in, and a probe trigger family in test/parser-core-9-1px.test.ts already pins Dying Wish's
+    X as the dead creature's power (`power-of-that`) and Banewasp's `{ prop: 'toughness', of: 'that' }`.
+    (d) "it deals damage …" under a trigger about ANOTHER object is honestly unknown now (item 8 seeds the body's
+    antecedent, so the pronoun is the triggering creature): `damage` has no source slot, and the entering creature
+    — not the enchantment — is the source (CR 120.1; lifelink, deathtouch, infect, protection read it). Lost lines:
+    Warstorm Surge, Be'lakor, Dragon Tempest, Scourge of Valkas, Stalking Vengeance, Electropotence, Halana, Kessig
+    Ranger, Efteekay, Pyrogoyf, Hawkeye, Trick Shot, Invasion of Tarkir's back face (~11). A `source: 'that'` slot on
+    `damage` plus one composition.ts rule re-claims them; Wolf Strike already declines for the same reason.
+    (e) "Max speed — …" lines are unparsed (item 10: 34 parse:diff groups, ~40 cards) until the engine has speed
+    (the 9.2 brief); "Start your engines!" therefore finishes 0 cards in parse:why, as the item predicted.
+    (f) becomeRule (src/cards/rules/layers.ts) still declines "with all creature types" (Mutavault, Faceless Haven,
+    Soulstone Sanctuary), "until your next turn" (Nissa, Vital Force; Wrenn and Realmbreaker; Sylvan Awakening),
+    "for as long as ~ remains on the battlefield" (Awakener Druid) and an X/X P/T; the CR 205.1b fold (item 7)
+    rewrites those still-unknown fragments to carry "in addition to its other types" (~25 cards; the parse:why keys
+    move with them, the way the built-in "that player → target player" rewrite already normalises unknown text).
+    (g) Under an UNKNOWN head the body's leading "it" / "that creature" is read the way the head's text foretells
+    (parse.ts `pronounIsObject`, item 8 after its review): a head naming the source keeps the source (Rogue Kavu's
+    "Whenever ~ attacks alone", Knighted Myr), a cast-shaped head keeps the known `cast` reading, an "At …" head is
+    objectless, and every other head — "Whenever equipped creature attacks", "Whenever enchanted creature becomes
+    blocked", the mixed "Whenever ~ or equipped creature attacks" — binds the triggering object (CR 608.2f / 702.6a).
+    So Reaper's Talisman, Spiked Ripsaw, Strength-Testing Hammer, The Spear of Leonidas' "• Bull Rush" bullet (hunk
+    b), Rafiq of the Many, Bestial Fury, Chainflail Centipede … (~80 unparsed cards; parse:diff's "same unparsed
+    lines" group) no longer say the EQUIPMENT gains the keyword; the lines stay unparsed until the equipped-attacks /
+    enchanted-blocked heads land (9.2), and landing them moves none of these bodies. Still the source's while unknown:
+    a head naming `~` other than as "~ or …" ("Whenever a creature dealt damage by ~ this turn dies" — none in the
+    pool with a leading-pronoun body today). (h) Item 12 made three objectless bodies honestly unknown: Ghastly Remains / Pyre
+    Zombie ("… you may pay {B}{B}{B}. If you do, return it to your hand" — "it" is the source in the graveyard, which
+    wants the line loop's self "it → ~" rewrite extended to an upkeep trigger with no other referent), Inti,
+    Seneschal of the Sun ("It gains trample" names the reflexive's own target), Cactuar. (i) The nested shape
+    `optional-pay { then: [reflexive] }` still fires the reflexive off the wrong `lastHappened` (item 21), which is
+    why item 15's "When you do" pair is sibling-shaped (`optional-pay` with an empty `then`, then the `reflexive`).
+    (j) REVIEW MINOR, matters for 10.1 authors: the CR 205.1b fold (item 7) rewrites the text an unknown fragment
+    carries, so about 25 cards' `def.unparsed` now quotes a sentence no card prints ("… in addition to its other
+    types until end of turn."); scripts:queue hands authors `unparsedLines` from it and a script claim must match a
+    PRINTED line, so those cards (the man-land / animation class) cannot be claimed line by line until the fold keeps
+    the original sentence's text when the folded sentence still fails (parse both; keep the fold only when it claims).
+    (k) REVIEW MINOR: an unknown head that names ~ but is not "~ or …" keeps the source reading (`pronounIsObject`), so
+    Witherscale Wurm's "Whenever ~ blocks or becomes blocked by a creature, that creature gains wither" grants wither
+    to the Wurm — both directions of the referent are wrong for this head shape; the 9.2 blocks / becomes-blocked-by
+    family must set the object when it lands the head. (l) REVIEW MINOR: item 9's token Land ("Forest Dryad land
+    creature token") has no CR 305.6 intrinsic mana ability — parse.ts builds "{T}: Add {G}" from PRINTED subtypes at
+    card-parse time and a token gets only `grantedAbilities` — so Awaken the Woods / Staff of Titania / Chatterstorm
+    tokens cannot tap for mana (engine: derive the basic-land mana ability from a token's subtypes in
+    characteristics.ts). (m) REVIEW MINOR, pre-existing class: parseEffectSentence's `on it` -> `on ~` tail rewrite
+    puts Additive Evolution's "Put three +1/+1 counters on it" on the enchantment instead of the token just created
+    (CR 608.2); item 1's antecedent seeding covers a sentence-initial "it" / "that creature", not the `on it` tail.
+    (n) REVIEW MINOR: test/scenarios/generic-still-land.ts lost the Jolrael, Empress of Beasts board scenario (its
+    animate-all wording declines in becomeRule after the fold); re-point it when becomeRule accepts that shape.
+    (o) REVIEW MINOR, latent: the bare "their hand" spelling emits `{ prop: 'cards-in-hand', of: 'that-player' }`,
+    which refs.ts resolves from `item.triggeringPlayer` first — inside a trigger that also has a printed player TARGET
+    it would read the triggering player; only the spell form is pinned. (p) ACCEPTED: src/cards/rules/layers.ts got a
+    one-line change outside any item's named file (the article before a P/T is dropped so becomeRule accepts "a 4/4
+    Shark creature"); it widens becomeRule onto wordings that declined on the article alone — reviewed and kept.
 
 ## 4. Remaining Phase 8 slices
 

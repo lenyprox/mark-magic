@@ -830,7 +830,10 @@ export function renderEffect(e: Effect | undefined, ctx: RenderCtx = ROOT): stri
     }
     // --- containers and composition ---------------------------------------
     case 'conditional': return `if ${renderCondition(x.condition as Condition)}, ${renderEffects(x.then as Effect[], ctx)}${(x.else as Effect[] | undefined)?.length ? `. otherwise, ${renderEffects(x.else as Effect[], ctx)}` : ''}`;
-    case 'optional-pay': return `${ctx.you} may pay ${renderMana(x.mana as ManaCost)}. if you do, ${renderEffects(x.then as Effect[], ctx)}`;
+    // an EMPTY `then` is the printed "You may pay {2}{R}." whose consequence is the `reflexive` beside it (CR 603.12,
+    // parse.ts's "When you do" paragraph template), not a missing half: printing ". if you do, " after it left a
+    // dangling clause that scoreClaimedLine then scored the card against (9.1px items 6 / 17)
+    case 'optional-pay': { const pay = `${ctx.you} may pay ${renderMana(x.mana as ManaCost)}`; const then = x.then as Effect[]; return then.length ? `${pay}. if you do, ${renderEffects(then, ctx)}` : pay; }
     case 'optional-then': return `${ctx.you} may ${renderEffects(x.first as Effect[], ctx)}. if you do, ${renderEffects(x.then as Effect[], ctx)}`;
     // an EMPTY mode is the parser's fold marker (`modes: [[]]` is how "It can't be regenerated." reaches the AST as
     // a claim of nothing); rendering it as "choose one — •" put a bullet with no text on the card

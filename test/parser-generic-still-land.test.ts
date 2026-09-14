@@ -115,14 +115,17 @@ test('the INLINE "… that\'s still a land" spelling stays with src/cards/rules/
 test('printed cards: the retention clause is no longer an unknown effect', { skip: !hasDb }, () => {
   useScriptStore(new ScriptStore(path.join(projectRoot(), 'data', 'master', '.no-scripts')));
   const db = CardDB.shared();
-  for (const [name, clause] of [['Vivify', "It's still a land."], ['Jolrael, Empress of Beasts', "They're still lands."]] as const) {
+  // Since 9.1px item 7 parse.ts folds a retention clause that FOLLOWS a type-changing sentence back into that
+  // sentence ("… becomes a 3/3 creature in addition to its other types until end of turn", CR 205.1b's own words), so
+  // on these two cards the clause never reaches this family as a sentence of its own: Vivify's animation now parses
+  // whole (`become`, test/parser-core-9-1px.test.ts), and Jolrael's "All lands target player controls become …" is
+  // declined by src/cards/rules/layers.ts for its subject, not for the retention. The family's own claim — a clause
+  // with nothing before it to fold into — is pinned by the sentence tests above.
+  for (const [name, clause, whole] of [['Vivify', "It's still a land.", true], ['Jolrael, Empress of Beasts', "They're still lands.", false]] as const) {
     const def = db.get(name);
     assert.ok(def, `${name} is in the master database`);
     const effs = def!.abilities.flatMap(a => a.kind === 'spell' || a.kind === 'activated' || a.kind === 'triggered' ? a.effects : []);
-    assert.ok(effs.some(e => e.op === 'scoped'), `${name}: the retention clause is claimed`);
     assert.ok(!effs.some(e => e.op === 'unknown' && e.text === clause), `${name}: "${clause}" is not unknown any more`);
-    // the sibling type change is still honestly unparsed (src/cards/rules/layers.ts declines a subtype-setting
-    // "becomes"; docs/vocabulary/layers.md, "What this model does not do")
-    assert.ok(!def!.fullyParsed, `${name}: the "becomes …" half is still unparsed`);
+    assert.equal(def!.fullyParsed, whole, `${name}: fullyParsed`);
   }
 });
