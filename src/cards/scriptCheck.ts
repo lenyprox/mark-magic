@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { CardDB } from './db.js';
 import { parseCard } from './parse.js';
+import { lintScript } from './lint.js';
 import { tierOf } from './pool.js';
 import { CardScriptChecked } from './schema.js';
 import {
@@ -150,6 +151,11 @@ export function checkScript(id: string, ctx: CheckContext): CheckResult {
     if (v.scriptHash !== scriptHash(script)) info.push(`${id} (${script.name}): verification is stale — the script changed since it was verified`);
     else if (v.oracleHash !== fresh) info.push(`${id} (${script.name}): verification is stale — the oracle text changed since it was verified`);
   }
+  // 9. the lint (src/cards/lint.ts) — the same rules scripts:verify stage 4 applies; a lint FAIL is a problem here too, so
+  //    the promoter and verify:quick enforce every lint rule on every committed script (the choose-objects-for-target rule
+  //    of 2026-09-14 first; a script verified before a rule existed does not keep its `verified` for free). Its covers /
+  //    ignore findings are the checks above restated through the same helpers, so only the other rules are added here.
+  for (const why of lintScript(script, def, tier).problems) if (!/^(?:backFace: |secondFace: )?(?:covers |ignore)/.test(why)) problems.push(`${id} (${script.name}): lint — ${why}`);
   return out;
 }
 

@@ -549,7 +549,7 @@ and the remote `worktree-*` branches were deleted. Section 6 records what each m
     Burning-Rune Demon). `become-prepared` is inert (transform.ts ~303; the prepare face cannot be built). `TokenSpec`
     drops a token's quoted ability text (Defend the Rider's Pilot). Family `choose-modes` has `repeat` but no targets,
     core `choose-mode` has targets but no repeat (Fiery Confluence) — and authors wrote `choose-objects` where the
-    printed mode says "target" (Eldrazi Confluence): the judge rule is right, add a lint. The four "Season of …"
+    printed mode says "target" (Eldrazi Confluence): the judge rule is right, add a lint (ADDED 2026-09-14: src/cards/lint.ts `printedTargets`, a scripts:check problem; the judge prompt carries the rule). The four "Season of …"
     paradox cards' `{P}` mode lines are claimable by nothing (refused by promote, quarantined). Blind manifest: no
     `manaCost` field; the DSL README lacks the legal `passUntil` step names (upkeep, draw, main1, combat-begin,
     declare-attackers, declare-blockers, first-strike-damage, combat-damage, combat-end, main2, end, cleanup) and its
@@ -916,6 +916,16 @@ Plan D6, brief docs/workflows/briefs/process-slice.md, run through `tooling-slic
   bar, on a sample of one — the owner decides whether the second judge returns for groups 2+ (recommendation: keep one
   judge but make the judge rule explicit that a `choose-objects` standing in for a printed "target" is unfaithful, and
   add the lint §3 item 36 asks for).
+  **Owner's decision 2026-09-14: one judge stays for 10.1 groups 2+**; the mitigation is the explicit judge rule in
+  docs/workflows/script-wave.js (a `choose-objects` or any other resolution-time choice standing in for a printed
+  "target" is unfaithful, never "forced by the vocabulary") and the matching lint in src/cards/lint.ts (a
+  scripts:check problem, so such a script can no longer reach `verified`; `checkScript` in src/cards/scriptCheck.ts now
+  runs the whole lint, so the promoter and verify:quick enforce every lint rule on every committed script). The lint
+  rejected six committed scripts, all quarantined (gitignored data/scripts/_quarantine, re-queued by state): Breeches,
+  Eager Pillager; Eldrazi Confluence and Fiery Confluence (mode lines printing "target" scripted as `choose-objects`);
+  Silent Hallcreeper ("another target creature you control"); Intuition and Gifts Ungiven ("Target opponent chooses"
+  scripted as an opponent's resolution-time choice — the target opponent is a TargetSpec of kind `opponent`, and the
+  piles-choices vocabulary already names the targeted player as the chooser: `chooser: 'target-opponent'`).
 - Harness defect found by the audit: `Game.simulateCombat` (game.ts ~205-220) declares and validates blocks BEFORE it
   queues the `attacks` triggers, so a DSL `attack` step with `blocks` / `refused` can never observe a block restriction
   created by an attack trigger; drive combat with `passUntil` instead until fixed (added to §3 item 36).

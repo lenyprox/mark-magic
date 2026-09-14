@@ -100,7 +100,11 @@ roughly half of the Phase 8 overrun was process weight, not engineering.
    EDHREC top-1k half of plan 2.4's two-judge set was dropped on 2026-09-06 (`edhrecTopIds` stays exported for the
    queue's selections and the audit). `scripts:promote -- --judges N` still forces a whole run. The 2% re-judge audit
    stays for every wave (sorted judged ids, every 50th, one Opus judge, disagreements to HANDOFF), and a second judge
-   returns only if the audit shows > 3% disagreement.
+   returns only if the audit shows > 3% disagreement. **2026-09-14 (owner):** the 10.1 group-1 audit disagreed on its
+   one sampled card (Breeches: a `choose-objects` standing in for a printed "target", excused by the wave judge as
+   "forced by the vocabulary"); one judge STAYS for 10.1 groups 2+, and the mitigation is the explicit judge rule
+   in `script-wave.js` (a resolution-time choice standing in for a printed target is unfaithful, CR 115.1 / 601.2c)
+   plus the matching lint in `src/cards/lint.ts` (`printedTargets`; a scripts:check problem).
 6. **Models**: serial Phase 9 work (9.0 and any later core slice on `main`) runs on **Fable 5.1 at high effort**
    (`model: 'fable', effort: 'high'`). Parallel worktree families (9.1, 9.2, 9.3+), the Phase 10 author / blind
    scenario / judge roles and reviewers stay on Opus unless the owner says otherwise. The orchestrating session

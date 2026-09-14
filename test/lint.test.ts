@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   AI_ROLES, AMOUNT_COUNT_VOCAB, CONDITION_VOCAB, countersOf, discriminators, EFFECT_OP_VOCAB, isAmountCountNode, KEYWORD_VOCAB,
-  lintScript, STATIC_VOCAB, TARGET_KIND_VOCAB, TRIGGER_VOCAB,
+  lintScript, printedTargets, STATIC_VOCAB, TARGET_KIND_VOCAB, TRIGGER_VOCAB,
 } from '../src/cards/lint.js';
 import { EFFECT_VARIANTS } from '../src/cards/schema.js';
 import { parseCard } from '../src/cards/parse.js';
@@ -132,4 +132,29 @@ test("8c-1 L-1: a TargetSpec's or an op's `count: 'X'` is not an amount count", 
   assert.deepEqual(boltLint([{ op: 'damage', amount: 'X', target: { kind: 'creature', count: 'X' } }]).problems, [], 'up to X target creatures');
   assert.deepEqual(boltLint([{ op: 'token', count: 'X', power: 1, toughness: 1, colors: [], types: ['Creature'], subtypes: ['Elf'], keywords: [] }]).problems, [], 'create X tokens');
   assert.match(boltLint([{ op: 'damage', amount: { count: 'X' }, target: { kind: 'any' } }]).problems.join(), /unknown amount count 'X'/, "an AmountExpr count of 'X' is still wrong");
+});
+
+test("owner rule 2026-09-14: a 'choose-objects' standing in for a printed \"target\" is a problem", () => {
+  const choose = { op: 'choose-objects', chooser: 'you', from: { filter: { types: ['Creature'] }, who: 'each-player' }, count: 1 };
+  // Breeches' shape: "Target creature can't block" scripted as a resolution-time choice + cant-block on 'that'
+  const bad = boltLint([choose, { op: 'cant-block', target: 'that', duration: 'eot' }]);
+  assert.equal(bad.level, 'fail'); assert.match(bad.problems.join('\n'), /prints "target" 1 time\(s\) but declares 0 TargetSpec\(s\).*CR 115\.1, 601\.2c/);
+  // the same line with a real TargetSpec is clean, and so is a resolution-time choice beside a declared target
+  assert.equal(boltLint([{ op: 'cant-block', target: { kind: 'creature' }, duration: 'eot' }]).level, 'ok');
+  assert.equal(boltLint([{ op: 'damage', amount: 3, target: { kind: 'any' } }, choose, { op: 'tap', target: 'that' }]).level, 'ok');
+  // one printed target across two modes: a TargetSpec in one mode and a choice in the other is still one short
+  const modal = boltLint([{ op: 'choose-mode', count: 1, modes: [[{ op: 'damage', amount: 3, target: { kind: 'any' } }], [choose, { op: 'tap', target: 'that' }]] }]);
+  assert.equal(modal.level, 'ok');
+  const twoPrinted = lintScript(script(BOLT, { abilities: [{ kind: 'spell', effects: [{ op: 'choose-mode', count: 1, modes: [[{ op: 'damage', amount: 3, target: { kind: 'any' } }], [choose, { op: 'tap', target: 'that' }]] }] as never, text: 'Choose one — ~ deals 3 damage to any target; or tap target creature.' }] }), BOLT);
+  assert.equal(twoPrinted.level, 'fail');
+  // a modal ability is checked mode by mode: the printed mode line against its own effects (Breeches, Eager Pillager)
+  const modes = lintScript(script(BOLT, { abilities: [{ kind: 'spell', effects: [{ op: 'choose-modes', count: 1, labels: ['~ deals 3 damage to any target.', "Target creature can't block this turn."], modes: [[{ op: 'damage', amount: 3, target: { kind: 'any' } }], [choose, { op: 'cant-block', target: 'that', duration: 'eot' }]] }] as never, text: 'Choose one —' }] }), BOLT);
+  assert.equal(modes.level, 'fail'); assert.match(modes.problems.join('; '), /"Target creature can't block this turn\." prints "target" 1 time/);
+  // "becomes the target of" is targeting by something else: a choice there is not standing in for a target
+  const targeted = lintScript(script(BEARS, { abilities: [{ kind: 'triggered', event: { on: 'targeted', self: true }, effects: [choose, { op: 'tap', target: 'that' }] as never, text: 'Whenever ~ becomes the target of a spell, tap a creature of your choice.' }] }), BEARS);
+  assert.equal(targeted.level, 'ok', targeted.problems.join('; '));
+  assert.equal(printedTargets("Destroy target creature. (It can't be regenerated.)"), 1);
+  assert.equal(printedTargets('~ deals 2 damage divided as you choose among one or two targets.'), 1);
+  assert.equal(printedTargets('Whenever ~ becomes the target of a spell or ability an opponent controls, draw a card.'), 0);
+  assert.equal(printedTargets('Target creature gets +2/+2 until end of turn. Target player draws a card.'), 2);
 });

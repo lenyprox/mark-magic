@@ -137,6 +137,16 @@ const COMBAT_SELF_TRIGGERS: ReadonlySet<string> = new Set(['attacks', 'blocks', 
 /** Trigger events that need the source to be a PERMANENT at all. */
 const PERMANENT_SELF_TRIGGERS: ReadonlySet<string> = new Set(['etb', 'dies', 'ltb', 'tapped', 'turned-face-up', 'targeted', ...COMBAT_SELF_TRIGGERS]);
 
+/**
+ * How many times an oracle line prints a target phrase ("target creature", "any target", "up to two target creatures",
+ * "one or two targets"): reminder text is dropped, and "becomes the target of" / "can't be the target of" describe
+ * targeting BY something else, not a target this ability chooses.
+ */
+export function printedTargets(text: string): number {
+  const t = text.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/\b(?:the|a) targets? of\b/g, ' ').replace(/\bbecomes? the target\b/g, ' ');
+  return (t.match(/\btargets?\b/g) ?? []).length;
+}
+
 /** Whether anything in the face can turn the source into a creature (so a combat trigger on it is reachable). */
 function canBecomeCreature(face: ScriptFace | undefined, def: CardDef): boolean {
   if (def.types.includes('Creature') || def.types.includes('Kindred')) return true;
@@ -217,6 +227,32 @@ export function lintScript(script: CardScript, def: CardDef, tier: PoolTier = 'p
     }
 
     // --- covers -----------------------------------------------------------
+    // --- printed targets vs resolution-time choices (owner rule 2026-09-14; the 10.1.1 audit, HANDOFF section 11) ---
+    // A `choose-objects` standing in for a printed "target" is unfaithful: targets are chosen when the spell is cast or
+    // the ability is put on the stack and re-checked on resolution (CR 115.1, 601.2c, 608.2b), so hexproof, protection,
+    // "can't be the target" and "becomes the target" triggers all behave differently from a choice made on resolution.
+    // The rule is deliberately narrow — it fires only when the scope makes such a choice AND declares fewer TargetSpecs
+    // than its line prints "target" phrases — so an ability that targets one thing and legitimately lets a player
+    // choose another ("Target player chooses a creature ...") is not a problem. A modal ability is checked mode by
+    // mode: each printed mode line (`labels[i]`) against its own effects (`modes[i]`), the head line against the whole.
+    const chosenForTarget = (line: string, scope: unknown): void => {
+      const printed = printedTargets(line);
+      if (!printed) return;
+      let chooses = false; let declared = 0;
+      walk(scope, node => {
+        if (node.op === 'choose-objects') chooses = true;
+        if (node.target === true) declared++;                                                    // return-from-graveyard { target: true }
+        const kind = typeof node.kind === 'string' ? node.kind : undefined;
+        if (kind && kind !== 'multi' && TARGET_KIND_VOCAB.has(kind) && !CONDITION_VOCAB.has(kind) && !STATIC_VOCAB.has(kind) && !ABILITY_KINDS.has(kind)) declared++;
+      });
+      if (chooses && declared < printed) problems.push(`${where}${JSON.stringify(line)} prints "target" ${printed} time(s) but declares ${declared} TargetSpec(s) and chooses on resolution ('choose-objects'): targets are chosen when the ability is put on the stack (CR 115.1, 601.2c) — a resolution-time choice can pick a hexproof or protected object; use a TargetSpec`);
+    };
+    for (const a of face.abilities ?? []) {
+      chosenForTarget(String((a as { text?: unknown }).text ?? ''), a);
+      walk(a, node => {
+        if (Array.isArray(node.labels) && Array.isArray(node.modes)) node.labels.forEach((l, i) => { if (typeof l === 'string') chosenForTarget(l, (node.modes as unknown[])[i]); });
+      });
+    }
     for (const why of coverProblems(face)) problems.push(`${where}covers ${why}`);
   }
 
